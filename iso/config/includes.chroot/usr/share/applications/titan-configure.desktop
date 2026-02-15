@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Titan Configure
+Comment=TITAN V7.0 Configuration Wizard
+Exec=xfce4-terminal -e "titan-configure"
+Icon=preferences-system
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true

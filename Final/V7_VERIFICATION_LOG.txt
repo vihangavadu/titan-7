@@ -1,0 +1,163 @@
+
+  ████████╗██╗████████╗ █████╗ ███╗   ██╗
+  ╚══██╔══╝██║╚══██╔══╝██╔══██╗████╗  ██║
+     ██║   ██║   ██║   ███████║██╔██╗ ██║
+     ██║   ██║   ██║   ██╔══██║██║╚██╗██║
+     ██║   ██║   ██║   ██║  ██║██║ ╚████║
+     ╚═╝   ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝
+  V7.0.2 SINGULARITY — READINESS VERIFICATION
+
+  Repo root: /opt/titan (or titan-main/)
+  Chroot:    iso/config/includes.chroot
+
+════════════════════════════════════════════════════════════
+  1. SOURCE TREE INTEGRITY
+════════════════════════════════════════════════════════════
+  [PASS] core/genesis_core.py
+  [PASS] core/advanced_profile_generator.py
+  [PASS] core/cerberus_core.py
+  [PASS] core/cerberus_enhanced.py
+  [PASS] core/kill_switch.py
+  [PASS] core/fingerprint_injector.py
+  [PASS] core/ghost_motor_v6.py
+  [PASS] core/tls_parrot.py
+  [PASS] core/webgl_angle.py
+  [PASS] core/audio_hardener.py
+  [PASS] core/font_sanitizer.py
+  [PASS] core/timezone_enforcer.py
+  [PASS] core/lucid_vpn.py
+  [PASS] core/cockpit_daemon.py
+  [PASS] core/integration_bridge.py
+  [PASS] core/preflight_validator.py
+  [PASS] core/target_intelligence.py
+  [PASS] core/three_ds_strategy.py
+  [PASS] core/handover_protocol.py
+  [PASS] core/proxy_manager.py
+  [PASS] core/titan_env.py
+  [PASS] core/__init__.py
+  [PASS] core/hardware_shield_v6.c
+  [PASS] core/network_shield_v6.c
+  [PASS] core/network_jitter.py
+  [PASS] apps/app_unified.py
+  [PASS] apps/app_genesis.py
+  [PASS] apps/app_cerberus.py
+  [PASS] apps/app_kyc.py
+  [PASS] extensions/ghost_motor/ghost_motor.js
+  [PASS] extensions/ghost_motor/manifest.json
+
+════════════════════════════════════════════════════════════
+  2. GHOST MOTOR BEHAVIORAL ENGINE
+════════════════════════════════════════════════════════════
+  [PASS] Python backend: Bezier curve pathing
+  [PASS] Python backend: Micro-tremor hand shake
+  [PASS] Python backend: Overshoot simulation
+  [PASS] Python backend: Minimum-jerk velocity
+  [PASS] Python backend: Mid-path correction
+  [PASS] JS extension: JS Bezier curve function (bezierPoint)
+  [PASS] JS extension: JS micro-tremor config (microTremorAmplitude: 1.5)
+  [PASS] JS extension: JS overshoot probability (overshootProbability: 0.12)
+  [PASS] JS extension: JS keyboard dwell timing (dwellTimeBase: 85)
+  [PASS] JS extension: JS keyboard flight timing (flightTimeBase: 110)
+
+════════════════════════════════════════════════════════════
+  3. KILL SWITCH PANIC SEQUENCE
+════════════════════════════════════════════════════════════
+  [PASS] Step 0: Network sever (nftables DROP) — _sever_network
+  [PASS] Step 1: Browser kill — _kill_browser
+  [PASS] Step 2: Hardware ID flush (Netlink) — _flush_hardware_id
+  [PASS] Step 3: Session data clear — _clear_session_data
+  [PASS] Step 4: Proxy rotation — _rotate_proxy
+  [PASS] Step 5: MAC randomization — _randomize_mac
+  [PASS] Network restore (post-panic recovery) — _restore_network
+
+════════════════════════════════════════════════════════════
+  4. WEBRTC LEAK PROTECTION (4-LAYER CHECK)
+════════════════════════════════════════════════════════════
+  [PASS] fingerprint_injector: WebRTC disabled (media.peerconnection.enabled: False, locked)
+  [PASS] location_spoofer: WebRTC disabled (media.peerconnection.enabled: False)
+  [PASS] handover_protocol: WebRTC disabled (media.peerconnection.enabled: false)
+  [PASS] nftables: STUN/TURN ports blocked (udp 3478, 5349, 19302 → drop)
+
+════════════════════════════════════════════════════════════
+  5. CANVAS NOISE DETERMINISM
+════════════════════════════════════════════════════════════
+  [PASS] Seed derived from profile UUID (from_profile_uuid)
+  [PASS] SHA-256 hash for deterministic seed
+  [PASS] Perlin noise generator (PerlinNoise class)
+  [PASS] Deterministic seeding documented
+
+════════════════════════════════════════════════════════════
+  6. FIREWALL (nftables DEFAULT-DENY)
+════════════════════════════════════════════════════════════
+  [PASS] Chain 'input': policy drop
+  [PASS] Chain 'output': policy drop
+  [PASS] Chain 'forward': policy drop
+
+════════════════════════════════════════════════════════════
+  7. KERNEL HARDENING (sysctl)
+════════════════════════════════════════════════════════════
+  [PASS] IPv6 fully disabled (net.ipv6.conf.all.disable_ipv6 = 1)
+  [PASS] Full ASLR enabled (kernel.randomize_va_space = 2)
+  [PASS] Ptrace restricted (kernel.yama.ptrace_scope = 2)
+  [PASS] dmesg restricted (kernel.dmesg_restrict = 1)
+  [PASS] SYN cookies enabled (net.ipv4.tcp_syncookies = 1)
+  [PASS] eBPF JIT enabled (net.core.bpf_jit_enable = 1)
+
+════════════════════════════════════════════════════════════
+  8. SYSTEMD SERVICES
+════════════════════════════════════════════════════════════
+  [PASS] lucid-titan.service (V7.0 aligned)
+  [PASS] lucid-console.service (V7.0 aligned)
+  [PASS] lucid-ebpf.service (V7.0 aligned)
+  [PASS] titan-first-boot.service (V7.0 aligned)
+  [PASS] titan-dns.service (V7.0 aligned)
+
+════════════════════════════════════════════════════════════
+  9. PACKAGE LIST SANITY
+════════════════════════════════════════════════════════════
+  [PASS] Desktop: XFCE4 (lightweight)
+  [PASS] No gnome-core (removed per V7.0 plan)
+  [PASS] Package: nftables
+  [PASS] Package: unbound
+  [PASS] Package: libfaketime
+  [PASS] Package: rofi
+  [PASS] Package: dbus-x11
+
+════════════════════════════════════════════════════════════
+  10. ENVIRONMENT CONFIGURATION (titan.env)
+════════════════════════════════════════════════════════════
+  [PASS] TITAN_CLOUD_URL: configured
+  [WARN] TITAN_API_KEY: placeholder (operator must configure)
+  [PASS] TITAN_PROXY_PROVIDER: configured
+  [WARN] TITAN_VPN_SERVER_IP: placeholder (operator must configure)
+  [WARN] TITAN_VPN_UUID: placeholder (operator must configure)
+  [PASS] TITAN_EBPF_ENABLED: configured
+  [PASS] TITAN_HW_SHIELD_ENABLED: configured
+  [PASS] TITAN_PROFILES_DIR: configured
+  [PASS] TITAN_STATE_DIR: configured
+
+════════════════════════════════════════════════════════════
+  11. STALE VERSION SCAN (V6 in runtime code)
+════════════════════════════════════════════════════════════
+  [PASS] No stale V6 references in runtime code
+
+════════════════════════════════════════════════════════════
+  PASS: 67  |  FAIL: 0  |  WARN: 3  |  TOTAL: 70
+
+  >>> SYSTEM STATUS: OPERATIONAL <<<
+  Confidence: 95.7%  |  CLEARED FOR DEPLOYMENT
+════════════════════════════════════════════════════════════
+
+[!] WARNINGS (non-blocking — operator must configure before operation):
+  → TITAN_API_KEY: Set your vLLM Cloud Brain API key in /opt/titan/config/titan.env
+  → TITAN_VPN_SERVER_IP: Set your VPS relay IP in /opt/titan/config/titan.env
+  → TITAN_VPN_UUID: Set your Xray UUID in /opt/titan/config/titan.env
+
+[!] PRE-OPERATION CHECKLIST:
+  → Run titan-vpn-setup BEFORE browser launch
+  → Do NOT resize browser window manually
+  → Do NOT login to legacy/personal accounts
+  → Change default passwords: passwd root && passwd user && vncpasswd
+
+SYSTEM IS GREEN. OBLIVION MODE AUTHORIZED.
+DATE: 2026-02-14 | AUTHORITY: Dva.12 | V7.0.2 SINGULARITY

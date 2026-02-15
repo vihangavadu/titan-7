@@ -1,0 +1,13 @@
+#!/bin/bash
+# LUCID EMPIRE :: BROWSER LAUNCHER (LEGACY COMPATIBILITY)
+# AUTHORITY: Dva.12 | TITAN V5 FINAL
+#
+# This script provides legacy compatibility for the 'lucid-browser' command.
+# It now launches Standard Firefox ESR with the Hardware Shield.
+#
+# ARCHITECTURE: Naked Browser Protocol
+# - No forked browsers (no Camoufox)
+# - Standard binaries + OS-level deception
+# - LD_PRELOAD Hardware Shield for GPU/CPU spoofing
+
+exec /opt/lucid-empire/bin/lucid-firefox "$@"

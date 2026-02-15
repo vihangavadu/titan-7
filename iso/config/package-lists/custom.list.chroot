@@ -1,0 +1,255 @@
+# =============================================================================
+# TITAN V7.0 SINGULARITY - Package List (Debian 12 Bookworm)
+# =============================================================================
+# This package list defines all software required for the TITAN V7.0 architecture.
+# Base OS: Debian 12 (Bookworm) - Kernel 6.1 LTS
+# V6 Additions: scipy (DMTG), openai client (Cloud Brain), onnxruntime
+# V6.2 Additions: Intelligence modules (AVS, Visa Alerts, 3DS v2, PayPal Defense)
+# V7.0 Additions: Persona parameterization, fingerprint atomicity, version hygiene
+
+# --- Core System ---
+# standard  # tasksel task, not an apt package — base system handled by debootstrap
+# NOTE: live-boot/live-config are SKIPPED by build_vps_image.sh (VPS mode).
+#       They are only used by the legacy live ISO builder (build_iso.sh).
+live-boot
+live-config
+live-config-systemd
+# Desktop: XFCE4 (lightweight, low fingerprint surface, optimal for toram RAM-disk mode)
+# GNOME removed per V7.0 optimization plan — heavy memory footprint, accessibility leaks
+task-xfce-desktop
+xfce4-terminal
+lightdm
+lightdm-gtk-greeter
+network-manager
+openssh-server
+
+# Trinity Launcher (rofi-based app launcher for Super Key shortcut)
+rofi
+
+# --- Development Tools ---
+build-essential
+gcc
+git
+vim
+curl
+wget
+clang
+llvm
+cmake
+pkg-config
+libssl-dev
+libffi-dev
+# Hardware Shield compilation requires:
+libgl-dev
+mesa-common-dev
+libx11-dev
+
+# --- eBPF / XDP Tools (Kernel-Level Sovereignty) ---
+# Required for network packet manipulation at the NIC driver level
+# Source: [cite: 1, 14, 16]
+linux-headers-amd64
+bpfcc-tools
+libbpf-dev
+bpftrace
+iproute2
+
+# --- Python Environment ---
+python3
+python3-pip
+python3-venv
+python3-dev
+
+# --- Network Analysis & Manipulation ---
+tcpdump
+wireshark
+nmap
+netcat-openbsd
+dnsutils
+iptables
+nftables
+
+# --- Time Manipulation (Temporal Displacement) ---
+# libfaketime allows syscall-level time spoofing via LD_PRELOAD
+# Source: [cite: 1]
+libfaketime
+
+# --- Standard Browsers (TITAN V7.0 - Naked Browser Protocol) ---
+# Vanilla binaries with Ring-0 kernel-level deception (DKOM)
+# Hardware Shield intercepts system calls at kernel level, not the browser
+firefox-esr
+chromium
+# chromium-sandbox  # included in chromium package
+libgtk-3-0
+libdbus-glib-1-2
+libasound2
+libx11-xcb1
+libxtst6
+
+# --- Browser Profile Automation (Genesis Engine) ---
+# Playwright is pip-only, installed via hook (not in Debian repos)
+# python3-playwright
+
+# --- Process Isolation (Cgroups/Namespaces) ---
+# Source: [cite: 1]
+cgroup-tools
+systemd-container
+
+# --- Utilities ---
+jq
+sqlite3
+tree
+htop
+tmux
+gparted
+unzip
+p7zip-full
+
+# --- GUI Framework (PyQt6 for TITAN Console) ---
+python3-pyqt6
+# python3-pyqt6.qtwebengine  # may not exist in bookworm, install via pip if needed
+
+# --- Database & Storage (Firefox Profile Injection) ---
+# Required for LSNG storage manipulation
+libsnappy-dev
+python3-snappy
+
+# --- Cryptography & Hashing ---
+libsodium-dev
+python3-cryptography
+python3-nacl
+
+# --- Web Framework (Backend API & Console) ---
+# python3-fastapi  # not in Bookworm repos, installed via pip in hook
+# python3-uvicorn  # not in Bookworm repos, installed via pip in hook
+python3-requests
+python3-httpx
+python3-aiohttp
+python3-flask
+python3-jinja2
+
+# --- Font Management (Fingerprint Control) ---
+fontconfig
+fonts-liberation
+fonts-dejavu
+fonts-noto
+
+# --- Hardware ID Masking ---
+dmidecode
+lshw
+pciutils
+usbutils
+
+# --- Audio/Video (WebGL/AudioContext spoofing) ---
+libpulse0
+libopengl0
+libglx-mesa0
+mesa-utils
+ffmpeg
+v4l2loopback-dkms
+
+# --- Proxy / SOCKS Support ---
+proxychains4
+dante-client
+torsocks
+
+# --- Additional Security Tools ---
+apparmor
+firejail
+
+# --- Firmware (Hardware Compatibility) ---
+firmware-linux
+firmware-linux-nonfree
+firmware-misc-nonfree
+
+# --- Additional eBPF/BPF Tools ---
+bpftool
+libelf-dev
+zlib1g-dev
+
+# --- System Information ---
+inxi
+neofetch
+lsb-release
+
+# --- Compression Tools ---
+zstd
+lz4
+
+# --- Additional Python Packages ---
+python3-numpy
+python3-pillow
+python3-psutil
+python3-yaml
+python3-dateutil
+
+# --- Certificate Management ---
+ca-certificates
+ssl-cert
+
+# --- Desktop Integration ---
+zenity
+xdg-utils
+desktop-file-utils
+
+# --- Node.js (KYC 3D Renderer / npm deps) ---
+nodejs
+npm
+
+# --- Camoufox / Anti-Detect Browser Dependencies ---
+libgbm1
+libdrm2
+libxt6
+xvfb
+
+# --- Tkinter (Full TITAN Console GUI) ---
+python3-tk
+
+# --- Font Fingerprint Matching ---
+# ttf-mscorefonts-installer  # requires EULA acceptance, fails non-interactive builds
+
+# --- FastAPI Backend ---
+python3-pydantic
+
+# --- TITAN V7.0 Enhancement Packages ---
+
+# Network Behavioral Shaping (TC/NetEm residential wire signatures)
+# iproute2 already listed above — tc/netem are part of it
+
+# Waydroid Mobile Singularity
+# waydroid  # installed separately via waydroid.io repo (not in Bookworm)
+lxc
+python3-lxc
+
+# USB Peripheral Synthesis (GadgetFS/ConfigFS)
+# libcomposite and dummy_hcd are kernel modules, loaded at runtime
+usb-modeswitch
+
+# --- Live Session GUI Requirements ---
+# dbus-x11 required for PyQt6 to connect to session bus in live environment
+dbus-x11
+
+# V6: Cloud Brain + Local AI Fallback
+# Primary: Cloud vLLM (openai client installed via pip in hook)
+# Fallback: Ollama binary installed via hook
+# DMTG dependencies (scipy) installed via pip in hook
+
+# --- V6.2: Lucid VPN Dependencies ---
+# Xray-core installed via hook (not in Debian repos)
+# Tailscale installed via hook (curl installer)
+unbound
+unbound-anchor
+
+# --- V6: QUIC Proxy Dependencies ---
+# aioquic installed via pip (not in Debian repos)
+
+# --- V6: DKMS for Hardware Shield V6 (Netlink Injection) ---
+dkms
+
+# --- V7.0.2: VPS Deployment Packages ---
+# These are used by build_vps_image.sh for persistent disk deployments.
+# cloud-guest-utils  # installed by VPS builder only (not in Debian live repos)
+# qemu-guest-agent   # installed by VPS builder only
+# tigervnc-standalone-server  # installed by VPS builder for headless GUI
+acpid
+ifupdown
+e2fsprogs

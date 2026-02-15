@@ -1,0 +1,15 @@
+[Unit]
+Description=TITAN V7.0 SINGULARITY Backend Services (Kernel Shields + Profile Manager)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/lucid-empire/bin/titan-backend-init.sh
+ExecStop=/sbin/rmmod titan_hw 2>/dev/null ; /sbin/rmmod titan_battery 2>/dev/null ; true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

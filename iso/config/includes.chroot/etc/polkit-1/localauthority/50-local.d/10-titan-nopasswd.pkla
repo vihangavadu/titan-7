@@ -1,0 +1,6 @@
+[Titan Operations - No Password]
+Identity=unix-user:user
+Action=org.freedesktop.systemd1.manage-units;org.freedesktop.NetworkManager.*;org.freedesktop.ModemManager1.*;org.freedesktop.login1.*
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes

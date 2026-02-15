@@ -1,0 +1,21 @@
+# Cerberus Key Harvester Target URLs
+# Add legitimate storefronts and donation sites here
+# One URL per line
+
+# Shopify storefronts (replace with actual targets)
+https://example-shop.myshopify.com
+https://store.example.com
+https://shop.example.org
+
+# Donation platforms
+https://donate.example.org
+https://charity.example.com/donate
+https://fundraising.example.net
+
+# Payment form targets
+https://checkout.example.com
+https://payment.example.com
+https://secure.example.org/pay
+
+# Additional targets can be added here
+# Ensure targets have public payment forms with visible API keys

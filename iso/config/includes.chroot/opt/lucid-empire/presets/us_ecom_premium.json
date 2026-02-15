@@ -1,0 +1,84 @@
+{
+  "preset_name": "US E-Commerce Premium",
+  "preset_id": "us_ecom_premium_v1",
+  "description": "High-trust US consumer profile for premium e-commerce platforms (Amazon, eBay, Target)",
+  "version": "1.0.0",
+  
+  "identity": {
+    "locale": "en-US",
+    "timezone": "America/New_York",
+    "language": "en-US,en;q=0.9",
+    "country_code": "US",
+    "currency": "USD"
+  },
+  
+  "device": {
+    "platform": "Win32",
+    "os_family": "Windows",
+    "os_version": "10.0",
+    "architecture": "x86_64",
+    "device_memory": 16,
+    "hardware_concurrency": 8,
+    "max_touch_points": 0,
+    "screen": {
+      "width": 1920,
+      "height": 1080,
+      "color_depth": 24,
+      "pixel_ratio": 1.0,
+      "available_width": 1920,
+      "available_height": 1040
+    }
+  },
+  
+  "browser": {
+    "type": "chrome",
+    "vendor": "Google Inc.",
+    "user_agent_template": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_version} Safari/537.36",
+    "chrome_version_range": ["129.0.0.0", "132.0.0.0"],
+    "accept_header": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "accept_encoding": "gzip, deflate, br",
+    "accept_language": "en-US,en;q=0.9"
+  },
+  
+  "webgl": {
+    "vendor": "Google Inc. (NVIDIA)",
+    "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)"
+  },
+  
+  "tls": {
+    "profile": "chrome_131",
+    "ja4_fingerprint": "t13d1517h2_8daaf6152771_b0da82dd1658"
+  },
+  
+  "network": {
+    "tcp_profile": "windows",
+    "ttl": 128,
+    "window_size": 65535,
+    "mss": 1460
+  },
+  
+  "behavioral": {
+    "mouse_speed_range": [0.8, 1.2],
+    "click_delay_range": [80, 200],
+    "typing_wpm_range": [45, 75],
+    "ghost_motor_enabled": true
+  },
+  
+  "commerce": {
+    "trust_level": "premium",
+    "payment_methods": ["stripe", "paypal"],
+    "browser_age_days_min": 90,
+    "history_entries_min": 500
+  },
+  
+  "history_seed": {
+    "categories": ["shopping", "news", "social", "entertainment", "finance"],
+    "domains": [
+      "amazon.com", "ebay.com", "walmart.com", "target.com",
+      "cnn.com", "nytimes.com", "bbc.com",
+      "facebook.com", "twitter.com", "instagram.com",
+      "youtube.com", "netflix.com", "spotify.com",
+      "chase.com", "bankofamerica.com"
+    ]
+  }
+}

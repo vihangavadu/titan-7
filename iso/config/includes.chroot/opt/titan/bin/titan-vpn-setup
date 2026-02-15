@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""
+TITAN V7.0 SINGULARITY - Lucid VPN Setup Wizard
+First-time configuration for the Lucid VPN zero-signature network
+
+Usage:
+    titan-vpn-setup              # Interactive wizard
+    titan-vpn-setup --status     # Show current VPN status
+    titan-vpn-setup --connect    # Connect VPN
+    titan-vpn-setup --disconnect # Disconnect VPN
+    titan-vpn-setup --test       # Run connection validation
+"""
+
+import sys
+import os
+import json
+import argparse
+
+# Add core library
+sys.path.insert(0, "/opt/titan/core")
+
+from lucid_vpn import (
+    LucidVPN, VPNConfig, VPNMode, VPNStatus, ExitNodeType,
+    VPS_PROVIDERS, REALITY_SNI_TARGETS, TCP_FINGERPRINTS,
+    VPN_CONFIG_DIR,
+)
+
+
+BANNER = """
+╔═══════════════════════════════════════════════════════════════╗
+║          TITAN V7.0 — LUCID VPN SETUP WIZARD                ║
+║     Zero-Signature Residential Network Emulation System      ║
+╚═══════════════════════════════════════════════════════════════╝
+"""
+
+
+def print_status(vpn: LucidVPN):
+    """Print current VPN status"""
+    state = vpn.get_state()
+    mode_str = state.mode.value.upper()
+    status_str = state.status.value.upper()
+    
+    color = "\033[92m" if state.status == VPNStatus.CONNECTED else "\033[91m"
+    reset = "\033[0m"
+    
+    print(f"\n{'='*50}")
+    print(f"  LUCID VPN STATUS")
+    print(f"{'='*50}")
+    print(f"  Mode:       {mode_str}")
+    print(f"  Status:     {color}{status_str}{reset}")
+    print(f"  Exit IP:    {state.exit_ip or 'N/A'}")
+    print(f"  Exit ISP:   {state.exit_isp or 'N/A'}")
+    print(f"  Tailscale:  {'Connected' if state.tailscale_connected else 'Not connected'}")
+    print(f"  DNS Secure: {'Yes' if state.dns_secure else 'No'}")
+    print(f"  TCP Spoof:  {'Active' if state.tcp_spoofed else 'Inactive'}")
+    print(f"  Latency:    {state.latency_ms:.0f}ms")
+    if state.error_message:
+        print(f"  Error:      {state.error_message}")
+    print(f"{'='*50}\n")
+    
+    if state.status == VPNStatus.CONNECTED:
+        print(f"  Browser proxy: socks5://127.0.0.1:10808")
+        print(f"  HTTP proxy:    http://127.0.0.1:10809")
+
+
+def interactive_setup():
+    """Interactive VPN setup wizard"""
+    print(BANNER)
+    
+    vpn = LucidVPN()
+    existing = vpn.load_config()
+    
+    if existing and vpn.is_configured():
+        print("[*] Existing VPN configuration found.")
+        choice = input("    Reconfigure? (y/N): ").strip().lower()
+        if choice != "y":
+            print("[*] Keeping existing config.")
+            return
+    
+    config = VPNConfig()
+    
+    # Step 1: VPS Relay
+    print("\n" + "="*50)
+    print("  STEP 1: VPS RELAY SERVER")
+    print("="*50)
+    print("\n  Recommended privacy-haven VPS providers:")
+    for key, provider in VPS_PROVIDERS.items():
+        print(f"    - {provider['name']} ({provider['jurisdiction']}) — {provider['notes'][:60]}")
+    
+    config.vps_address = input("\n  VPS IP address: ").strip()
+    port_input = input("  VPS port [443]: ").strip()
+    config.vps_port = int(port_input) if port_input else 443
+    
+    # Step 2: Xray VLESS + Reality
+    print("\n" + "="*50)
+    print("  STEP 2: XRAY (VLESS + REALITY) CREDENTIALS")
+    print("="*50)
+    print("\n  Get these from your VPS Xray server config.")
+    print("  Generate keys with: xray x25519")
+    
+    config.xray_uuid = input("\n  VLESS UUID: ").strip()
+    config.xray_public_key = input("  Reality Public Key: ").strip()
+    config.xray_short_id = input("  Reality Short ID (8 hex chars): ").strip()
+    
+    print("\n  SNI target (domain to masquerade as):")
+    for i, sni in enumerate(REALITY_SNI_TARGETS):
+        print(f"    [{i}] {sni}")
+    sni_choice = input(f"  Choice [0={REALITY_SNI_TARGETS[0]}]: ").strip()
+    config.sni_target = REALITY_SNI_TARGETS[int(sni_choice)] if sni_choice.isdigit() else REALITY_SNI_TARGETS[0]
+    
+    # Step 3: Exit Node
+    print("\n" + "="*50)
+    print("  STEP 3: EXIT NODE (RESIDENTIAL/MOBILE)")
+    print("="*50)
+    print("\n  Options:")
+    print("    [1] Residential exit (Raspberry Pi / PC on home internet)")
+    print("    [2] Mobile 4G/5G exit (USB modem / phone hotspot)")
+    print("    [3] VPS direct (no residential exit — lower trust)")
+    
+    exit_choice = input("\n  Choice [1]: ").strip()
+    
+    if exit_choice == "2":
+        config.exit_node_type = ExitNodeType.MOBILE
+        config.mode = VPNMode.MOBILE_VPN
+        config.spoof_ttl = 64  # Android
+        config.mss_clamp = 1360  # Mobile MTU
+        print("\n  TCP/IP fingerprint: Android Mobile (TTL=64, MSS=1360)")
+    elif exit_choice == "3":
+        config.exit_node_type = ExitNodeType.DATACENTER
+        config.mode = VPNMode.LUCID_VPN
+        print("\n  WARNING: VPS direct = datacenter IP. Lower trust score.")
+    else:
+        config.exit_node_type = ExitNodeType.RESIDENTIAL
+        config.mode = VPNMode.LUCID_VPN
+        config.spoof_ttl = 128  # Windows 11
+        config.mss_clamp = 1380  # Residential MTU
+        print("\n  TCP/IP fingerprint: Windows 11 Desktop (TTL=128, MSS=1380)")
+    
+    if exit_choice in ("1", "2", ""):
+        print("\n  Tailscale connects your VPS to your residential/mobile exit.")
+        print("  Install Tailscale on both VPS and exit device.")
+        print("  On exit device run: tailscale up --advertise-exit-node")
+        config.exit_node_ip = input("\n  Exit node Tailscale IP (e.g. 100.x.y.z): ").strip()
+        config.tailscale_auth_key = input("  Tailscale auth key (optional): ").strip()
+    
+    # Step 4: DNS
+    print("\n" + "="*50)
+    print("  STEP 4: DNS CONFIGURATION")
+    print("="*50)
+    print("\n  [1] Local resolver (unbound — recommended)")
+    print("  [2] Quad9 (9.9.9.9) + Cloudflare (1.1.1.1)")
+    
+    dns_choice = input("\n  Choice [1]: ").strip()
+    config.use_local_resolver = dns_choice != "2"
+    
+    # Save
+    vpn.save_config(config)
+    
+    print("\n" + "="*50)
+    print("  CONFIGURATION SAVED")
+    print("="*50)
+    print(f"\n  Config file: {VPN_CONFIG_DIR / 'config.json'}")
+    print(f"  VPS:         {config.vps_address}:{config.vps_port}")
+    print(f"  SNI:         {config.sni_target}")
+    print(f"  Exit:        {config.exit_node_type.value}")
+    print(f"  Mode:        {config.mode.value}")
+    
+    connect = input("\n  Connect now? (Y/n): ").strip().lower()
+    if connect != "n":
+        print("\n  Connecting Lucid VPN...")
+        state = vpn.connect()
+        print_status(vpn)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="TITAN V7.0 Lucid VPN Setup")
+    parser.add_argument("--status", action="store_true", help="Show VPN status")
+    parser.add_argument("--connect", action="store_true", help="Connect VPN")
+    parser.add_argument("--disconnect", action="store_true", help="Disconnect VPN")
+    parser.add_argument("--test", action="store_true", help="Run validation tests")
+    args = parser.parse_args()
+    
+    vpn = LucidVPN()
+    vpn.load_config()
+    
+    if args.status:
+        print_status(vpn)
+    elif args.connect:
+        if not vpn.is_configured():
+            print("[!] VPN not configured. Run: titan-vpn-setup")
+            sys.exit(1)
+        print("[*] Connecting Lucid VPN...")
+        vpn.connect()
+        print_status(vpn)
+    elif args.disconnect:
+        print("[*] Disconnecting Lucid VPN...")
+        vpn.disconnect()
+        print_status(vpn)
+    elif args.test:
+        if vpn.get_state().status != VPNStatus.CONNECTED:
+            print("[!] VPN not connected. Run: titan-vpn-setup --connect")
+            sys.exit(1)
+        results = vpn.validate_full()
+        print("\n  VALIDATION RESULTS:")
+        for key, val in results.items():
+            status = "✓" if val is True else ("✗" if val is False else str(val))
+            print(f"    {key}: {status}")
+    else:
+        interactive_setup()
+
+
+if __name__ == "__main__":
+    main()

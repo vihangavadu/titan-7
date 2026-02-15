@@ -1,0 +1,147 @@
+#!/bin/bash
+# LUCID EMPIRE :: CHROMIUM LAUNCHER (SHIELDED)
+# AUTHORITY: Dva.12 | TITAN V5 FINAL
+# PURPOSE: Launch Standard Chromium with Hardware Shield + Profile Grafting
+
+set -e
+
+LUCID_ROOT="/opt/lucid-empire"
+PROFILES_DIR="$LUCID_ROOT/profiles"
+ACTIVE_PROFILE="$PROFILES_DIR/active"
+
+# ============================================================================
+# ARGUMENT PARSING
+# ============================================================================
+PROFILE_NAME=""
+URL=""
+DEBUG_MODE=0
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -p|--profile)
+            PROFILE_NAME="$2"
+            shift 2
+            ;;
+        -d|--debug)
+            DEBUG_MODE=1
+            shift
+            ;;
+        -h|--help)
+            echo "LUCID Chromium Launcher (No-Fork Edition)"
+            echo ""
+            echo "Usage: lucid-chromium [OPTIONS] [URL]"
+            echo ""
+            echo "Options:"
+            echo "  -p, --profile NAME    Use specific profile (default: active)"
+            echo "  -d, --debug           Enable debug output"
+            echo "  -h, --help            Show this help"
+            exit 0
+            ;;
+        *)
+            URL="$1"
+            shift
+            ;;
+    esac
+done
+
+# ============================================================================
+# PROFILE RESOLUTION
+# ============================================================================
+if [[ -n "$PROFILE_NAME" ]]; then
+    PROFILE_PATH="$PROFILES_DIR/$PROFILE_NAME"
+    if [[ ! -d "$PROFILE_PATH" ]]; then
+        echo "[ERROR] Profile not found: $PROFILE_NAME"
+        exit 1
+    fi
+else
+    PROFILE_PATH="$ACTIVE_PROFILE"
+fi
+
+if [[ ! -d "$PROFILE_PATH" ]]; then
+    echo "[ERROR] No active profile. Run Genesis Engine first."
+    exit 1
+fi
+
+# Chromium profile subdirectory
+CHROMIUM_PROFILE="$PROFILE_PATH/chromium_profile"
+mkdir -p "$CHROMIUM_PROFILE"
+
+# ============================================================================
+# ENVIRONMENT SETUP: THE HARDWARE SHIELD
+# ============================================================================
+export LUCID_PROFILE_PATH="$PROFILE_PATH"
+
+# Load hardware configuration
+if [[ -f "$PROFILE_PATH/hardware.conf" ]]; then
+    source "$PROFILE_PATH/hardware.conf" 2>/dev/null || true
+fi
+
+# Screen resolution spoofing
+export LUCID_SCREEN_WIDTH="${SCREEN_WIDTH:-1920}"
+export LUCID_SCREEN_HEIGHT="${SCREEN_HEIGHT:-1080}"
+
+# Timezone binding
+if [[ -f "$PROFILE_PATH/timezone" ]]; then
+    export TZ=$(cat "$PROFILE_PATH/timezone")
+fi
+
+# Locale binding
+if [[ -f "$PROFILE_PATH/locale" ]]; then
+    export LANG=$(cat "$PROFILE_PATH/locale")
+    export LC_ALL=$(cat "$PROFILE_PATH/locale")
+fi
+
+# Debug mode
+if [[ $DEBUG_MODE -eq 1 ]]; then
+    export LUCID_DEBUG=1
+    echo "[LUCID] Profile: $PROFILE_PATH"
+    echo "[LUCID] Timezone: $TZ"
+    echo "[LUCID] Hardware Shield: ACTIVE"
+fi
+
+# ============================================================================
+# LD_PRELOAD: THE CORE DECEPTION
+# ============================================================================
+HARDWARE_SHIELD="$LUCID_ROOT/lib/libhardwareshield.so"
+
+if [[ -f "$HARDWARE_SHIELD" ]]; then
+    export LD_PRELOAD="$HARDWARE_SHIELD"
+fi
+
+# ============================================================================
+# CHROMIUM LAUNCH: HARDENED FLAGS
+# ============================================================================
+CHROMIUM_ARGS=(
+    "--user-data-dir=$CHROMIUM_PROFILE"
+    "--no-first-run"
+    "--no-default-browser-check"
+    # Disable features that leak information
+    "--disable-background-networking"
+    "--disable-client-side-phishing-detection"
+    "--disable-default-apps"
+    "--disable-extensions-http-throttling"
+    "--disable-hang-monitor"
+    "--disable-popup-blocking"
+    "--disable-prompt-on-repost"
+    "--disable-sync"
+    "--disable-translate"
+    # Disable crash reporting
+    "--disable-breakpad"
+    "--disable-crash-reporter"
+    # WebRTC IP leak prevention
+    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"
+    # GPU Fingerprinting - let Hardware Shield handle it
+    "--ignore-gpu-blocklist"
+    # Consistent window size
+    "--window-size=${LUCID_SCREEN_WIDTH},${LUCID_SCREEN_HEIGHT}"
+)
+
+# Add URL if provided
+[[ -n "$URL" ]] && CHROMIUM_ARGS+=("$URL")
+
+# ============================================================================
+# EXECUTION
+# ============================================================================
+[[ $DEBUG_MODE -eq 1 ]] && echo "[LUCID] Launching: chromium ${CHROMIUM_ARGS[*]}"
+
+exec chromium "${CHROMIUM_ARGS[@]}"

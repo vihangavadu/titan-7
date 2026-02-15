@@ -1,0 +1,45 @@
+name: Build Titan ISO
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            live-build debootstrap squashfs-tools xorriso isolinux syslinux-utils
+
+      - name: Make scripts executable
+        run: |
+          chmod +x build_final.sh || true
+          chmod +x finalize_titan_oblivion.sh || true
+
+      - name: Run final fusion build
+        run: |
+          set -e
+          ./build_final.sh
+
+      - name: Upload ISO artifact
+        if: success() && (exists('iso/live-image-amd64.hybrid.iso') || exists('iso/live-image-amd64.iso'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: titan-iso
+          path: |
+            iso/live-image-amd64.hybrid.iso
+            iso/live-image-amd64.iso
+
+      - name: Upload build log
+        if: success() && steps.run-final.outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: titan_v7_final.log

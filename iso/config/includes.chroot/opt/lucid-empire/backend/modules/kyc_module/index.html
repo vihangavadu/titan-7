@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucid Titan | KYC 3D Renderer</title>
+    <style>
+        body { margin: 0; background-color: #1a1a1a; color: #00ff00; font-family: monospace; overflow: hidden; }
+        #info { position: absolute; top: 10px; width: 100%; text-align: center; pointer-events: none; }
+        canvas { display: block; }
+        #controls { position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 10px; border: 1px solid #00ff00; }
+        button { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 5px 10px; cursor: pointer; margin-right: 5px; }
+        button:hover { background: #003300; }
+    </style>
+    <!-- Import Map for Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./node_modules/three/build/three.module.js"
+            }
+        }
+    </script>
+    <!-- Load QWebChannel -->
+    <script src="qwebchannel.js"></script>
+</head>
+<body>
+    <div id="info">LUCID TITAN V5 :: 3D IDENTITY SYNTHESIS<br>Gyroscope: <span id="gyro-status">Waiting...</span></div>
+    <div id="controls">
+        <button id="btn-start">Start Stream</button>
+        <button id="btn-stop">Stop Stream</button>
+        <button id="btn-load">Load Kernel Mod</button>
+    </div>
+    <canvas id="kycCanvas"></canvas>
+
+    <script type="module">
+        import { IDRenderer } from './renderer_3d.js';
+
+        // Initialize Renderer
+        const renderer = new IDRenderer('kycCanvas');
+
+        // Initialize QWebChannel
+        let backend = null;
+        
+        if (typeof qt !== 'undefined') {
+            new QWebChannel(qt.webChannelTransport, (channel) => {
+                backend = channel.objects.backend;
+                console.log("Connected to Python Backend");
+                
+                // Connect signal
+                backend.statusChanged.connect((msg) => {
+                    console.log("BACKEND:", msg);
+                    const info = document.getElementById('info');
+                    info.innerHTML += `<br><span style="color:cyan">[LOG] ${msg}</span>`;
+                });
+            });
+        } else {
+            console.warn("Qt WebChannel Transport not found. Running in browser mode?");
+        }
+
+        // Control Logic
+        document.getElementById('btn-load').addEventListener('click', () => {
+            if (backend) backend.load_module();
+            else alert("Backend not connected");
+        });
+
+        document.getElementById('btn-start').addEventListener('click', () => {
+            if (backend) backend.start_stream();
+            else alert("Backend not connected");
+        });
+
+        document.getElementById('btn-stop').addEventListener('click', () => {
+            if (backend) backend.stop_stream();
+            else alert("Backend not connected");
+        });
+
+        // Gyro Status
+        window.addEventListener('deviceorientation', (e) => {
+            document.getElementById('gyro-status').innerText = 
+                `Alpha: ${e.alpha?.toFixed(1)} | Beta: ${e.beta?.toFixed(1)} | Gamma: ${e.gamma?.toFixed(1)}`;
+        });
+    </script>
+</body>
+</html>

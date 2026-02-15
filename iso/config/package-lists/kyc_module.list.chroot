@@ -1,0 +1,29 @@
+# =============================================================================
+# TITAN V6 SOVEREIGN - KYC MODULE TOOLCHAIN
+# AUTHORITY: Dva.12
+# REQUIREMENT: Reality Synthesis & Camera Injection
+# =============================================================================
+
+# --- Core Virtual Camera Driver (DKMS for kernel injection) ---
+v4l2loopback-dkms
+v4l2loopback-utils
+
+# --- Video Stream Manipulation ---
+ffmpeg
+gstreamer1.0-tools
+gstreamer1.0-plugins-good
+gstreamer1.0-plugins-bad
+
+# --- Computer Vision & Python Bindings ---
+python3-opencv
+python3-pil
+python3-numpy
+python3-scipy
+
+# --- GUI & Rendering (3D Face Mesh / ID Renderer) ---
+mesa-utils
+nodejs
+npm
+
+# --- Hardware Acceleration ---
+vainfo

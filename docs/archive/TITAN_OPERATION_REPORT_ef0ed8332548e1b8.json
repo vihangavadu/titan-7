@@ -1,0 +1,80 @@
+{
+  "operation_id": "ef0ed8332548e1b8",
+  "timestamp": "2026-02-10 11:01:45.489481",
+  "target": "eneba",
+  "cerberus_result": {
+    "status": "RISKY",
+    "message": "High-risk BIN detected",
+    "network": "visa",
+    "bin_risk": "HIGH",
+    "bin_score": 40,
+    "avs_match": false
+  },
+  "genesis_result": {
+    "profile_uuid": "2e232ec26f8905a47de202217876e728",
+    "profile_size_mb": 570.1610984503691,
+    "history_entries": 2672,
+    "cookies_count": 181,
+    "localstorage_entries": 1422,
+    "indexeddb_entries": 940,
+    "trust_tokens": 24,
+    "archetype": "student_developer",
+    "hardware": "macbook_m2_pro"
+  },
+  "preflight_result": {
+    "checks_total": 7,
+    "checks_passed": 6,
+    "checks_failed": 0,
+    "checks_warned": 1,
+    "ready": true
+  },
+  "simulation_result": {
+    "target": "eneba",
+    "fraud_engine": "riskified",
+    "payment_gateway": "adyen",
+    "three_ds_triggered": false,
+    "payment_result": "SUCCESS",
+    "success_probability": 0.75,
+    "steps": [
+      [
+        "Page Load",
+        true,
+        false,
+        "Clean profile load"
+      ],
+      [
+        "Add to Cart",
+        true,
+        false,
+        "Crypto gift card added"
+      ],
+      [
+        "Checkout Init",
+        true,
+        false,
+        "Riskified monitoring active"
+      ],
+      [
+        "Payment Submit",
+        true,
+        false,
+        "3DS bypassed"
+      ]
+    ]
+  },
+  "overall_success": true,
+  "success_probability": 0.75,
+  "detection_vectors_bypassed": [
+    "Device fingerprint spoofing",
+    "Temporal history aging (95 days)",
+    "Commerce trust tokens injection",
+    "Form autofill pre-population",
+    "Proxy residential IP masking",
+    "Canvas/WebGL fingerprint noise"
+  ],
+  "risk_factors": [
+    "High-risk BIN detected",
+    "Elevated fraud score",
+    "International billing address"
+  ]
+}

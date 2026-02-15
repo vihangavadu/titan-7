@@ -1,0 +1,262 @@
+
+═══════════════════════════════════════════════════════════
+  TITAN V7.0 POST-BUILD VERIFIER
+═══════════════════════════════════════════════════════════
+  Root: /root/Downloads/titan-main/iso/config/includes.chroot
+  Time: Sun Feb 15 01:42:13 PM UTC 2026
+═══════════════════════════════════════════════════════════
+  1/15 — TITAN CORE MODULES
+═══════════════════════════════════════════════════════════
+  [PASS] core/genesis_core.py
+  [PASS] core/advanced_profile_generator.py
+  [PASS] core/purchase_history_engine.py
+  [PASS] core/cerberus_core.py
+  [PASS] core/cerberus_enhanced.py
+  [PASS] core/kyc_core.py
+  [PASS] core/kyc_enhanced.py
+  [PASS] core/integration_bridge.py
+  [PASS] core/preflight_validator.py
+  [PASS] core/target_intelligence.py
+  [PASS] core/target_presets.py
+  [PASS] core/fingerprint_injector.py
+  [PASS] core/form_autofill_injector.py
+  [PASS] core/referrer_warmup.py
+  [PASS] core/handover_protocol.py
+  [PASS] core/kill_switch.py
+  [PASS] core/font_sanitizer.py
+  [PASS] core/audio_hardener.py
+  [PASS] core/timezone_enforcer.py
+  [PASS] core/verify_deep_identity.py
+  [PASS] core/titan_master_verify.py
+  [PASS] core/ghost_motor_v6.py
+  [PASS] core/cognitive_core.py
+  [PASS] core/quic_proxy.py
+  [PASS] core/proxy_manager.py
+  [PASS] core/three_ds_strategy.py
+  [PASS] core/lucid_vpn.py
+  [PASS] core/location_spoofer_linux.py
+  [PASS] core/generate_trajectory_model.py
+  [PASS] core/titan_env.py
+  [PASS] core/tls_parrot.py
+  [PASS] core/webgl_angle.py
+  [PASS] core/network_jitter.py
+  [PASS] core/immutable_os.py
+  [PASS] core/cockpit_daemon.py
+  [PASS] core/waydroid_sync.py
+  [PASS] core/__init__.py
+  [PASS] hardware_shield_v6.c (C)
+  [PASS] network_shield_v6.c (C)
+  [PASS] Core Makefile
+  [WARN] build_ebpf.sh (not +x)
+═══════════════════════════════════════════════════════════
+  2/15 — GUI APPLICATIONS
+═══════════════════════════════════════════════════════════
+  [PASS] Unified Operation Center
+  [PASS] Genesis Engine GUI
+  [PASS] Cerberus Intelligence GUI
+  [PASS] KYC Reality Synthesis GUI
+═══════════════════════════════════════════════════════════
+  3/15 — LAUNCHERS & BIN SCRIPTS
+═══════════════════════════════════════════════════════════
+  [WARN] bin/titan-browser (not +x)
+  [WARN] bin/titan-launcher (not +x)
+  [WARN] bin/titan-first-boot (not +x)
+  [WARN] bin/install-to-disk (not +x)
+  [WARN] bin/titan-test (not +x)
+  [WARN] bin/titan-vpn-setup (not +x)
+═══════════════════════════════════════════════════════════
+  4/15 — EXTENSIONS
+═══════════════════════════════════════════════════════════
+  [PASS] Ghost Motor JS
+  [PASS] Ghost Motor Manifest
+═══════════════════════════════════════════════════════════
+  5/15 — TESTING FRAMEWORK
+═══════════════════════════════════════════════════════════
+  [PASS] testing/__init__.py
+  [PASS] testing/test_runner.py
+  [PASS] testing/detection_emulator.py
+  [PASS] testing/titan_adversary_sim.py
+  [PASS] testing/environment.py
+  [PASS] testing/psp_sandbox.py
+  [PASS] testing/report_generator.py
+═══════════════════════════════════════════════════════════
+  6/15 — VPN INFRASTRUCTURE
+═══════════════════════════════════════════════════════════
+  [PASS] Xray Client Config
+  [PASS] Xray Server Config
+  [WARN] VPS Relay Setup (not +x)
+  [WARN] Exit Node Setup (not +x)
+═══════════════════════════════════════════════════════════
+  7/15 — CONFIGURATION & STATE
+═══════════════════════════════════════════════════════════
+  [PASS] titan.env
+  [PASS] State dir
+  [FAIL] Profiles dir
+  [PASS] Motion assets dir
+═══════════════════════════════════════════════════════════
+  8/15 — LUCID-EMPIRE BACKEND
+═══════════════════════════════════════════════════════════
+  [WARN] Main Launcher (not +x)
+  [PASS] backend/server.py
+  [PASS] backend/lucid_api.py
+  [PASS] backend/lucid_commander.py
+  [PASS] backend/lucid_manager.py
+  [PASS] backend/profile_manager.py
+  [PASS] backend/warming_engine.py
+  [PASS] backend/zero_detect.py
+  [PASS] backend/genesis_engine.py
+  [PASS] backend/firefox_injector.py
+  [PASS] backend/firefox_injector_v2.py
+  [PASS] backend/commerce_injector.py
+  [PASS] backend/blacklist_validator.py
+  [PASS] backend/handover_protocol.py
+  [PASS] backend/__init__.py
+  [PASS] backend/core/__init__.py
+  [PASS] backend/core/genesis_engine.py
+  [PASS] backend/core/profile_store.py
+  [PASS] backend/core/cortex.py
+  [PASS] backend/core/ebpf_loader.py
+  [PASS] backend/core/bin_finder.py
+  [PASS] backend/core/font_config.py
+  [PASS] backend/core/time_displacement.py
+  [PASS] backend/core/time_machine.py
+  [PASS] backend/modules/__init__.py
+  [PASS] backend/modules/ghost_motor.py
+  [PASS] backend/modules/fingerprint_manager.py
+  [PASS] backend/modules/biometric_mimicry.py
+  [PASS] backend/modules/canvas_noise.py
+  [PASS] backend/modules/commerce_injector.py
+  [PASS] backend/modules/commerce_vault.py
+  [PASS] backend/modules/humanization.py
+  [PASS] backend/modules/location_spoofer.py
+  [PASS] backend/modules/tls_masquerade.py
+  [PASS] backend/modules/ai_assistant.py
+  [PASS] backend/modules/firefox_injector.py
+  [PASS] backend/modules/firefox_injector_v2.py
+  [PASS] cerberus/__init__.py
+  [PASS] cerberus/harvester.py
+  [PASS] cerberus/validator.py
+  [PASS] cerberus/ai_analyst.py
+  [PASS] kyc_module/__init__.py
+  [PASS] kyc_module/app.py
+  [PASS] kyc_module/camera_injector.py
+  [PASS] kyc_module/reenactment_engine.py
+  [PASS] kyc_module/renderer_3d.js
+  [PASS] kyc_module/package.json
+═══════════════════════════════════════════════════════════
+  9/15 — LUCID-EMPIRE INFRASTRUCTURE
+═══════════════════════════════════════════════════════════
+  [WARN] Backend Init (not +x)
+  [WARN] eBPF Loader (not +x)
+  [PASS] HW Profile Generator
+  [PASS] Kernel Masking Validator
+  [PASS] eBPF Network Shield (C)
+  [PASS] eBPF TCP Fingerprint (C)
+  [PASS] eBPF Python Loader
+  [PASS] Hardware Shield (legacy C)
+  [PASS] Hardware Shield Makefile
+  [PASS] BIN Database
+═══════════════════════════════════════════════════════════
+  10/15 — SYSTEMD SERVICES
+═══════════════════════════════════════════════════════════
+  [PASS] Backend Service
+  [PASS] eBPF Service
+  [PASS] GUI Console Service
+  [PASS] First Boot Service
+  [PASS] lucid-titan.service → titan-backend-init (ExecStart OK)
+  [PASS] lucid-ebpf.service → load-ebpf (ExecStart OK)
+  [PASS] lucid-console.service → app_unified (ExecStart OK)
+  [PASS] titan-first-boot.service → titan-first-boot (ExecStart OK)
+═══════════════════════════════════════════════════════════
+  11/15 — DESKTOP ENTRIES & AUTOSTART
+═══════════════════════════════════════════════════════════
+  [PASS] Operation Center Desktop Icon
+  [PASS] Titan Browser Desktop Icon
+  [PASS] Install to Disk Desktop Icon
+  [PASS] XDG Autostart (GUI on login)
+  [PASS] titan-unified.desktop Exec → app_unified.py
+  [PASS] titan-browser.desktop Exec → titan-browser
+═══════════════════════════════════════════════════════════
+  12/15 — BUILD HOOKS
+═══════════════════════════════════════════════════════════
+  [WARN] 050-hardware-shield.hook.chroot (not +x)
+  [WARN] 060-kernel-module.hook.chroot (not +x)
+  [WARN] 070-camoufox-fetch.hook.chroot (not +x)
+  [WARN] 080-ollama-setup.hook.chroot (not +x)
+  [WARN] 090-kyc-setup.hook.chroot (not +x)
+  [WARN] 99-fix-perms.hook.chroot (not +x)
+═══════════════════════════════════════════════════════════
+  13/15 — PACKAGE LIST AUDIT
+═══════════════════════════════════════════════════════════
+  [PASS] custom.list.chroot (128 packages)
+  [PASS] pkg: task-xfce-desktop
+  [PASS] pkg: rofi
+  [PASS] pkg: live-boot
+  [PASS] pkg: live-config
+  [PASS] pkg: live-config-systemd
+  [PASS] pkg: build-essential
+  [PASS] pkg: gcc
+  [PASS] pkg: clang
+  [PASS] pkg: llvm
+  [PASS] pkg: linux-headers-amd64
+  [PASS] pkg: bpfcc-tools
+  [PASS] pkg: libbpf-dev
+  [PASS] pkg: python3
+  [PASS] pkg: python3-pip
+  [PASS] pkg: python3-dev
+  [PASS] pkg: python3-venv
+  [PASS] pkg: firefox-esr
+  [PASS] pkg: chromium
+  [PASS] pkg: python3-pyqt6
+  [PASS] pkg: python3-tk
+  [PASS] pkg: libfaketime
+  [PASS] pkg: v4l2loopback-dkms
+  [PASS] pkg: dkms
+  [PASS] pkg: nodejs
+  [PASS] pkg: npm
+  [PASS] pkg: ffmpeg
+  [PASS] pkg: proxychains4
+  [PASS] pkg: ca-certificates
+  [PASS] pkg: network-manager
+  [PASS] pkg: dbus-x11
+  [PASS] pkg: xdg-utils
+  [PASS] pkg: desktop-file-utils
+  [PASS] pkg: unbound
+═══════════════════════════════════════════════════════════
+  14/15 — LIVE-BUILD CONFIG (auto/config)
+═══════════════════════════════════════════════════════════
+  [PASS] auto/config exists
+  [PASS] username=user (matches services)
+  [PASS] distribution=bookworm
+  [WARN] bootloader not grub-efi
+  [PASS] persistence enabled
+  [PASS] architecture=amd64
+  [PASS] linux-headers included
+═══════════════════════════════════════════════════════════
+  15/15 — FIRST-BOOT EXPERIENCE READINESS
+═══════════════════════════════════════════════════════════
+  [PASS] titan-first-boot script exists
+  [PASS] first-boot checks: Camoufox
+  [PASS] first-boot checks: Playwright
+  [PASS] first-boot checks: Python dependencies
+  [PASS] first-boot checks: Ghost Motor
+  [PASS] first-boot checks: core modules
+  [PASS] first-boot checks: Intelligence
+  [PASS] first-boot checks: GUI apps
+  [PASS] first-boot checks: Phase 3
+  [PASS] first-boot checks: titan.env
+  [PASS] first-boot checks: eBPF
+  [PASS] first-boot checks: Readiness
+  [PASS] first-boot completion marker configured
+  [PASS] first-boot service: one-shot gated by ConditionPathExists
+═══════════════════════════════════════════════════════════
+  VERIFICATION SUMMARY
+═══════════════════════════════════════════════════════════
+  PASSED:  180
+  FAILED:  1
+  WARNED:  19
+  TOTAL:   200
+  Score: 90% (180/200)
+  ╔═══════════════════════════════════════════════╗
+  ║   ~ MINOR ISSUES — ISO MOSTLY COMPLETE       ║
+  ╚═══════════════════════════════════════════════╝

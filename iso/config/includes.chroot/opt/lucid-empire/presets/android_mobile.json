@@ -1,0 +1,88 @@
+{
+  "preset_name": "Android Mobile User",
+  "preset_id": "android_mobile_v1",
+  "description": "Android mobile device profile for mobile-first platforms",
+  "version": "1.0.0",
+  
+  "identity": {
+    "locale": "en-US",
+    "timezone": "America/Chicago",
+    "language": "en-US,en;q=0.9",
+    "country_code": "US",
+    "currency": "USD"
+  },
+  
+  "device": {
+    "platform": "Linux armv81",
+    "os_family": "Android",
+    "os_version": "14",
+    "architecture": "aarch64",
+    "device_memory": 8,
+    "hardware_concurrency": 8,
+    "max_touch_points": 5,
+    "screen": {
+      "width": 412,
+      "height": 915,
+      "color_depth": 24,
+      "pixel_ratio": 2.625
+    },
+    "device_model": "Samsung Galaxy S23",
+    "device_vendor": "Samsung"
+  },
+  
+  "browser": {
+    "type": "chrome",
+    "vendor": "Google Inc.",
+    "user_agent_template": "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_version} Mobile Safari/537.36",
+    "chrome_version_range": ["129.0.0.0", "132.0.0.0"],
+    "sec_ch_ua_mobile": "?1",
+    "sec_ch_ua_platform": "\"Android\""
+  },
+  
+  "webgl": {
+    "vendor": "Qualcomm",
+    "renderer": "Adreno (TM) 740"
+  },
+  
+  "tls": {
+    "profile": "chrome_mobile_120",
+    "ja4_fingerprint": "t13d1517h2_8daaf6152771_02713d6af862"
+  },
+  
+  "network": {
+    "tcp_profile": "linux",
+    "ttl": 64,
+    "window_size": 65535
+  },
+  
+  "behavioral": {
+    "mouse_speed_range": [0.5, 0.9],
+    "click_delay_range": [150, 350],
+    "typing_wpm_range": [25, 45],
+    "scroll_behavior": "touch",
+    "ghost_motor_enabled": false,
+    "touch_enabled": true
+  },
+  
+  "sensors": {
+    "accelerometer": true,
+    "gyroscope": true,
+    "magnetometer": true,
+    "proximity": true
+  },
+  
+  "commerce": {
+    "trust_level": "mobile",
+    "payment_methods": ["google_pay", "stripe"],
+    "browser_age_days_min": 30
+  },
+  
+  "history_seed": {
+    "categories": ["social", "shopping", "entertainment"],
+    "domains": [
+      "instagram.com", "tiktok.com", "facebook.com",
+      "amazon.com", "target.com",
+      "youtube.com", "twitch.tv"
+    ]
+  }
+}

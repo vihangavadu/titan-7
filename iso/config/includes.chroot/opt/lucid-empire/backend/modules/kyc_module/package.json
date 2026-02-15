@@ -1,0 +1,14 @@
+{
+  "name": "lucid-titan-kyc-module",
+  "version": "1.0.0",
+  "description": "3D ID Renderer and Liveness Simulation for Lucid Titan",
+  "main": "renderer_3d.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "author": "Dva.12",
+  "license": "UNLICENSED"
+}

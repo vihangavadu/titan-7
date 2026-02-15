@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=TITAN V7.0 SINGULARITY
+Comment=Unified Operation Center — All modules in one app
+Exec=python3 /opt/titan/apps/app_unified.py
+Icon=preferences-system-privacy
+Terminal=false
+Categories=System;Security;
+StartupNotify=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3

@@ -1,0 +1,18 @@
+{
+  "_comment": "TITAN V7.0 — Residential Proxy Pool. Add your proxies below.",
+  "_instructions": "Each proxy needs: host, port, type (residential/mobile/isp), country, state. Username/password optional.",
+  "_supported_providers": ["brightdata", "oxylabs", "smartproxy", "iproyal", "custom"],
+  "proxies": [
+    {
+      "host": "REPLACE_WITH_PROXY_HOST",
+      "port": 8080,
+      "username": "REPLACE_WITH_USER",
+      "password": "REPLACE_WITH_PASS",
+      "type": "residential",
+      "country": "US",
+      "state": "TX",
+      "city": "Austin",
+      "isp": "AT&T"
+    }
+  ]
+}

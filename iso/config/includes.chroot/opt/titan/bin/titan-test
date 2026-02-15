@@ -1,0 +1,373 @@
+#!/bin/bash
+#
+# TITAN V6 Test Environment CLI
+# Virtualized testing against PSPs and detection systems
+#
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TITAN_ROOT="${SCRIPT_DIR}/.."
+TESTING_DIR="${TITAN_ROOT}/testing"
+REPORTS_DIR="${TITAN_ROOT}/testing/reports"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+print_banner() {
+    echo -e "${CYAN}"
+    echo "╔═══════════════════════════════════════════════════════════╗"
+    echo "║           TITAN V6 TEST ENVIRONMENT                       ║"
+    echo "║     Virtualized PSP & Detection System Testing            ║"
+    echo "╚═══════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+print_usage() {
+    echo "Usage: titan-test [COMMAND] [OPTIONS]"
+    echo ""
+    echo "Commands:"
+    echo "  run              Run the default test suite"
+    echo "  profile FILE     Test a profile from JSON file"
+    echo "  card NUMBER      Quick card validation test"
+    echo "  fingerprint      Test fingerprint configuration"
+    echo "  behavioral       Test behavioral data"
+    echo "  network          Test network configuration"
+    echo "  report           View latest test report"
+    echo "  history          Show test run history"
+    echo ""
+    echo "Options:"
+    echo "  --psp NAME       PSP to test against (stripe, adyen, braintree)"
+    echo "  --output DIR     Output directory for reports"
+    echo "  --verbose        Enable verbose output"
+    echo "  --json           Output results as JSON"
+    echo "  -h, --help       Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  titan-test run"
+    echo "  titan-test profile /path/to/profile.json"
+    echo "  titan-test card 4111111111111111|12|25|123"
+    echo "  titan-test fingerprint --json"
+}
+
+run_tests() {
+    echo -e "${BLUE}[*] Running default test suite...${NC}"
+    
+    cd "${TITAN_ROOT}"
+    python3 -c "
+import sys
+sys.path.insert(0, '${TITAN_ROOT}')
+from testing.environment import create_test_environment
+
+env = create_test_environment()
+report = env.run_tests()
+
+print()
+print('=' * 60)
+print(f'Test Results: {report.summary[\"passed\"]}/{report.summary[\"total_tests\"]} passed')
+print(f'Success Rate: {report.success_rate:.1f}%')
+print(f'Projected Rate (after fixes): {report.projected_success_rate:.1f}%')
+print('=' * 60)
+
+if report.failure_analyses:
+    print()
+    print('Top Issues:')
+    for fa in report.failure_analyses[:5]:
+        print(f'  - {fa.test_name}: {fa.root_cause}')
+
+print()
+print('Recommendations:')
+for rec in report.recommendations[:5]:
+    print(f'  {rec}')
+"
+    
+    echo ""
+    echo -e "${GREEN}[✓] Test suite complete. Reports saved to: ${REPORTS_DIR}${NC}"
+}
+
+test_profile() {
+    local profile_file="$1"
+    
+    if [ ! -f "$profile_file" ]; then
+        echo -e "${RED}[!] Profile file not found: ${profile_file}${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}[*] Testing profile: ${profile_file}${NC}"
+    
+    cd "${TITAN_ROOT}"
+    python3 -c "
+import sys
+import json
+sys.path.insert(0, '${TITAN_ROOT}')
+from testing.environment import create_test_environment
+
+with open('${profile_file}', 'r') as f:
+    profile_data = json.load(f)
+
+env = create_test_environment()
+result = env.test_profile(profile_data)
+
+print()
+print('Profile Test Results:')
+print(f'  Overall Passed: {result[\"overall_passed\"]}')
+print(f'  Risk Score: {result[\"overall_risk_score\"]:.1f}')
+
+if result['failure_reasons']:
+    print()
+    print('Failure Reasons:')
+    for reason in result['failure_reasons']:
+        print(f'  - {reason}')
+
+if result['recommendations']:
+    print()
+    print('Recommendations:')
+    for rec in result['recommendations']:
+        print(f'  - {rec}')
+"
+}
+
+test_card() {
+    local card_string="$1"
+    local psp="${2:-stripe}"
+    
+    echo -e "${BLUE}[*] Testing card against ${psp}...${NC}"
+    
+    cd "${TITAN_ROOT}"
+    python3 -c "
+import sys
+sys.path.insert(0, '${TITAN_ROOT}')
+from testing.environment import create_test_environment
+
+parts = '${card_string}'.split('|')
+if len(parts) != 4:
+    print('Error: Card format should be number|exp_month|exp_year|cvv')
+    sys.exit(1)
+
+card_data = {
+    'number': parts[0],
+    'exp_month': parts[1],
+    'exp_year': parts[2],
+    'cvv': parts[3],
+}
+
+env = create_test_environment()
+result = env.test_card(card_data, '${psp}')
+
+print()
+print(f'Card Test Result (${psp}):')
+print(f'  Success: {result.get(\"success\", False)}')
+if not result.get('success'):
+    print(f'  Decline Reason: {result.get(\"decline_reason\", \"unknown\")}')
+    print(f'  Message: {result.get(\"decline_message\", \"\")}')
+print(f'  Risk Score: {result.get(\"risk_score\", 0)}')
+print(f'  Requires 3DS: {result.get(\"requires_3ds\", False)}')
+"
+}
+
+test_fingerprint() {
+    echo -e "${BLUE}[*] Testing fingerprint configuration...${NC}"
+    
+    cd "${TITAN_ROOT}"
+    python3 -c "
+import sys
+sys.path.insert(0, '${TITAN_ROOT}')
+from testing.environment import create_test_environment
+
+# Test with sample good fingerprint
+fingerprint_data = {
+    'canvas_hash': 'abc123def456789',
+    'webgl_vendor': 'Google Inc. (NVIDIA)',
+    'webgl_renderer': 'ANGLE (NVIDIA, GeForce RTX 3060)',
+    'audio_hash': 'xyz789audio',
+    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'screen_width': 1920,
+    'screen_height': 1080,
+}
+
+env = create_test_environment()
+result = env.test_fingerprint(fingerprint_data)
+
+print()
+print('Fingerprint Test Results:')
+print(f'  Passed: {result[\"passed\"]}')
+print(f'  Risk Score: {result[\"risk_score\"]:.1f}')
+print(f'  Risk Level: {result[\"risk_level\"]}')
+
+if result['signals']:
+    print()
+    print('Signals:')
+    for signal in result['signals'][:5]:
+        print(f'  - {signal[\"name\"]}: {signal[\"description\"]}')
+"
+}
+
+test_behavioral() {
+    echo -e "${BLUE}[*] Testing behavioral configuration...${NC}"
+    
+    cd "${TITAN_ROOT}"
+    python3 -c "
+import sys
+sys.path.insert(0, '${TITAN_ROOT}')
+from testing.environment import create_test_environment
+
+# Test with sample good behavioral data
+behavioral_data = {
+    'mouse_entropy': 0.75,
+    'time_on_page_seconds': 120,
+    'form_fill_time_seconds': 45,
+    'referrer': 'https://www.google.com/search?q=amazon',
+    'navigation_path': ['google.com', 'amazon.com', 'product', 'cart'],
+}
+
+env = create_test_environment()
+result = env.test_behavioral(behavioral_data)
+
+print()
+print('Behavioral Test Results:')
+print(f'  Passed: {result[\"passed\"]}')
+print(f'  Risk Score: {result[\"risk_score\"]:.1f}')
+print(f'  Risk Level: {result[\"risk_level\"]}')
+
+if result['signals']:
+    print()
+    print('Signals:')
+    for signal in result['signals'][:5]:
+        print(f'  - {signal[\"name\"]}: {signal[\"description\"]}')
+"
+}
+
+test_network() {
+    echo -e "${BLUE}[*] Testing network configuration...${NC}"
+    
+    cd "${TITAN_ROOT}"
+    python3 -c "
+import sys
+sys.path.insert(0, '${TITAN_ROOT}')
+from testing.environment import create_test_environment
+
+# Test with sample good network data
+network_data = {
+    'ip_address': '203.0.113.50',
+    'ip_type': 'residential',
+    'ip_reputation': 85,
+    'ip_country': 'US',
+    'billing_country': 'US',
+    'timezone': 'America/New_York',
+}
+
+env = create_test_environment()
+result = env.test_network(network_data)
+
+print()
+print('Network Test Results:')
+print(f'  Passed: {result[\"passed\"]}')
+print(f'  Risk Score: {result[\"risk_score\"]:.1f}')
+print(f'  Risk Level: {result[\"risk_level\"]}')
+
+if result['signals']:
+    print()
+    print('Signals:')
+    for signal in result['signals'][:5]:
+        print(f'  - {signal[\"name\"]}: {signal[\"description\"]}')
+"
+}
+
+view_report() {
+    local latest_report=$(ls -t "${REPORTS_DIR}"/*.md 2>/dev/null | head -1)
+    
+    if [ -z "$latest_report" ]; then
+        echo -e "${YELLOW}[!] No reports found in ${REPORTS_DIR}${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}[*] Latest report: ${latest_report}${NC}"
+    echo ""
+    
+    if command -v less &> /dev/null; then
+        less "$latest_report"
+    else
+        cat "$latest_report"
+    fi
+}
+
+show_history() {
+    echo -e "${BLUE}[*] Test run history:${NC}"
+    echo ""
+    
+    if [ -d "${REPORTS_DIR}" ]; then
+        ls -lt "${REPORTS_DIR}"/*.json 2>/dev/null | head -10 | while read line; do
+            echo "  $line"
+        done
+    else
+        echo "  No test history found."
+    fi
+}
+
+# Main
+print_banner
+
+# Create reports directory if needed
+mkdir -p "${REPORTS_DIR}"
+
+# Parse arguments
+COMMAND="${1:-}"
+shift || true
+
+case "$COMMAND" in
+    run)
+        run_tests
+        ;;
+    profile)
+        test_profile "$1"
+        ;;
+    card)
+        PSP="stripe"
+        CARD=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --psp)
+                    PSP="$2"
+                    shift 2
+                    ;;
+                *)
+                    CARD="$1"
+                    shift
+                    ;;
+            esac
+        done
+        test_card "$CARD" "$PSP"
+        ;;
+    fingerprint)
+        test_fingerprint
+        ;;
+    behavioral)
+        test_behavioral
+        ;;
+    network)
+        test_network
+        ;;
+    report)
+        view_report
+        ;;
+    history)
+        show_history
+        ;;
+    -h|--help|help)
+        print_usage
+        ;;
+    "")
+        print_usage
+        ;;
+    *)
+        echo -e "${RED}[!] Unknown command: ${COMMAND}${NC}"
+        echo ""
+        print_usage
+        exit 1
+        ;;
+esac

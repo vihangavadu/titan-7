@@ -1,0 +1,14 @@
+# TITAN V7.0 SINGULARITY — USB Device Access Control
+
+# Allow HID devices (keyboards, mice)
+SUBSYSTEM=="hidraw", MODE="0660", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{bInterfaceClass}=="03", MODE="0660", GROUP="plugdev"
+
+# Allow USB mass storage
+SUBSYSTEM=="usb", ATTR{bInterfaceClass}=="08", MODE="0660", GROUP="plugdev"
+
+# Allow webcams (for v4l2loopback virtual camera)
+SUBSYSTEM=="video4linux", MODE="0660", GROUP="video"
+
+# Block rogue USB network adapters (fingerprint risk)
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="usb", ATTR{type}=="1", RUN+="/bin/sh -c 'echo 0 > /sys$DEVPATH/net/*/carrier'"
