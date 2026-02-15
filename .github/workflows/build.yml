@@ -63,7 +63,7 @@ jobs:
     name: "Build V7.0.3 SINGULARITY ISO"
     needs: verify-codebase
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
+    timeout-minutes: 240
     
     steps:
       - name: "Checkout repository"
