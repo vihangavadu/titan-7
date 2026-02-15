@@ -199,6 +199,18 @@ jobs:
       - name: "Checkout repository"
         uses: actions/checkout@v4
 
+      - name: "AGGRESSIVE DISK CLEANUP — Reclaim 12+ GB"
+        run: |
+          echo "[*] Freeing disk space for Titan V7 build..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          docker system prune -a -f 2>/dev/null || true
+          df -h /
+          echo "[+] Disk cleanup complete"
+
       - name: "KINETIC: Maximize build space (reclaim ~30GB)"
         uses: easimon/maximize-build-space@master
         with:
@@ -236,11 +248,16 @@ jobs:
             python3 python3-pip debian-archive-keyring
           echo "[+] Build dependencies installed"
 
-      - name: "Make scripts executable"
+      - name: "Enforce script executable permissions (STRICT)"
         run: |
-          chmod +x build_final.sh || true
-          chmod +x finalize_titan_oblivion.sh || true
-          [ -f "iso/finalize_titan.sh" ] && chmod +x iso/finalize_titan.sh || true
+          echo "[*] Setting strict permissions on build scripts..."
+          chmod +x build_final.sh
+          chmod +x finalize_titan_oblivion.sh
+          chmod +x iso/finalize_titan.sh
+          chmod +x iso/auto/config
+          chmod +x iso/auto/build
+          find iso/config/hooks/live -type f -name '*.chroot' -exec chmod +x {} \;
+          echo "[+] All build scripts are executable"
 
       - name: "Sync dev modules to ISO tree"
         run: |
@@ -250,6 +267,20 @@ jobs:
           cp -r titan/* iso/config/includes.chroot/opt/titan/core/ 2>/dev/null || true
           cp -r config/includes.chroot/* iso/config/includes.chroot/ 2>/dev/null || true
           echo "[+] Sync complete"
+
+      - name: "Forensic Finalization — Pre-Build Sanitization"
+        run: |
+          echo "[*] Running forensic sanitization..."
+          if [ -f "iso/finalize_titan.sh" ]; then
+            ./iso/finalize_titan.sh 2>&1 | tee finalize.log
+            if ! grep -q "100% HARDENED" finalize.log; then
+              echo "[!] CRITICAL: Finalization did not complete. Aborting."
+              exit 1
+            fi
+          else
+            echo "[!] WARNING: finalize_titan.sh not found"
+          fi
+        shell: bash
 
       - name: "Run final fusion build"
         run: |
