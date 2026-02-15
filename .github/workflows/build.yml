@@ -29,17 +29,19 @@ jobs:
           ./build_final.sh
 
       - name: Upload ISO artifact
-        if: success() && (exists('iso/live-image-amd64.hybrid.iso') || exists('iso/live-image-amd64.iso'))
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: titan-iso
           path: |
             iso/live-image-amd64.hybrid.iso
             iso/live-image-amd64.iso
+          if-no-files-found: ignore
 
       - name: Upload build log
-        if: success() && steps.run-final.outputs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
           path: titan_v7_final.log
+          if-no-files-found: ignore
