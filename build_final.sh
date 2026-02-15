@@ -40,7 +40,17 @@ if ! command -v lb &> /dev/null; then
     sudo apt-get install -y live-build || true
 fi
 
-sudo lb clean
+# Configure live-build environment
+echo "[*] Configuring live-build..."
+if [ -f "./auto/config" ]; then
+    chmod +x ./auto/config
+    ./auto/config || echo "[!] Warning in config setup"
+    echo "    [+] Configuration complete."
+fi
+
+# Clean and build
+sudo lb clean --all 2>/dev/null || true
+echo "[*] Building ISO image..."
 sudo lb build 2>&1 | tee ../titan_v7_final.log
 
 echo "---------------------------------------------------"
