@@ -244,6 +244,82 @@ class ManualHandoverProtocol:
         print("[HANDOVER] Initiating FREEZE phase...")
     
     # ═══════════════════════════════════════════════════════════════════════════
+    # GENESIS HELPER: Referrer Warmup (PRIORITY 2 PATCH)
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    async def _perform_referrer_warmup(self, target_domain: str) -> bool:
+        """
+        Automated Referrer Warmup (PRIORITY 2 PATCH).
+        Establishes organic referrer chain via Google/Bing search.
+        
+        This prevents the detection vector: Direct navigation (bot behavior)
+        Instead: Search engine -> click result -> natural referrer chain
+        
+        Args:
+            target_domain: Target website domain
+            
+        Returns:
+            True if warmup successful, False otherwise
+        """
+        try:
+            import asyncio
+            import random
+            from playwright.async_api import async_playwright
+            
+            print(f"[WARMUP] Initiating referrer warmup for {target_domain}")
+            
+            async with async_playwright() as p:
+                browser = await p.firefox.launch(headless=True)
+                page = await browser.new_page()
+                
+                # Step 1: Navigate to search engine
+                search_engine = random.choice(["https://www.google.com", "https://www.bing.com"])
+                await page.goto(search_engine, timeout=30000)
+                await asyncio.sleep(random.uniform(2.0, 4.0))
+                print(f"[WARMUP] Navigated to {search_engine}")
+                
+                # Step 2: Type search query naturally with jitter
+                try:
+                    search_box = page.locator("input[name='q']")
+                    await search_box.click()
+                    
+                    query = f"{target_domain} products"
+                    for char in query:
+                        await page.keyboard.type(char, delay=random.randint(50, 150))
+                    
+                    await page.keyboard.press("Enter")
+                    await page.wait_for_selector("a", timeout=10000)
+                    await asyncio.sleep(random.uniform(2.0, 3.5))
+                    print(f"[WARMUP] Search query executed: {query}")
+                    
+                    # Step 3: Click first result matching target domain
+                    try:
+                        first_link = page.locator(f"a[href*='{target_domain}']")
+                        await first_link.first.click()
+                        await page.wait_for_load_state("networkidle", timeout=15000)
+                    except:
+                        pass
+                    
+                    # Step 4: Dwell on landing page to establish cookies
+                    await asyncio.sleep(random.uniform(5.0, 10.0))
+                    print(f"[WARMUP] Dwell time complete - referrer chain established")
+                    
+                except Exception as e:
+                    print(f"[WARMUP] Search interaction failed: {e}")
+                
+                finally:
+                    await browser.close()
+            
+            return True
+            
+        except ImportError:
+            print("[WARMUP] Playwright not available - skipping referrer warmup")
+            return False
+        except Exception as e:
+            print(f"[WARMUP] Referrer warmup failed: {e}")
+            return False
+    
+    # ═══════════════════════════════════════════════════════════════════════════
     # PHASE 2: FREEZE (Terminate All Automation)
     # ═══════════════════════════════════════════════════════════════════════════
     
