@@ -1,0 +1,40 @@
+name: Test ISO Build Debug
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  test-build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y live-build debootstrap squashfs-tools xorriso isolinux syslinux-utils syslinux-efi grub-pc-bin grub-efi-amd64-bin mtools dosfstools
+          
+      - name: Test live-build
+        run: |
+          cd iso
+          chmod +x ./auto/config
+          ./auto/config
+          echo "Configuration completed successfully"
+          ls -la
+          
+      - name: Run build
+        run: |
+          cd iso
+          echo "Starting build..."
+          sudo lb build -v
+          echo "Build completed"
+          
+      - name: Check output
+        run: |
+          cd iso
+          ls -la *.iso 2>/dev/null || echo "No ISO found"
