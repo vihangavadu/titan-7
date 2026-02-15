@@ -449,6 +449,18 @@ jobs:
 
           lb config \
             --distribution ${{ env.DEBIAN_VERSION }} \
+            --parent-distribution ${{ env.DEBIAN_VERSION }} \
+            --parent-mirror-bootstrap http://deb.debian.org/debian \
+            --parent-mirror-chroot http://deb.debian.org/debian \
+            --parent-mirror-chroot-security http://deb.debian.org/debian-security \
+            --parent-mirror-binary http://deb.debian.org/debian \
+            --parent-mirror-binary-security http://deb.debian.org/debian-security \
+            --mirror-bootstrap http://deb.debian.org/debian \
+            --mirror-chroot http://deb.debian.org/debian \
+            --mirror-chroot-security http://deb.debian.org/debian-security \
+            --mirror-binary http://deb.debian.org/debian \
+            --mirror-binary-security http://deb.debian.org/debian-security \
+            --keyring-packages debian-archive-keyring \
             --archive-areas "main contrib non-free non-free-firmware" \
             --architectures amd64 \
             --linux-packages "linux-image linux-headers" \
