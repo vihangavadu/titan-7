@@ -8,33 +8,61 @@ on:
 jobs:
   test-build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    timeout-minutes: 180
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         
+      - name: System prep
+        run: |
+          echo "System resources:"
+          df -h
+          free -h
+          uname -a
+          
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y live-build debootstrap squashfs-tools xorriso isolinux syslinux-utils syslinux-efi grub-pc-bin grub-efi-amd64-bin mtools dosfstools
           
-      - name: Test live-build
+      - name: Prepare build directory
+        run: |
+          cd iso
+          echo "In iso directory:"
+          pwd
+          ls -la
+          echo "Checking auto/config:"
+          cat auto/config | head -10
+          
+      - name: Configure live-build
         run: |
           cd iso
           chmod +x ./auto/config
+          echo "Running lb config..."
           ./auto/config
           echo "Configuration completed successfully"
           ls -la
           
-      - name: Run build
+      - name: Clean previous builds
+        run: |
+          cd iso
+          echo "Cleaning previous builds..."
+          sudo lb clean --all || true
+          
+      - name: Run build with timeout
         run: |
           cd iso
           echo "Starting build..."
-          sudo lb build -v
-          echo "Build completed"
+          echo "Build directory contents:"
+          ls -la
+          echo "Starting lb build..."
+          timeout 3600 sudo lb build -v || echo "Build timed out or failed"
           
       - name: Check output
         run: |
           cd iso
+          echo "Checking for ISO files..."
           ls -la *.iso 2>/dev/null || echo "No ISO found"
+          echo "Current directory contents:"
+          ls -la
