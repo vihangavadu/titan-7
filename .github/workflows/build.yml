@@ -159,6 +159,12 @@ jobs:
           echo "  TITAN V7.0.3 SINGULARITY — ISO Build Initiated"
           echo "══════════════════════════════════════════════════════"
           cd iso
+          echo "[*] Configuring live-build..."
+          chmod +x ./auto/config
+          ./auto/config
+          echo "[*] Cleaning previous builds..."
+          sudo lb clean --all || true
+          echo "[*] Starting ISO build..."
           sudo lb build -v 2>&1 | tee ../titan_v7_final.log
         shell: bash
 
