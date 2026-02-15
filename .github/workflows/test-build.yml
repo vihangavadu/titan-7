@@ -1,0 +1,30 @@
+name: Test Build Environment
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Check environment
+      run: |
+        echo "Working directory:"
+        pwd
+        echo "Contents:"
+        ls -la
+        
+    - name: Check ISO structure
+      run: |
+        echo "ISO directory:"
+        ls -la iso/
+        echo "ISO config:"
+        ls -la iso/config/
+        echo "Core modules:"
+        ls -la iso/config/includes.chroot/opt/titan/core/ | head -10
