@@ -158,7 +158,8 @@ jobs:
           echo "══════════════════════════════════════════════════════"
           echo "  TITAN V7.0.3 SINGULARITY — ISO Build Initiated"
           echo "══════════════════════════════════════════════════════"
-          ./build_final.sh 2>&1 | tee titan_v7_final.log
+          cd iso
+          sudo lb build -v 2>&1 | tee ../titan_v7_final.log
         shell: bash
 
       - name: "Verify ISO output"
