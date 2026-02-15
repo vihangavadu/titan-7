@@ -11,28 +11,27 @@ name: "[DEPRECATED] Titan V6 Sovereign Build"
 
 on:
   # ALL TRIGGERS DISABLED - Use build-iso.yml for V7.0 builds
-  # workflow_dispatch:
-  #   inputs:
-  #     target_cloud:
-  #       description: 'Target Cloud Provider'
-  #       required: true
-  #       default: 'kamatera'
-  #       type: choice
-  #       options:
-  #         - kamatera
-  #         - vultr
-  #         - aws
-  #         - generic
-  #     build_type:
-  #       description: 'Build Type'
-  #       required: true
-  #       default: 'full'
-  #       type: choice
-  #       options:
-  #         - full
-  #         - iso-only
-  #         - qcow2-only
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      target_cloud:
+        description: 'Target Cloud Provider'
+        required: true
+        default: 'kamatera'
+        type: choice
+        options:
+          - kamatera
+          - vultr
+          - aws
+          - generic
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - iso-only
+          - qcow2-only
 
 env:
   TITAN_VERSION: "6.0.0"

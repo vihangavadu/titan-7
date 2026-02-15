@@ -21,6 +21,7 @@ chmod +x finalize_titan_oblivion.sh
 echo "[*] INITIATING LIVE BUILD..."
 cd iso
 sudo lb clean
+lb config
 sudo lb build 2>&1 | tee ../titan_v7_final.log
 
 echo "---------------------------------------------------"

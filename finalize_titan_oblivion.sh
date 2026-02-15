@@ -39,7 +39,7 @@ fi
 find . -name "__pycache__" -type d -exec rm -rf {} +
 find . -name "*.pyc" -delete
 find . -name ".DS_Store" -delete
-find . -name ".git" -type d -exec rm -rf {} +
+find "$SOURCE_DIR" -name ".git" -type d -exec rm -rf {} +
 find . -name "*.log" -delete
 
 echo "    [+] Codebase sanitized. AI markers and Dev artifacts removed."
