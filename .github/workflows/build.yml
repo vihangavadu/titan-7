@@ -187,6 +187,13 @@ jobs:
             echo "════════════════════════════════════════════════════"
             # Don't fail - let build proceed and fail at actual issue point
             exit 0
+          fi
+
+  build-iso:
+    name: "Build V7.0.3 SINGULARITY ISO"
+    needs: verify-codebase
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
     
     steps:
       - name: "Checkout repository"
