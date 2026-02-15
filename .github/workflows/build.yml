@@ -13,10 +13,21 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             live-build debootstrap squashfs-tools xorriso isolinux syslinux-utils
+
+      - name: Debug info
+        run: |
+          uname -a || true
+          lsb_release -a || true
+          df -h || true
+          free -m || true
+          id || true
+          ls -la . || true
 
       - name: Make scripts executable
         run: |
@@ -25,21 +36,15 @@ jobs:
 
       - name: Run final fusion build
         run: |
-          set -e
-          ./build_final.sh
+          set -euo pipefail
+          ./build_final.sh 2>&1 | tee titan_v7_final.log
+        shell: bash
 
-      - name: Upload ISO artifact
-        if: success() && (exists('iso/live-image-amd64.hybrid.iso') || exists('iso/live-image-amd64.iso'))
+      - name: Upload artifacts (always)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: titan-iso
+          name: build-artifacts
           path: |
-            iso/live-image-amd64.hybrid.iso
-            iso/live-image-amd64.iso
-
-      - name: Upload build log
-        if: success() && steps.run-final.outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: titan_v7_final.log
+            titan_v7_final.log
+            iso/**
