@@ -36,11 +36,11 @@ fi
 
 # 1.4 Purge Development Artifacts
 # Recursive deletion of cache and system files that leak host info.
-find . -name "__pycache__" -type d -exec rm -rf {} +
-find . -name "*.pyc" -delete
-find . -name ".DS_Store" -delete
-find . -name ".git" -type d -exec rm -rf {} +
-find . -name "*.log" -delete
+# NOTE: Only clean ISO tree, never root repo dir (.git, etc.)
+find "$SOURCE_DIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+find "$SOURCE_DIR" -name "*.pyc" -delete 2>/dev/null || true
+find "$ISO_CONFIG_DIR" -name ".DS_Store" -delete 2>/dev/null || true
+find "$SOURCE_DIR" -name "*.log" -delete 2>/dev/null || true
 
 echo "    [+] Codebase sanitized. AI markers and Dev artifacts removed."
 
