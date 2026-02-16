@@ -66,8 +66,9 @@ jobs:
           echo "══════════════════════════════════════════════════════"
           sudo apt-get update
           
-          # Install dependencies first (excluding live-build)
+          # Install all dependencies including live-build
           sudo apt-get install -y \
+            live-build \
             debootstrap \
             xorriso \
             isolinux \
@@ -88,25 +89,8 @@ jobs:
             linux-tools-common \
             linux-tools-generic
           
-          # Install Debian live-build from bookworm (compatible version)
-          echo "[*] Installing Debian live-build from bookworm repository..."
-          
-          # Add Debian bookworm repository temporarily
-          echo "deb http://deb.debian.org/debian bookworm main" | sudo tee /etc/apt/sources.list.d/debian-bookworm.list
-          
-          # Import Debian archive keyring
-          sudo apt-get install -y debian-archive-keyring
-          
-          # Update and install live-build from Debian
-          sudo apt-get update
-          sudo apt-get install -y -t bookworm live-build
-          
-          # Remove temporary repository
-          sudo rm /etc/apt/sources.list.d/debian-bookworm.list
-          sudo apt-get update
-          
           lb --version
-          echo "[+] Toolchain installed with Debian live-build"
+          echo "[+] Toolchain installed"
 
       # ════════════════════════════════════════════════════════════════════════
       # PHASE 1: VERIFY ALL V7.0 MODULES IN ISO TREE
@@ -501,26 +485,16 @@ jobs:
           echo "    099 → Final perms, pip deps, systemd services"
           echo ""
 
-          # Patch local config scripts to skip Contents-amd64.gz download
-          echo "[*] Patching local lb_chroot_linux-image script..."
-          if [ -f ".build/scripts/build/chroot_linux-image" ]; then
-            sudo tee .build/scripts/build/chroot_linux-image > /dev/null << 'EOFPATCH'
-          #!/bin/sh
-          # TITAN V7.0.3 - Patched to skip Contents-amd64.gz download
-          # Kernel is installed via package list instead
-          echo "P: Skipping lb_chroot_linux-image (kernel in package list)"
-          exit 0
-          EOFPATCH
-            sudo chmod +x .build/scripts/build/chroot_linux-image
-            echo "[+] Local lb_chroot_linux-image patched successfully"
-          else
-            echo "[!] WARNING: .build/scripts/build/chroot_linux-image not found"
-          fi
+          # Disable automatic kernel installation to avoid Contents-amd64.gz download
+          # Kernel is installed via package list (linux-image-amd64) instead
+          echo "[*] Setting LB_LINUX_PACKAGES=none to skip automatic kernel installation..."
+          export LB_LINUX_PACKAGES="none"
+          echo "[+] Kernel installation will be handled by package list"
           echo ""
 
           BUILD_START=$(date +%s)
 
-          sudo lb build 2>&1 | tee build.log
+          sudo -E lb build 2>&1 | tee build.log
           LB_EXIT=${PIPESTATUS[0]}
 
           BUILD_END=$(date +%s)
