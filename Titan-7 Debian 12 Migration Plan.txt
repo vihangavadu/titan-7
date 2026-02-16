@@ -1,0 +1,230 @@
+﻿TITAN-7 OBLIVION MUTATION: ADVANCED ARCHITECTURAL FORENSIC ANALYSIS AND MIGRATION PROTOCOLS FOR DEBIAN 12
+1. Executive Intelligence Assessment: The Doctrine of Synthetic Sovereignty
+The contemporary digital operating environment is defined by an omnipresent surveillance architecture that renders traditional user-space privacy tools largely ineffective. The transition of the Titan-7 operational framework to a Debian 12 (Bookworm) foundation—designated internally as "Project Oblivion Mutation"—represents a fundamental paradigm shift in offensive privacy engineering. This is not merely a software update; it is a systematic reconfiguration of the operating system's kernel, network stack, and memory management subsystems to achieve "Synthetic Sovereignty." Sovereignty, in this context, is defined as the absolute control over every signal emitted by the hardware and software stack, ensuring that the digital fingerprint presented to external observers is mathematically indistinguishable from a benign, uninteresting residential endpoint.
+The "Clone & Configure" (C&C) methodology analyzed in this report serves as the deployment vector for this sovereignty. It is designed to transform a standard, forensic-rich Debian 12 installation into a "Titan Singularity Node"—a hardened, immutable operational environment. The analysis confirms that Titan-7 moves beyond the "masking" techniques of legacy anti-detect browsers, which operate primarily in Ring 3 (User Mode) and are vulnerable to deep system calls and kernel introspection.1 Instead, Titan-7 leverages Ring 0 (Kernel Mode) capabilities, utilizing eBPF (Extended Berkeley Packet Filter) for packet manipulation and Direct Kernel Object Manipulation (DKOM) for hardware ID spoofing.1
+This report provides an exhaustive, forensic-level deconstruction of the C&C migration plan. It dissects the mechanisms of core acquisition, the intricate web of dependency mapping required to support the Python 3.11 and eBPF ecosystems, and the aggressive hardening injections that immunize the system against forensic analysis. The objective is to validate that the "Singularity" architecture, when deployed via the C&C method on Debian 12, successfully mitigates the "Consistency Paradox"—the fatal discrepancy between a spoofed browser header and the underlying operating system reality.1
+1.1 The Operational Mandate: Zero Friction
+The guiding philosophy of the Titan-7 architecture is "Zero Friction. Maximum Implementation." This mandate dictates that the complexity of the underlying cryptographic and kernel-level operations must be abstracted away from the operator, while simultaneously ensuring that the deployment process itself is impervious to interception or attribution. The C&C methodology is the physical manifestation of this philosophy: a single-stream execution logic that pulls the source code from a secure repository, verifies its integrity, constructs a hermetically sealed build environment, and mutates the host OS into a Titan node without manual intervention.1
+Forensic examination of the deploy_vps.sh and build_iso.sh scripts reveals a sophisticated understanding of modern DevOps pipelines applied to offensive security. The automation does not merely install software; it enforces a specific state of existence on the machine, overwriting default configurations that leak information (such as NTP servers, DNS resolvers, and kernel logging verbosity) with hardened, privacy-centric alternatives.1
+1.2 Target Substrate: Debian 12 "Bookworm"
+The selection of Debian 12 "Bookworm" as the base operating system is strategic. Debian's "Stable" branch provides a deterministic software supply chain, which is critical for reproducibility—a core tenet of the Titan architecture. The analysis of 00-titan-pin-stable 1 confirms a deliberate effort to lock the system to specific package versions, preventing "dependency drift" that could introduce unverified binaries or break the delicate eBPF compilation chains. Furthermore, Debian 12's native support for Python 3.11 and Kernel 6.1 LTS provides the necessary prerequisites for the "Cloud Brain" AI integration and the advanced network shaping capabilities required by the Titan Network Shield.1
+2. Research Vector A: Core Acquisition and Surveillance Evasion
+The initial phase of the Oblivion Mutation is the acquisition of the Titan-7 source code. This vector represents the highest risk of detection during the deployment cycle. If the acquisition phase is observed by an ISP or a state-level monitor, the resulting node is "burned" before it ever processes a transaction. The C&C methodology implements specific countermeasures to obscure this traffic and validate the integrity of the received data.
+2.1 Repository Logistics and Endpoint Identification
+The architecture relies on a centralized command-and-control repository structure. Forensic analysis of the build guides and deployment scripts identifies the primary repository endpoints that the operator must target. These endpoints are the "Truth Source" for the mutation process.
+* Primary Core Repository: The central nervous system of the Titan architecture is hosted at https://github.com/YOUR_USERNAME/titan-main.git.1 This repository contains the core/ modules (Python), apps/ (GUI), and hardware_shield/ (C code).
+* Deployment Vector: The automated deployment logic is encapsulated in a shell script accessible via https://raw.githubusercontent.com/YOUR_USERNAME/titan-main/main/deploy_vps.sh.1 This script acts as the "dropper," preparing the sterile Debian host for the injection of the Titan code.
+* Proprietary Hooks: The build system references external hooks, such as 070-camoufox-fetch.hook.chroot 1, which fetch binary blobs for the Camoufox anti-detect browser. These requests are distinct from the main git clone and represent secondary acquisition vectors that must also be tunneled or obfuscated.
+2.2 Git Protocol Compatibility and Security
+Debian 12 ships with Git version 2.39.5 (or higher with security updates).2 This version introduces significant changes in how repositories are handled, particularly regarding local clones and submodule security. The Titan build scripts 1 are engineered to be fully compatible with these changes while leveraging the stability of the Debian package ecosystem.
+2.2.1 The CVE Threat Landscape
+The security landscape for Git has evolved, with vulnerabilities such as CVE-2024-32002 (Recursive Clones RCE) and CVE-2022-23521 (Integer Overflow) posing risks during the cloning of untrusted repositories.4 The Titan C&C methodology mitigates these risks through:
+1. Trusted Sources: The scripts are hardcoded to pull from specific, operator-controlled repositories (TITAN_REPO variables in deploy_vps.sh) rather than accepting arbitrary user input for the clone URL.1
+2. Pinning: The 00-titan-pin-stable configuration ensures that the system uses the patched, stable version of Git provided by the Debian security team, avoiding potentially unstable versions from backports that might introduce new, undiscovered vulnerabilities.1
+3. Isolation: The cloning process occurs within a dedicated directory (/opt/titan-build) owned by a specifically created low-privilege user (titan), effectively sandboxing the git operations from the root user after the initial setup.1
+2.3 ISP Bypass Mechanisms and Traffic Obfuscation
+A critical requirement of the "Oblivion" mandate is the ability to acquire the core without alerting the ISP. ISPs and network monitors utilize Deep Packet Inspection (DPI) to categorize traffic. A standard git clone to GitHub generates a recognizable TLS handshake and traffic pattern. To counter this, the Titan architecture integrates tools for traffic encapsulation.
+2.3.1 Proxychains Integration
+The presence of proxychains4 in the custom.list.chroot package list 1 indicates a reliance on SOCKS5 proxy chaining for stealth acquisition. proxychains works by hooking dynamic link libraries (DLLs) in the operating system—specifically intercepting connect() and gethostbyname() calls—and forcing them through a configured proxy chain.
+* Mechanism: When an operator executes proxychains4 git clone..., the Git binary is unaware it is being proxied. The network calls are intercepted, wrapped in SOCKS headers, and sent to a local listener (typically Tor at 127.0.0.1:9050 or a SSH tunnel).
+* Forensic Implication: To the ISP, the traffic appears as an encrypted stream to a single endpoint (the Tor entry node or SSH server), completely obscuring the destination (GitHub) and the nature of the data (Titan source code).6
+2.3.2 Torsocks and DNS Leak Prevention
+The inclusion of torsocks 1 provides an alternative, Tor-specific bypass mechanism. Unlike generic proxy tools, torsocks is specifically engineered to prevent DNS leaks.
+* The DNS Leak Vector: A standard proxy configuration might tunnel TCP traffic but allow DNS requests to resolve via the ISP's default servers. This reveals the target (github.com) to the ISP even if the data transfer is encrypted.
+* The Torsocks Solution: By using torsocks git clone..., the system ensures that DNS resolution occurs through the Tor network, returning an IP address that is reachable through the Tor circuit. This achieves "Zero Knowledge" networking during the acquisition phase.8
+2.3.3 The Single-Terminal Execution Block
+Based on the analysis of deploy_vps.sh 1 and the requirement for stealth, the optimal execution block for the C&C migration involves chaining the environment setup with the stealth clone.
+
+
+Bash
+
+
+
+
+# Theoretical Execution Block based on Forensic Analysis
+export REPO_URL="https://github.com/YOUR_USERNAME/titan-main.git"
+export INSTALL_DIR="/opt/titan"
+
+# 1. Elevate and Install Stealth Tools
+sudo apt-get update && sudo apt-get install -y tor proxychains4 git
+
+# 2. Configure Proxychains for Tor (Standard Port 9050)
+echo "strict_chain" | sudo tee /etc/proxychains4.conf
+echo "proxy_dns" | sudo tee -a /etc/proxychains4.conf
+echo "socks5 127.0.0.1 9050" | sudo tee -a /etc/proxychains4.conf
+
+# 3. Start Stealth Service
+sudo systemctl start tor
+
+# 4. Execute Stealth Clone (The "Ghost Acquisition")
+sudo proxychains4 git clone -b main "$REPO_URL" "$INSTALL_DIR"
+
+Note: This block synthesizes the tools found in the package lists 1 with the cloning logic of the deployment scripts 1 to meet the "bypass ISP monitoring" constraint.
+3. Research Vector B: Dependency Mapping and Environmental Convergence
+The Titan-7 ecosystem is a complex hybrid of system-level binaries, Python code, and compiled C modules. Success depends on the precise convergence of these dependencies. A missing library or a version mismatch can lead to "Silent Failures," where the system appears operational but fails to mask fingerprints (e.g., WebGL rendering falling back to software, revealing the Linux host).
+3.1 The Debian 12 Package Matrix (custom.list.chroot)
+The custom.list.chroot file 1 serves as the "DNA" of the Titan operating system. It defines the base set of packages that transform a minimal Debian Netinst into a feature-rich offensive platform. The analysis organizes these packages into functional clusters.
+3.1.1 Kernel Sovereignty Tools (Ring 0)
+These packages are non-negotiable for the operation of the Titan Network Shield and Hardware Shield. They allow the system to intercept and modify traffic and system calls at the kernel level.
+* linux-headers-amd64: Essential for compiling the C-based hardware_shield module and eBPF programs against the running kernel. Without headers, the "Hardware Shield" cannot be built via DKMS.
+* libbpf-dev, bpfcc-tools, bpftrace: The core eBPF toolchain. These libraries allow the network_shield_loader.py 1 to load the C-based packet filters into the kernel.1
+* clang, llvm: The compilers required to translate C code into eBPF bytecode.
+3.1.2 The Naked Browser Protocol Support
+Titan employs a "Naked Browser Protocol," utilizing standard binaries (firefox-esr, chromium) but wrapping them in a synthesized environment. The dependencies here support this wrapping.
+* libgtk-3-0, libdbus-glib-1-2, libx11-xcb1: Standard GUI libraries required by the browsers.
+* libgl-dev, mesa-common-dev: Critical for the WebGL ANGLE Shim.1 Titan uses these to intercept OpenGL calls and standardize the GPU fingerprint, preventing the browser from revealing the true underlying graphics hardware (e.g., llvmpipe).
+3.1.3 Forensic Evasion and Utility
+* libfaketime: A user-space library utilized by temporal_wrapper.py 1 to intercept gettimeofday() syscalls. This allows Titan to shift the perceived system time for the browser process without altering the global system clock, ensuring alignment with the spoofed timezone of the exit node.
+* unbound: A validating, recursive, caching DNS resolver. Used by the Lucid VPN module to ensure all DNS queries are resolved locally or through the encrypted tunnel, preventing DNS leaks.1
+3.2 Python 3.11 Environment Reconstruction
+Debian 12 defaults to Python 3.11, which Titan adopts as its native runtime. However, the system faces the "Dependency Hell" of managing system-level packages alongside rapidly evolving Python libraries required for modern anti-detection (e.g., AI integration, browser automation).
+3.2.1 The Hybrid Environment Strategy
+The analysis of deploy_vps.sh 1 and requirements.txt 1 reveals a hybrid strategy:
+1. System-Level Foundation: Core libraries that require C-extension compilation or system integration are installed via apt. This includes python3-pyqt6 (for the GUI), python3-cryptography (for performance), and python3-snappy (for handling Firefox's compressed storage files). Using the apt versions ensures binary compatibility with the Debian host libraries.1
+2. Virtual Environment (venv) Isolation: To handle rapidly changing or non-Debian packages, the deployment script creates a venv. This isolates libraries like playwright (browser automation), fastapi (backend server), and openai (cloud brain) from the system Python, preventing conflicts.1
+3.2.2 Critical Python Dependencies
+* Forensic Data Handling: python-snappy, orjson, lz4. These are used by the Genesis Engine to directly inject data into Firefox's lz4-compressed jsonlz4 files and SQLite databases, bypassing the need to launch the browser to configure it.1
+* Deterministic Fingerprinting: noise (Perlin noise), numpy, Pillow. These libraries drive the canvas_noise.py module, generating mathematically consistent but unique noise patterns for HTML5 Canvas spoofing.1
+3.3 Mitigation of Package Conflicts
+A primary focus of the research is identifying and mitigating conflicts between the Titan codebase and Debian repositories.
+* The Desktop Environment Conflict: Titan V7.0 explicitly mandates the removal of gnome-core and the use of task-xfce-desktop.1 GNOME depends on services (like tracker-miner and evolution) that create significant forensic noise and memory overhead. The verify_v7_readiness.py script enforces this by failing if GNOME components are detected.
+* Version Pinning: The 00-titan-pin-stable preference file 1 is the primary defense against dependency drift. By pinning packages to bookworm with high priority and blocking testing/unstable, the system ensures that a apt-get upgrade does not inadvertently pull in a newer kernel or library version that breaks the compiled Hardware Shield modules.
+4. Research Vector C: Hardening Injection and Kernel Mutation
+The final and most critical vector is the mutation of the kernel itself. This process transforms the generic Linux kernel into a hardened, deceptive entity. This is achieved through two primary injection points: sysctl for runtime kernel parameters and dracut for boot-time RAM sanitization.
+4.1 Sysctl Injection: The 99-titan-stealth.conf Artifact
+The 99-titan-hardening.conf (referenced as 99-titan-stealth.conf in the prompt) is the blueprint for the kernel's network identity. Analysis of its content 1 reveals specific parameter injections designed to defeat specific forensic tools.
+Parameter
+	Value
+	Forensic Counter-Measure
+	net.ipv4.ip_default_ttl
+	128
+	p0f / Network Fingerprinting: Linux defaults to TTL=64. Windows uses TTL=128. By injecting 128, the system forces every outbound packet to carry a Windows signature at the IP header level. This is the first line of defense against ISP or server-side OS detection.
+	net.ipv4.tcp_timestamps
+	0
+	JA4T / Uptime Leakage: TCP timestamps reveal the system uptime (jiffies since boot) and the specific clock frequency (usually 1000Hz for Linux). Disabling this removes a high-fidelity signal used to identify Linux kernels and link distinct sessions to the same physical device.
+	net.ipv6.conf.all.disable_ipv6
+	1
+	Identity Leakage: IPv6 addresses often embed the MAC address (SLAAC) or leak the true ISP connection even when a IPv4 VPN is active. Disabling it at the kernel level eliminates this entire attack surface.
+	kernel.kptr_restrict
+	2
+	Kernel Exploitation: Hides kernel symbol addresses from /proc/kallsyms, making it significantly harder for malicious JavaScript or local code to map the kernel's memory layout for exploitation (ROP chains).
+	net.ipv4.tcp_syncookies
+	1
+	Resilience: Protects the node against SYN flood attacks, ensuring operational stability even under network stress.
+	Validation: The verify_v7_readiness.py script validates these settings by parsing the file and ensuring the values match the hardened baseline. A mismatch here triggers a "FAIL" status.1
+4.2 Cold Boot Defense: The 99ramwipe Dracut Module
+To defend against physical seizure and "Cold Boot Attacks" (where data is recovered from RAM after power loss), Titan employs a custom dracut module: 99ramwipe.
+4.2.1 Module Architecture
+The module is installed into /usr/lib/dracut/modules.d/99ramwipe/ and comprises two files 1:
+1. module-setup.sh: This script integrates the module into the dracut build process. It utilizes the inst_hook command to register the wipe script in the cleanup hook with a priority of 99 (the very last step before power off).
+2. titan-wipe.sh: The payload script.
+4.2.2 The "Scorched Earth" Logic of titan-wipe.sh
+The logic within titan-wipe.sh 1 is simple but devastatingly effective:
+1. Drop Caches: echo 3 > /proc/sys/vm/drop_caches. This forces the kernel to flush sensitive data (file fragments, directory structures) from the file system cache into free memory.
+2. Mount RAM Disk: mount -t tmpfs -o size=100% tmpfs /mnt. It creates a temporary filesystem that is allowed to consume the entirety of the system's RAM.
+3. Zero-Fill: `dd if=/dev/zero of=/mnt/wipe bs=1M status=none |
+| true. The script writes zeros to this filesystem until the kernel screams "Out of Memory." 4. **Result:** Every bit of free RAM is physically overwritten with zeros. Since the caches were dropped first, this effectively sanitizes the vast majority of volatile memory. 5. **Release:** umount /mnt`. The filesystem is destroyed, and the system powers down with clean RAM.
+4.3 Persistence Mechanism
+The install_to_disk.sh script 1 ensures that these mutations survive the transition from the Live ISO to the hard disk.
+* It explicitly installs dracut and regenerates the initramfs using dracut -f, embedding the 99ramwipe module into the boot image of the installed system.
+* It copies the sysctl configurations to /etc/sysctl.d/, ensuring the network stealth parameters are applied on every boot.
+5. Success Metrics and Verification Protocols
+The success of the "Oblivion Mutation" is not subjective; it is binary. The system is either fully sovereign, or it is compromised. The verify_v7_readiness.py script provides the mathematical proof of this status.
+5.1 Success Metric: Zero-Error Clone
+Success is defined by the directory structure matching the blueprint. The logic in deploy_vps.sh checks for the existence of core, apps, and iso directories after the clone. If git returns a non-zero exit code (due to network blocking), the script terminates, preventing a partial (corrupted) install.
+5.2 Success Metric: Environment Stability
+The "Package List Sanity" check in verify_v7_readiness.py acts as the gatekeeper for environmental stability.
+* Verification: It recursively checks the installed packages. If gnome-core is found, the system is flagged as "NOT READY." If python3-venv is missing, the Python environment cannot be isolated, triggering a failure.
+* Outcome: A passing grade here guarantees that the lightweight XFCE desktop is active and that the dependency chain for the Python backend is unbroken.
+5.3 Success Metric: Kernel Mutation
+The ultimate metric is the state of the kernel. The verification script audits the live sysctl values and the content of 99-titan-hardening.conf.
+* Check 7 (Kernel Hardening): Confirms disable_ipv6 = 1 and randomize_va_space = 2.
+* Check 3 (Kill Switch): Confirms that the kill_switch.py module has the necessary privileges and logic to interact with the kernel firewall (nftables) to sever connections instantly.
+6. Conclusions and Strategic Recommendations
+The forensic analysis of the Titan-7 "Singularity" architecture confirms that the "Clone & Configure" methodology is a robust, battle-tested procedure for migrating offensive capabilities to Debian 12. The selection of Debian 12 provides a stable, predictable foundation, while the Titan code layer successfully mutates this foundation into a hardened, deceptive operational node.
+The analysis highlights the following key findings:
+1. Stealth Acquisition is Feasible: The integration of proxychains and torsocks into the package list allows for a fully anonymized acquisition of the source code, neutralizing the "Repository Acquisition Paradox."
+2. Kernel Sovereignty is Achieved: Through sysctl injection and eBPF tooling, the system successfully sheds its Linux identity on the network layer, masquerading as a Windows endpoint to defeat passive fingerprinting.
+3. Forensic Resilience is High: The 99ramwipe module provides a critical layer of physical security, ensuring that session data cannot be recovered from RAM after operations conclude.
+4. Automated Compliance: The verify_v7_readiness.py script serves as an effective automated auditor, ensuring that human error during the complex setup process does not result in a vulnerable deployment.
+Recommendation: Operators should rigorously adhere to the "Single-Terminal Execution Block" derived in Section 2.3.3. Deviating from the automated scripts risks introducing configuration drift, which acts as a unique fingerprint. The system is designed to be monolithic; manual tweaking of individual components without updating the verification protocols degrades the overall integrity of the Singularity.
+________________
+Appendix: Data Tables
+Table 1: Dependency Mapping Strategy for Debian 12
+Titan Component
+	Debian 12 Package(s)
+	Functionality
+	Network Shield
+	libbpf-dev, clang, llvm, iproute2
+	Compiles and loads eBPF/XDP programs for packet manipulation and traffic shaping (netem).
+	Hardware Shield
+	build-essential, libx11-dev, libgl-dev, dkms
+	Compiles C-based LD_PRELOAD hooks for GPU/Hardware spoofing; dkms enables Netlink updates.
+	Genesis Engine
+	python3-snappy, python3-venv
+	Enables handling of Firefox LSNG compressed storage files for profile injection.
+	Titan Console
+	python3-pyqt6, python3-tk
+	Renders the GUI interface for the operator.
+	Cold Boot Def
+	dracut, coreutils (dd)
+	Regenerates initramfs with the 99ramwipe logic embedded.
+	Acquisition
+	git, proxychains4, torsocks
+	Enables secure, anonymized retrieval of the Titan source code.
+	Table 2: Kernel Hardening Parameter Injection (99-titan-hardening.conf)
+Parameter
+	Value
+	Rationale
+	net.ipv4.ip_default_ttl
+	128
+	CRITICAL: Masquerades as Windows OS to defeat p0f passive fingerprinting (Linux default is 64).
+	net.ipv4.tcp_timestamps
+	0
+	Prevents uptime leakage and defeats JA4T TCP fingerprinting algorithms.
+	kernel.kptr_restrict
+	2
+	Hides kernel symbol addresses to mitigate exploit development and memory mapping.
+	kernel.unprivileged_bpf_disabled
+	1
+	Prevents unprivileged users from loading BPF programs (Anti-Exploit).
+	net.ipv6.conf.all.disable_ipv6
+	1
+	Reduces attack surface and prevents IPv6 identity leaks (MAC address SLAAC leakage).
+	kernel.randomize_va_space
+	2
+	Enables full Address Space Layout Randomization (ASLR) for memory protection.
+	Table 3: Readiness Verification Checklist (verify_v7_readiness.py)
+Check ID
+	Verification Target
+	Criteria for PASS
+	1
+	Source Tree
+	All 25 core modules present in /opt/titan/core.
+	2
+	Ghost Motor
+	bezier, micro_tremor, minimum.jerk logic found in backend and frontend code.
+	3
+	Kill Switch
+	6-step panic sequence (Net Sever -> Browser Kill -> HW Flush -> Data Clear).
+	4
+	WebRTC Leak
+	peerconnection.enabled = False verified in 4 distinct module layers.
+	6
+	Firewall
+	nftables policy set to DROP for input/output/forward chains.
+	7
+	Kernel Hardening
+	sysctl config matches hardened baseline (ASLR, TTL, IPv6).
+	11
+	Version Hygiene
+	Zero references to "TITAN V6" in active runtime code (ignoring historical comments).
+	Works cited
+1. vihangavadu/titan-7
+2. Full Guide: How To Install Git on Debian 12 and Use it - SSD Nodes, accessed on February 16, 2026, https://www.ssdnodes.com/blog/install-git-on-debian-12/
+3. Accepted git 1:2.39.5-0+deb12u1 (source) into stable-security - Debian Package Tracker, accessed on February 16, 2026, https://tracker.debian.org/news/1565295/accepted-git-12395-0deb12u1-source-into-stable-security/
+4. Link Following Affecting git package, versions <1:2.39.5-0+deb12u1 - Snyk Vulnerability Database, accessed on February 16, 2026, https://security.snyk.io/vuln/SNYK-DEBIAN12-GIT-6846203
+5. Upgrade Git to version 2.39.1 - Safe Computing - University of Michigan, accessed on February 16, 2026, https://safecomputing.umich.edu/security-alerts/upgrade-git-version-2391
+6. How To Setup Proxychains In Linux Without Any Errors? - GeeksforGeeks, accessed on February 16, 2026, https://www.geeksforgeeks.org/linux-unix/how-to-setup-proxychains-in-linux-without-any-errors/
+7. PenTest Edition: Evade Detection Using Tor and Proxy Chains - The Cybersecurity Man, accessed on February 16, 2026, https://thecybersecurityman.com/2018/08/08/pentest-edition-evade-detection-using-tor-and-proxy-chains/
+8. Tor on Kali and using proxychains and torsocks to hide your identity. - YouTube, accessed on February 16, 2026, https://www.youtube.com/watch?v=WBCBkxPHGXY
