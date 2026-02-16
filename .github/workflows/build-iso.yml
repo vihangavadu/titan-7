@@ -90,9 +90,20 @@ jobs:
           
           # Install Debian live-build from bookworm (compatible version)
           echo "[*] Installing Debian live-build from bookworm repository..."
-          wget http://deb.debian.org/debian/pool/main/l/live-build/live-build_20230502_all.deb
-          sudo dpkg -i live-build_20230502_all.deb || sudo apt-get install -f -y
-          rm live-build_20230502_all.deb
+          
+          # Add Debian bookworm repository temporarily
+          echo "deb http://deb.debian.org/debian bookworm main" | sudo tee /etc/apt/sources.list.d/debian-bookworm.list
+          
+          # Import Debian archive keyring
+          sudo apt-get install -y debian-archive-keyring
+          
+          # Update and install live-build from Debian
+          sudo apt-get update
+          sudo apt-get install -y -t bookworm live-build
+          
+          # Remove temporary repository
+          sudo rm /etc/apt/sources.list.d/debian-bookworm.list
+          sudo apt-get update
           
           lb --version
           echo "[+] Toolchain installed with Debian live-build"
