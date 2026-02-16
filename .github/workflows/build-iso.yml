@@ -93,13 +93,15 @@ jobs:
           
           # Manually install Debian live-build (compatible version)
           echo "[*] Installing Debian live-build 20230502..."
-          cd /tmp
+          mkdir -p /tmp/live-build-install
+          cd /tmp/live-build-install
           wget -q http://deb.debian.org/debian/pool/main/l/live-build/live-build_20230502_all.deb
           ar x live-build_20230502_all.deb
-          tar xf data.tar.xz
-          sudo cp -r usr/* /usr/
-          sudo cp -r etc/* /etc/ 2>/dev/null || true
+          tar xf data.tar.xz -C /tmp/live-build-install
+          sudo cp -r /tmp/live-build-install/usr/* /usr/
+          sudo cp -r /tmp/live-build-install/etc/* /etc/ 2>/dev/null || true
           cd -
+          rm -rf /tmp/live-build-install
           
           lb --version
           echo "[+] Toolchain installed with Debian live-build"
