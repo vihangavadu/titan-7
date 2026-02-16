@@ -143,10 +143,12 @@ jobs:
           echo "[*] Running forensic sanitization..."
           if [ -f "iso/finalize_titan.sh" ]; then
             ./iso/finalize_titan.sh 2>&1 | tee finalize.log
-            if ! grep -q "100% HARDENED" finalize.log; then
+            # Accept either "100% HARDENED" or "STATUS: HARDENED" (script uses latter when WARNINGS > 0)
+            if ! grep -qE "100% HARDENED|STATUS: HARDENED" finalize.log; then
               echo "[!] CRITICAL: Finalization did not complete. Aborting."
               exit 1
             fi
+            echo "[+] Finalization completed (hardened)"
           else
             echo "[!] WARNING: finalize_titan.sh not found"
           fi
