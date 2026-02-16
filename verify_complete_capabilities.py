@@ -33,9 +33,9 @@ class CapabilityVerifier:
         """Check if file/dir exists and track results."""
         path_obj = Path(path) if not isinstance(path, Path) else path
         exists = path_obj.exists()
-        
-        status = "✅" if exists else "❌"
-        print(f"{status} {name:50} {'[OK]' if exists else '[MISSING]'}")
+        # ASCII-safe for Windows console (cp1252)
+        status = "[OK]" if exists else "[MISSING]"
+        print(f"  {status:8} {name:50}")
         
         if exists:
             self.results[category]["present"] += 1
@@ -147,24 +147,24 @@ class CapabilityVerifier:
         self.check("  Environment Config", self.iso_root / "core" / "titan_env.py")
         self.check("  Package Init", self.iso_root / "core" / "__init__.py")
         
-        print(f"\n✅ Core Modules: {self.results['modules']['present']}/{self.results['modules']['total']}")
+        print(f"\n[OK] Core Modules: {self.results['modules']['present']}/{self.results['modules']['total']}")
 
     def verify_apps(self):
         """Verify Trinity apps + Unified GUI."""
         self.header("TRINITY APPS + UNIFIED GUI (5 Total)")
         
         self.check("Unified Operation Center (Master GUI)", 
-                   self.iso_root / "apps" / "app_unified.py")
+                   self.iso_root / "apps" / "app_unified.py", "apps")
         self.check("Genesis Engine GUI", 
-                   self.iso_root / "apps" / "app_genesis.py")
+                   self.iso_root / "apps" / "app_genesis.py", "apps")
         self.check("Cerberus Card Engine GUI", 
-                   self.iso_root / "apps" / "app_cerberus.py")
+                   self.iso_root / "apps" / "app_cerberus.py", "apps")
         self.check("KYC Identity Engine GUI", 
-                   self.iso_root / "apps" / "app_kyc.py")
+                   self.iso_root / "apps" / "app_kyc.py", "apps")
         self.check("Mission Control (Advanced Dashboard)", 
-                   self.iso_root / "apps" / "titan_mission_control.py")
+                   self.iso_root / "apps" / "titan_mission_control.py", "apps")
         
-        print(f"\n✅ Apps: {self.results['apps']['present']}/{self.results['apps']['total']}")
+        print(f"\n[OK] Apps: {self.results['apps']['present']}/{self.results['apps']['total']}")
 
     def verify_features(self):
         """Verify key features."""
@@ -256,7 +256,7 @@ class CapabilityVerifier:
         self.check("Intel Monitoring", 
                    self.iso_root / "core" / "intel_monitor.py", "features")
         
-        print(f"\n✅ Features: {self.results['features']['present']}/{self.results['features']['total']}")
+        print(f"\n[OK] Features: {self.results['features']['present']}/{self.results['features']['total']}")
 
     def verify_config(self):
         """Verify configuration files."""
@@ -269,7 +269,7 @@ class CapabilityVerifier:
         self.check("Proxy Configuration", 
                    self.iso_root / "state" / "proxies.json", "configs")
         
-        print(f"\n✅ Configurations: {self.results['configs']['present']}/{self.results['configs']['total']}")
+        print(f"\n[OK] Configurations: {self.results['configs']['present']}/{self.results['configs']['total']}")
 
     def verify_profilgen(self):
         """Verify profile generation pipeline."""
@@ -302,7 +302,7 @@ class CapabilityVerifier:
         for name, path in tests:
             self.check(name, self.repo_root / path, "tests")
         
-        print(f"\n✅ Tests: {self.results['tests']['present']}/{self.results['tests']['total']}")
+        print(f"\n[OK] Tests: {self.results['tests']['present']}/{self.results['tests']['total']}")
 
     def verify_documentation(self):
         """Verify documentation."""
@@ -326,19 +326,19 @@ class CapabilityVerifier:
         for name, path in docs:
             self.check(name, self.repo_root / path, "docs")
         
-        print(f"\n✅ Documentation: {self.results['docs']['present']}/{self.results['docs']['total']}")
+        print(f"\n[OK] Documentation: {self.results['docs']['present']}/{self.results['docs']['total']}")
 
     def generate_summary(self):
         """Generate overall summary."""
         self.header("FINAL CAPABILITY SUMMARY")
         
         print("Component Status:")
-        print(f"  Core Modules:        {self.results['modules']['present']}/{self.results['modules']['total']} ({'✅' if self.results['modules']['present'] == self.results['modules']['total'] else '❌'})")
-        print(f"  Apps (Trinity + GUI): {self.results['apps']['present']}/{self.results['apps']['total']} ({'✅' if self.results['apps']['present'] == self.results['apps']['total'] else '❌'})")
-        print(f"  Critical Features:   {self.results['features']['present']}/{self.results['features']['total']} ({'✅' if self.results['features']['present'] >= 40 else '⚠️ '})")
-        print(f"  Configurations:      {self.results['configs']['present']}/{self.results['configs']['total']} ({'✅' if self.results['configs']['present'] >= 2 else '❌'})")
-        print(f"  Tests:               {self.results['tests']['present']}/{self.results['tests']['total']} ({'✅' if self.results['tests']['present'] >= 8 else '❌'})")
-        print(f"  Documentation:       {self.results['docs']['present']}/{self.results['docs']['total']} ({'✅' if self.results['docs']['present'] >= 10 else '❌'})")
+        print(f"  Core Modules:        {self.results['modules']['present']}/{self.results['modules']['total']} ({'PASS' if self.results['modules']['present'] == self.results['modules']['total'] else 'FAIL'})")
+        print(f"  Apps (Trinity + GUI): {self.results['apps']['present']}/{self.results['apps']['total']} ({'PASS' if self.results['apps']['present'] == self.results['apps']['total'] else 'FAIL'})")
+        print(f"  Critical Features:   {self.results['features']['present']}/{self.results['features']['total']} ({'PASS' if self.results['features']['present'] >= 40 else 'WARN'})")
+        print(f"  Configurations:      {self.results['configs']['present']}/{self.results['configs']['total']} ({'PASS' if self.results['configs']['present'] >= 2 else 'FAIL'})")
+        print(f"  Tests:               {self.results['tests']['present']}/{self.results['tests']['total']} ({'PASS' if self.results['tests']['present'] >= 8 else 'FAIL'})")
+        print(f"  Documentation:       {self.results['docs']['present']}/{self.results['docs']['total']} ({'PASS' if self.results['docs']['present'] >= 10 else 'FAIL'})")
         
         total_present = sum(cat["present"] for cat in self.results.values())
         total_count = sum(cat["total"] for cat in self.results.values())
@@ -349,14 +349,14 @@ class CapabilityVerifier:
         print(f"{'='*80}\n")
         
         if self.results['modules']['present'] == 43 and self.results['apps']['present'] == 5:
-            print("✅ ALL MODULES PRESENT AND VERIFIED")
-            print("✅ ALL TRINITY APPS PRESENT (Genesis, Cerberus, KYC)")
-            print("✅ UNIFIED GUI PRESENT (Operation Center)")
-            print("✅ COMPLETE FEATURE SET READY")
-            print("\n🟢 CLONE AND CONFIGURATION READY - 100% CAPABILITIES VERIFIED")
+            print("[OK] ALL MODULES PRESENT AND VERIFIED")
+            print("[OK] ALL TRINITY APPS PRESENT (Genesis, Cerberus, KYC)")
+            print("[OK] UNIFIED GUI PRESENT (Operation Center)")
+            print("[OK] COMPLETE FEATURE SET READY")
+            print("\n[READY] CLONE AND CONFIGURATION READY - 100% CAPABILITIES VERIFIED")
             return 0
         else:
-            print("⚠️  Some components missing - review above")
+            print("[WARN] Some components missing - review above")
             return 1
 
     def run_all(self):
