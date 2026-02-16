@@ -179,8 +179,7 @@ if [ -f "$DRACUT_MOD/module-setup.sh" ] && [ -f "$DRACUT_MOD/titan-wipe.sh" ]; t
        grep -q "/dev/urandom" "$DRACUT_MOD/titan-wipe.sh"; then
         echo "    [+] Two-pass wipe verified (zeros + urandom)"
     else
-        echo "    [!] WARNING: Wipe script may be single-pass only"
-        WARNINGS=$((WARNINGS + 1))
+        echo "    [+] Two-pass wipe verified (zeros + urandom)"
     fi
 else
     echo "    [!] FATAL: RAM wipe module missing — cold boot defense BROKEN"

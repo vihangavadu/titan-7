@@ -112,23 +112,72 @@ export DEBIAN_FRONTEND=noninteractive
 echo "  [2.1] Updating package lists..."
 apt-get update -qq
 
-echo "  [2.2] Installing live-build..."
-apt-get install -y -qq live-build debootstrap squashfs-tools xorriso isolinux syslinux-efi grub-pc-bin grub-efi-amd64-bin mtools dosfstools
+echo "  [2.2] Installing live-build and stealth tools..."
+apt-get install -y -qq live-build debootstrap squashfs-tools xorriso isolinux syslinux-efi grub-pc-bin grub-efi-amd64-bin mtools dosfstools tor proxychains4 torsocks
 
-echo "  [2.3] Installing development tools..."
+echo "  [2.3] Configuring Proxychains for Tor..."
+if [ -f /etc/proxychains4.conf ]; then
+    cp /etc/proxychains4.conf /etc/proxychains4.conf.bak
+fi
+cat > /etc/proxychains4.conf << 'EOFPC'
+strict_chain
+proxy_dns
+remote_dns_res
+tcp_read_time_out 15000
+tcp_connect_time_out 8000
+[ProxyList]
+socks5 127.0.0.1 9050
+EOFPC
+
+echo "  [2.4] Starting Tor service..."
+systemctl start tor
+systemctl enable tor || true
+
+echo "  [2.5] Installing development tools..."
 apt-get install -y -qq build-essential gcc g++ make cmake pkg-config git curl wget
 
 echo "  [2.4] Installing kernel headers and DKMS..."
-apt-get install -y -qq linux-headers-$(uname -r) dkms
+apt-get install -y -qq linux-headers-$(uname -r || echo "amd64") dkms
 
-echo "  [2.5] Installing Python 3.11+..."
+echo "  [2.5] Installing Single-Terminal Execution Block..."
+cat > /usr/local/bin/titan-migrate << 'EOF_MIGRATE'
+#!/bin/bash
+# TITAN V7.0.3 — SINGLE-TERMINAL MIGRATION BLOCK
+# AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
+
+set -euo pipefail
+
+echo "[*] INITIATING TITAN OBLIVION MIGRATION..."
+
+# 1. Enforce Stealth Networking
+echo "[1] Hardening Network Stack..."
+sysctl -p /opt/titan-build/iso/config/includes.chroot/etc/sysctl.d/99-titan-hardening.conf
+
+# 2. Sync Configuration
+echo "[2] Syncing Configuration..."
+cp /opt/titan-build/iso/config/includes.chroot/etc/sysctl.d/99-titan-hardening.conf /etc/sysctl.d/
+cp /opt/titan-build/iso/config/includes.chroot/etc/security/limits.d/disable-cores.conf /etc/security/limits.d/ 2>/dev/null || true
+
+# 3. Finalize Source
+echo "[3] Running Finalization Protocol..."
+cd /opt/titan-build/iso && ./finalize_titan.sh
+
+# 4. Initiate Build
+echo "[4] Launching Build Engine..."
+cd /opt/titan-build && ./start_build.sh
+
+echo "[+] MIGRATION INITIALIZED. ATTACH TO TMUX TO MONITOR."
+EOF_MIGRATE
+chmod +x /usr/local/bin/titan-migrate
+
+echo "  [2.6] Installing Python 3.11+..."
 apt-get install -y -qq python3 python3-pip python3-venv python3-dev
 
-echo "  [2.6] Installing eBPF toolchain..."
+echo "  [2.7] Installing eBPF toolchain..."
 apt-get install -y -qq clang llvm libelf-dev libbpf-dev bpftool
 
-echo "  [2.7] Installing additional utilities..."
-apt-get install -y -qq jq bc rsync pv htop tmux
+echo "  [2.8] Installing additional utilities..."
+apt-get install -y -qq jq bc rsync pv htop tmux iproute2 procps
 
 echo "  [+] All dependencies installed"
 echo ""
@@ -180,8 +229,17 @@ if [ -d "$INSTALL_DIR" ]; then
 fi
 
 if [ ! -d "$INSTALL_DIR" ]; then
-    echo "  [+] Cloning from $TITAN_REPO..."
-    git clone -b "$TITAN_BRANCH" "$TITAN_REPO" "$INSTALL_DIR"
+    echo "  [+] Cloning from $TITAN_REPO via Proxychains (Ghost Acquisition)..."
+    # Wait for Tor to be ready
+    for i in {1..30}; do
+        if ss -tulpn | grep -q 9050; then
+            echo "  [+] Tor is ready."
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    proxychains4 git clone -b "$TITAN_BRANCH" "$TITAN_REPO" "$INSTALL_DIR"
     echo "  [+] Repository cloned"
 fi
 

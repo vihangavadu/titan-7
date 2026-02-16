@@ -2,15 +2,18 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5469b9d8-2d5b-452d-bcdd-8bb7f06bd3f0" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.github/workflows/build-iso.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/build-iso.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/V7_REPO_MAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/V7_REPO_MAP.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/iso/config/includes.chroot/opt/titan/core/handover_protocol.py" beforeDir="false" afterPath="$PROJECT_DIR$/iso/config/includes.chroot/opt/titan/core/handover_protocol.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/build_iso.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/build_iso.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/deploy_vps.sh" beforeDir="false" afterPath="$PROJECT_DIR$/deploy_vps.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/iso/config/includes.chroot/usr/lib/dracut/modules.d/99ramwipe/titan-wipe.sh" beforeDir="false" afterPath="$PROJECT_DIR$/iso/config/includes.chroot/usr/lib/dracut/modules.d/99ramwipe/titan-wipe.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/iso/finalize_titan.sh" beforeDir="false" afterPath="$PROJECT_DIR$/iso/finalize_titan.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="495" />
+    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -19,9 +22,9 @@
     <commands />
     <urls />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 7
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7
+}</component>
   <component name="ProjectId" id="39jPCsAjDipl6FSJYeWjYDuocQK" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -35,8 +38,16 @@
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "ai.playground.ignore.import.keys.banner.in.settings": "true",
-    "git-widget-placeholder": "main",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
+    "to.speed.mode.migration.done": "true",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -56,7 +67,11 @@
       <option name="presentableId" value="Default" />
       <updated>1771206381758</updated>
       <workItem from="1771206383655" duration="21000" />
+      <workItem from="1771211002586" duration="569000" />
     </task>
     <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
   </component>
 </project>
