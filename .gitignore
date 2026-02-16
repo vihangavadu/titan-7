@@ -1,2 +1,4 @@
 
 nul
+__pycache__/
+venv/
