@@ -33,7 +33,7 @@ lb config noauto \
     --security false \
     --backports false \
     --linux-flavours amd64 \
-    --bootloaders grub-efi \
+    --bootloader grub-efi \
     --system live \
     --initramfs live-boot \
     --initsystem systemd \
@@ -44,7 +44,6 @@ lb config noauto \
     --iso-application "LUCID EMPIRE TITAN V7.0 SINGULARITY" \
     --iso-publisher "Dva.12" \
     --iso-volume "TITAN-V70-SINGULARITY" \
-    --debootstrap-options "--include=gnupg,gpgv,debian-archive-keyring" \
     --firmware-chroot true \
     --cache true \
     --cache-packages true \
