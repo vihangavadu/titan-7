@@ -279,6 +279,8 @@ def check_sysctl(chroot):
 
     content = open(sysctl, "r", errors="ignore").read()
     for param, label in [
+        ("net.ipv4.ip_default_ttl = 128", "Windows TTL masquerade (TTL=128)"),
+        ("net.ipv4.tcp_timestamps = 0", "TCP timestamps disabled (anti-uptime)"),
         ("net.ipv6.conf.all.disable_ipv6 = 1", "IPv6 fully disabled"),
         ("kernel.randomize_va_space = 2", "Full ASLR enabled"),
         ("kernel.yama.ptrace_scope = 2", "Ptrace restricted"),

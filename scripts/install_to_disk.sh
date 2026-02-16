@@ -101,7 +101,7 @@ hdr "PHASE 1 — PARTITION DISK"
 apt-get update -qq 2>/dev/null
 apt-get install -y --no-install-recommends \
     parted dosfstools e2fsprogs grub-efi-amd64-bin grub-pc-bin \
-    grub-common grub2-common 2>/dev/null || true
+    grub-common grub2-common dracut 2>/dev/null || true
 
 log "Unmounting any existing partitions on $TARGET_DISK..."
 umount "${TARGET_DISK}"* 2>/dev/null || true
@@ -265,12 +265,18 @@ log "Installing GRUB bootloader..."
 chroot "$MOUNT_ROOT" /bin/bash << 'CHROOTEOF'
 set -e
 
-# Ensure grub packages are installed
+# Ensure grub and dracut packages are installed
 apt-get update -qq 2>/dev/null || true
 apt-get install -y --no-install-recommends \
     grub-efi-amd64 grub-pc-bin grub-common \
     linux-image-amd64 linux-headers-amd64 \
-    openssh-server 2>/dev/null || true
+    dracut openssh-server 2>/dev/null || true
+
+# Regenerate initramfs with 99ramwipe module
+echo "[*] Regenerating initramfs with dracut (embedding 99ramwipe)..."
+dracut -f --add 99ramwipe 2>/dev/null || {
+    echo "[WARN] Dracut failed — initramfs may not include RAM wipe"
+}
 
 # Install GRUB for EFI
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --removable --recheck 2>/dev/null || {
@@ -288,6 +294,12 @@ update-grub 2>/dev/null || {
     echo "[WARN] update-grub failed — generating manually"
     grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
 }
+
+# Sync Titan Hardening configs
+echo "[*] Applying kernel and network hardening to persistent disk..."
+mkdir -p /etc/sysctl.d
+cp /opt/titan/config/99-titan-hardening.conf /etc/sysctl.d/ 2>/dev/null || \
+cp /opt/titan-build/iso/config/includes.chroot/etc/sysctl.d/99-titan-hardening.conf /etc/sysctl.d/ 2>/dev/null || true
 
 # Enable critical services
 systemctl enable ssh 2>/dev/null || true

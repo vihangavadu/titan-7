@@ -307,7 +307,8 @@ sudo lb clean --purge
 echo "[*] Starting ISO build (this will take 30-60 minutes)..."
 START_TIME=$(date +%s)
 
-sudo lb build 2>&1 | tee titan_v7_build_$(date +%Y%m%d_%H%M%S).log
+# Execute via Proxychains for stealth acquisition of secondary blobs (Camoufox, etc.)
+sudo proxychains4 lb build 2>&1 | tee titan_v7_build_$(date +%Y%m%d_%H%M%S).log
 
 END_TIME=$(date +%s)
 BUILD_DURATION=$((END_TIME - START_TIME))
