@@ -241,7 +241,7 @@ EOF
           compression-level: 0
           if-no-files-found: error
 
-      - name: Upload build log
+      - name: "Upload build log"
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -253,7 +253,7 @@ EOF
   # RELEASE JOB — Creates GitHub Release on tag push
   # ══════════════════════════════════════════════════════════════════════════
   release:
-    needs: build-titan-iso
+    needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
@@ -266,8 +266,6 @@ EOF
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
             release/${{ env.ISO_NAME }}.iso
@@ -287,3 +285,85 @@ EOF
             - **Ghost Motor Extension** — Diffusion-based behavioral biometrics evasion
             - **32 Pre-Configured Targets** — Fraud engine + PSP intelligence database
             - **VPS Disk Installer** — Install to VPS disk for persistent deployment
+            - **First-Boot Service** — Auto-verifies and completes setup on first boot
+            - **Phase 3 Hardening** — Font, audio, timezone atomicity shields
+
+            #### Desktop (3 Icons — Zero Terminal)
+            | Icon | Function |
+            |------|----------|
+            | **TITAN V7.0** | Unified Operation Center (4 tabs: OPS, INTEL, SHIELDS, KYC) |
+            | **Titan Browser** | Hardened Camoufox with all shields |
+            | **Install to Disk** | VPS/bare metal persistent installer |
+
+            #### Core Modules (30)
+            `genesis_core` · `target_intelligence` · `preflight_validator` ·
+            `cerberus_core` · `cerberus_enhanced` · `fingerprint_injector` ·
+            `handover_protocol` · `integration_bridge` · `ghost_motor_v6` ·
+            `cognitive_core` · `referrer_warmup` · `proxy_manager` ·
+            `three_ds_strategy` · `target_presets` · `quic_proxy` ·
+            `kyc_core` · `kyc_enhanced` · `lucid_vpn` ·
+            `purchase_history_engine` · `kill_switch` · `font_sanitizer` ·
+            `audio_hardener` · `timezone_enforcer` · `verify_deep_identity` ·
+            `titan_master_verify` · `advanced_profile_generator` ·
+            `location_spoofer_linux` · `form_autofill_injector` ·
+            `hardware_shield_v6.c` · `network_shield_v6.c`
+
+            #### First Boot
+            ```
+            1. Write ISO to USB: sudo dd if=lucid-titan-v7.0-singularity.iso of=/dev/sdX bs=4M status=progress
+            2. Boot from USB
+            3. System auto-runs first-boot service (installs Camoufox, verifies 41 modules)
+            4. GUI auto-launches — 3 desktop icons ready
+            5. System is OPERATIONAL
+            ```
+
+            #### VPS Install
+            ```
+            # From within the booted live ISO:
+            sudo bash /opt/titan/bin/install-to-disk /dev/vda
+            # Reboot — system persists permanently
+            # Access: SSH root@<IP> or VNC <IP>:5901
+            ```
+
+            ### Checksums
+            See `.sha256` and `.md5` files for verification.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # VALIDATE JOB — Runs on pull requests
+  # ══════════════════════════════════════════════════════════════════════════
+  validate:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Download ISO artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ISO_NAME }}
+          path: ./validate
+
+      - name: Validate ISO
+        run: |
+          cd validate
+          if [ -f ${{ env.ISO_NAME }}.iso ]; then
+            echo "══════════════════════════════════════════════════"
+            echo "  ISO Validation"
+            echo "══════════════════════════════════════════════════"
+            ls -lh ${{ env.ISO_NAME }}.iso
+
+            # Verify checksum
+            sha256sum -c ${{ env.ISO_NAME }}.iso.sha256
+            echo "[+] SHA256 checksum verified"
+
+            # Check ISO structure
+            sudo apt-get install -y genisoimage 2>/dev/null || true
+            isoinfo -d -i ${{ env.ISO_NAME }}.iso | head -20 || true
+          else
+            echo "ISO not found!"
+            exit 1
+          fi
