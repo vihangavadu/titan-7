@@ -1,0 +1,35 @@
+name: Minimal ISO Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  minimal-test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Test basic commands
+        run: |
+          echo "Testing basic commands..."
+          which lb
+          lb --version
+          echo "Commands work"
+          
+      - name: Test config
+        run: |
+          cd iso
+          echo "Testing config..."
+          chmod +x ./auto/config
+          ./auto/config
+          echo "Config completed"
+          
+      - name: Test build start
+        run: |
+          cd iso
+          echo "Testing build start..."
+          sudo lb build --verbose 2>&1 | head -50
+          echo "Build test completed"
