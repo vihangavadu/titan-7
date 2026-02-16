@@ -69,6 +69,7 @@ jobs:
           # Install all dependencies except live-build
           sudo apt-get install -y \
             debootstrap \
+            debian-archive-keyring \
             xorriso \
             isolinux \
             syslinux-common \
