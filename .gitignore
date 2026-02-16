@@ -1,8 +1,2 @@
-# Node / Python / system
-.DS_Store
-__pycache__/
-*.pyc
-*.log
-iso/live-image-*.iso
-iso/*.hybrid.iso
-venv/
+
+nul
