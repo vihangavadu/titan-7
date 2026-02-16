@@ -66,9 +66,8 @@ jobs:
           echo "══════════════════════════════════════════════════════"
           sudo apt-get update
           
-          # Install all dependencies including live-build
+          # Install all dependencies except live-build
           sudo apt-get install -y \
-            live-build \
             debootstrap \
             xorriso \
             isolinux \
@@ -87,10 +86,23 @@ jobs:
             llvm \
             libbpf-dev \
             linux-tools-common \
-            linux-tools-generic
+            linux-tools-generic \
+            cpio \
+            gettext \
+            genisoimage
+          
+          # Manually install Debian live-build (compatible version)
+          echo "[*] Installing Debian live-build 20230502..."
+          cd /tmp
+          wget -q http://deb.debian.org/debian/pool/main/l/live-build/live-build_20230502_all.deb
+          ar x live-build_20230502_all.deb
+          tar xf data.tar.xz
+          sudo cp -r usr/* /usr/
+          sudo cp -r etc/* /etc/ 2>/dev/null || true
+          cd -
           
           lb --version
-          echo "[+] Toolchain installed"
+          echo "[+] Toolchain installed with Debian live-build"
 
       # ════════════════════════════════════════════════════════════════════════
       # PHASE 1: VERIFY ALL V7.0 MODULES IN ISO TREE
