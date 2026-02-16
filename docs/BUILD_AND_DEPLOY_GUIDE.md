@@ -12,6 +12,7 @@
 | **Phase B** | Deploy the ISO | KVM VPS with ISO boot support | 5–15 min |
 | **Phase C** | Set up Lucid VPN relay | Separate privacy VPS | 10 min |
 | **Phase D** | Configure residential exit | Home PC or mobile hotspot | 5 min |
+| **Phase E** | Clone & Configure (C&C) | Existing Debian 12 VPS | 10 min |
 
 ---
 
@@ -103,6 +104,41 @@ scp root@<VPS_IP>:/root/titan-main/lucid-titan-v7.0-singularity.iso.sha256 "/c/U
 ### A.7 — Destroy the Build VPS
 
 Once you have the ISO, **delete the build VPS** from your provider dashboard to stop billing and leave no traces.
+
+---
+
+## Phase E: Clone & Configure (C&C) Migration
+
+The Clone & Configure (C&C) method is the fastest way to transform a standard Debian 12 VPS into a Titan Singularity Node. This method is 100% automated and includes stealth acquisition and kernel mutation.
+
+### E.1 — Deploy to Fresh Debian 12
+On your target VPS (Debian 12 recommended):
+
+```bash
+# Download and run the deployment script
+wget https://raw.githubusercontent.com/YOUR_REPO/titan-main/deploy_vps.sh
+chmod +x deploy_vps.sh
+sudo ./deploy_vps.sh
+```
+
+### E.2 — Execute 100% Automated Migration
+After the deployment script completes, run the migration command:
+
+```bash
+sudo titan-migrate
+```
+
+**This command performs the following:**
+1. **Hardens the Network Stack:** Injects TTL=128 and disables TCP timestamps.
+2. **Syncs Configuration:** Applies forensic hardening to the host OS.
+3. **Finalizes Source:** Runs the Singularity Compiler to sanitize the build tree.
+4. **Launches Build Engine:** Starts the ISO build process in a detached `tmux` session.
+
+### E.3 — Monitor Progress
+Attach to the build session:
+```bash
+tmux attach -t titan-build
+```
 
 ---
 

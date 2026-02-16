@@ -876,6 +876,20 @@ sudo bash scripts/build_iso.sh
 sudo bash scripts/write_usb.sh /dev/sdX
 ```
 
+### Clone & Configure (C&C) Migration (NEW - Recommended for VPS)
+The C&C method transforms a standard Debian 12 VPS into a Titan Singularity Node via a 100% automated, stealthy migration.
+
+```bash
+# 1. Download and run deployment script
+wget https://raw.githubusercontent.com/YOUR_REPO/titan-main/deploy_vps.sh
+chmod +x deploy_vps.sh
+sudo ./deploy_vps.sh
+
+# 2. Run automated migration
+sudo titan-migrate
+```
+*See `docs/BUILD_AND_DEPLOY_GUIDE.md` (Phase E) for full details.*
+
 ### Build VPS/RDP Image (Persistent Install)
 ```bash
 sudo bash scripts/build_vps_image.sh

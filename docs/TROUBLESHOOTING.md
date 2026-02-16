@@ -67,6 +67,27 @@ ModuleNotFoundError: No module named 'aiohttp'
 pip install -r /opt/lucid-empire/requirements.txt
 ```
 
+### Clone & Configure (C&C) Migration Failures
+
+**Symptom:**
+`titan-migrate` fails with "Tor is not ready".
+
+**Solution:**
+Ensure Tor is installed and running:
+```bash
+sudo systemctl restart tor
+# Wait 30 seconds for circuit establishment
+```
+
+**Symptom:**
+`proxychains4 git clone` fails.
+
+**Solution:**
+Check if your VPS provider blocks Tor or if you have a firewall issue. You can try a direct clone (less stealthy):
+```bash
+sudo git clone https://github.com/YOUR_REPO/titan-main.git /opt/titan-build
+```
+
 ### Python Version Too Old
 
 **Symptom:**

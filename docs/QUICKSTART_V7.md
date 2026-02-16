@@ -72,6 +72,7 @@ Phase 3: HANDOVER (Manual — Human Takes Control)
 ## Prerequisites
 
 - TITAN V7.0 ISO booted (USB/VM) — `titan-first-boot` runs automatically on first boot
+- OR Debian 12 host migrated via **Clone & Configure** (`sudo titan-migrate`)
 - Camoufox installed (auto-installed by first boot, or `pip install camoufox[geoip]`)
 - Operator config set: edit `/opt/titan/config/titan.env` (proxy, VPN, API keys)
 - Residential proxy or Lucid VPN configured (recommended)
