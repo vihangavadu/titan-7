@@ -451,6 +451,25 @@ jobs:
           echo "[*] Running auto/config with fixed security mirrors..."
           bash auto/config
 
+          # Patch lb_chroot_linux-image to skip Contents file download
+          echo "[*] Patching lb_chroot_linux-image in live-build installation..."
+          LB_SCRIPT=$(find /usr -name "chroot_linux-image" -path "*/live/build/*" 2>/dev/null | head -1)
+          if [ -n "$LB_SCRIPT" ]; then
+            echo "[*] Found script at: $LB_SCRIPT"
+            sudo cp "$LB_SCRIPT" "${LB_SCRIPT}.backup"
+            sudo tee "$LB_SCRIPT" > /dev/null << 'EOFPATCH'
+          #!/bin/sh
+          # TITAN V7.0.3 - Patched to skip Contents-amd64.gz download
+          # Kernel is installed via package list instead
+          echo "P: Skipping lb_chroot_linux-image (kernel in package list)"
+          exit 0
+          EOFPATCH
+            sudo chmod +x "$LB_SCRIPT"
+            echo "[+] lb_chroot_linux-image patched successfully"
+          else
+            echo "[!] WARNING: Could not find lb_chroot_linux-image script"
+          fi
+
           echo "[+] live-build configured for ${{ env.DEBIAN_VERSION }} amd64"
 
       # ════════════════════════════════════════════════════════════════════════
@@ -482,22 +501,6 @@ jobs:
           echo "    095 → OS hardening (fonts, audio, RAM wipe, USB)"
           echo "    098 → Profile skeleton generation"
           echo "    099 → Final perms, pip deps, systemd services"
-          echo ""
-          
-          # Workaround: Replace lb_chroot_linux-image with a stub that does nothing
-          # This prevents the Contents-amd64.gz 404 error
-          # Kernel will be installed via package list instead
-          echo "[*] Replacing lb_chroot_linux-image with no-op stub..."
-          sudo mkdir -p /usr/share/live/build/scripts/build
-          sudo tee /usr/share/live/build/scripts/build/chroot_linux-image > /dev/null << 'EOFSTUB'
-          #!/bin/sh
-          # TITAN V7.0.3 - Stub to bypass Contents-amd64.gz lookup
-          # Kernel is installed via package list (linux-image-amd64) instead
-          echo "P: Skipping lb_chroot_linux-image (kernel in package list)"
-          exit 0
-          EOFSTUB
-          sudo chmod +x /usr/share/live/build/scripts/build/chroot_linux-image
-          echo "[+] lb_chroot_linux-image replaced with stub"
           echo ""
 
           BUILD_START=$(date +%s)
