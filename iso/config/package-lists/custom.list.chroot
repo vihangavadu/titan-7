@@ -47,6 +47,7 @@ libx11-dev
 # --- eBPF / XDP Tools (Kernel-Level Sovereignty) ---
 # Required for network packet manipulation at the NIC driver level
 # Source: [cite: 1, 14, 16]
+linux-image-amd64
 linux-headers-amd64
 bpfcc-tools
 libbpf-dev
