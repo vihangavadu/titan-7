@@ -484,12 +484,19 @@ jobs:
           echo "    099 → Final perms, pip deps, systemd services"
           echo ""
           
-          # Workaround: Disable lb_chroot_linux-image by removing the script
+          # Workaround: Replace lb_chroot_linux-image with a stub that does nothing
           # This prevents the Contents-amd64.gz 404 error
           # Kernel will be installed via package list instead
-          echo "[*] Disabling lb_chroot_linux-image to avoid Contents file lookup..."
-          sudo rm -f /usr/share/live/build/scripts/build/chroot_linux-image 2>/dev/null || true
-          echo "[+] lb_chroot_linux-image disabled"
+          echo "[*] Replacing lb_chroot_linux-image with no-op stub..."
+          sudo bash -c 'cat > /usr/share/live/build/scripts/build/chroot_linux-image << "EOF"
+#!/bin/sh
+# TITAN V7.0.3 - Stub to bypass Contents-amd64.gz lookup
+# Kernel is installed via package list (linux-image-amd64) instead
+echo "P: Skipping lb_chroot_linux-image (kernel in package list)"
+exit 0
+EOF'
+          sudo chmod +x /usr/share/live/build/scripts/build/chroot_linux-image
+          echo "[+] lb_chroot_linux-image replaced with stub"
           echo ""
 
           BUILD_START=$(date +%s)
