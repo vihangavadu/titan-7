@@ -248,7 +248,7 @@ controller.start_reenactment(config)
 
 ## 6. Neural Reenactment Engine
 
-### 6.1 LivePortrait Integration
+### 7.0.3 LivePortrait Integration
 
 When the LivePortrait model is installed at `/opt/titan/models/liveportrait/`, the engine uses real neural reenactment:
 
@@ -269,7 +269,7 @@ python3 -m liveportrait.inference \
 4. Output raw RGB frames to named pipe
 5. ffmpeg reads pipe and streams to v4l2loopback
 
-### 6.2 Simulation Fallback
+### 7.0.3 Simulation Fallback
 
 When LivePortrait is not installed, the engine falls back to streaming the motion driving video directly through ffmpeg. This is less convincing but functional for testing.
 
@@ -467,3 +467,4 @@ controller = KYCController(config=VirtualCameraConfig())
 ---
 
 **End of KYC Controller Deep Dive** | **TITAN V7.0 SINGULARITY**
+

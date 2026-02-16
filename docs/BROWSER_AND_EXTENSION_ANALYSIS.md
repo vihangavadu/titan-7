@@ -11,10 +11,10 @@
 1. [Overview](#1-overview)
 2. [Camoufox Browser](#2-camoufox-browser)
 3. [Ghost Motor Extension — Architecture](#3-ghost-motor-extension--architecture)
-4. [Ghost Motor — Core Augmentation (V6.0)](#4-ghost-motor--core-augmentation-v60)
+4. [Ghost Motor — Core Augmentation (V7.0.3)](#4-ghost-motor--core-augmentation-v60)
 5. [Ghost Motor — BioCatch Evasion (V7.0)](#5-ghost-motor--biocatch-evasion-v70)
 6. [Ghost Motor — ThreatMetrix Session Continuity (V7.0)](#6-ghost-motor--threatmetrix-session-continuity-v70)
-7. [Ghost Motor V6 Python Engine (DMTG)](#7-ghost-motor-v6-python-engine-dmtg)
+7. [Ghost Motor V7.0.3 Python Engine (DMTG)](#7-ghost-motor-v6-python-engine-dmtg)
 8. [V7.0 Evasion Profiles](#8-v70-evasion-profiles)
 9. [Runtime Configuration API](#9-runtime-configuration-api)
 10. [How They Work Together](#10-how-they-work-together)
@@ -157,7 +157,7 @@ initialize()
 
 ---
 
-## 4. Ghost Motor — Core Augmentation (V6.0)
+## 4. Ghost Motor — Core Augmentation (V7.0.3)
 
 ### 4.1 Configuration Object
 
@@ -341,11 +341,11 @@ observer.observe(document.body, {
 
 ## 6. Ghost Motor — ThreatMetrix Session Continuity (V7.0)
 
-### 6.1 What ThreatMetrix Detects
+### 7.0.3 What ThreatMetrix Detects
 
 ThreatMetrix (LexisNexis) builds a behavioral profile throughout the session. If behavioral patterns change mid-session (e.g., different typing speed, different mouse precision), it flags the session as potentially compromised (operator handoff detected).
 
-### 6.2 Session Tracking
+### 7.0.3 Session Tracking
 
 Ghost Motor maintains a `window.__titanSession` object:
 
@@ -371,13 +371,13 @@ Ghost Motor maintains a `window.__titanSession` object:
 
 ---
 
-## 7. Ghost Motor V6 Python Engine (DMTG)
+## 7. Ghost Motor V7.0.3 Python Engine (DMTG)
 
 **Module:** `ghost_motor_v6.py` | **Lines:** 731 | **Path:** `/opt/titan/core/ghost_motor_v6.py`
 
 ### 7.1 Why Diffusion > GAN
 
-The V5.2 Ghost Motor used GAN-generated trajectories. V6 replaces this with **Diffusion Model Trajectory Generation (DMTG)** because:
+The V5.2 Ghost Motor used GAN-generated trajectories. V7.0.3 replaces this with **Diffusion Model Trajectory Generation (DMTG)** because:
 
 | Problem | GAN | DMTG |
 |---------|-----|------|
@@ -592,7 +592,7 @@ console.log(window.__ghostMotorConfig.get());
 │ - BioCatch invisible challenge response                         │
 │ - ThreatMetrix session continuity                               │
 ├─────────────────────────────────────────────────────────────────┤
-│ Layer 2: Ghost Motor V6 Python (DMTG)                           │
+│ Layer 2: Ghost Motor V7.0.3 Python (DMTG)                           │
 │ - Diffusion-based trajectory generation                         │
 │ - Persona-specific movement profiles                            │
 │ - Forter/BioCatch/ThreatMetrix evasion parameters               │
@@ -621,3 +621,4 @@ console.log(window.__ghostMotorConfig.get());
 ---
 
 **End of Browser & Extension Analysis** | **TITAN V7.0 SINGULARITY**
+

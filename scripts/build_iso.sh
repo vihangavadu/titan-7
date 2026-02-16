@@ -680,7 +680,7 @@ lb config \
     --system live \
     --initramfs live-boot \
     --initsystem systemd \
-    --bootloader grub \
+    --bootloaders grub-efi \
     --bootappend-live "boot=live components quiet splash toram persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0" \
     --chroot-filesystem squashfs \
     --binary-images iso-hybrid \

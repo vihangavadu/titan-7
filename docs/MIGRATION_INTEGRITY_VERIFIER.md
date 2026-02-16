@@ -63,7 +63,7 @@ sudo python3 scripts/migration_integrity_verifier.py | tee verification_report.l
   - ICMP echo ignore
   - Redirect handling
   - IP forwarding disabled
-  - IPv6 disabled
+  - IPV7.0.3 disabled
   - dmesg restrict
   - Namespace cloning restrictions
   - Pointer dereference restrict
@@ -272,3 +272,4 @@ The system is considered ready for operations when:
 **Requires:** Python 3.6+  
 **Tested On:** Debian 12, Ubuntu 22.04, Ubuntu 24.04  
 **Authority:** Dva.12 | **Status:** SINGULARITY
+

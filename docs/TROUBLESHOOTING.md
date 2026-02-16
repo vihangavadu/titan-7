@@ -717,5 +717,6 @@ dmesg | grep titan
 
 ---
 
-*TITAN V6.0 SOVEREIGN - Troubleshooting Guide*
+*TITAN V7.0.3 SOVEREIGN - Troubleshooting Guide*
 *Authority: Dva.12 | When things go wrong*
+

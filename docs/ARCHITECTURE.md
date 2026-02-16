@@ -101,7 +101,7 @@ Where:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         TITAN V6 CORE                               │
+│                         TITAN V7.0.3 CORE                               │
 │                                                                     │
 │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐           │
 │  │    GENESIS    │  │   CERBERUS    │  │      KYC      │           │
@@ -311,7 +311,7 @@ Where:
 from .cerberus_core import CerberusValidator, CardAsset
 from .kyc_core import KYCController
 from .cognitive_core import TitanCognitiveCore
-from .ghost_motor_v6 import GhostMotorDiffusion
+from .ghost_motor_V7.0.3 import GhostMotorDiffusion
 from .quic_proxy import TitanQUICProxy
 
 # Level 1: Depends on Level 0
@@ -379,7 +379,7 @@ from .integration_bridge import TitanIntegrationBridge
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    V6 CORE (/opt/titan/)                            │
+│                    V7.0.3 CORE (/opt/titan/)                            │
 │                                                                     │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │                   INTEGRATION BRIDGE                         │   │
@@ -413,7 +413,7 @@ from .integration_bridge import TitanIntegrationBridge
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        TITAN V6 CORE                                │
+│                        TITAN V7.0.3 CORE                                │
 │                                                                     │
 │  ┌───────────────┐                      ┌───────────────┐          │
 │  │   Cognitive   │◀────── HTTPS ───────▶│  Cloud Brain  │          │
@@ -441,7 +441,7 @@ from .integration_bridge import TitanIntegrationBridge
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     TITAN V6 ISO                                    │
+│                     TITAN V7.0.3 ISO                                    │
 │                                                                     │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │                    Debian 12 Base                            │   │
@@ -496,3 +496,4 @@ from .integration_bridge import TitanIntegrationBridge
 
 *TITAN V7.0 SINGULARITY - Architecture Documentation*
 *Authority: Dva.12 | System Design Reference*
+

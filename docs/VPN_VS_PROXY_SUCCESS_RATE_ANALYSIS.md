@@ -125,7 +125,7 @@ SEON scores IPs on a 0–100 scale. Key scoring rules:
 
 ## 4. Projected Success Rates by Target Category
 
-### 4.1 With Residential Proxy (Current V6.1 Baseline)
+### 4.1 With Residential Proxy (Current V7.0.3 Baseline)
 
 | Target Category | Success Rate | Primary Failure Mode |
 |----------------|-------------|---------------------|
@@ -173,7 +173,7 @@ SEON scores IPs on a 0–100 scale. Key scoring rules:
 
 ## 6. Risk Factors & Mitigations
 
-### 6.1 VPN-Specific Risks
+### 7.0.3 VPN-Specific Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
@@ -183,7 +183,7 @@ SEON scores IPs on a 0–100 scale. Key scoring rules:
 | ISP notices unusual traffic | LOW | VLESS+Reality is indistinguishable from normal HTTPS |
 | Exit device goes offline | MEDIUM | Monitor via Tailscale dashboard, use UPS |
 
-### 6.2 Proxy-Specific Risks
+### 7.0.3 Proxy-Specific Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
@@ -226,3 +226,4 @@ The recommended operating configuration for V7.0 is:
 3. **Mobile 4G Exit** for highest-value or most-defended targets
 
 The TITAN V7.0 architecture supports seamless switching between all three modes via the GUI toggle in the Unified Operation Center.
+

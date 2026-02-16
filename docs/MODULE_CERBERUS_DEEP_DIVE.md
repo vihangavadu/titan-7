@@ -247,7 +247,7 @@ Risk scores range from 0 (safest) to 100 (highest risk):
 
 ## 6. Stripe SetupIntent Validation
 
-### 6.1 Flow
+### 7.0.3 Flow
 
 This is the primary validation method. It creates a PaymentMethod and SetupIntent without charging the card.
 
@@ -270,7 +270,7 @@ Step 2: POST /v1/setup_intents
         └── other status ──► DEAD
 ```
 
-### 6.2 Key Rotation
+### 7.0.3 Key Rotation
 
 Merchant keys are rotated round-robin to avoid rate limiting:
 
@@ -532,3 +532,4 @@ summary = bulk.get_summary()
 ---
 
 **End of Cerberus Deep Dive** | **TITAN V7.0 SINGULARITY**
+

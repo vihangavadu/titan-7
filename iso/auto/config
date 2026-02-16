@@ -11,6 +11,7 @@
 set -e
 
 lb config noauto \
+    --mode debian \
     --distribution bookworm \
     --parent-distribution bookworm \
     --parent-mirror-bootstrap http://deb.debian.org/debian \
@@ -28,11 +29,11 @@ lb config noauto \
     --architectures amd64 \
     --binary-images iso-hybrid \
     --bootappend-live "boot=live components quiet splash persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0" \
-    --debian-installer false \
+    --debian-installer none \
     --security true \
     --backports false \
     --linux-flavours amd64 \
-    --bootloader grub \
+    --bootloaders grub-efi \
     --system live \
     --initramfs live-boot \
     --initsystem systemd \
@@ -43,6 +44,7 @@ lb config noauto \
     --iso-application "LUCID EMPIRE TITAN V7.0 SINGULARITY" \
     --iso-publisher "Dva.12" \
     --iso-volume "TITAN-V70-SINGULARITY" \
+    --debootstrap-options "--include=gnupg,gpgv,debian-archive-keyring" \
     --firmware-chroot true \
     --cache true \
     --cache-packages true \

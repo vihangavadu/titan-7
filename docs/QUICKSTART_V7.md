@@ -2,7 +2,7 @@
 
 ## Get Started in 5 Minutes
 
-**Version:** 7.0.2 | **Codename:** SINGULARITY | **Authority:** Dva.12
+**Version:** 7.0.3 | **Codename:** SINGULARITY | **Authority:** Dva.12
 
 ---
 
@@ -375,9 +375,9 @@ if __name__ == "__main__":
 
 ---
 
-## V7.0 Key Differences from V6.2
+## V7.0 Key Differences from V7.0.3
 
-| Feature | V6.2 | V7.0 |
+| Feature | V7.0.3 | V7.0 |
 |---------|------|------|
 | **Persona Config** | Hardcoded in profgen | Dynamic via JSON/env vars |
 | **Timezone** | Hardcoded `Asia/Colombo` | Auto-derived from billing state |
@@ -421,7 +421,7 @@ sudo modprobe titan_hw
 
 ---
 
-## V7.0.2 New Capabilities
+## v7.0.3 New Capabilities
 
 ### MaxDrain Strategy (Auto after CC validation)
 Card validates LIVE → orange **"MaxDrain Strategy"** button appears → click for full extraction plan.
@@ -472,5 +472,6 @@ Score >25 = rotate recommended. Score >50 = abort.
 
 ---
 
-*TITAN V7.0.2 SINGULARITY - Quick Start Guide*
+*TITAN v7.0.3 SINGULARITY - Quick Start Guide*
 *Authority: Dva.12 | Estimated success rate: 76-83% with good CC*
+

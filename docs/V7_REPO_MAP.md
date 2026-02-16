@@ -13,7 +13,7 @@
 | `.gitattributes` | 183B | ACTIVE | Git LFS / line ending config |
 | `.gitignore` | 1.3KB | ACTIVE | Build artifacts, pycache, venvs, ISOs, .so/.ko files |
 | `docs/` | 15 active + 20 archived | ACTIVE | V7.0 documentation suite |
-| `Final/` | 6 files | ARCHIVE | V6 session reports, pre-flight checks, mission scope |
+| `Final/` | 6 files | ARCHIVE | V7.0.3 session reports, pre-flight checks, mission scope |
 | `iso/` | 237 items | **CORE** | Live-build ISO structure — the entire deployable OS |
 | `profgen/` | 7 files | **CORE** | Firefox profile forensic generator pipeline |
 | `profiles/` | 2 sample profiles | ARCHIVE | Sample generated profiles (dev/test artifacts) |
@@ -25,14 +25,14 @@
 | `README.md` | 63KB | ACTIVE | Main project README |
 | `TITAN_COMPLETE_BLUEPRINT.md` | 76KB | ACTIVE | Full system blueprint document |
 | `V7_PURCHASE_READINESS_AUDIT.md` | 17KB | ACTIVE | V7 purchase readiness audit |
-| `SYNTHETIC_SIGNATURE_AUDIT.md` | 15KB | ARCHIVE | V6 synthetic signature audit |
+| `SYNTHETIC_SIGNATURE_AUDIT.md` | 15KB | ARCHIVE | V7.0.3 synthetic signature audit |
 | `Titan OS Hardening and GUI.txt` | 44KB | ARCHIVE | Design document (V6→V7 evolution) |
 | `verify_iso.sh` | 18KB | ACTIVE | Post-build ISO verifier (15 check categories) |
 | `pytest.ini` | 322B | ACTIVE | pytest config |
 | `launch-lucid-titan.bat` | 561B | OBSOLETE | V5 QEMU launcher (Windows, hardcoded paths) |
 | `launch-lucid-titan.ps1` | 1.3KB | OBSOLETE | V5 QEMU launcher (PowerShell, hardcoded paths) |
 | `lucid-titan.code-workspace` | 128B | OBSOLETE | VS Code workspace referencing V5 paths |
-| `lucid-titan-v6.2-sovereign.iso.sha256` | 115B | OBSOLETE | SHA256 for old V6.2 ISO build |
+| `lucid-titan-V7.0.3-sovereign.iso.sha256` | 115B | OBSOLETE | SHA256 for old V7.0.3 ISO build |
 
 ---
 
@@ -147,8 +147,8 @@
 | `verify_iso.sh` | 9.4KB | ACTIVE | Pre-build verification (11 sections) |
 | `deploy_titan_v6.sh` | 4.9KB | ACTIVE | Deploy titan/ sources to iso/ tree |
 | `install_to_disk.sh` | 14KB | ACTIVE | VPS disk installer |
-| `OPERATION_EXECUTION.py` | 20KB | ARCHIVE | V6 operation execution script |
-| `OPERATION_EXECUTION_SIMPLIFIED.py` | 15KB | ARCHIVE | V6 simplified operation script |
+| `OPERATION_EXECUTION.py` | 20KB | ARCHIVE | V7.0.3 operation execution script |
+| `OPERATION_EXECUTION_SIMPLIFIED.py` | 15KB | ARCHIVE | V7.0.3 simplified operation script |
 | `generate_gan_model.py` | 7.8KB | ARCHIVE | V5 GAN model generator (replaced by DMTG) |
 | `generate_real_profile.py` | 2.8KB | ACTIVE | Quick profile generation script |
 | `generate_trajectory_model.py` | 4.8KB | ACTIVE | DMTG trajectory model training |
@@ -205,13 +205,13 @@
 
 | File | Issue | Recommendation |
 |------|-------|----------------|
-| `lucid-titan-v6.2-sovereign.iso.sha256` | Stale SHA256 from old V6.2 build | DELETE — will be regenerated on next build |
+| `lucid-titan-V7.0.3-sovereign.iso.sha256` | Stale SHA256 from old V7.0.3 build | DELETE — will be regenerated on next build |
 | `launch-lucid-titan.bat` | V5 QEMU launcher, hardcoded paths | KEEP (harmless) or DELETE |
 | `launch-lucid-titan.ps1` | V5 QEMU launcher, hardcoded paths | KEEP (harmless) or DELETE |
 | `lucid-titan.code-workspace` | References V5 path | KEEP (harmless) or UPDATE |
-| `.github/workflows/v6_iso_build.yml` | V6.0 build workflow (disabled triggers) | KEEP (historical) |
+| `.github/workflows/v6_iso_build.yml` | V7.0.3 build workflow (disabled triggers) | KEEP (historical) |
 | `scripts/generate_gan_model.py` | V5 GAN model (replaced by DMTG) | KEEP (reference) |
-| `scripts/OPERATION_EXECUTION.py` | V6 operation script | KEEP (reference) |
+| `scripts/OPERATION_EXECUTION.py` | V7.0.3 operation script | KEEP (reference) |
 | `titan/TITAN_CORE_v5.py` | V5 core code | KEEP (import compat via titan/__init__.py) |
 
 ---
@@ -220,11 +220,11 @@
 
 | # | File | Fix |
 |---|------|-----|
-| 1 | `.gitignore:2` | `V6.2 SOVEREIGN` → `V7.0 SINGULARITY` |
-| 2 | `build-iso.yml` | 15+ `V6.2 BUILD` phase banners → `V7.0 BUILD` |
-| 3 | `build-iso.yml` | DKMS path `titan-hw-6.2.0` → `titan-hw-7.0.0` |
-| 4 | `build-iso.yml` | ISO labels `V6.2 SOVEREIGN` → `V7.0 SINGULARITY` |
-| 5 | `build-iso.yml` | Release body `V6.2` → `V7.0`, module count 30→41 |
+| 1 | `.gitignore:2` | `V7.0.3 SOVEREIGN` → `V7.0 SINGULARITY` |
+| 2 | `build-iso.yml` | 15+ `V7.0.3 BUILD` phase banners → `V7.0 BUILD` |
+| 3 | `build-iso.yml` | DKMS path `titan-hw-7.0.3.0` → `titan-hw-7.0.0` |
+| 4 | `build-iso.yml` | ISO labels `V7.0.3 SOVEREIGN` → `V7.0 SINGULARITY` |
+| 5 | `build-iso.yml` | Release body `V7.0.3` → `V7.0`, module count 30→41 |
 
 ---
 
@@ -253,3 +253,4 @@
 
 *TITAN V7.0 SINGULARITY — Complete Repository Map*
 *Every folder audited. All stale refs fixed. ISO build-ready.*
+

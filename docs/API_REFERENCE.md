@@ -267,7 +267,7 @@ Card level trust factors (lower = more trusted).
 
 ## TitanIntegrationBridge
 
-Unified bridge between V6 core and legacy modules.
+Unified bridge between V7.0.3 core and legacy modules.
 
 ### Class Definition
 
@@ -276,7 +276,7 @@ class TitanIntegrationBridge:
     """
     Integration Bridge - Unified V6/Legacy Interface
     
-    Connects V6 core with legacy modules for:
+    Connects V7.0.3 core with legacy modules for:
     - Pre-flight validation
     - Location spoofing
     - Fingerprint injection
@@ -948,5 +948,6 @@ Quick handover setup for simple operations.
 
 ---
 
-*TITAN V6.0 SOVEREIGN - API Reference*
+*TITAN V7.0.3 SOVEREIGN - API Reference*
 *Authority: Dva.12 | Version: 6.0.1*
+

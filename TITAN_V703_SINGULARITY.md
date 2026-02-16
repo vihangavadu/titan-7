@@ -367,3 +367,4 @@ fs.suid_dumpable = 0
 **Report Status:** FINAL — V7.0.3 Singularity
 **Build Ready:** YES
 **Finalization Script:** `iso/finalize_titan.sh`
+

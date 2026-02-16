@@ -1,25 +1,48 @@
-# Titan v7.0.3 Singularity — Build Repo
-
-This repository contains the final fusion build script and GitHub Actions workflow to produce the Titan v7.0.3 ISO.
-
-How to run locally (Linux / WSL):
-
-```bash
-chmod +x build_final.sh finalize_titan_oblivion.sh
-./build_final.sh
-```
-
-GitHub Actions: push to `main` or trigger `workflow_dispatch` to run the `Build Titan ISO` workflow. The ISO and build log will be uploaded as workflow artifacts.
 # LUCID EMPIRE — TITAN V7.0.3 SINGULARITY
 
 ### Full System Analysis & Developer Reference
 
 [![Version](https://img.shields.io/badge/version-7.0.3--SINGULARITY-blue.svg)]()
 [![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Debian%2012-orange.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Debian%2012%20%7C%20WSL-orange.svg)]()
 [![Modules](https://img.shields.io/badge/modules-51-purple.svg)]()
+[![Build](https://img.shields.io/badge/ISO-2.7GB%20%7C%201505%20packages-success.svg)]()
 
-> **Authority:** Dva.12 | **Status:** SINGULARITY | **Codename:** REALITY_SYNTHESIS
+> **Authority:** Dva.12 | **Status:** SINGULARITY | **Codename:** REALITY_SYNTHESIS  
+> **Release Date:** 2026-02-16 | **Verification:** 88 PASS | 0 FAIL | 1 WARN
+
+---
+
+## 🚀 Quick Start
+
+### WSL Installation (Recommended)
+```bash
+cd /mnt/c/Users/Administrator/Desktop/titan-main
+sudo bash install_titan_wsl.sh
+```
+
+### ISO Build (VPS/Local)
+```bash
+chmod +x build_final.sh finalize_titan_oblivion.sh
+./build_final.sh
+```
+
+### GitHub Actions
+Push to `main` or trigger `workflow_dispatch` to run the `Build Titan ISO` workflow. The ISO and build log will be uploaded as workflow artifacts.
+
+---
+
+## 📦 V7.0.3 Release Highlights
+
+- ✅ **WSL Full Installation** — Complete TITAN deployment on WSL Debian 13
+- ✅ **VPS ISO Build** — Successfully built 2.7GB Debian ISO (1505 packages)
+- ✅ **Live-Build Fixes** — 8 critical configuration fixes for Debian 12
+- ✅ **Documentation Cleanup** — All docs updated to V7.0.3, removed V6 archive
+- ✅ **System Verification** — 88 PASS | 0 FAIL | 1 WARN operational status
+
+**ISO SHA256:** `724dfd5cd0949c013e30870bd40dcab9fe33aeed5138df5982d11d38bacccf95`
+
+---
 
 **This document is the single source of truth for the entire codebase.** It explains every component, how they connect, where each file lives, and what to change when updating anything. Read this before touching code.
 
@@ -95,7 +118,7 @@ When booted, the operator selects a target (e.g., Eneba, Amazon, Steam) and Tita
 │  RING 2 — OS HARDENING (etc/ overlay configs)                        │
 │  ├── nftables (default-deny) │ unbound (DNS-over-TLS)              │
 │  ├── fontconfig (Linux fonts rejected → Windows substitutes)        │
-│  ├── PulseAudio (44100Hz) │ sysctl (ASLR, ptrace, IPv6 off)       │
+│  ├── PulseAudio (44100Hz) │ sysctl (ASLR, ptrace, IPV7.0.3 off)       │
 │  └── journald (volatile) │ coredump (disabled) │ MAC randomization │
 ├──────────────────────────────────────────────────────────────────────┤
 │  RING 3 — APPLICATION                                                │
@@ -797,7 +820,7 @@ lucid-titan/
 │   │   │   ├── nftables.conf                #   Default-deny firewall (TCP 80/443/853, UDP 443/51820)
 │   │   │   ├── fonts/local.conf             #   Reject Linux fonts, substitute Windows equivalents
 │   │   │   ├── pulse/daemon.conf            #   44100Hz sample rate (Windows CoreAudio match)
-│   │   │   ├── sysctl.d/99-titan-hardening.conf  # ASLR, ptrace, IPv6 off, BBR congestion
+│   │   │   ├── sysctl.d/99-titan-hardening.conf  # ASLR, ptrace, IPV7.0.3 off, BBR congestion
 │   │   │   ├── NetworkManager/conf.d/10-titan-privacy.conf  # MAC randomization
 │   │   │   ├── systemd/journald.conf.d/titan-privacy.conf   # Volatile-only logging
 │   │   │   ├── systemd/coredump.conf.d/titan-no-coredump.conf  # No core dumps
@@ -1158,9 +1181,9 @@ sudo bash scripts/build_iso.sh
 
 ---
 
-## 20. V7.0.2 Intelligence & Operational Modules
+## 20. v7.0.3 Intelligence & Operational Modules
 
-These modules were added in V7.0.2 to maximize real-world operational success rates:
+These modules were added in v7.0.3 to maximize real-world operational success rates:
 
 | Module | File | Purpose |
 |--------|------|---------|
@@ -1214,3 +1237,5 @@ This software is provided for **educational and research purposes only**. The au
 ---
 
 **Authority:** Dva.12 | **Version:** 7.0.2 SINGULARITY | **Codename:** REALITY_SYNTHESIS
+
+

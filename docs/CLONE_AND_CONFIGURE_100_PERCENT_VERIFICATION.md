@@ -129,3 +129,4 @@ powershell -ExecutionPolicy Bypass -File verify_clone_configure.ps1
 | Only optional missing “file”: state/active_profile.json | Created at runtime; not required for clone |
 
 **Conclusion:** The repository is **100% ready to clone and configure**. After clone, run `python3 verify_complete_capabilities.py` (or `py -3 verify_complete_capabilities.py` on Windows) to confirm. The single “missing” item in the capability verifier is `state/active_profile.json`, which is a runtime-generated persona config and is not required for clone.
+

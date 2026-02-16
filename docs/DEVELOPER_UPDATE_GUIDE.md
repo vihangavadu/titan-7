@@ -295,7 +295,7 @@ def get_new_evasion_profile():
 
 Then export in `__init__.py`:
 ```python
-from .ghost_motor_v6 import get_new_evasion_profile, NEW_EVASION_PROFILE
+from .ghost_motor_V7.0.3 import get_new_evasion_profile, NEW_EVASION_PROFILE
 ```
 
 ---
@@ -465,8 +465,8 @@ dmesg | tail -20
 
 # If it works, update DKMS
 sudo dkms add .
-sudo dkms build titan_hw/6.2
-sudo dkms install titan_hw/6.2
+sudo dkms build titan_hw/7.0.3
+sudo dkms install titan_hw/7.0.3
 ```
 
 ---
@@ -668,3 +668,4 @@ sudo bash scripts/build_iso.sh  # full ISO build
 ---
 
 **End of Developer Update Guide** | **TITAN V7.0 SINGULARITY**
+

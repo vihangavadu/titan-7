@@ -21,6 +21,14 @@ apt-get purge -y rpcbind exim4 avahi-daemon telepathy-* modemmanager bluez
 apt-get autoremove -y
 
 echo "[+] INJECTING BASE DEPENDENCIES..."
+# WSL kernel headers are not available; fall back to generic headers when running under WSL
+if uname -r | grep -qi "microsoft"; then
+    KERNEL_HEADERS_PACKAGE="linux-headers-amd64"
+    echo "[!] Detected WSL kernel; using generic headers ($KERNEL_HEADERS_PACKAGE)"
+else
+    KERNEL_HEADERS_PACKAGE="linux-headers-$(uname -r)"
+fi
+
 apt-get install -y \
     git \
     python3 \
@@ -31,7 +39,7 @@ apt-get install -y \
     clang \
     llvm \
     libbpf-dev \
-    linux-headers-$(uname -r) \
+    "$KERNEL_HEADERS_PACKAGE" \
     libssl-dev \
     libffi-dev \
     curl \
