@@ -447,22 +447,9 @@ jobs:
           # Clean any previous state
           sudo lb clean --purge 2>/dev/null || true
 
-          lb config \
-            --distribution ${{ env.DEBIAN_VERSION }} \
-            --archive-areas "main contrib non-free non-free-firmware" \
-            --architectures amd64 \
-            --linux-packages "linux-image linux-headers" \
-            --bootappend-live "boot=live components quiet splash persistence username=user locales=en_US.UTF-8" \
-            --binary-images iso-hybrid \
-            --iso-application "TITAN V7.0.3 SINGULARITY" \
-            --iso-publisher "Dva.12 - OBLIVION" \
-            --iso-volume "TITAN-V703-SINGULARITY" \
-            --memtest none \
-            --win32-loader false \
-            --apt-recommends false \
-            --firmware-binary true \
-            --firmware-chroot true \
-            --apt-indices false
+          # Use auto/config script which has all security mirror fixes
+          echo "[*] Running auto/config with fixed security mirrors..."
+          bash auto/config
 
           echo "[+] live-build configured for ${{ env.DEBIAN_VERSION }} amd64"
 
