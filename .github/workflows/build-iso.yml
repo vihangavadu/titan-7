@@ -451,26 +451,6 @@ jobs:
           echo "[*] Running auto/config with fixed security mirrors..."
           bash auto/config
 
-          # Patch lb_chroot_linux-image to skip Contents file download
-          echo "[*] Patching lb_chroot_linux-image in live-build installation..."
-          for LB_DIR in /usr/share/live/build /usr/lib/live/build; do
-            LB_SCRIPT="$LB_DIR/scripts/build/chroot_linux-image"
-            if [ -f "$LB_SCRIPT" ]; then
-              echo "[*] Found script at: $LB_SCRIPT"
-              sudo cp "$LB_SCRIPT" "${LB_SCRIPT}.backup"
-              sudo tee "$LB_SCRIPT" > /dev/null << 'EOFPATCH'
-          #!/bin/sh
-          # TITAN V7.0.3 - Patched to skip Contents-amd64.gz download
-          # Kernel is installed via package list instead
-          echo "P: Skipping lb_chroot_linux-image (kernel in package list)"
-          exit 0
-          EOFPATCH
-              sudo chmod +x "$LB_SCRIPT"
-              echo "[+] lb_chroot_linux-image patched successfully"
-              break
-            fi
-          done
-
           echo "[+] live-build configured for ${{ env.DEBIAN_VERSION }} amd64"
 
       # ════════════════════════════════════════════════════════════════════════
@@ -502,6 +482,23 @@ jobs:
           echo "    095 → OS hardening (fonts, audio, RAM wipe, USB)"
           echo "    098 → Profile skeleton generation"
           echo "    099 → Final perms, pip deps, systemd services"
+          echo ""
+
+          # Patch local config scripts to skip Contents-amd64.gz download
+          echo "[*] Patching local lb_chroot_linux-image script..."
+          if [ -f ".build/scripts/build/chroot_linux-image" ]; then
+            sudo tee .build/scripts/build/chroot_linux-image > /dev/null << 'EOFPATCH'
+          #!/bin/sh
+          # TITAN V7.0.3 - Patched to skip Contents-amd64.gz download
+          # Kernel is installed via package list instead
+          echo "P: Skipping lb_chroot_linux-image (kernel in package list)"
+          exit 0
+          EOFPATCH
+            sudo chmod +x .build/scripts/build/chroot_linux-image
+            echo "[+] Local lb_chroot_linux-image patched successfully"
+          else
+            echo "[!] WARNING: .build/scripts/build/chroot_linux-image not found"
+          fi
           echo ""
 
           BUILD_START=$(date +%s)
