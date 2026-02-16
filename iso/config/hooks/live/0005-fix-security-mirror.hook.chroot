@@ -1,0 +1,23 @@
+#!/bin/bash
+# TITAN V7.0.3 - Fix Debian security mirror URL
+# The old format bookworm/updates is deprecated
+# New format is bookworm-security
+
+set -e
+
+echo "[HOOK] Fixing Debian security mirror URLs..."
+
+# Fix /etc/apt/sources.list if it exists
+if [ -f /etc/apt/sources.list ]; then
+    sed -i 's|deb.debian.org/debian-security bookworm/updates|deb.debian.org/debian-security bookworm-security|g' /etc/apt/sources.list
+    sed -i 's|security.debian.org/debian-security bookworm/updates|deb.debian.org/debian-security bookworm-security|g' /etc/apt/sources.list
+    echo "[HOOK] Fixed /etc/apt/sources.list"
+fi
+
+# Fix any sources.list.d files
+if [ -d /etc/apt/sources.list.d ]; then
+    find /etc/apt/sources.list.d -type f -name "*.list" -exec sed -i 's|bookworm/updates|bookworm-security|g' {} \;
+    echo "[HOOK] Fixed /etc/apt/sources.list.d/*.list"
+fi
+
+echo "[HOOK] Security mirror URLs fixed"
