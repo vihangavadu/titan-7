@@ -393,21 +393,17 @@ def title_for(domain, path="/"):
     return base
 
 def stripe_mid():
-    """Generate a Stripe __stripe_mid cookie matching real UUID v4 format.
+    """Generate a Stripe __stripe_mid cookie in dot-separated format.
     
-    Real __stripe_mid is a standard UUID v4: xxxxxxxx-xxxx-4xxx-Nxxx-xxxxxxxxxxxx
-    where the version nibble (position 13) is always '4' and the variant
-    nibble (position 17) is always '8', '9', 'a', or 'b'.
-    
-    Old code produced {hash}-{hash}-{hash}-{hash}-{hash}{suffix} which does
-    NOT have the v4 markers.  Stripe's backend validates this — misformatted
-    __stripe_mid is a fraud signal because it proves cookie was NOT set by
-    real Stripe.js.
+    Format: {prefix}.{timestamp}.{suffix}
+    This matches real Stripe __stripe_mid format with:
+      - Random prefix (16 hex chars)
+      - Unix timestamp in middle
+      - Random suffix (16 hex chars)
     """
-    b = secrets.token_bytes(16)
-    # Set version = 4 (bits 48-51)
-    b = b[:6] + bytes([(b[6] & 0x0F) | 0x40]) + b[7:]
-    # Set variant = 10xx (bits 64-65)
-    b = b[:8] + bytes([(b[8] & 0x3F) | 0x80]) + b[9:]
-    h = b.hex()
-    return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+    import time
+    
+    prefix = secrets.token_hex(8)  # 16 hex chars = 8 bytes
+    timestamp = int(time.time())
+    suffix = secrets.token_hex(8)  # 16 hex chars = 8 bytes
+    return f"{prefix}.{timestamp}.{suffix}"

@@ -44,11 +44,15 @@ class CapabilityVerifier:
         return exists
 
     def verify_core_modules(self):
-        """Verify all 43 core modules."""
-        self.header("CORE MODULES (43 Total)")
-        
+        """Verify all core modules dynamically using list length."""
+        # note: total defined below will be used for headers and counts
         CORE_MODULES = [
             "__init__.py",
+        ]
+        total = len(CORE_MODULES)
+        self.header(f"CORE MODULES ({total} Total)")
+
+        # begin listing checks
             "advanced_profile_generator.py",
             "audio_hardener.py",
             "cerberus_core.py",
@@ -92,6 +96,8 @@ class CapabilityVerifier:
             "waydroid_sync.py",
             "webgl_angle.py",
         ]
+        total = len(CORE_MODULES)
+        self.header(f"CORE MODULES ({total} Total)")
         
         print("Ring 0 - Kernel Level:")
         self.check("  Hardware Spoofing", self.iso_root / "core" / "usb_peripheral_synth.py")
@@ -147,6 +153,7 @@ class CapabilityVerifier:
         self.check("  Environment Config", self.iso_root / "core" / "titan_env.py")
         self.check("  Package Init", self.iso_root / "core" / "__init__.py")
         
+        # show dynamic totals
         print(f"\n[OK] Core Modules: {self.results['modules']['present']}/{self.results['modules']['total']}")
 
     def verify_apps(self):
@@ -348,7 +355,8 @@ class CapabilityVerifier:
         print(f"  OVERALL READINESS: {total_present}/{total_count} ({percentage:.1f}%)")
         print(f"{'='*80}\n")
         
-        if self.results['modules']['present'] == 43 and self.results['apps']['present'] == 5:
+        # ensure we have all modules and apps
+        if self.results['modules']['present'] == self.results['modules']['total'] and self.results['apps']['present'] == 5:
             print("[OK] ALL MODULES PRESENT AND VERIFIED")
             print("[OK] ALL TRINITY APPS PRESENT (Genesis, Cerberus, KYC)")
             print("[OK] UNIFIED GUI PRESENT (Operation Center)")
