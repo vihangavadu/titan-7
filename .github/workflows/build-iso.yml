@@ -67,6 +67,8 @@ jobs:
           set -euo pipefail
           echo "[*] Updating package lists..."
           sudo apt-get update -qq
+          # increase apt retries to reduce transient network failures in CI
+          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
           echo "[*] Installing live-build toolchain and dependencies..."
           sudo apt-get install -y --no-install-recommends \
             live-build debootstrap squashfs-tools xorriso \
@@ -379,21 +381,47 @@ jobs:
           echo "[*] INITIATING TITAN SINGULARITY BUILD"
           echo "    This may take 30-90 minutes..."
           BUILD_START=$(date +%s)
-          export MKSQUASHFS_OPTIONS="-comp zstd -Xcompression-level 19"
-          
-          if sudo -E lb build 2>&1 | tee build.log; then
-            BUILD_EXIT=0
-          else
-            BUILD_EXIT=$?
-            echo "[!] lb build exited with code: $BUILD_EXIT"
-          fi
-          
+
+          # Reduce compression on CI to lower memory / IO pressure and reduce failures
+          export MKSQUASHFS_OPTIONS="-comp zstd -Xcompression-level 3"
+          export DEBOOTSTRAP_VERBOSE=1
+          export DEBIAN_FRONTEND=noninteractive
+          export APT_OPTIONS='-o Acquire::Retries=5 -o Acquire::http::Timeout=60'
+
+          BUILD_EXIT=1
+          attempts=0
+          max_attempts=3
+          while [ $attempts -lt $max_attempts ]; do
+            attempts=$((attempts+1))
+            echo "[*] Build attempt $attempts/$max_attempts"
+
+            # run lb build; pipefail ensures failure is detected even with tee
+            if sudo -E env DEBOOTSTRAP_VERBOSE=$DEBOOTSTRAP_VERBOSE DEBIAN_FRONTEND=$DEBIAN_FRONTEND lb build 2>&1 | tee build.log; then
+              BUILD_EXIT=0
+              break
+            else
+              BUILD_EXIT=$?
+              echo "[!] lb build failed (attempt $attempts) with code: $BUILD_EXIT"
+              echo "[*] System diagnostics (free / df / inode usage):"
+              free -m || true
+              df -h || true
+              df -i || true
+              echo "[*] chroot size summary:"
+              sudo du -sh chroot 2>/dev/null || true
+              echo "=== Tail of build.log (last 200 lines) ==="
+              tail -200 build.log || true
+              echo "[*] Cleaning and retrying after short backoff..."
+              sudo lb clean --purge || true
+              sleep $((attempts * 30))
+            fi
+          done
+
           BUILD_END=$(date +%s)
           BUILD_DURATION=$((BUILD_END - BUILD_START))
           echo "[*] Build duration: $((BUILD_DURATION / 60)) minutes"
-          
+
           ISO_FILE="$(ls -1 live-image-amd64*.iso 2>/dev/null | head -1)"
-          
+
           if [ -z "$ISO_FILE" ] && [ $BUILD_EXIT -ne 0 ]; then
             echo "[*] Attempting xorriso recovery..."
             BINARY_DIR="chroot/binary"
@@ -417,20 +445,20 @@ jobs:
               fi
             fi
           fi
-          
+
           if [ -z "$ISO_FILE" ] && [ ! -f "${ISO_NAME}.iso" ]; then
             echo "[!] FATAL: ISO artifact not generated"
-            echo "=== Last 100 lines of build.log ==="
-            tail -100 build.log 2>/dev/null || true
+            echo "=== Last 500 lines of build.log ==="
+            tail -500 build.log 2>/dev/null || true
             exit 1
           fi
-          
+
           if [ -n "$ISO_FILE" ] && [ "$ISO_FILE" != "${ISO_NAME}.iso" ]; then
             mv "$ISO_FILE" "../${ISO_NAME}.iso"
           elif [ -f "${ISO_NAME}.iso" ]; then
             mv "${ISO_NAME}.iso" "../${ISO_NAME}.iso" 2>/dev/null || true
           fi
-          
+
           cd ..
           echo "[*] Generating checksums..."
           sha256sum "${ISO_NAME}.iso" > "${ISO_NAME}.iso.sha256"
@@ -441,6 +469,10 @@ jobs:
           echo "=========================================="
           ls -lh "${ISO_NAME}.iso"
           cat "${ISO_NAME}.iso.sha256"
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            exit $BUILD_EXIT
+          fi
           echo "status=success" >> "$GITHUB_OUTPUT"
           echo "iso_path=titan-main/${ISO_NAME}.iso" >> "$GITHUB_OUTPUT"
 
