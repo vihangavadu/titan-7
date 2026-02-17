@@ -316,11 +316,17 @@ jobs:
           set -euo pipefail
           echo "[*] Cleaning previous build state..."
           sudo lb clean --purge 2>/dev/null || true
-          echo "[*] Configuring live-build..."
-          echo "[*] Importing Debian archive keys..."
-          sudo gpg --batch --quiet --homedir /etc/apt/keyrings --import /usr/share/keyrings/debian-archive-keyring.gpg 2>/dev/null || true
-          sudo gpg --batch --quiet --homedir /etc/apt/keyrings --import /usr/share/keyrings/debian-archive-removed-keys.gpg 2>/dev/null || true
+          echo "[*] Setting up Debian keyring..."
+          # Create proper keyring directory structure
+          sudo mkdir -p /etc/apt/keyrings
+          # Import all Debian archive keys
+          wget -qO- https://ftp-master.debian.org/keys/archive-key-12.asc | sudo gpg --dearmor -o /etc/apt/keyrings/debian-archive-bookworm.gpg
+          wget -qO- https://ftp-master.debian.org/keys/archive-key-11.asc | sudo gpg --dearmor -o /etc/apt/keyrings/debian-archive-bullseye.gpg
+          wget -qO- https://ftp-master.debian.org/keys/release-12.asc | sudo gpg --dearmor -o /etc/apt/keyrings/debian-release-12.gpg
+          # Update system keyrings
           sudo apt-key update 2>/dev/null || true
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F8D2585B8783D481 2>/dev/null || true
+          echo "[*] Configuring live-build..."
           if [ -f "auto/config" ]; then
             bash auto/config
           else
