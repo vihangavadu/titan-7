@@ -42,17 +42,48 @@ jobs:
           chmod +x finalize_titan_oblivion.sh || true
           chmod +x scripts/*.sh || true
 
-      - name: Clean previous build artifacts
+      - name: Prepare build environment
         run: |
+          # Increase available memory for debootstrap
+          sudo sysctl -w vm.max_map_count=262144
+          
+          # Clean previous build
           cd iso
           sudo lb clean --all || true
           cd ..
+          
+          # Fix debootstrap extraction issues
+          sudo mkdir -p /var/cache/apt/archives
+          sudo chmod 777 /var/cache/apt/archives
 
-      - name: Run final fusion build
+      - name: Run final fusion build with retry
         run: |
           set -e
           echo "Starting TITAN V7.0.3 ISO build..."
-          ./build_final.sh 2>&1 | tee build-execution.log
+          
+          # Attempt build with exponential backoff retry
+          MAX_ATTEMPTS=2
+          ATTEMPT=1
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Build attempt $ATTEMPT/$MAX_ATTEMPTS..."
+            if ./build_final.sh 2>&1 | tee build-execution.log; then
+              echo "Build successful!"
+              break
+            else
+              if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                echo "Build failed, cleaning and retrying..."
+                cd iso
+                sudo lb clean --all || true
+                cd ..
+                sleep 10
+              else
+                echo "Build failed after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+          done
 
       - name: Check build output
         if: always()

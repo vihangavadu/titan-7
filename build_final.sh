@@ -8,6 +8,12 @@ BUILD_START=$(date)
 echo "[*] BUILD STARTED: $BUILD_START"
 echo "============================================================"
 
+# SYSTEM DIAGNOSTICS
+echo "[*] SYSTEM DIAGNOSTICS..."
+echo "    [+] Available memory: $(free -h | awk 'NR==2 {print $7}')"
+echo "    [+] Available disk: $(df -h . | awk 'NR==2 {print $4}')"
+echo ""
+
 # 1. BRAIN TRANSPLANT (Sync Dev -> ISO)
 echo "[*] SYNCING DEV CORE TO ISO..."
 if [ -d "titan" ]; then
@@ -38,6 +44,11 @@ fi
 echo "[*] RUNNING PRE-BUILD CHECKS..."
 cd iso
 
+# Fix filesystem permissions for debootstrap
+echo "[*] Fixing debootstrap environment..."
+sudo mkdir -p cache/packages.bootstrap
+sudo chmod 777 cache/packages.bootstrap || true
+
 # Clean previous build to avoid tar issues
 echo "[*] Cleaning previous build artifacts..."
 if command -v lb &> /dev/null; then
@@ -56,8 +67,34 @@ echo "=================================================="
 echo "   STARTING: debian/bookworm/amd64 ISO COMPILATION  "
 echo "=================================================="
 
-# Run live-build with verbose output
-sudo lb build 2>&1 | tee ../titan_v7_final.log
+# Set environment variables to improve debootstrap behavior
+export DEBOOTSTRAP_VERBOSE=1
+export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+# Run live-build with retry logic for tar extraction failures
+BUILD_SUCCEEDED=0
+for attempt in 1 2; do
+    echo "[*] Build attempt $attempt..."
+    if sudo lb build 2>&1 | tee ../titan_v7_final.log; then
+        BUILD_SUCCEEDED=1
+        break
+    else
+        if [ $attempt -lt 2 ]; then
+            echo "[*] Build failed, cleaning and retrying..."
+            sudo lb clean --all || true
+            sleep 5
+        fi
+    fi
+done
+
+if [ $BUILD_SUCCEEDED -ne 1 ]; then
+    echo "=================================================="
+    echo "   ✗ BUILD FAILED"
+    echo "=================================================="
+    tail -50 ../titan_v7_final.log 2>/dev/null || cat ../titan_v7_final.log
+    exit 1
+fi
 
 BUILD_END=$(date)
 echo "[*] BUILD COMPLETED: $BUILD_END"
