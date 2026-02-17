@@ -326,6 +326,12 @@ jobs:
           # Update system keyrings
           sudo apt-key update 2>/dev/null || true
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F8D2585B8783D481 2>/dev/null || true
+          # Override debootstrap to use our keyring
+          echo "[*] Configuring debootstrap keyring..."
+          sudo mkdir -p /etc/debootstrap
+          echo 'KEYRING="/etc/apt/keyrings/debian-archive-bookworm.gpg"' | sudo tee /etc/debootstrap/keyring.conf
+          # Export for debootstrap
+          export DEBOOTSTRAP_KEYRING="/etc/apt/keyrings/debian-archive-bookworm.gpg"
           echo "[*] Configuring live-build..."
           if [ -f "auto/config" ]; then
             bash auto/config
