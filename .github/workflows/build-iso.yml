@@ -345,6 +345,7 @@ jobs:
               --mirror-binary http://deb.debian.org/debian \
               --mirror-binary-security http://deb.debian.org/debian-security \
               --keyring-packages debian-archive-keyring \
+              --debootstrap-options "--keyring=/etc/apt/keyrings/debian-archive-bookworm.gpg" \
               --archive-areas "main contrib non-free non-free-firmware" \
               --architectures amd64 \
               --linux-packages "linux-image linux-headers" \
