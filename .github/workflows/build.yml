@@ -2,7 +2,7 @@ name: Build Titan ISO
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -12,21 +12,55 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Update package repositories
         run: |
           sudo apt-get update
+          sudo apt-get upgrade -y
+
+      - name: Install build dependencies
+        run: |
           sudo apt-get install -y --no-install-recommends \
-            live-build debootstrap squashfs-tools xorriso isolinux syslinux-utils
+            live-build \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            isolinux \
+            syslinux-utils \
+            git \
+            curl \
+            wget \
+            gnupg2 \
+            ca-certificates
+
+      - name: Install Debian keyrings
+        run: |
+          sudo apt-get install -y debian-archive-keyring debian-keyring
 
       - name: Make scripts executable
         run: |
           chmod +x build_final.sh || true
           chmod +x finalize_titan_oblivion.sh || true
+          chmod +x scripts/*.sh || true
+
+      - name: Clean previous build artifacts
+        run: |
+          cd iso
+          sudo lb clean --all || true
+          cd ..
 
       - name: Run final fusion build
         run: |
           set -e
-          ./build_final.sh
+          echo "Starting TITAN V7.0.3 ISO build..."
+          ./build_final.sh 2>&1 | tee build-execution.log
+
+      - name: Check build output
+        if: always()
+        run: |
+          echo "Checking for ISO files..."
+          find . -name "*.iso" -o -name "*.hybrid.iso" 2>/dev/null || echo "No ISO found yet"
+          echo "Build log tail (last 50 lines):"
+          tail -50 titan_v7_final.log 2>/dev/null || tail -50 build-execution.log || echo "No build log available"
 
       - name: Upload ISO artifact
         if: success() && (exists('iso/live-image-amd64.hybrid.iso') || exists('iso/live-image-amd64.iso'))
@@ -36,10 +70,15 @@ jobs:
           path: |
             iso/live-image-amd64.hybrid.iso
             iso/live-image-amd64.iso
+          retention-days: 30
 
       - name: Upload build log
-        if: success() && steps.run-final.outputs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
-          path: titan_v7_final.log
+          path: |
+            titan_v7_final.log
+            build-execution.log
+            iso/build.log
+          retention-days: 7
