@@ -1,10 +1,10 @@
 #!/bin/bash
 # ==============================================================================
-# LUCID EMPIRE :: TITAN V7.0 SINGULARITY — INTEGRATED ISO BUILDER
+# LUCID EMPIRE :: TITAN V7.0.3 SINGULARITY — INTEGRATED ISO BUILDER
 # ==============================================================================
-# AUTHORITY: Dva.12
-# PURPOSE:   Single-script ISO generation for Ubuntu/Debian build hosts.
-#            Clone the repo on Ubuntu, run this script as root, get a bootable ISO.
+# AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
+# PURPOSE:   Zero-tolerance ISO generation for Debian 12 (Bookworm) hosts.
+#            Enforces strict resource and integrity checks before build.
 #
 # Usage:
 #   sudo bash scripts/build_iso.sh
@@ -54,6 +54,7 @@ HOOKS_DIR="$ISO_DIR/config/hooks/live"
 
 TITAN_VERSION="7.0.3"
 ISO_NAME="lucid-titan-v${TITAN_VERSION}-singularity"
+REQ_SPACE_GB=15
 
 # ==============================================================================
 hdr "PHASE 0 — ROOT & ENVIRONMENT CHECK"
@@ -65,17 +66,25 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Architecture Verification (Strict x86_64)
+ARCH=$(uname -m)
+if [[ "$ARCH" != "x86_64" ]]; then
+    err "Host architecture '$ARCH' is not supported. TITAN requires x86_64."
+    exit 1
+fi
+log "Architecture verified: x86_64"
+
 log "Working directory: $REPO_ROOT"
 log "Target ISO: ${ISO_NAME}.iso"
 
-# Disk space check
-AVAIL_GB=$(df --output=avail / | tail -1 | awk '{print int($1/1048576)}')
+# Disk Space Enforcement (Strict 15GB)
+AVAIL_GB=$(df --output=avail "$REPO_ROOT" | tail -1 | awk '{print int($1/1048576)}')
 log "Disk available: ${AVAIL_GB} GB"
-if [ "$AVAIL_GB" -lt 10 ]; then
-    err "Need at least 10 GB free disk space. Only ${AVAIL_GB} GB available."
+if [ "$AVAIL_GB" -lt "$REQ_SPACE_GB" ]; then
+    err "Insufficient disk space. Required: ${REQ_SPACE_GB}GB+, Available: ${AVAIL_GB}GB."
     exit 1
 fi
-log "Disk space: OK"
+log "Disk space check passed: ${AVAIL_GB}GB available."
 
 # Detect host OS
 if [ -f /etc/os-release ]; then
@@ -118,9 +127,20 @@ apt-get install -y --no-install-recommends \
     wget \
     git
 
-# Kernel headers (may fail in containers — non-fatal)
-apt-get install -y --no-install-recommends "linux-headers-$(uname -r)" 2>/dev/null || \
-    warn "linux-headers-$(uname -r) not available — eBPF will use bundled definitions"
+# Kernel Headers (Critical for Ring 0 Modules)
+KERNEL_HEADERS="linux-headers-$(uname -r)"
+if apt-get install -y --no-install-recommends "$KERNEL_HEADERS" 2>/dev/null; then
+    log "Kernel headers installed: $KERNEL_HEADERS"
+else
+    # Logic Update: Only allow fallback in containerized environments
+    if grep -q "docker\|lxc" /proc/1/cgroup 2>/dev/null; then
+        warn "Kernel headers installation failed. Assuming container environment."
+        warn "eBPF/DKMS modules will use bundled definitions."
+    else
+        err "Failed to install kernel headers on physical host. This is fatal for Ring 0 shields."
+        exit 1
+    fi
+fi
 
 log "Build dependencies installed."
 
@@ -341,12 +361,10 @@ else
     CORE_MISSING=$((CORE_MISSING + 1))
 fi
 
-if [ "$CORE_MISSING" -gt 3 ]; then
-    err "$CORE_MISSING critical files missing. ISO build will be incomplete."
-    err "Ensure you cloned the full repository."
+# Logic Update: Zero Tolerance Policy
+if [ "$CORE_MISSING" -gt 0 ]; then
+    err "Integrity Check Failed: $CORE_MISSING critical files missing. Aborting build to prevent compromise."
     exit 1
-elif [ "$CORE_MISSING" -gt 0 ]; then
-    warn "$CORE_MISSING file(s) missing — build will continue but ISO may be incomplete."
 fi
 
 log "Source tree verification complete."
