@@ -53,13 +53,25 @@ jobs:
           path: titan-main
           fetch-depth: 0
 
-      - name: Free Disk Space
+      - name: Free Disk Space & Add Swap
         run: |
           echo "[*] Freeing disk space for ISO build..."
           sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" "$AGENT_TOOLSDIRECTORY" /usr/local/lib/android/sdk 2>/dev/null || true
           sudo apt-get clean
+          # Create a 4GB swapfile on CI runners to reduce memory pressure during live-build
+          if ! swapon --show | grep -q '/swapfile'; then
+            echo "[*] Creating 4G swapfile to reduce OOM risk..."
+            sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            sudo sysctl -w vm.swappiness=10 || true
+          else
+            echo "[*] Swapfile already active"
+          fi
+          free -h
           df -h
-          echo "[+] Disk space maximized."
+          echo "[+] Disk and swap prepared."
 
       # PHASE 1: TOOLCHAIN INJECTION
       - name: Install Build Dependencies
@@ -68,7 +80,7 @@ jobs:
           echo "[*] Updating package lists..."
           sudo apt-get update -qq
           # increase apt retries to reduce transient network failures in CI
-          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
+          echo 'Acquire::Retries "10";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
           echo "[*] Installing live-build toolchain and dependencies..."
           sudo apt-get install -y --no-install-recommends \
             live-build debootstrap squashfs-tools xorriso \
@@ -383,10 +395,10 @@ jobs:
           BUILD_START=$(date +%s)
 
           # Reduce compression on CI to lower memory / IO pressure and reduce failures
-          export MKSQUASHFS_OPTIONS="-comp zstd -Xcompression-level 3"
+          export MKSQUASHFS_OPTIONS="-comp zstd -Xcompression-level 1"
           export DEBOOTSTRAP_VERBOSE=1
           export DEBIAN_FRONTEND=noninteractive
-          export APT_OPTIONS='-o Acquire::Retries=5 -o Acquire::http::Timeout=60'
+          export APT_OPTIONS='-o Acquire::Retries=10 -o Acquire::http::Timeout=120'   # more retries/timeouts for CI network variability
 
           BUILD_EXIT=1
           attempts=0
@@ -406,11 +418,16 @@ jobs:
               free -m || true
               df -h || true
               df -i || true
+              echo "[*] Kernel messages (last 100 lines) - look for OOM/killed entries:"
+              sudo dmesg --ctime -T | tail -100 || true
               echo "[*] chroot size summary:"
               sudo du -sh chroot 2>/dev/null || true
               echo "=== Tail of build.log (last 200 lines) ==="
               tail -200 build.log || true
-              echo "[*] Cleaning and retrying after short backoff..."
+              echo "[*] Cleaning apt caches and retrying after short backoff..."
+              sudo rm -rf /var/cache/apt/archives/* /var/cache/apt/archives/partial/* || true
+              sudo rm -rf /var/lib/apt/lists/* || true
+              sudo apt-get update -qq || true
               sudo lb clean --purge || true
               sleep $((attempts * 30))
             fi
