@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Install TITAN to Disk
+GenericName=VPS/Disk Installer
+Comment=Install TITAN V7.0 SINGULARITY permanently to VPS or bare metal disk
+Exec=x-terminal-emulator -e "sudo bash /opt/titan/bin/install-to-disk"
+Icon=drive-harddisk
+Terminal=false
+Categories=System;
+Keywords=install;vps;disk;persistent;
+StartupNotify=true

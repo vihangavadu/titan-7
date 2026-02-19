@@ -1,0 +1,22 @@
+[Unit]
+Description=TITAN V7.0 SINGULARITY - Unified Operation Center GUI
+After=network.target lucid-titan.service graphical.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=user
+Group=user
+WorkingDirectory=/opt/titan/apps
+ExecStart=/usr/bin/python3 /opt/titan/apps/app_unified.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/user/.Xauthority
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=PYTHONPATH=/opt/titan/core:/opt/titan/apps:/opt/lucid-empire:/opt/lucid-empire/backend
+Environment=QT_AUTO_SCREEN_SCALE_FACTOR=1
+
+[Install]
+WantedBy=graphical.target

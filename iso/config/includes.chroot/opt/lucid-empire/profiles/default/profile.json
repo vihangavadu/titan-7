@@ -1,0 +1,12 @@
+{
+  "profile_name": "default",
+  "cpu_type": "intel",
+  "cpu_cores": 12,
+  "dmi": {
+    "product_name": "Prestige 15",
+    "product_uuid": "84f99b43-eb3e-46be-9518-c4792fcc9852",
+    "board_vendor": "MSI",
+    "sys_vendor": "MSI"
+  },
+  "generated_at": "build-time"
+}

@@ -1,0 +1,226 @@
+#!/bin/bash
+# LUCID EMPIRE :: Cognitive Core Setup Hook
+# AUTHORITY: Dva.12 | TITAN V7 SINGULARITY
+#
+# V6: Primary cognition is Cloud vLLM (TitanCognitiveCore)
+# Ollama is retained as LOCAL FALLBACK only
+# Installs OpenAI client + optional Ollama for offline mode
+
+# set -e  # Disabled to prevent build failures on non-critical errors
+
+LUCID_ROOT="/opt/lucid-empire"
+TITAN_ROOT="/opt/titan"
+OLLAMA_VERSION="0.1.38"
+MODEL_NAME="mistral:7b-instruct-v0.2-q4_0"
+FALLBACK_MODEL="phi:2.7b-chat-v2.2-q4_0"
+
+echo "I: [LUCID-080] Setting up V6 Cognitive Core (Cloud vLLM + Ollama fallback)..."
+
+# ── 0. Install V6 Cloud Brain Python client ──────────────────────────────────
+echo "I: [LUCID-080] Installing V6 Cloud Brain dependencies..."
+if command -v pip3 >/dev/null 2>&1; then
+    pip3 install --no-cache-dir --break-system-packages \
+        openai \
+        onnxruntime \
+        scipy 2>/dev/null || true
+    echo "I: [LUCID-080] V6 Cloud Brain client installed (openai, onnxruntime, scipy)"
+fi
+
+# ── 0b. Create V6 Cloud Brain environment config ─────────────────────────────
+cat > "$TITAN_ROOT/.env.cognitive" << 'EOF'
+# TITAN V6 Cloud Brain Configuration
+# Set these to your self-hosted vLLM endpoint
+TITAN_CLOUD_URL=https://api.titan-singularity.local/v1
+TITAN_API_KEY=titan-singularity-v7-key
+TITAN_MODEL=meta-llama/Meta-Llama-3-70B-Instruct
+# Fallback to local Ollama if cloud unavailable
+TITAN_FALLBACK_LOCAL=true
+EOF
+
+# ── 1. Install Ollama ─────────────────────────────────────────────────────────
+echo "I: [LUCID-080] Installing Ollama..."
+
+# Check if Ollama is already installed
+if ! command -v ollama >/dev/null 2>&1; then
+    # Download Ollama binary (with retry and multiple URL fallbacks)
+    OLLAMA_OK=0
+    for OLLAMA_URL in \
+        "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-amd64" \
+        "https://ollama.ai/download/ollama-linux-amd64" \
+        "https://ollama.com/download/ollama-linux-amd64"; do
+        echo "I: [LUCID-080] Trying: $OLLAMA_URL"
+        if curl -fsSL --retry 3 --retry-delay 5 --max-time 120 "$OLLAMA_URL" -o /usr/local/bin/ollama; then
+            chmod +x /usr/local/bin/ollama
+            OLLAMA_OK=1
+            break
+        fi
+    done
+
+    if [ "$OLLAMA_OK" -eq 1 ]; then
+        # Create ollama user for service
+        useradd -r -s /bin/false -d /usr/share/ollama ollama 2>/dev/null || true
+        echo "I: [LUCID-080] Ollama installed successfully"
+    else
+        echo "I: [LUCID-080] WARNING: Ollama download failed — will retry on first boot"
+        rm -f /usr/local/bin/ollama
+    fi
+else
+    echo "I: [LUCID-080] Ollama already installed"
+fi
+
+# ── 2. Create Ollama directories ───────────────────────────────────────────────
+echo "I: [LUCID-080] Setting up Ollama directories..."
+
+OLLAMA_HOME="/usr/share/ollama"
+mkdir -p "$OLLAMA_HOME"
+mkdir -p "$OLLAMA_HOME/.ollama"
+
+# Set permissions
+chown -R ollama:ollama "$OLLAMA_HOME"
+chmod 755 "$OLLAMA_HOME"
+
+# ── 3. Create Ollama systemd service ────────────────────────────────────────────
+echo "I: [LUCID-080] Creating Ollama systemd service..."
+
+cat > /etc/systemd/system/ollama.service << 'EOF'
+[Unit]
+Description=Ollama Service
+After=network-online.target
+
+[Service]
+Type=exec
+User=ollama
+Group=ollama
+Restart=always
+RestartSec=3
+Environment="OLLAMA_HOST=0.0.0.0:11434"
+Environment="OLLAMA_MODELS=/usr/share/ollama/.ollama/models"
+Environment="OLLAMA_NUM_PARALLEL=2"
+Environment="OLLAMA_MAX_LOADED_MODELS=1"
+ExecStart=/usr/local/bin/ollama serve
+WorkingDirectory=/usr/share/ollama
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable the service
+systemctl enable ollama.service 2>/dev/null || true
+
+# ── 4. Download AI Model (if network available during build) ───────────────────
+echo "I: [LUCID-080] Preparing AI model download..."
+
+# Create a script to download models on first boot
+cat > "$LUCID_ROOT/bin/download_ai_models.sh" << 'EOF'
+#!/bin/bash
+# Download AI models for Cerberus on first boot
+
+echo "I: [CERBERUS] Downloading AI models..."
+
+# Start Ollama service
+systemctl start ollama
+sleep 5
+
+# Wait for Ollama to be ready
+for i in {1..30}; do
+    if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
+        echo "I: [CERBERUS] Ollama is ready"
+        break
+    fi
+    echo "I: [CERBERUS] Waiting for Ollama... ($i/30)"
+    sleep 2
+done
+
+# Download primary model
+echo "I: [CERBERUS] Downloading primary model: mistral:7b-instruct-v0.2-q4_0"
+if ollama pull mistral:7b-instruct-v0.2-q4_0; then
+    echo "I: [CERBERUS] Primary model downloaded successfully"
+else
+    echo "W: [CERBERUS] Failed to download primary model, trying fallback..."
+    
+    # Download fallback model
+    echo "I: [CERBERUS] Downloading fallback model: phi:2.7b-chat-v2.2-q4_0"
+    if ollama pull phi:2.7b-chat-v2.2-q4_0; then
+        echo "I: [CERBERUS] Fallback model downloaded successfully"
+    else
+        echo "E: [CERBERUS] Failed to download any AI model"
+        exit 1
+    fi
+fi
+
+# Create model status file
+echo "AI_MODELS_READY=true" > /opt/lucid-empire/data/ai_status.txt
+echo "I: [CERBERUS] AI model setup complete"
+
+# Keep Ollama running for Cerberus
+echo "I: [CERBERUS] Ollama service is running and ready"
+EOF
+
+chmod +x "$LUCID_ROOT/bin/download_ai_models.sh"
+
+# ── 5. Create Cerberus systemd service ───────────────────────────────────────────
+echo "I: [LUCID-080] Creating Cerberus systemd service..."
+
+cat > /etc/systemd/system/lucid-cerberus.service << 'EOF'
+[Unit]
+Description=Lucid Titan Cerberus Financial Intelligence
+After=network-online.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+ExecStart=/opt/lucid-empire/bin/download_ai_models.sh
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable Cerberus service
+systemctl enable lucid-cerberus.service 2>/dev/null || true
+
+# ── 6. Create AI status file ────────────────────────────────────────────────────
+echo "I: [LUCID-080] Creating AI status tracking..."
+
+mkdir -p "$LUCID_ROOT/data"
+echo "AI_MODELS_READY=false" > "$LUCID_ROOT/data/ai_status.txt"
+echo "OLLAMA_VERSION=$OLLAMA_VERSION" >> "$LUCID_ROOT/data/ai_status.txt"
+echo "PRIMARY_MODEL=$MODEL_NAME" >> "$LUCID_ROOT/data/ai_status.txt"
+echo "FALLBACK_MODEL=$FALLBACK_MODEL" >> "$LUCID_ROOT/data/ai_status.txt"
+
+# ── 7. Add Python dependencies for AI ───────────────────────────────────────────
+echo "I: [LUCID-080] Installing Python AI dependencies..."
+
+# Install additional pip packages needed for Cerberus
+if command -v pip3 >/dev/null 2>&1; then
+    pip3 install --no-cache-dir \
+        aiohttp \
+        python-socks \
+        requests \
+        urllib3 \
+        certifi 2>/dev/null || true
+    
+    echo "I: [LUCID-080] Python AI dependencies installed"
+else
+    echo "W: [LUCID-080] pip3 not available, skipping Python dependencies"
+fi
+
+# ── 8. Create Cerberus environment file ─────────────────────────────────────────
+echo "I: [LUCID-080] Creating Cerberus environment configuration..."
+
+cat > "$LUCID_ROOT/.env.cerberus" << 'EOF'
+# Cerberus Financial Intelligence Configuration
+CERBERUS_OLLAMA_URL=http://localhost:11434
+CERBERUS_PRIMARY_MODEL=mistral:7b-instruct-v0.2-q4_0
+CERBERUS_FALLBACK_MODEL=phi:2.7b-chat-v2.2-q4_0
+CERBERUS_HARVEST_INTERVAL=3600
+CERBERUS_MAX_KEYS=100
+CERBERUS_KEY_EXPIRY_DAYS=7
+CERBERUS_TRUST_THRESHOLD=70
+CERBERUS_DEFAULT_LIMIT=250.00
+EOF
+
+echo "I: [LUCID-080] Ollama AI setup complete"
+echo "I: [LUCID-080] AI models will be downloaded on first boot"

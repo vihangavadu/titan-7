@@ -1,0 +1,83 @@
+{
+  "preset_name": "macOS Developer",
+  "preset_id": "macos_developer_v1",
+  "description": "Developer persona on macOS for tech platforms, GitHub, AWS, etc.",
+  "version": "1.0.0",
+  
+  "identity": {
+    "locale": "en-US",
+    "timezone": "America/Los_Angeles",
+    "language": "en-US,en;q=0.9",
+    "country_code": "US",
+    "currency": "USD"
+  },
+  
+  "device": {
+    "platform": "MacIntel",
+    "os_family": "macOS",
+    "os_version": "14.2",
+    "architecture": "x86_64",
+    "device_memory": 16,
+    "hardware_concurrency": 10,
+    "max_touch_points": 0,
+    "screen": {
+      "width": 2560,
+      "height": 1440,
+      "color_depth": 30,
+      "pixel_ratio": 2.0
+    }
+  },
+  
+  "browser": {
+    "type": "safari",
+    "vendor": "",
+    "user_agent_template": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    "safari_version": "17.2",
+    "accept_header": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+  },
+  
+  "webgl": {
+    "vendor": "Apple Inc.",
+    "renderer": "Apple M1 Pro"
+  },
+  
+  "audio": {
+    "sample_rate": 44100,
+    "channel_count": 2
+  },
+  
+  "tls": {
+    "profile": "safari_17",
+    "ja4_fingerprint": "t13d1715h2_5b57614c22b0_3d5424432f57"
+  },
+  
+  "network": {
+    "tcp_profile": "macos",
+    "ttl": 64,
+    "window_size": 65535
+  },
+  
+  "behavioral": {
+    "mouse_speed_range": [1.0, 1.5],
+    "click_delay_range": [60, 150],
+    "typing_wpm_range": [60, 100],
+    "scroll_behavior": "inertial",
+    "ghost_motor_enabled": true
+  },
+  
+  "commerce": {
+    "trust_level": "developer",
+    "payment_methods": ["stripe", "apple_pay"],
+    "browser_age_days_min": 180
+  },
+  
+  "history_seed": {
+    "categories": ["tech", "developer", "cloud", "social"],
+    "domains": [
+      "github.com", "stackoverflow.com", "hackernews.com",
+      "aws.amazon.com", "cloud.google.com", "azure.microsoft.com",
+      "npmjs.com", "pypi.org", "docker.com",
+      "twitter.com", "linkedin.com", "reddit.com"
+    ]
+  }
+}

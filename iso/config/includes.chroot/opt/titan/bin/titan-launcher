@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+# TITAN V7.0 SINGULARITY - Trinity Launcher
+# Displays a dmenu-style launcher for Trinity Apps
+#
+
+APPS=(
+    "⚡ Unified Operation Center|python3 /opt/titan/apps/app_unified.py"
+    "🛰️ Mission Control (Lightweight)|python3 /opt/titan/apps/titan_mission_control.py"
+    "🔥 Genesis - Profile Forge|python3 /opt/titan/apps/app_genesis.py"
+    "🛡️ Cerberus - Card Validator|python3 /opt/titan/apps/app_cerberus.py"
+    "🎭 KYC - Virtual Camera|python3 /opt/titan/apps/app_kyc.py"
+    "🦊 Firefox (Lucid)|/opt/lucid-empire/bin/lucid-firefox"
+    "🌐 Chromium (Lucid)|/opt/lucid-empire/bin/lucid-chromium"
+    "📁 File Manager|pcmanfm"
+    "💻 Terminal|x-terminal-emulator"
+)
+
+# Build menu
+MENU=""
+for app in "${APPS[@]}"; do
+    NAME="${app%%|*}"
+    MENU+="$NAME\n"
+done
+
+# Show dmenu and get selection
+if command -v rofi &> /dev/null; then
+    SELECTED=$(echo -e "$MENU" | rofi -dmenu -p "TITAN" -theme-str 'window {background-color: #1e1e1e;} element-text {color: #e0e0e0;}')
+elif command -v dmenu &> /dev/null; then
+    SELECTED=$(echo -e "$MENU" | dmenu -b -fn "monospace:size=12" -nb "#1e1e1e" -nf "#e0e0e0" -sb "#9c27b0" -sf "#ffffff" -p "TITAN:")
+else
+    # Fallback: zenity
+    SELECTED=$(zenity --list --title="TITAN V7.0" --column="Application" "${APPS[@]%%|*}" 2>/dev/null)
+fi
+
+# Execute selected app
+if [ -n "$SELECTED" ]; then
+    for app in "${APPS[@]}"; do
+        NAME="${app%%|*}"
+        CMD="${app##*|}"
+        if [ "$NAME" = "$SELECTED" ]; then
+            exec $CMD &
+            exit 0
+        fi
+    done
+fi

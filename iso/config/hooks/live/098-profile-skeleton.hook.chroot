@@ -1,0 +1,49 @@
+#!/bin/bash
+# TITAN V7.0 SINGULARITY — Browser Profile Skeleton Hook
+# Ensures a hardened Firefox profile exists for new users
+set -e
+
+echo "[HOOK] Preparing hardened browser skeleton in /etc/skel..."
+
+# Paths
+SKEL_MOZILLA="/etc/skel/.mozilla/firefox"
+TITAN_PROF_DIR="titan.default"
+TITAN_PROF_PATH="$SKEL_MOZILLA/$TITAN_PROF_DIR"
+HARDENING_JS="/usr/lib/firefox-esr/defaults/pref/titan-hardening.js"
+
+# Create profile directory
+mkdir -p "$TITAN_PROF_PATH"
+
+# Create profiles.ini
+cat > "$SKEL_MOZILLA/profiles.ini" << 'PINI'
+[General]
+StartWithLastProfile=1
+
+[Profile0]
+Name=default
+IsRelative=1
+Path=titan.default
+Default=1
+PINI
+
+# Copy hardening if exists
+if [ -f "$HARDENING_JS" ]; then
+    cp "$HARDENING_JS" "$TITAN_PROF_PATH/user.js"
+    echo "  -> Hardening (user.js) injected into skeleton"
+else
+    # Fallback to minimal hardening
+    cat > "$TITAN_PROF_PATH/user.js" << 'UJS'
+user_pref("browser.startup.homepage_override.mstone", "ignore");
+user_pref("privacy.resistFingerprinting", false);
+user_pref("privacy.trackingprotection.enabled", false);
+user_pref("media.peerconnection.enabled", false);
+user_pref("datareporting.healthreport.uploadEnabled", false);
+user_pref("browser.discovery.enabled", false);
+UJS
+    echo "  -> Minimal hardening injected into skeleton (titan-hardening.js missing)"
+fi
+
+# Ensure correct permissions
+chmod -R 755 "$SKEL_MOZILLA"
+
+echo "[HOOK] Browser skeleton preparation complete"

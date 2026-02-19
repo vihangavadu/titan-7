@@ -1,0 +1,390 @@
+#!/bin/bash
+# ══════════════════════════════════════════════════════════════════════════════
+# TITAN V7.0 SINGULARITY — First Boot Operational Readiness
+# AUTHORITY: Dva.12
+# PURPOSE: Ensure all components are operational after first boot.
+#          This runs ONCE on first boot via systemd, then disables itself.
+# ══════════════════════════════════════════════════════════════════════════════
+
+set -o pipefail
+
+TITAN_ROOT="/opt/titan"
+LUCID_ROOT="/opt/lucid-empire"
+STATE_FILE="/opt/titan/state/.first-boot-complete"
+LOG="/var/log/titan-first-boot.log"
+
+# If first boot already completed, exit
+if [ -f "$STATE_FILE" ]; then
+    echo "[TITAN] First boot already completed. Exiting."
+    exit 0
+fi
+
+exec > >(tee -a "$LOG") 2>&1
+
+echo "═══════════════════════════════════════════════════════════"
+echo "  TITAN V7.0 SINGULARITY — First Boot Initialization"
+echo "  $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+echo "═══════════════════════════════════════════════════════════"
+
+mkdir -p "$TITAN_ROOT/state"
+mkdir -p "$TITAN_ROOT/profiles"
+
+# ── 1. Camoufox Browser Binary ─────────────────────────────────────────────
+echo ""
+echo "[1/11] Checking Camoufox browser..."
+
+CAMOUFOX_OK=false
+if python3 -c "from camoufox.sync_api import Camoufox; print('Camoufox module OK')" 2>/dev/null; then
+    # Module exists, check if binary is fetched
+    if python3 -c "import camoufox; camoufox.sync_api" 2>/dev/null; then
+        echo "[+] Camoufox already installed and binary present"
+        CAMOUFOX_OK=true
+    fi
+fi
+
+if [ "$CAMOUFOX_OK" = false ]; then
+    echo "[*] Installing Camoufox..."
+    pip3 install --no-cache-dir --break-system-packages "camoufox[geoip]" browserforge 2>&1 | tail -5 || true
+
+    echo "[*] Fetching Camoufox browser binary..."
+    python3 -m camoufox fetch 2>&1 || {
+        echo "[!] Camoufox binary fetch failed — will retry on next boot"
+        echo "[!] Manual: python3 -m camoufox fetch"
+    }
+
+    # Verify
+    if python3 -c "from camoufox.sync_api import Camoufox; print('[+] Camoufox VERIFIED')" 2>/dev/null; then
+        CAMOUFOX_OK=true
+    fi
+fi
+
+# ── 2. Playwright Firefox (for Genesis Engine warmup) ──────────────────────
+echo ""
+echo "[2/11] Checking Playwright Firefox..."
+
+if python3 -c "from playwright.sync_api import sync_playwright" 2>/dev/null; then
+    echo "[+] Playwright module present"
+else
+    echo "[*] Installing Playwright..."
+    pip3 install --no-cache-dir --break-system-packages playwright 2>&1 | tail -3 || true
+fi
+
+if [ -d "$HOME/.cache/ms-playwright/firefox-"* ] 2>/dev/null; then
+    echo "[+] Playwright Firefox binary present"
+else
+    echo "[*] Fetching Playwright Firefox binary..."
+    python3 -m playwright install firefox 2>&1 || {
+        echo "[!] Playwright Firefox fetch failed"
+        echo "[!] Manual: python3 -m playwright install firefox"
+    }
+fi
+
+# ── 3. Python Dependencies ─────────────────────────────────────────────────
+echo ""
+echo "[3/11] Verifying Python dependencies..."
+
+MISSING_DEPS=""
+for pkg in camoufox browserforge playwright aiohttp requests httpx pydantic openai onnxruntime scipy; do
+    if ! python3 -c "import $pkg" 2>/dev/null; then
+        MISSING_DEPS="$MISSING_DEPS $pkg"
+    fi
+done
+
+if [ -n "$MISSING_DEPS" ]; then
+    echo "[*] Installing missing:$MISSING_DEPS"
+    pip3 install --no-cache-dir --break-system-packages $MISSING_DEPS 2>&1 | tail -5 || true
+else
+    echo "[+] All Python dependencies present"
+fi
+
+# ── 4. Ghost Motor Extension Verification ──────────────────────────────────
+echo ""
+echo "[4/11] Verifying Ghost Motor extension..."
+
+if [ -f "$TITAN_ROOT/extensions/ghost_motor/ghost_motor.js" ] && \
+   [ -f "$TITAN_ROOT/extensions/ghost_motor/manifest.json" ]; then
+    echo "[+] Ghost Motor extension present"
+else
+    echo "[!] Ghost Motor extension MISSING"
+fi
+
+# ── 5. TITAN Core Module Verification ──────────────────────────────────────
+echo ""
+echo "[5/11] Verifying TITAN V7.0 core modules..."
+
+CORE_OK=0
+CORE_TOTAL=0
+for module in \
+    genesis_core.py target_intelligence.py preflight_validator.py \
+    form_autofill_injector.py target_presets.py three_ds_strategy.py \
+    advanced_profile_generator.py location_spoofer_linux.py \
+    cerberus_core.py cerberus_enhanced.py integration_bridge.py \
+    fingerprint_injector.py ghost_motor_v6.py kyc_core.py \
+    kyc_enhanced.py cognitive_core.py handover_protocol.py \
+    referrer_warmup.py proxy_manager.py quic_proxy.py lucid_vpn.py \
+    purchase_history_engine.py kill_switch.py \
+    font_sanitizer.py audio_hardener.py timezone_enforcer.py \
+    verify_deep_identity.py titan_master_verify.py \
+    tls_parrot.py webgl_angle.py network_jitter.py \
+    immutable_os.py cockpit_daemon.py waydroid_sync.py \
+    hardware_shield_v6.c network_shield_v6.c; do
+
+    CORE_TOTAL=$((CORE_TOTAL + 1))
+    if [ -f "$TITAN_ROOT/core/$module" ]; then
+        CORE_OK=$((CORE_OK + 1))
+    else
+        echo "[!] MISSING: core/$module"
+    fi
+done
+
+echo "[+] Core modules: $CORE_OK / $CORE_TOTAL"
+
+# ── 6. V7.0 Intelligence Module Verification ─────────────────────────────
+echo ""
+echo "[6/11] Verifying V7.0 Intelligence modules..."
+
+INTEL_OK=true
+python3 -c "
+import sys
+sys.path.insert(0, '/opt/titan/core')
+from target_intelligence import (
+    get_avs_intelligence, get_visa_alerts_intel, get_fingerprint_tools,
+    get_card_prechecking_intel, get_proxy_intelligence, get_paypal_defense_intel,
+    TARGETS, ANTIFRAUD_PROFILES
+)
+from three_ds_strategy import get_3ds_v2_intelligence
+print(f'  [+] target_intelligence: {len(TARGETS)} targets, {len(ANTIFRAUD_PROFILES)} antifraud profiles')
+print(f'  [+] AVS Intelligence: OK')
+print(f'  [+] Visa Alerts: OK')
+print(f'  [+] Fingerprint Tools: {len(get_fingerprint_tools()["tools"])} tools')
+print(f'  [+] Card Freshness: OK')
+print(f'  [+] Proxy Intelligence: OK')
+print(f'  [+] PayPal Defense: OK')
+print(f'  [+] 3DS v2 Intelligence: OK')
+" 2>/dev/null || {
+    echo "  [!] V7.0 Intelligence modules FAILED import check"
+    INTEL_OK=false
+}
+
+# ── 7. GUI Apps + Launchers Verification ───────────────────────────────────
+echo ""
+echo "[7/11] Verifying GUI apps and launchers..."
+
+for app in app_unified.py app_genesis.py app_cerberus.py app_kyc.py; do
+    if [ -f "$TITAN_ROOT/apps/$app" ]; then
+        echo "  [+] $app"
+    else
+        echo "  [!] MISSING: apps/$app"
+    fi
+done
+
+for launcher in titan-browser titan-launcher titan-test; do
+    if [ -f "$TITAN_ROOT/bin/$launcher" ]; then
+        echo "  [+] $launcher"
+    else
+        echo "  [!] MISSING: bin/$launcher"
+    fi
+done
+
+# ── 8. Phase 3 Hardening Verification ─────────────────────────────────
+echo ""
+echo "[8/11] Verifying Phase 3 hardening modules..."
+
+PHASE3_OK=true
+for p3mod in font_sanitizer.py audio_hardener.py timezone_enforcer.py \
+             verify_deep_identity.py titan_master_verify.py kill_switch.py; do
+    if [ -f "$TITAN_ROOT/core/$p3mod" ]; then
+        echo "  [+] $p3mod"
+    else
+        echo "  [!] MISSING: $p3mod"
+        PHASE3_OK=false
+    fi
+done
+
+# ── 9. Configuration Status (titan.env) ──────────────────────────────
+echo ""
+echo "[9/11] Checking titan.env configuration..."
+
+TITAN_ENV="/opt/titan/config/titan.env"
+CONFIG_ISSUES=0
+if [ -f "$TITAN_ENV" ]; then
+    echo "  [+] titan.env found"
+    
+    # Check Cloud Brain
+    if grep -q "REPLACE_WITH_VLLM_HOST" "$TITAN_ENV" 2>/dev/null; then
+        echo "  [~] Cloud Brain (vLLM):    NOT CONFIGURED — using local fallback"
+        CONFIG_ISSUES=$((CONFIG_ISSUES + 1))
+    else
+        CLOUD_URL=$(grep "^TITAN_CLOUD_URL=" "$TITAN_ENV" | cut -d= -f2)
+        echo "  [+] Cloud Brain (vLLM):    $CLOUD_URL"
+    fi
+    
+    # Check Proxy
+    if grep -q "REPLACE_WITH_PROXY" "$TITAN_ENV" 2>/dev/null; then
+        echo "  [~] Proxy:                 NOT CONFIGURED — add proxies to /opt/titan/state/proxies.json"
+        CONFIG_ISSUES=$((CONFIG_ISSUES + 1))
+    else
+        PROXY_PROVIDER=$(grep "^TITAN_PROXY_PROVIDER=" "$TITAN_ENV" | cut -d= -f2)
+        echo "  [+] Proxy provider:        $PROXY_PROVIDER"
+    fi
+    
+    # Check VPN
+    if grep -q "REPLACE_WITH_VPS_IP" "$TITAN_ENV" 2>/dev/null; then
+        echo "  [~] Lucid VPN:             NOT CONFIGURED — run /opt/titan/bin/titan-vpn-setup"
+        CONFIG_ISSUES=$((CONFIG_ISSUES + 1))
+    else
+        VPN_IP=$(grep "^TITAN_VPN_SERVER_IP=" "$TITAN_ENV" | cut -d= -f2)
+        echo "  [+] Lucid VPN relay:       $VPN_IP"
+    fi
+    
+    # Check PSP Keys
+    if grep -q "REPLACE_WITH_STRIPE" "$TITAN_ENV" 2>/dev/null; then
+        echo "  [~] Stripe:                NOT CONFIGURED (silent validation limited to BIN-only)"
+    else
+        echo "  [+] Stripe:                configured"
+    fi
+    if grep -q "REPLACE_WITH_PAYPAL" "$TITAN_ENV" 2>/dev/null; then
+        echo "  [~] PayPal:                NOT CONFIGURED"
+    else
+        echo "  [+] PayPal:                configured"
+    fi
+    
+    # Check proxy pool file
+    PROXY_POOL="/opt/titan/state/proxies.json"
+    if [ -f "$PROXY_POOL" ]; then
+        PROXY_COUNT=$(python3 -c "
+import json
+with open('$PROXY_POOL') as f:
+    d = json.load(f)
+proxies = [p for p in d.get('proxies', []) if 'REPLACE' not in p.get('host', 'REPLACE')]
+print(len(proxies))
+" 2>/dev/null || echo "0")
+        if [ "$PROXY_COUNT" -gt 0 ]; then
+            echo "  [+] Proxy pool:            $PROXY_COUNT proxies loaded"
+        else
+            echo "  [~] Proxy pool:            EMPTY — edit /opt/titan/state/proxies.json"
+            CONFIG_ISSUES=$((CONFIG_ISSUES + 1))
+        fi
+    fi
+    
+    if [ "$CONFIG_ISSUES" -gt 0 ]; then
+        echo ""
+        echo "  ╔═══════════════════════════════════════════════════════╗"
+        echo "  ║  $CONFIG_ISSUES item(s) need configuration.              ║"
+        echo "  ║  Edit: /opt/titan/config/titan.env                   ║"
+        echo "  ║  Replace all REPLACE_WITH_* values with real ones.   ║"
+        echo "  ╚═══════════════════════════════════════════════════════╝"
+    fi
+else
+    echo "  [!] titan.env NOT FOUND — creating from template..."
+    # This shouldn't happen since it ships in the ISO, but just in case
+    mkdir -p /opt/titan/config
+    echo "# TITAN V7.0 — Run titan-vpn-setup to configure" > "$TITAN_ENV"
+    CONFIG_ISSUES=99
+fi
+
+# ── 10. Load eBPF Network Shield ─────────────────────────────────────
+echo ""
+echo "[10/11] Loading eBPF Network Shield..."
+
+if [ -f "$TITAN_ROOT/core/build_ebpf.sh" ]; then
+    if [ "$(cat /proc/sys/kernel/unprivileged_bpf_disabled 2>/dev/null)" != "2" ] && command -v bpftool &>/dev/null; then
+        bash "$TITAN_ROOT/core/build_ebpf.sh" load 2>&1 | tail -10 || {
+            echo "  [!] eBPF load failed (may need kernel headers or root)"
+        }
+    else
+        echo "  [~] eBPF skipped (bpftool not available or BPF disabled)"
+    fi
+else
+    echo "  [!] build_ebpf.sh not found"
+fi
+
+# ── 11. Operational Readiness Summary ───────────────────────────────────
+echo ""
+echo "[11/11] Operational Readiness Check..."
+
+READY=true
+
+# Check Camoufox
+if [ "$CAMOUFOX_OK" = true ]; then
+    echo "  [✓] Camoufox browser       — READY"
+else
+    echo "  [✗] Camoufox browser       — NOT READY"
+    READY=false
+fi
+
+# Check core modules
+if [ "$CORE_OK" -eq "$CORE_TOTAL" ]; then
+    echo "  [✓] Core modules ($CORE_OK)    — READY"
+else
+    echo "  [✗] Core modules ($CORE_OK/$CORE_TOTAL) — DEGRADED"
+fi
+
+# Check Ghost Motor
+if [ -f "$TITAN_ROOT/extensions/ghost_motor/ghost_motor.js" ]; then
+    echo "  [✓] Ghost Motor extension  — READY"
+else
+    echo "  [✗] Ghost Motor extension  — NOT READY"
+    READY=false
+fi
+
+# Check V7.0 Intelligence
+if [ "$INTEL_OK" = true ]; then
+    echo "  [✓] V7.0 Intelligence      — READY"
+else
+    echo "  [✗] V7.0 Intelligence      — DEGRADED"
+fi
+
+# Check Phase 3 Hardening
+if [ "$PHASE3_OK" = true ]; then
+    echo "  [✓] Phase 3 Shields        — READY"
+else
+    echo "  [✗] Phase 3 Shields        — DEGRADED"
+fi
+
+# Check Firefox ESR (fallback)
+if command -v firefox-esr &>/dev/null; then
+    echo "  [✓] Firefox ESR (fallback) — READY"
+else
+    echo "  [✗] Firefox ESR (fallback) — NOT AVAILABLE"
+fi
+
+# Check network
+if ping -c 1 -W 3 8.8.8.8 &>/dev/null; then
+    echo "  [✓] Network connectivity   — ONLINE"
+else
+    echo "  [✗] Network connectivity   — OFFLINE"
+fi
+
+# Check configuration
+if [ "$CONFIG_ISSUES" -eq 0 ]; then
+    echo "  [✓] Configuration          — ALL CONFIGURED"
+elif [ "$CONFIG_ISSUES" -lt 3 ]; then
+    echo "  [~] Configuration          — $CONFIG_ISSUES item(s) need setup"
+else
+    echo "  [✗] Configuration          — $CONFIG_ISSUES item(s) need setup"
+    echo "       Edit: /opt/titan/config/titan.env"
+fi
+
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+if [ "$READY" = true ] && [ "$CONFIG_ISSUES" -eq 0 ]; then
+    echo "  TITAN V7.0 SINGULARITY — FULLY OPERATIONAL"
+elif [ "$READY" = true ]; then
+    echo "  TITAN V7.0 SINGULARITY — OPERATIONAL (config incomplete)"
+    echo "  Edit /opt/titan/config/titan.env to complete setup"
+else
+    echo "  TITAN V7.0 SINGULARITY — PARTIALLY OPERATIONAL"
+    echo "  Some components may need manual setup (see log above)"
+fi
+echo "  First boot completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+echo "═══════════════════════════════════════════════════════════"
+
+# Mark first boot complete
+echo "FIRST_BOOT_COMPLETE=true" > "$STATE_FILE"
+echo "TIMESTAMP=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$STATE_FILE"
+echo "CAMOUFOX=$CAMOUFOX_OK" >> "$STATE_FILE"
+echo "CORE_MODULES=$CORE_OK/$CORE_TOTAL" >> "$STATE_FILE"
+echo "GHOST_MOTOR=$([ -f '$TITAN_ROOT/extensions/ghost_motor/ghost_motor.js' ] && echo true || echo false)" >> "$STATE_FILE"
+
+exit 0

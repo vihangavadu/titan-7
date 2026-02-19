@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "TX Monitor",
+  "version": "7.0.3",
+  "description": "24/7 transaction monitor — captures payment responses and decline codes",
+  "permissions": ["webRequest", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["tx_monitor.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

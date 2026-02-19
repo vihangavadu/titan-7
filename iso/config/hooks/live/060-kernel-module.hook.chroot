@@ -1,0 +1,133 @@
+#!/bin/bash
+# LUCID EMPIRE :: Kernel Module DKMS Setup Hook
+# AUTHORITY: Dva.12 | TITAN V7 SINGULARITY
+#
+# Sets up the TITAN hardware masking kernel module via DKMS.
+# DKMS compiles the module against the ISO's kernel during build
+# and auto-rebuilds on kernel updates after installation.
+
+# set -e  # Disabled to prevent build failures on non-critical errors
+
+MODULE_NAME="titan-hw"
+MODULE_VERSION="7.0.3"
+DKMS_SRC_DIR="/usr/src/${MODULE_NAME}-${MODULE_VERSION}"
+LUCID_HW_DIR="/opt/titan/hardware_shield"
+MODULE_INSTALL_DIR="/opt/titan/kernel-modules"
+
+echo "[HOOK-KM] TITAN Kernel Module DKMS Setup"
+echo "[HOOK-KM] ========================================"
+
+# Check if source exists (deployed by build pipeline or workflow)
+if [[ ! -f "$LUCID_HW_DIR/titan_hw.c" ]]; then
+    echo "[HOOK-KM] WARNING: titan_hw.c not found at $LUCID_HW_DIR"
+    echo "[HOOK-KM] Checking alternate location..."
+    if [[ -f "$DKMS_SRC_DIR/titan_hw.c" ]]; then
+        echo "[HOOK-KM] Found source in DKMS tree: $DKMS_SRC_DIR"
+    else
+        echo "[HOOK-KM] ERROR: No kernel module source found anywhere"
+        echo "[HOOK-KM] Skipping kernel module setup"
+        exit 0
+    fi
+fi
+
+# Ensure DKMS is installed
+if ! command -v dkms &>/dev/null; then
+    echo "[HOOK-KM] Installing DKMS..."
+    apt-get update -qq || true
+    apt-get install -y --no-install-recommends dkms || {
+        echo "[HOOK-KM] ERROR: Could not install DKMS"
+        exit 0
+    }
+fi
+
+# Prepare DKMS source tree
+echo "[HOOK-KM] Preparing DKMS source tree at $DKMS_SRC_DIR..."
+mkdir -p "$DKMS_SRC_DIR"
+
+# Copy source files only if DKMS tree doesn't already have them
+# (The DKMS tree ships the V7 netlink version; don't overwrite with legacy procfs version)
+if [[ ! -f "$DKMS_SRC_DIR/titan_hw.c" ]] && [[ -f "$LUCID_HW_DIR/titan_hw.c" ]]; then
+    cp "$LUCID_HW_DIR/titan_hw.c" "$DKMS_SRC_DIR/"
+fi
+if [[ ! -f "$DKMS_SRC_DIR/Makefile" ]] && [[ -f "$LUCID_HW_DIR/Makefile" ]]; then
+    cp "$LUCID_HW_DIR/Makefile" "$DKMS_SRC_DIR/"
+fi
+
+# Generate DKMS configuration
+cat > "$DKMS_SRC_DIR/dkms.conf" << 'DKMSEOF'
+PACKAGE_NAME="titan-hw"
+PACKAGE_VERSION="7.0.3"
+BUILT_MODULE_NAME[0]="titan_hw"
+DEST_MODULE_LOCATION[0]="/kernel/drivers/misc"
+AUTOINSTALL="yes"
+MAKE[0]="make -C /lib/modules/${kernelver}/build M=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build modules"
+CLEAN="make -C /lib/modules/${kernelver}/build M=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build clean"
+DKMSEOF
+
+echo "[HOOK-KM] DKMS config written."
+
+# Ensure kernel headers are available
+KERNEL_VER=$(ls /lib/modules/ | sort -V | tail -1)
+echo "[HOOK-KM] Detected kernel in chroot: $KERNEL_VER"
+
+if [[ ! -d "/lib/modules/${KERNEL_VER}/build" ]]; then
+    echo "[HOOK-KM] Kernel headers not found for $KERNEL_VER, installing..."
+    apt-get update -qq || true
+    apt-get install -y --no-install-recommends "linux-headers-${KERNEL_VER}" || \
+    apt-get install -y --no-install-recommends linux-headers-amd64 || {
+        echo "[HOOK-KM] WARNING: Could not install kernel headers"
+        echo "[HOOK-KM] Module will compile on first boot via DKMS"
+    }
+fi
+
+# Register and build with DKMS
+echo "[HOOK-KM] Registering module with DKMS..."
+dkms remove "${MODULE_NAME}/${MODULE_VERSION}" --all 2>/dev/null || true
+dkms add "${MODULE_NAME}/${MODULE_VERSION}" || {
+    echo "[HOOK-KM] WARNING: DKMS add failed (may already be registered)"
+}
+
+# Attempt to build against the chroot kernel
+if [[ -d "/lib/modules/${KERNEL_VER}/build" ]]; then
+    echo "[HOOK-KM] Building module for kernel $KERNEL_VER..."
+    if dkms build "${MODULE_NAME}/${MODULE_VERSION}" -k "$KERNEL_VER"; then
+        echo "[HOOK-KM] Module built successfully"
+        if dkms install "${MODULE_NAME}/${MODULE_VERSION}" -k "$KERNEL_VER"; then
+            echo "[HOOK-KM] Module installed via DKMS"
+        fi
+    else
+        echo "[HOOK-KM] WARNING: DKMS build failed in chroot"
+        echo "[HOOK-KM] Module will auto-build on first boot"
+    fi
+fi
+
+# Also copy .ko to lucid-empire dir if it was built
+KO_PATH=$(find /lib/modules/ -name "titan_hw.ko*" 2>/dev/null | head -1)
+if [[ -n "$KO_PATH" ]]; then
+    mkdir -p "$MODULE_INSTALL_DIR"
+    cp "$KO_PATH" "$MODULE_INSTALL_DIR/titan_hw.ko"
+    chmod 644 "$MODULE_INSTALL_DIR/titan_hw.ko"
+    echo "[HOOK-KM] Module copied to $MODULE_INSTALL_DIR"
+fi
+
+# Enable systemd services via symlinks (reliable in chroot)
+echo "[HOOK-KM] Enabling systemd services..."
+SERVICE_WANTS="/etc/systemd/system/multi-user.target.wants"
+GRAPHICAL_WANTS="/etc/systemd/system/graphical.target.wants"
+mkdir -p "$SERVICE_WANTS"
+mkdir -p "$GRAPHICAL_WANTS"
+# Non-GUI services → multi-user
+for svc in lucid-titan lucid-ebpf; do
+    if [[ -f "/etc/systemd/system/${svc}.service" ]]; then
+        ln -sf "/etc/systemd/system/${svc}.service" "$SERVICE_WANTS/${svc}.service" 2>/dev/null || true
+        echo "[HOOK-KM] Enabled: ${svc}.service (multi-user)"
+    fi
+done
+# GUI service → graphical (requires DISPLAY)
+if [[ -f "/etc/systemd/system/lucid-console.service" ]]; then
+    ln -sf "/etc/systemd/system/lucid-console.service" "$GRAPHICAL_WANTS/lucid-console.service" 2>/dev/null || true
+    echo "[HOOK-KM] Enabled: lucid-console.service (graphical)"
+fi
+
+echo "[HOOK-KM] ========================================"
+echo "[HOOK-KM] Kernel module setup complete"

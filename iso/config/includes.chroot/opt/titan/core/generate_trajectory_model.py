@@ -1,0 +1,482 @@
+"""
+TITAN V7.0 SINGULARITY — Phase 2.2: Trajectory Modeling Engine
+Cognitive Warm-up Strategy for High-Trust Scoring
+
+Problem: Genesis defaults to random browsing. Detection systems like
+BioCatch and Forter analyze mouse trajectory CURVATURE, not just endpoints.
+Random navigation before login attempts produces statistically flat
+trajectories that score poorly on trust models.
+
+Solution: Pre-compute trajectory models that mimic human motor planning:
+1. Fitts's Law timing (movement time proportional to log2(distance/width))
+2. Minimum-jerk trajectory (smoothness optimization)
+3. Sub-movement decomposition (corrective micro-adjustments)
+4. Curvature variance matching real human distributions
+
+This module generates trajectory plans that Ghost Motor executes
+during the warm-up phase BEFORE the operator reaches the login page.
+
+Usage:
+    from generate_trajectory_model import TrajectoryPlanner, WarmupTrajectoryPlan
+    
+    planner = TrajectoryPlanner()
+    plan = planner.generate_warmup_plan(
+        target_domain="eneba.com",
+        page_width=1920,
+        page_height=1080,
+        num_interactions=15,
+    )
+    # plan.trajectories → list of trajectory segments
+    # plan.to_ghost_motor_config() → config for Ghost Motor extension
+"""
+
+import math
+import random
+import hashlib
+import json
+from pathlib import Path
+from datetime import datetime
+from typing import List, Dict, Any, Tuple, Optional
+from dataclasses import dataclass, field
+from enum import Enum
+import logging
+
+logger = logging.getLogger("TITAN-V7-TRAJECTORY")
+
+
+class InteractionType(Enum):
+    """Types of page interactions during warm-up"""
+    NAVIGATE_LINK = "navigate_link"
+    SCROLL_DOWN = "scroll_down"
+    SCROLL_UP = "scroll_up"
+    HOVER_ELEMENT = "hover_element"
+    TEXT_READ = "text_read"           # Idle on text area (simulates reading)
+    SEARCH_INPUT = "search_input"
+    BACK_BUTTON = "back_button"
+    TAB_SWITCH = "tab_switch"
+
+
+@dataclass
+class TrajectoryPoint:
+    """Single point in a trajectory with timing"""
+    x: float
+    y: float
+    t: float           # Time offset in ms from trajectory start
+    velocity: float    # Instantaneous velocity (px/ms)
+    curvature: float   # Local curvature at this point
+
+
+@dataclass
+class TrajectorySegment:
+    """A single mouse movement from point A to point B"""
+    start: Tuple[float, float]
+    end: Tuple[float, float]
+    points: List[TrajectoryPoint]
+    duration_ms: float
+    interaction: InteractionType
+    fitts_id: float          # Fitts's Law Index of Difficulty
+    peak_velocity: float
+    curvature_variance: float
+
+
+@dataclass
+class WarmupTrajectoryPlan:
+    """Complete warm-up trajectory plan for a page session"""
+    target_domain: str
+    page_dimensions: Tuple[int, int]
+    trajectories: List[TrajectorySegment]
+    total_duration_ms: float
+    num_interactions: int
+    interaction_sequence: List[InteractionType]
+    generated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    
+    def to_ghost_motor_config(self) -> Dict[str, Any]:
+        """Export as Ghost Motor extension configuration"""
+        return {
+            "warmup_enabled": True,
+            "target_domain": self.target_domain,
+            "total_duration_ms": self.total_duration_ms,
+            "num_segments": len(self.trajectories),
+            "segments": [
+                {
+                    "start": list(seg.start),
+                    "end": list(seg.end),
+                    "duration_ms": seg.duration_ms,
+                    "interaction": seg.interaction.value,
+                    "points": [
+                        {"x": p.x, "y": p.y, "t": p.t}
+                        for p in seg.points[::3]  # Subsample for size
+                    ],
+                }
+                for seg in self.trajectories
+            ],
+            "interaction_sequence": [i.value for i in self.interaction_sequence],
+        }
+    
+    def write_to_profile(self, profile_path: str) -> Path:
+        """Write trajectory plan to profile directory"""
+        out = Path(profile_path) / "warmup_trajectory.json"
+        with open(out, "w") as f:
+            json.dump(self.to_ghost_motor_config(), f, indent=2)
+        logger.info(f"[PHASE 2.2] Trajectory plan written: {len(self.trajectories)} segments, {self.total_duration_ms:.0f}ms")
+        return out
+
+
+class TrajectoryPlanner:
+    """
+    Generates human-like mouse trajectory plans for warm-up browsing.
+    
+    Based on motor control research:
+    - Fitts's Law: MT = a + b * log2(D/W + 1)
+    - Minimum-jerk model: minimize ∫(d³x/dt³)² dt
+    - Sub-movement correction: 1-3 corrective micro-adjustments per reach
+    - Curvature distribution: matches measured human data (mean ~0.002, σ ~0.001)
+    """
+    
+    # Fitts's Law constants (calibrated to web browsing)
+    FITTS_A = 50      # Intercept (ms) — reaction time component
+    FITTS_B = 150     # Slope (ms/bit) — movement time per bit of difficulty
+    
+    # Human motor noise parameters
+    ENDPOINT_NOISE_RATIO = 0.04   # ±4% of distance
+    CURVATURE_MEAN = 0.002        # Mean curvature (1/px)
+    CURVATURE_SIGMA = 0.001       # Curvature std dev
+    SUB_MOVEMENT_PROB = 0.35      # Probability of corrective sub-movement
+    
+    # Warm-up interaction templates per target type
+    WARMUP_SEQUENCES = {
+        "ecommerce": [
+            InteractionType.SCROLL_DOWN,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.TEXT_READ,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.NAVIGATE_LINK,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.TEXT_READ,
+            InteractionType.BACK_BUTTON,
+            InteractionType.SCROLL_UP,
+            InteractionType.SEARCH_INPUT,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.NAVIGATE_LINK,
+            InteractionType.TEXT_READ,
+        ],
+        "gaming": [
+            InteractionType.SCROLL_DOWN,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.NAVIGATE_LINK,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.TEXT_READ,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.BACK_BUTTON,
+            InteractionType.SCROLL_UP,
+            InteractionType.NAVIGATE_LINK,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.TEXT_READ,
+            InteractionType.NAVIGATE_LINK,
+            InteractionType.SCROLL_DOWN,
+        ],
+        "default": [
+            InteractionType.SCROLL_DOWN,
+            InteractionType.TEXT_READ,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.NAVIGATE_LINK,
+            InteractionType.TEXT_READ,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.BACK_BUTTON,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.SCROLL_UP,
+            InteractionType.NAVIGATE_LINK,
+            InteractionType.TEXT_READ,
+            InteractionType.SCROLL_DOWN,
+            InteractionType.HOVER_ELEMENT,
+            InteractionType.TEXT_READ,
+        ],
+    }
+    
+    # Domain → category mapping
+    DOMAIN_CATEGORIES = {
+        "amazon.com": "ecommerce", "walmart.com": "ecommerce",
+        "bestbuy.com": "ecommerce", "target.com": "ecommerce",
+        "newegg.com": "ecommerce", "ebay.com": "ecommerce",
+        "eneba.com": "gaming", "g2a.com": "gaming",
+        "steampowered.com": "gaming", "epicgames.com": "gaming",
+        "humble.com": "gaming", "gog.com": "gaming",
+    }
+    
+    def __init__(self, seed: Optional[int] = None):
+        self.rng = random.Random(seed or int.from_bytes(hashlib.sha256(
+            datetime.now().isoformat().encode()
+        ).digest()[:4], 'big'))
+    
+    def _fitts_time(self, distance: float, target_width: float) -> float:
+        """
+        Fitts's Law: predict movement time in ms.
+        MT = a + b * log2(D/W + 1)
+        """
+        if target_width <= 0:
+            target_width = 10
+        id_bits = math.log2(distance / target_width + 1)
+        return self.FITTS_A + self.FITTS_B * id_bits
+    
+    def _minimum_jerk_trajectory(self, start: Tuple[float, float],
+                                   end: Tuple[float, float],
+                                   duration_ms: float,
+                                   num_points: int = 60) -> List[TrajectoryPoint]:
+        """
+        Generate minimum-jerk trajectory between two points.
+        
+        The minimum-jerk model produces the smoothest possible movement
+        by minimizing the integral of jerk² (third derivative of position).
+        
+        x(t) = x0 + (xf-x0) * (10τ³ - 15τ⁴ + 6τ⁵)
+        where τ = t/T normalized time [0,1]
+        """
+        x0, y0 = start
+        xf, yf = end
+        dx = xf - x0
+        dy = yf - y0
+        distance = math.sqrt(dx*dx + dy*dy)
+        
+        points = []
+        prev_x, prev_y, prev_t = x0, y0, 0
+        
+        for i in range(num_points):
+            tau = (i + 1) / num_points  # Normalized time [0, 1]
+            t_ms = tau * duration_ms
+            
+            # Minimum-jerk position (5th order polynomial)
+            s = 10 * tau**3 - 15 * tau**4 + 6 * tau**5
+            
+            # Apply curvature (perpendicular offset)
+            curvature = self.rng.gauss(self.CURVATURE_MEAN, self.CURVATURE_SIGMA)
+            # Bell-shaped curvature profile (max at midpoint)
+            curvature_envelope = 4 * tau * (1 - tau)  # peaks at τ=0.5
+            perp_offset = curvature * distance * curvature_envelope * 50
+            
+            # Perpendicular direction
+            if distance > 0:
+                perp_x = -dy / distance
+                perp_y = dx / distance
+            else:
+                perp_x, perp_y = 0, 0
+            
+            # Add motor noise
+            noise_x = self.rng.gauss(0, distance * self.ENDPOINT_NOISE_RATIO * (1 - s))
+            noise_y = self.rng.gauss(0, distance * self.ENDPOINT_NOISE_RATIO * (1 - s))
+            
+            x = x0 + dx * s + perp_x * perp_offset + noise_x
+            y = y0 + dy * s + perp_y * perp_offset + noise_y
+            
+            # Calculate velocity
+            dt = t_ms - prev_t if t_ms > prev_t else 1
+            vx = (x - prev_x) / dt
+            vy = (y - prev_y) / dt
+            velocity = math.sqrt(vx*vx + vy*vy)
+            
+            points.append(TrajectoryPoint(
+                x=round(x, 2),
+                y=round(y, 2),
+                t=round(t_ms, 1),
+                velocity=round(velocity, 4),
+                curvature=round(curvature, 6),
+            ))
+            
+            prev_x, prev_y, prev_t = x, y, t_ms
+        
+        # Add sub-movement correction with probability
+        if self.rng.random() < self.SUB_MOVEMENT_PROB and len(points) > 10:
+            correction_start = len(points) - self.rng.randint(3, 8)
+            correction_start = max(0, correction_start)
+            
+            # Small corrective movement toward final target
+            for j in range(correction_start, len(points)):
+                correction_tau = (j - correction_start) / (len(points) - correction_start)
+                correction_s = 10 * correction_tau**3 - 15 * correction_tau**4 + 6 * correction_tau**5
+                points[j].x += (xf - points[j].x) * correction_s * 0.3
+                points[j].y += (yf - points[j].y) * correction_s * 0.3
+        
+        return points
+    
+    def _generate_target_position(self, interaction: InteractionType,
+                                    page_w: int, page_h: int) -> Tuple[float, float]:
+        """Generate a plausible target position for an interaction type"""
+        if interaction == InteractionType.NAVIGATE_LINK:
+            # Links tend to be in content area
+            return (self.rng.uniform(100, page_w - 200),
+                    self.rng.uniform(200, page_h - 100))
+        elif interaction == InteractionType.SCROLL_DOWN:
+            return (self.rng.uniform(page_w * 0.3, page_w * 0.7),
+                    self.rng.uniform(page_h * 0.4, page_h * 0.8))
+        elif interaction == InteractionType.SCROLL_UP:
+            return (self.rng.uniform(page_w * 0.3, page_w * 0.7),
+                    self.rng.uniform(page_h * 0.2, page_h * 0.5))
+        elif interaction == InteractionType.HOVER_ELEMENT:
+            return (self.rng.uniform(150, page_w - 150),
+                    self.rng.uniform(150, page_h - 150))
+        elif interaction == InteractionType.TEXT_READ:
+            # Eyes track to content area, mouse drifts
+            return (self.rng.uniform(page_w * 0.2, page_w * 0.6),
+                    self.rng.uniform(page_h * 0.3, page_h * 0.7))
+        elif interaction == InteractionType.SEARCH_INPUT:
+            # Search bars are usually top-center
+            return (self.rng.uniform(page_w * 0.3, page_w * 0.7),
+                    self.rng.uniform(50, 120))
+        elif interaction == InteractionType.BACK_BUTTON:
+            return (self.rng.uniform(20, 60), self.rng.uniform(50, 80))
+        else:
+            return (self.rng.uniform(100, page_w - 100),
+                    self.rng.uniform(100, page_h - 100))
+    
+    def _get_dwell_time(self, interaction: InteractionType) -> float:
+        """Get dwell/idle time after interaction (ms)"""
+        dwells = {
+            InteractionType.NAVIGATE_LINK: self.rng.uniform(800, 2500),
+            InteractionType.SCROLL_DOWN: self.rng.uniform(200, 800),
+            InteractionType.SCROLL_UP: self.rng.uniform(200, 600),
+            InteractionType.HOVER_ELEMENT: self.rng.uniform(300, 1200),
+            InteractionType.TEXT_READ: self.rng.uniform(2000, 6000),
+            InteractionType.SEARCH_INPUT: self.rng.uniform(1500, 4000),
+            InteractionType.BACK_BUTTON: self.rng.uniform(500, 1500),
+            InteractionType.TAB_SWITCH: self.rng.uniform(400, 1000),
+        }
+        return dwells.get(interaction, self.rng.uniform(500, 2000))
+    
+    def generate_warmup_plan(self, target_domain: str,
+                              page_width: int = 1920,
+                              page_height: int = 1080,
+                              num_interactions: int = 15) -> WarmupTrajectoryPlan:
+        """
+        Generate a complete warm-up trajectory plan.
+        
+        The plan consists of a sequence of mouse movements between
+        interaction targets, with Fitts's Law timing and minimum-jerk
+        kinematics. The resulting trajectories have curvature distributions
+        that match measured human data.
+        """
+        # Select interaction sequence based on domain category
+        category = self.DOMAIN_CATEGORIES.get(target_domain, "default")
+        template = self.WARMUP_SEQUENCES.get(category, self.WARMUP_SEQUENCES["default"])
+        sequence = template[:num_interactions]
+        
+        trajectories = []
+        total_time = 0
+        
+        # Start position: center-ish (where cursor usually rests)
+        current_pos = (page_width * 0.5 + self.rng.uniform(-100, 100),
+                       page_height * 0.4 + self.rng.uniform(-50, 50))
+        
+        for interaction in sequence:
+            target_pos = self._generate_target_position(interaction, page_width, page_height)
+            
+            # Calculate distance and target width
+            dx = target_pos[0] - current_pos[0]
+            dy = target_pos[1] - current_pos[1]
+            distance = math.sqrt(dx*dx + dy*dy)
+            target_width = self.rng.uniform(30, 80)  # Typical clickable element width
+            
+            # Fitts's Law timing
+            movement_time = self._fitts_time(distance, target_width)
+            # Add human variance (±20%)
+            movement_time *= self.rng.uniform(0.8, 1.2)
+            movement_time = max(100, movement_time)  # Minimum 100ms
+            
+            # Generate minimum-jerk trajectory
+            num_points = max(10, int(movement_time / 16))  # ~60fps
+            points = self._minimum_jerk_trajectory(
+                current_pos, target_pos, movement_time, num_points
+            )
+            
+            # Calculate segment statistics
+            velocities = [p.velocity for p in points]
+            curvatures = [p.curvature for p in points]
+            peak_velocity = max(velocities) if velocities else 0
+            curv_variance = (sum((c - sum(curvatures)/len(curvatures))**2 
+                           for c in curvatures) / len(curvatures)) if curvatures else 0
+            
+            segment = TrajectorySegment(
+                start=current_pos,
+                end=target_pos,
+                points=points,
+                duration_ms=movement_time,
+                interaction=interaction,
+                fitts_id=math.log2(distance / target_width + 1) if target_width > 0 else 0,
+                peak_velocity=peak_velocity,
+                curvature_variance=curv_variance,
+            )
+            
+            trajectories.append(segment)
+            total_time += movement_time
+            
+            # Add dwell time
+            dwell = self._get_dwell_time(interaction)
+            total_time += dwell
+            
+            # Update position
+            if points:
+                current_pos = (points[-1].x, points[-1].y)
+            else:
+                current_pos = target_pos
+        
+        plan = WarmupTrajectoryPlan(
+            target_domain=target_domain,
+            page_dimensions=(page_width, page_height),
+            trajectories=trajectories,
+            total_duration_ms=total_time,
+            num_interactions=len(sequence),
+            interaction_sequence=sequence,
+        )
+        
+        logger.info(f"[PHASE 2.2] Trajectory plan: {len(trajectories)} segments, "
+                    f"{total_time/1000:.1f}s total, domain={target_domain}")
+        
+        return plan
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CONVENIENCE EXPORTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def generate_warmup_trajectory(target_domain: str, profile_path: Optional[str] = None,
+                                num_interactions: int = 15) -> WarmupTrajectoryPlan:
+    """
+    Generate and optionally save a warm-up trajectory plan.
+    
+    Args:
+        target_domain: Target site domain (e.g., "eneba.com")
+        profile_path: If provided, write plan to profile directory
+        num_interactions: Number of pre-login interactions
+        
+    Returns:
+        WarmupTrajectoryPlan ready for Ghost Motor execution
+    """
+    planner = TrajectoryPlanner()
+    plan = planner.generate_warmup_plan(
+        target_domain=target_domain,
+        num_interactions=num_interactions,
+    )
+    
+    if profile_path:
+        plan.write_to_profile(profile_path)
+    
+    return plan
+
+
+if __name__ == "__main__":
+    plan = generate_warmup_trajectory("eneba.com")
+    print(f"\nTrajectory Plan for {plan.target_domain}")
+    print(f"  Segments: {len(plan.trajectories)}")
+    print(f"  Total Duration: {plan.total_duration_ms/1000:.1f}s")
+    print(f"  Interactions: {[i.value for i in plan.interaction_sequence]}")
+    
+    for i, seg in enumerate(plan.trajectories):
+        print(f"\n  [{i+1}] {seg.interaction.value}")
+        print(f"      Distance: {math.sqrt((seg.end[0]-seg.start[0])**2 + (seg.end[1]-seg.start[1])**2):.0f}px")
+        print(f"      Duration: {seg.duration_ms:.0f}ms")
+        print(f"      Fitts ID: {seg.fitts_id:.2f} bits")
+        print(f"      Peak Velocity: {seg.peak_velocity:.3f} px/ms")
+        print(f"      Points: {len(seg.points)}")

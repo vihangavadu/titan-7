@@ -1,0 +1,788 @@
+"""
+TITAN V7.0 SINGULARITY — Phase 2.3: Kill Switch (Panic Sequence)
+Automated Detection Response & Hardware ID Flush
+
+Problem: When a fraud detection system flags the session (fraud score
+drops below threshold), the operator has seconds before the session
+is permanently burned. Manual response is too slow.
+
+Solution: Automated panic sequence that:
+1. Monitors fraud score signals in real-time
+2. On detection trigger (score < 85), immediately:
+   a. Flushes hardware ID via Netlink to kernel module
+   b. Clears browser session/cookies/localStorage
+   c. Kills browser process
+   d. Rotates proxy connection
+   e. Randomizes MAC address
+   f. Logs the event for post-mortem analysis
+3. Optionally deploys a new clean profile for retry
+
+The kill switch operates as a background daemon thread that watches
+for detection signals from multiple sources.
+
+Usage:
+    from kill_switch import KillSwitch, KillSwitchConfig
+    
+    ks = KillSwitch(KillSwitchConfig(
+        profile_uuid="AM-8821-TRUSTED",
+        fraud_score_threshold=85,
+        auto_flush_hw=True,
+    ))
+    ks.arm()
+    # ... browser session runs ...
+    # If fraud score drops below 85, panic sequence fires automatically
+    ks.disarm()
+"""
+
+import os
+import sys
+import json
+import time
+import signal
+import struct
+import socket
+import shutil
+import secrets
+import logging
+import subprocess
+import threading
+from pathlib import Path
+from datetime import datetime
+from typing import Optional, Dict, Any, List, Callable
+from dataclasses import dataclass, field
+from enum import Enum
+
+logger = logging.getLogger("TITAN-V7-KILLSWITCH")
+
+
+class ThreatLevel(Enum):
+    """Current threat assessment"""
+    GREEN = "green"       # No detection signals
+    YELLOW = "yellow"     # Elevated risk, monitoring
+    ORANGE = "orange"     # Pre-detection signals detected
+    RED = "red"           # Active detection — PANIC
+
+
+class PanicReason(Enum):
+    """What triggered the panic sequence"""
+    FRAUD_SCORE_DROP = "fraud_score_drop"
+    MANUAL_TRIGGER = "manual_trigger"
+    BROWSER_CHALLENGE = "browser_challenge"
+    IP_FLAGGED = "ip_flagged"
+    DEVICE_FINGERPRINT_MISMATCH = "device_fp_mismatch"
+    THREE_DS_AGGRESSIVE = "3ds_aggressive"
+    SESSION_TIMEOUT = "session_timeout"
+
+
+@dataclass
+class KillSwitchConfig:
+    """Configuration for the kill switch"""
+    profile_uuid: str
+    profile_path: str = "/opt/titan/profiles"
+    fraud_score_threshold: int = 85       # Panic if score drops below
+    monitoring_interval_ms: int = 500     # Check every 500ms
+    auto_flush_hw: bool = True            # Auto-randomize hardware ID
+    auto_kill_browser: bool = True        # Auto-kill browser process
+    auto_rotate_proxy: bool = True        # Auto-rotate proxy
+    auto_flush_mac: bool = False          # Auto-randomize MAC (requires root)
+    log_events: bool = True               # Log all events for post-mortem
+    netlink_protocol: int = 31            # NETLINK_TITAN
+    state_dir: str = "/opt/titan/state"
+    on_panic_callback: Optional[Callable] = None  # Custom panic handler
+
+
+@dataclass
+class PanicEvent:
+    """Record of a panic event"""
+    timestamp: str
+    reason: PanicReason
+    fraud_score: Optional[int]
+    threat_level: ThreatLevel
+    profile_uuid: str
+    actions_taken: List[str]
+    duration_ms: float
+
+
+class KillSwitch:
+    """
+    Automated panic sequence for detection response.
+    
+    Arms a background monitor that watches for fraud score drops
+    and other detection signals. When triggered, executes a rapid
+    sequence of countermeasures to protect the operator.
+    """
+    
+    def __init__(self, config: KillSwitchConfig):
+        self.config = config
+        self.armed = False
+        self.threat_level = ThreatLevel.GREEN
+        self.current_fraud_score = 100
+        self.monitor_thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+        self.panic_history: List[PanicEvent] = []
+        self._fraud_score_file = Path(config.state_dir) / "fraud_score.json"
+        self._signal_file = Path(config.state_dir) / "kill_signal"
+        
+        # Ensure state directory exists
+        Path(config.state_dir).mkdir(parents=True, exist_ok=True)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # ARM / DISARM
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def arm(self) -> bool:
+        """
+        Arm the kill switch. Starts background monitoring thread.
+        Returns True if armed successfully.
+        """
+        if self.armed:
+            logger.warning("[KILLSWITCH] Already armed")
+            return True
+        
+        self.armed = True
+        self._stop_event.clear()
+        self.threat_level = ThreatLevel.GREEN
+        
+        # Start monitor thread
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            daemon=True,
+            name="TitanKillSwitch"
+        )
+        self.monitor_thread.start()
+        
+        # Write armed state
+        self._write_state({"armed": True, "timestamp": datetime.now().isoformat()})
+        
+        logger.info("[KILLSWITCH] *** ARMED *** — Monitoring for detection signals")
+        logger.info(f"[KILLSWITCH] Threshold: fraud_score < {self.config.fraud_score_threshold}")
+        logger.info(f"[KILLSWITCH] Interval: {self.config.monitoring_interval_ms}ms")
+        return True
+    
+    def disarm(self):
+        """Disarm the kill switch. Stops monitoring."""
+        self.armed = False
+        self._stop_event.set()
+        
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            self.monitor_thread.join(timeout=2)
+        
+        # Clean up signal file
+        if self._signal_file.exists():
+            self._signal_file.unlink()
+        
+        self._write_state({"armed": False, "timestamp": datetime.now().isoformat()})
+        logger.info("[KILLSWITCH] Disarmed")
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # MONITORING LOOP
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _monitor_loop(self):
+        """Background monitoring thread"""
+        while not self._stop_event.is_set():
+            try:
+                # Check fraud score file (written by Cerberus or browser extension)
+                score = self._read_fraud_score()
+                if score is not None:
+                    self.current_fraud_score = score
+                    self._update_threat_level(score)
+                    
+                    if score < self.config.fraud_score_threshold:
+                        logger.critical(f"[KILLSWITCH] FRAUD SCORE DROP: {score} < {self.config.fraud_score_threshold}")
+                        self.panic(PanicReason.FRAUD_SCORE_DROP, score)
+                        return  # Exit monitor after panic
+                
+                # Check for manual kill signal file
+                if self._signal_file.exists():
+                    reason_str = self._signal_file.read_text().strip()
+                    try:
+                        reason = PanicReason(reason_str)
+                    except ValueError:
+                        reason = PanicReason.MANUAL_TRIGGER
+                    
+                    logger.critical(f"[KILLSWITCH] MANUAL SIGNAL: {reason.value}")
+                    self._signal_file.unlink()
+                    self.panic(reason)
+                    return
+                
+            except Exception as e:
+                logger.error(f"[KILLSWITCH] Monitor error: {e}")
+            
+            self._stop_event.wait(self.config.monitoring_interval_ms / 1000)
+    
+    def _read_fraud_score(self) -> Optional[int]:
+        """Read current fraud score from state file"""
+        try:
+            if self._fraud_score_file.exists():
+                with open(self._fraud_score_file) as f:
+                    data = json.load(f)
+                return data.get("score")
+        except (json.JSONDecodeError, IOError):
+            pass
+        return None
+    
+    def _update_threat_level(self, score: int):
+        """Update threat level based on fraud score"""
+        if score >= 90:
+            self.threat_level = ThreatLevel.GREEN
+        elif score >= 85:
+            self.threat_level = ThreatLevel.YELLOW
+        elif score >= 75:
+            self.threat_level = ThreatLevel.ORANGE
+            logger.warning(f"[KILLSWITCH] ORANGE — score={score}, approaching threshold")
+        else:
+            self.threat_level = ThreatLevel.RED
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # PANIC SEQUENCE
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def panic(self, reason: PanicReason = PanicReason.MANUAL_TRIGGER,
+              fraud_score: Optional[int] = None):
+        """
+        Execute panic sequence. This is the main kill switch action.
+        
+        Sequence (all execute within ~500ms):
+        0. Sever network (nftables DROP all outbound — prevents data leakage)
+        1. Kill browser process immediately
+        2. Flush hardware ID via Netlink
+        3. Clear browser session data
+        4. Rotate proxy
+        5. Randomize MAC (if enabled)
+        6. Log event
+        """
+        start_time = time.time()
+        actions = []
+        
+        logger.critical("=" * 60)
+        logger.critical("  ██████╗  █████╗ ███╗   ██╗██╗ ██████╗")
+        logger.critical("  ██╔══██╗██╔══██╗████╗  ██║██║██╔════╝")
+        logger.critical("  ██████╔╝███████║██╔██╗ ██║██║██║     ")
+        logger.critical("  ██╔═══╝ ██╔══██║██║╚██╗██║██║██║     ")
+        logger.critical("  ██║     ██║  ██║██║ ╚████║██║╚██████╗")
+        logger.critical("  ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝ ╚═════╝")
+        logger.critical("=" * 60)
+        logger.critical(f"  REASON: {reason.value}")
+        logger.critical(f"  SCORE:  {fraud_score or self.current_fraud_score}")
+        logger.critical("=" * 60)
+        
+        # Step 0: Network sever (absolute first — block ALL outbound before anything else)
+        severed = self._sever_network()
+        if severed:
+            actions.append("network_severed")
+            logger.critical("[PANIC] Step 0: Network SEVERED (nftables DROP all)")
+        else:
+            actions.append("network_sever_failed")
+        
+        # Step 1: Kill browser
+        if self.config.auto_kill_browser:
+            killed = self._kill_browser()
+            if killed:
+                actions.append("browser_killed")
+                logger.critical("[PANIC] Step 1: Browser KILLED")
+            else:
+                actions.append("browser_kill_failed")
+        
+        # Step 2: Flush hardware ID via Netlink
+        if self.config.auto_flush_hw:
+            flushed = self._flush_hardware_id()
+            if flushed:
+                actions.append("hw_id_flushed")
+                logger.critical("[PANIC] Step 2: Hardware ID FLUSHED (randomized)")
+            else:
+                actions.append("hw_flush_failed")
+        
+        # Step 3: Clear browser session
+        cleared = self._clear_session_data()
+        if cleared:
+            actions.append("session_cleared")
+            logger.critical("[PANIC] Step 3: Session data CLEARED")
+        
+        # Step 4: Rotate proxy
+        if self.config.auto_rotate_proxy:
+            rotated = self._rotate_proxy()
+            if rotated:
+                actions.append("proxy_rotated")
+                logger.critical("[PANIC] Step 4: Proxy ROTATED")
+        
+        # Step 5: MAC randomization
+        if self.config.auto_flush_mac:
+            mac_changed = self._randomize_mac()
+            if mac_changed:
+                actions.append("mac_randomized")
+                logger.critical("[PANIC] Step 5: MAC address RANDOMIZED")
+        
+        # Step 6: Call custom handler
+        if self.config.on_panic_callback:
+            try:
+                self.config.on_panic_callback(reason, fraud_score)
+                actions.append("custom_callback")
+            except Exception as e:
+                logger.error(f"[PANIC] Custom callback error: {e}")
+        
+        duration_ms = (time.time() - start_time) * 1000
+        
+        # Log event
+        event = PanicEvent(
+            timestamp=datetime.now().isoformat(),
+            reason=reason,
+            fraud_score=fraud_score or self.current_fraud_score,
+            threat_level=self.threat_level,
+            profile_uuid=self.config.profile_uuid,
+            actions_taken=actions,
+            duration_ms=round(duration_ms, 2),
+        )
+        self.panic_history.append(event)
+        
+        if self.config.log_events:
+            self._log_panic_event(event)
+        
+        logger.critical(f"[PANIC] Sequence complete in {duration_ms:.0f}ms — {len(actions)} actions")
+        
+        # Disarm after panic
+        self.armed = False
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # PANIC ACTIONS
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _sever_network(self) -> bool:
+        """
+        Immediately block ALL outbound traffic via nftables.
+        This is Step 0 — must execute before browser kill to prevent
+        any data leakage during the panic window.
+        """
+        # Try nftables first (preferred on Debian 12), fall back to iptables
+        nft_rules = [
+            "nft add table inet titan_panic",
+            "nft add chain inet titan_panic output { type filter hook output priority 0 \\; policy drop \\; }",
+            "nft add rule inet titan_panic output ct state established accept",
+        ]
+        
+        try:
+            for rule in nft_rules:
+                subprocess.run(
+                    rule.split(),
+                    capture_output=True, timeout=2, check=True
+                )
+            logger.critical("[PANIC] Network severed via nftables (all outbound DROP)")
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        
+        # Fallback: iptables
+        try:
+            subprocess.run(
+                ["iptables", "-I", "OUTPUT", "-j", "DROP"],
+                capture_output=True, timeout=2, check=True
+            )
+            logger.critical("[PANIC] Network severed via iptables (all outbound DROP)")
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError, PermissionError):
+            logger.error("[PANIC] Network sever failed — requires root")
+            return False
+    
+    def _restore_network(self) -> bool:
+        """Remove the panic firewall rules to restore connectivity."""
+        try:
+            subprocess.run(
+                ["nft", "delete", "table", "inet", "titan_panic"],
+                capture_output=True, timeout=2, check=True
+            )
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        try:
+            subprocess.run(
+                ["iptables", "-D", "OUTPUT", "-j", "DROP"],
+                capture_output=True, timeout=2, check=True
+            )
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+    
+    def _kill_browser(self) -> bool:
+        """Kill all browser processes immediately"""
+        killed = False
+        browser_processes = ["firefox", "firefox-esr", "camoufox", "chromium"]
+        
+        for proc_name in browser_processes:
+            try:
+                result = subprocess.run(
+                    ["pkill", "-9", "-f", proc_name],
+                    capture_output=True, timeout=2
+                )
+                if result.returncode == 0:
+                    killed = True
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+        
+        # Also kill any playwright/geckodriver automation remnants
+        for auto_proc in ["geckodriver", "playwright", "chromedriver"]:
+            try:
+                subprocess.run(["pkill", "-9", "-f", auto_proc],
+                             capture_output=True, timeout=1)
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+        
+        return killed
+    
+    def _flush_hardware_id(self) -> bool:
+        """
+        Send new random hardware profile to kernel module via Netlink.
+        This immediately changes /proc/cpuinfo, /proc/meminfo output
+        so any subsequent fingerprinting sees a different device.
+        """
+        try:
+            # Generate random hardware profile
+            random_serial = secrets.token_hex(8).upper()
+            random_uuid = f"{secrets.token_hex(4)}-{secrets.token_hex(2)}-{secrets.token_hex(2)}-{secrets.token_hex(2)}-{secrets.token_hex(6)}"
+            
+            # Try to send via Netlink (requires root)
+            NETLINK_TITAN = self.config.netlink_protocol
+            TITAN_MSG_SET_PROFILE = 1
+            
+            # Build profile struct (matches titan_hw_profile in hardware_shield_v6.c)
+            # cpu_model[128] + cpu_vendor[64] + cores(4) + threads(4) + freq(8) + ram(8) + ...
+            cpu_models = [
+                "13th Gen Intel(R) Core(TM) i7-13700K",
+                "AMD Ryzen 9 7950X 16-Core Processor",
+                "12th Gen Intel(R) Core(TM) i9-12900K",
+                "11th Gen Intel(R) Core(TM) i5-11400F",
+            ]
+            
+            import random as rng
+            cpu_model = rng.choice(cpu_models).encode('utf-8')[:127].ljust(128, b'\x00')
+            cpu_vendor = b'GenuineIntel'.ljust(64, b'\x00')
+            
+            profile_data = cpu_model  # char[128]
+            profile_data += cpu_vendor  # char[64]
+            profile_data += struct.pack('i', rng.choice([8, 12, 16]))  # cores
+            profile_data += struct.pack('i', rng.choice([16, 20, 24, 32]))  # threads
+            profile_data += struct.pack('L', rng.choice([2500, 3000, 3500, 4000]))  # freq
+            profile_data += struct.pack('L', rng.choice([16384, 32768, 65536]))  # ram_mb
+            profile_data += rng.choice([b'Dell Inc.', b'ASUSTeK', b'Lenovo', b'HP']).ljust(64, b'\x00')  # mb_vendor
+            profile_data += secrets.token_hex(4).upper().encode().ljust(64, b'\x00')  # mb_model
+            profile_data += b'American Megatrends'.ljust(64, b'\x00')  # bios_vendor
+            profile_data += b'1.20.0'.ljust(64, b'\x00')  # bios_version
+            profile_data += random_serial.encode().ljust(64, b'\x00')  # serial
+            profile_data += random_uuid.encode().ljust(64, b'\x00')  # uuid
+            profile_data += struct.pack('i', 1)  # active=1
+            
+            # Send via Netlink
+            sock = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, NETLINK_TITAN)
+            sock.bind((os.getpid(), 0))
+            
+            # Build Netlink message header (16 bytes) + payload
+            msg_len = 16 + len(profile_data)
+            nlmsg = struct.pack('IHHII', msg_len, TITAN_MSG_SET_PROFILE, 0, 0, os.getpid())
+            nlmsg += profile_data
+            
+            sock.send(nlmsg)
+            sock.close()
+            
+            logger.info(f"[PANIC] Hardware ID flushed: serial={random_serial}")
+            return True
+            
+        except PermissionError:
+            logger.warning("[PANIC] HW flush requires root — writing stub file instead")
+            return self._flush_hw_stub()
+        except Exception as e:
+            logger.error(f"[PANIC] HW flush error: {e}")
+            return self._flush_hw_stub()
+    
+    def _flush_hw_stub(self) -> bool:
+        """Fallback: Write randomized hardware stub + boot service to apply it on next boot"""
+        try:
+            stub_path = Path(self.config.state_dir) / "titan_hw_stub.json"
+            stub = {
+                "action": "flush",
+                "timestamp": datetime.now().isoformat(),
+                "new_serial": secrets.token_hex(8).upper(),
+                "new_uuid": f"{secrets.token_hex(4)}-{secrets.token_hex(2)}-{secrets.token_hex(2)}-{secrets.token_hex(2)}-{secrets.token_hex(6)}",
+                "reason": "panic_flush",
+                "profile_uuid": self.config.profile_uuid,
+            }
+            with open(stub_path, "w") as f:
+                json.dump(stub, f, indent=2)
+            
+            # Create a one-shot systemd service to apply the stub at next boot
+            # The inline Python sends a proper Netlink SET_PROFILE message
+            # matching the protocol in _flush_hardware_ids()
+            service_content = f"""[Unit]
+Description=TITAN Hardware Flush (one-shot panic recovery)
+After=multi-user.target
+ConditionPathExists={stub_path}
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '\\
+  STUB="{stub_path}"; \\
+  if [ -f "$STUB" ]; then \\
+    if lsmod | grep -q titan_hw; then \\
+      python3 -c "\\
+import json, struct, socket, os, random; \\
+stub = json.load(open(\\"$STUB\\")); \\
+NETLINK_TITAN = 31; \\
+TITAN_MSG_SET_PROFILE = 1; \\
+cpu_models = [b\\"Intel(R) Core(TM) i7-12700H\\", b\\"Intel(R) Core(TM) i9-13900K\\", b\\"AMD Ryzen 7 5800X\\"]; \\
+cpu_model = random.choice(cpu_models).ljust(128, b\\"\\\\x00\\")[:128]; \\
+cpu_vendor = b\\"GenuineIntel\\".ljust(64, b\\"\\\\x00\\"); \\
+profile_data = cpu_model + cpu_vendor; \\
+profile_data += struct.pack(\\"i\\", random.choice([8,12,16])); \\
+profile_data += struct.pack(\\"i\\", random.choice([16,20,24,32])); \\
+profile_data += struct.pack(\\"L\\", random.choice([2500,3000,3500,4000])); \\
+profile_data += struct.pack(\\"L\\", random.choice([16384,32768,65536])); \\
+profile_data += random.choice([b\\"Dell Inc.\\", b\\"ASUSTeK\\", b\\"Lenovo\\"]).ljust(64, b\\"\\\\x00\\"); \\
+profile_data += stub[\\"new_serial\\"][:8].encode().ljust(64, b\\"\\\\x00\\"); \\
+profile_data += b\\"American Megatrends\\".ljust(64, b\\"\\\\x00\\"); \\
+profile_data += b\\"1.20.0\\".ljust(64, b\\"\\\\x00\\"); \\
+profile_data += stub[\\"new_serial\\"].encode().ljust(64, b\\"\\\\x00\\"); \\
+profile_data += stub[\\"new_uuid\\"].encode().ljust(64, b\\"\\\\x00\\"); \\
+profile_data += struct.pack(\\"i\\", 1); \\
+sock = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, NETLINK_TITAN); \\
+sock.bind((os.getpid(), 0)); \\
+msg_len = 16 + len(profile_data); \\
+nlmsg = struct.pack(\\"IHHII\\", msg_len, TITAN_MSG_SET_PROFILE, 0, 0, os.getpid()); \\
+nlmsg += profile_data; \\
+sock.send(nlmsg); \\
+sock.close(); \\
+print(\\"Netlink HW flush sent: serial=\\" + stub[\\"new_serial\\"])"; \\
+    fi; \\
+    rm -f "$STUB"; \\
+    systemctl disable titan-hw-flush.service; \\
+  fi'
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
+"""
+            service_path = Path("/etc/systemd/system/titan-hw-flush.service")
+            try:
+                service_path.write_text(service_content)
+                subprocess.run(
+                    ["systemctl", "enable", "titan-hw-flush.service"],
+                    capture_output=True, timeout=5
+                )
+                logger.info("[PANIC] Boot-time HW flush service installed")
+            except (PermissionError, FileNotFoundError):
+                logger.warning("[PANIC] Could not install boot service (no root), stub file written for manual apply")
+            
+            return True
+        except Exception:
+            return False
+    
+    def _clear_session_data(self) -> bool:
+        """Clear volatile session data from profile"""
+        try:
+            profile_dir = Path(self.config.profile_path) / self.config.profile_uuid
+            
+            # Files to delete (session-specific, not the entire profile)
+            volatile_files = [
+                "sessionstore.jsonlz4",
+                "sessionstore-backups",
+                "cookies.sqlite-wal",
+                "cookies.sqlite-shm",
+                "places.sqlite-wal",
+                "places.sqlite-shm",
+                "webappsstore.sqlite-wal",
+            ]
+            
+            cleared = 0
+            for fname in volatile_files:
+                fpath = profile_dir / fname
+                if fpath.exists():
+                    if fpath.is_dir():
+                        shutil.rmtree(fpath, ignore_errors=True)
+                    else:
+                        fpath.unlink()
+                    cleared += 1
+            
+            logger.info(f"[PANIC] Cleared {cleared} volatile session files")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[PANIC] Session clear error: {e}")
+            return False
+    
+    def _rotate_proxy(self) -> bool:
+        """Signal proxy manager to rotate connection"""
+        try:
+            rotate_signal = Path(self.config.state_dir) / "proxy_rotate_signal"
+            rotate_signal.write_text(json.dumps({
+                "action": "rotate",
+                "timestamp": datetime.now().isoformat(),
+                "reason": "panic",
+                "profile_uuid": self.config.profile_uuid,
+            }))
+            return True
+        except Exception as e:
+            logger.error(f"[PANIC] Proxy rotate error: {e}")
+            return False
+    
+    def _randomize_mac(self) -> bool:
+        """Randomize MAC address (requires root)"""
+        try:
+            # Get default interface
+            result = subprocess.run(
+                ["ip", "route", "show", "default"],
+                capture_output=True, text=True, timeout=2
+            )
+            iface = result.stdout.split("dev ")[1].split()[0] if "dev " in result.stdout else "eth0"
+            
+            # Generate random MAC (locally administered, unicast)
+            mac_bytes = [secrets.randbelow(256) for _ in range(6)]
+            mac_bytes[0] = (mac_bytes[0] & 0xFC) | 0x02  # Set locally administered bit
+            new_mac = ":".join(f"{b:02x}" for b in mac_bytes)
+            
+            subprocess.run(["ip", "link", "set", iface, "down"], timeout=2)
+            subprocess.run(["ip", "link", "set", iface, "address", new_mac], timeout=2)
+            subprocess.run(["ip", "link", "set", iface, "up"], timeout=2)
+            
+            logger.info(f"[PANIC] MAC randomized: {new_mac} on {iface}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[PANIC] MAC randomize error: {e}")
+            return False
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # STATE & LOGGING
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _write_state(self, state: Dict[str, Any]):
+        """Write kill switch state to disk"""
+        try:
+            state_file = Path(self.config.state_dir) / "killswitch_state.json"
+            with open(state_file, "w") as f:
+                json.dump(state, f, indent=2)
+        except Exception:
+            pass
+    
+    def _log_panic_event(self, event: PanicEvent):
+        """Log panic event to disk for post-mortem analysis"""
+        try:
+            log_file = Path(self.config.state_dir) / "panic_log.jsonl"
+            with open(log_file, "a") as f:
+                f.write(json.dumps({
+                    "timestamp": event.timestamp,
+                    "reason": event.reason.value,
+                    "fraud_score": event.fraud_score,
+                    "threat_level": event.threat_level.value,
+                    "profile_uuid": event.profile_uuid,
+                    "actions": event.actions_taken,
+                    "duration_ms": event.duration_ms,
+                }) + "\n")
+        except Exception:
+            pass
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # EXTERNAL SIGNAL API
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def update_fraud_score(self, score: int):
+        """
+        External API: update fraud score from Cerberus or browser extension.
+        This is the preferred way to feed scores (vs file-based monitoring).
+        """
+        self.current_fraud_score = score
+        self._update_threat_level(score)
+        
+        # Also write to file for persistence
+        try:
+            with open(self._fraud_score_file, "w") as f:
+                json.dump({"score": score, "timestamp": datetime.now().isoformat()}, f)
+        except Exception:
+            pass
+        
+        if score < self.config.fraud_score_threshold and self.armed:
+            self.panic(PanicReason.FRAUD_SCORE_DROP, score)
+    
+    def trigger_manual_panic(self, reason: str = "manual"):
+        """External API: trigger panic manually"""
+        try:
+            panic_reason = PanicReason(reason)
+        except ValueError:
+            panic_reason = PanicReason.MANUAL_TRIGGER
+        self.panic(panic_reason)
+    
+    def hard_panic(self):
+        """
+        EXTREME: Hard kernel panic via sysrq-trigger.
+        
+        This is the nuclear option for seizure scenarios:
+        1. Sever network immediately
+        2. Sync filesystems
+        3. Force immediate reboot (no clean shutdown)
+        
+        On a Live ISO (tmpfs), this destroys ALL in-memory data instantly.
+        Nothing survives a hard reboot on a RAM-only system.
+        
+        WARNING: This is irreversible. All unsaved data is lost.
+        """
+        logger.critical("[HARD PANIC] *** SYSRQ TRIGGERED — IMMEDIATE REBOOT ***")
+        
+        # Step 1: Sever network first
+        try:
+            subprocess.run(["ip", "link", "set", "dev", "eth0", "down"], timeout=1)
+        except Exception:
+            pass
+        try:
+            subprocess.run(["ip", "link", "set", "dev", "wlan0", "down"], timeout=1)
+        except Exception:
+            pass
+        
+        # Step 2: Sync then force reboot via sysrq
+        try:
+            # sysrq 's' = sync, 'u' = remount ro, 'b' = reboot
+            with open("/proc/sysrq-trigger", "w") as f:
+                f.write("s")  # Sync
+            time.sleep(0.1)
+            with open("/proc/sysrq-trigger", "w") as f:
+                f.write("u")  # Unmount
+            time.sleep(0.1)
+            with open("/proc/sysrq-trigger", "w") as f:
+                f.write("b")  # Reboot (hard, immediate)
+        except PermissionError:
+            # Fallback: force reboot via subprocess
+            try:
+                subprocess.run(["reboot", "-f"], timeout=2)
+            except Exception:
+                # Last resort
+                os.system("echo b > /proc/sysrq-trigger 2>/dev/null || reboot -f")
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get current kill switch status"""
+        return {
+            "armed": self.armed,
+            "threat_level": self.threat_level.value,
+            "fraud_score": self.current_fraud_score,
+            "threshold": self.config.fraud_score_threshold,
+            "panic_count": len(self.panic_history),
+            "profile_uuid": self.config.profile_uuid,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CONVENIENCE EXPORTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def arm_kill_switch(profile_uuid: str, threshold: int = 85,
+                     auto_flush_hw: bool = True) -> KillSwitch:
+    """Arm a kill switch for a session"""
+    config = KillSwitchConfig(
+        profile_uuid=profile_uuid,
+        fraud_score_threshold=threshold,
+        auto_flush_hw=auto_flush_hw,
+    )
+    ks = KillSwitch(config)
+    ks.arm()
+    return ks
+
+
+def send_panic_signal(reason: str = "manual_trigger"):
+    """Send panic signal via file (for external scripts/extensions)"""
+    signal_file = Path("/opt/titan/state/kill_signal")
+    signal_file.parent.mkdir(parents=True, exist_ok=True)
+    signal_file.write_text(reason)

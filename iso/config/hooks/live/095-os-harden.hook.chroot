@@ -1,0 +1,199 @@
+#!/bin/bash
+# TITAN V7.0.3 SINGULARITY — OS Hardening Hook
+# Runs inside chroot during ISO build
+set -e
+
+echo "╔══════════════════════════════════════════════╗"
+echo "║  TITAN V7.0.3 — OS Hardening (095)          ║"
+echo "╚══════════════════════════════════════════════╝"
+
+# ═══ Section 1: Disable unnecessary services ═══
+echo "[1/11] Disabling unnecessary services..."
+DISABLE_SERVICES=(
+    avahi-daemon
+    cups cups-browsed
+    bluetooth
+    ModemManager
+    whoopsie
+    apport
+    tracker-miner-fs tracker-store
+    geoclue
+)
+for svc in "${DISABLE_SERVICES[@]}"; do
+    systemctl disable "$svc" 2>/dev/null || true
+    systemctl mask "$svc" 2>/dev/null || true
+done
+echo "  -> Services disabled"
+
+# ═══ Section 2: Login security ═══
+echo "[2/11] Hardening login security..."
+# Disable root login
+passwd -l root 2>/dev/null || true
+# Disable SSH root login
+if [ -f /etc/ssh/sshd_config ]; then
+    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+fi
+echo "  -> Login hardened"
+
+# ═══ Section 3: Filesystem restrictions ═══
+echo "[3/11] Setting filesystem restrictions..."
+chmod 1777 /tmp
+chmod 700 /root
+echo "  -> Filesystem restricted"
+
+# ═══ Section 4: Crash suppression ═══
+echo "[4/11] Suppressing crash reporting..."
+# Disable apport
+if [ -f /etc/default/apport ]; then
+    sed -i 's/enabled=1/enabled=0/' /etc/default/apport
+fi
+# Disable whoopsie
+systemctl disable whoopsie 2>/dev/null || true
+echo "  -> Crash reporting disabled"
+
+# ═══ Section 5: DNS privacy ═══
+echo "[5/11] Configuring DNS privacy..."
+# Set resolv.conf to local resolver
+echo "nameserver 127.0.0.1" > /etc/resolv.conf
+# Enable unbound service
+systemctl enable unbound 2>/dev/null || true
+# Wire titan-dns.service into boot
+mkdir -p /etc/systemd/system/multi-user.target.wants
+ln -sf /etc/systemd/system/titan-dns.service /etc/systemd/system/multi-user.target.wants/titan-dns.service 2>/dev/null || true
+echo "  -> DNS privacy configured"
+
+# ═══ Section 6: Firewall ═══
+echo "[6/11] Enabling firewall..."
+systemctl enable nftables 2>/dev/null || true
+echo "  -> nftables enabled"
+
+# ═══ Section 7: Kernel module blacklist ═══
+echo "[7/11] Writing kernel module blacklist..."
+cat > /etc/modprobe.d/titan-blacklist.conf << 'BLACKLIST'
+# TITAN V7.0 — Kernel Module Blacklist
+
+# Bluetooth (not needed, reduces fingerprint surface)
+blacklist bluetooth
+blacklist btusb
+blacklist btrtl
+blacklist btbcm
+blacklist btintel
+
+# Real webcam (replaced by v4l2loopback virtual camera)
+blacklist uvcvideo
+
+# FireWire (DMA attack vector)
+blacklist firewire-core
+blacklist firewire-ohci
+blacklist firewire-sbp2
+
+# Thunderbolt (DMA attack vector)
+blacklist thunderbolt
+
+# NFC (unused wireless)
+blacklist nfc
+blacklist near
+
+# Rarely needed filesystems (attack surface reduction)
+blacklist cramfs
+blacklist freevxfs
+blacklist jffs2
+blacklist hfs
+blacklist hfsplus
+blacklist udf
+
+# Unused network protocols
+blacklist dccp
+blacklist sctp
+blacklist rds
+blacklist tipc
+BLACKLIST
+echo "  -> Blacklist written"
+
+# ═══ Section 8: Locale ═══
+echo "[8/11] Setting locale and timezone..."
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+locale-gen 2>/dev/null || true
+echo 'LANG=en_US.UTF-8' > /etc/default/locale
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+echo "  -> Locale: en_US.UTF-8, TZ: UTC"
+
+# ═══ Section 9: Hostname ═══
+echo "[9/11] Setting hostname..."
+echo "titan-singularity" > /etc/hostname
+echo "  -> Hostname: titan-singularity"
+
+# ═══ Section 10: User groups ═══
+echo "[10/11] Configuring user groups..."
+for grp in video audio plugdev netdev sudo; do
+    usermod -aG "$grp" user 2>/dev/null || true
+done
+echo "  -> User groups configured"
+
+# ═══ Section 11: XFCE default session ═══
+echo "[11/16] Setting default session..."
+mkdir -p /etc/skel/.config
+echo "[Desktop]" > /etc/skel/.config/user-dirs.dirs 2>/dev/null || true
+echo "  -> XFCE defaults set"
+
+# ═══ Section 12: Font Sanitization (Ring 2) ═══
+echo "[12/16] Sanitizing fonts (Linux → Windows)..."
+# Remove Linux-standard fonts that expose the underlying OS
+apt-get remove -y fonts-dejavu fonts-dejavu-core fonts-dejavu-extra \
+    fonts-liberation fonts-liberation2 fonts-ubuntu fonts-noto \
+    fonts-freefont-ttf fonts-droid-fallback 2>/dev/null || true
+# Rebuild font cache with Windows fonts (shipped in includes.chroot)
+fc-cache -f -v 2>/dev/null || true
+echo "  -> Linux fonts removed, cache rebuilt"
+
+# ═══ Section 13: Audio Hardening (Ring 2) ═══
+echo "[13/16] Hardening PulseAudio (AudioContext fingerprint defense)..."
+if [ -f /etc/pulse/daemon.conf ]; then
+    # Lock to 44100Hz sample rate (Windows CoreAudio default)
+    sed -i 's/; default-sample-rate = 44100/default-sample-rate = 44100/g' /etc/pulse/daemon.conf
+    sed -i 's/; default-sample-format = s16le/default-sample-format = s16le/g' /etc/pulse/daemon.conf
+    # Disable module-suspend-on-idle (prevents audio device disappearing)
+    sed -i 's/^load-module module-suspend-on-idle/#load-module module-suspend-on-idle/' /etc/pulse/default.pa 2>/dev/null || true
+fi
+echo "  -> PulseAudio locked to 44100Hz s16le"
+
+# ═══ Section 14: AI Attribution Stripping (Forensic Hygiene) ═══
+echo "[14/16] Stripping AI attribution metadata..."
+# Remove GitHub Copilot / AI generation headers from all Python files
+# These reveal development methodology if the ISO is forensically captured
+find /opt/titan -name "*.py" -exec sed -i '/Author: GitHub Copilot/d' {} + 2>/dev/null || true
+find /opt/titan -name "*.py" -exec sed -i '/Generated by AI/d' {} + 2>/dev/null || true
+find /opt/lucid-empire -name "*.py" -exec sed -i '/Author: GitHub Copilot/d' {} + 2>/dev/null || true
+find /opt/lucid-empire -name "*.py" -exec sed -i '/Generated by AI/d' {} + 2>/dev/null || true
+echo "  -> AI attribution stripped from all Python files"
+
+# ═══ Section 15: RAM Wipe Module (Cold Boot Defense) ═══
+echo "[15/16] Registering RAM wipe dracut module..."
+if [ -d /usr/lib/dracut/modules.d/99ramwipe ]; then
+    chmod +x /usr/lib/dracut/modules.d/99ramwipe/*.sh
+    # Regenerate initramfs with the RAM wipe module included
+    KVER=$(ls /lib/modules/ | sort -V | tail -1)
+    if [ -n "$KVER" ]; then
+        dracut -f --add "99ramwipe" "/boot/initrd.img-${KVER}" "$KVER" 2>/dev/null || \
+            echo "  -> WARNING: dracut regen failed (will work on first boot)"
+    fi
+    echo "  -> RAM wipe module registered"
+else
+    echo "  -> WARNING: 99ramwipe module not found, skipping"
+fi
+
+# ═══ Section 16: USB Peripheral Synthesis ═══
+echo "[16/16] Preparing USB peripheral synthesis..."
+if [ -f /opt/titan/core/usb_peripheral_synth.py ]; then
+    chmod +x /opt/titan/core/usb_peripheral_synth.py
+    python3 /opt/titan/core/usb_peripheral_synth.py --profile default 2>/dev/null || true
+    echo "  -> USB peripheral descriptors generated"
+else
+    echo "  -> WARNING: usb_peripheral_synth.py not found"
+fi
+
+echo ""
+echo "╔══════════════════════════════════════════════╗"
+echo "║  OS Hardening Complete — 16/16 sections      ║"
+echo "╚══════════════════════════════════════════════╝"

@@ -1,0 +1,51 @@
+#!/bin/sh
+# =============================================================================
+# TITAN V7.0 SINGULARITY - Live Build Configuration (Secondary — use build_vps_image.sh for VPS)
+# Base OS: Debian 12 (Bookworm) - Kernel 6.1 LTS
+# =============================================================================
+# Usage: Run from the iso/ directory:
+#   lb config
+#   sudo lb build
+# =============================================================================
+
+set -e
+
+lb config noauto \
+    --mode debian \
+    --distribution bookworm \
+    --parent-distribution bookworm \
+    --parent-mirror-bootstrap http://deb.debian.org/debian \
+    --parent-mirror-chroot http://deb.debian.org/debian \
+    --parent-mirror-chroot-security http://deb.debian.org/debian-security \
+    --parent-mirror-binary http://deb.debian.org/debian \
+    --parent-mirror-binary-security http://deb.debian.org/debian-security \
+    --mirror-bootstrap http://deb.debian.org/debian \
+    --mirror-chroot http://deb.debian.org/debian \
+    --mirror-chroot-security http://deb.debian.org/debian-security \
+    --mirror-binary http://deb.debian.org/debian \
+    --mirror-binary-security http://deb.debian.org/debian-security \
+    --keyring-packages debian-archive-keyring \
+    --debootstrap-options "--keyring=/usr/share/keyrings/debian-archive-keyring.gpg" \
+    --archive-areas "main contrib non-free non-free-firmware" \
+    --architectures amd64 \
+    --binary-images iso-hybrid \
+    --bootappend-live "boot=live components quiet splash persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0" \
+    --debian-installer none \
+    --security false \
+    --backports false \
+    --linux-flavours amd64 \
+    --bootloader grub-efi \
+    --system live \
+    --initramfs live-boot \
+    --initsystem systemd \
+    --linux-packages "linux-image linux-headers" \
+    --apt-indices false \
+    --apt-recommends false \
+    --memtest memtest86+ \
+    --iso-application "LUCID EMPIRE TITAN V7.0 SINGULARITY" \
+    --iso-publisher "Dva.12" \
+    --iso-volume "TITAN-V70-SINGULARITY" \
+    --firmware-chroot true \
+    --cache true \
+    --cache-packages true \
+    "${@}"

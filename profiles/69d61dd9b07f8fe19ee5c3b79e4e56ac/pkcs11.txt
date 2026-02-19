@@ -1,0 +1,4 @@
+library=
+name=NSS Internal PKCS #11 Module
+parameters=configdir='sql:.' certPrefix='' keyPrefix='' secmod='secmod.db' flags=
+NSS=Flags=internal,critical trustOrder=75 cipherOrder=100 slotParams=(1={slotFlags=[RSA,DSA,DH,RC4,DES,AES,SHA1,MD5,SSL,TLS] askpw=any timeout=30})

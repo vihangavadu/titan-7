@@ -1,0 +1,17 @@
+[Unit]
+Description=TITAN V7.0 SINGULARITY eBPF Network Shield Loader
+Documentation=https://github.com/ranpatidewage6-maker/lucid-empire-linux
+After=network.target network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/lucid-empire/bin/load-ebpf.sh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/lucid-empire/bin/load-ebpf.sh "" windows load
+ExecStop=/opt/lucid-empire/bin/load-ebpf.sh "" "" unload
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

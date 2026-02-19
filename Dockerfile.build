@@ -1,0 +1,133 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# TITAN V7.0.3 SINGULARITY — DOCKER BUILD IMAGE
+# AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
+# PURPOSE: Debian 12 environment for ISO building in Docker/WSL
+#
+# Usage:
+#   docker build -t titan-build -f Dockerfile.build .
+#   docker run -it --rm -v "$(pwd):/workspace" titan-build
+# ═══════════════════════════════════════════════════════════════════════════
+
+FROM debian:bookworm
+
+# Environment
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TITAN_BUILD_DIR=/workspace
+ENV BUILD_USER=titan
+
+# ── Install Base Dependencies ──
+RUN apt-get update && apt-get install -y \
+    # Build toolchain
+    live-build \
+    debootstrap \
+    squashfs-tools \
+    xorriso \
+    isolinux \
+    syslinux-efi \
+    syslinux-common \
+    grub-pc-bin \
+    grub-efi-amd64-bin \
+    mtools \
+    dosfstools \
+    debian-archive-keyring \
+    # Development tools
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    cmake \
+    pkg-config \
+    git \
+    curl \
+    wget \
+    # Kernel development
+    linux-headers-amd64 \
+    dkms \
+    # eBPF toolchain
+    clang \
+    llvm \
+    libbpf-dev \
+    libelf-dev \
+    zlib1g-dev \
+    # Python 3.11+
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-dev \
+    # Additional utilities
+    jq \
+    bc \
+    rsync \
+    pv \
+    htop \
+    tmux \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Create Build User ──
+RUN useradd -m -s /bin/bash -G sudo $BUILD_USER && \
+    echo "$BUILD_USER ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/titan-build && \
+    chmod 440 /etc/sudoers.d/titan-build
+
+# ── Set Up Workspace ──
+WORKDIR $TITAN_BUILD_DIR
+
+# ── Create Build Scripts ──
+RUN echo '#!/bin/bash' > /usr/local/bin/build-titan.sh && \
+    echo 'set -euo pipefail' >> /usr/local/bin/build-titan.sh && \
+    echo '' >> /usr/local/bin/build-titan.sh && \
+    echo 'echo "╔══════════════════════════════════════════════════════════════╗"' >> /usr/local/bin/build-titan.sh && \
+    echo 'echo "║  TITAN V7.0.3 — Docker Build Environment              ║"' >> /usr/local/bin/build-titan.sh && \
+    echo 'echo "║  WSL/Docker Ready | Debian 12 Container               ║"' >> /usr/local/bin/build-titan.sh && \
+    echo 'echo "╚══════════════════════════════════════════════════════════════╝"' >> /usr/local/bin/build-titan.sh && \
+    echo '' >> /usr/local/bin/build-titan.sh && \
+    echo 'cd /workspace' >> /usr/local/bin/build-titan.sh && \
+    echo '' >> /usr/local/bin/build-titan.sh && \
+    echo '# Verify we have the source' >> /usr/local/bin/build-titan.sh && \
+    echo 'if [ ! -f "iso/finalize_titan.sh" ]; then' >> /usr/local/bin/build-titan.sh && \
+    echo '    echo "[!] ERROR: Titan source not found in /workspace"' >> /usr/local/bin/build-titan.sh && \
+    echo '    echo "    Mount your titan-main directory: docker run -v \$(pwd):/workspace"' >> /usr/local/bin/build-titan.sh && \
+    echo '    exit 1' >> /usr/local/bin/build-titan.sh && \
+    echo 'fi' >> /usr/local/bin/build-titan.sh && \
+    echo '' >> /usr/local/bin/build-titan.sh && \
+    echo '# Run build as titan user' >> /usr/local/bin/build-titan.sh && \
+    echo 'exec sudo -u titan -H bash -c "cd /workspace && ./build_local.sh"' >> /usr/local/bin/build-titan.sh && \
+    chmod +x /usr/local/bin/build-titan.sh
+
+# ── Create Quick Start Script ──
+RUN echo '#!/bin/bash' > /usr/local/bin/start-build.sh && \
+    echo 'echo "Starting TITAN V7.0.3 build in Docker..."' >> /usr/local/bin/start-build.sh && \
+    echo 'echo "This will take 30-60 minutes."' >> /usr/local/bin/start-build.sh && \
+    echo 'echo ""' >> /usr/local/bin/start-build.sh && \
+    echo '# Switch to build user and start' >> /usr/local/bin/start-build.sh && \
+    echo 'exec sudo -u titan -H bash -c "cd /workspace && ./build_local.sh"' >> /usr/local/bin/start-build.sh && \
+    chmod +x /usr/local/bin/start-build.sh
+
+# ── Create Verify Script ──
+RUN echo '#!/bin/bash' > /usr/local/bin/verify-build.sh && \
+    echo 'cd /workspace/iso' >> /usr/local/bin/verify-build.sh && \
+    echo 'if [ -f "titan-v7.0.3-singularity.iso" ]; then' >> /usr/local/bin/verify-build.sh && \
+    echo '    echo "[+] ISO found: titan-v7.0.3-singularity.iso"' >> /usr/local/bin/verify-build.sh && \
+    echo '    ls -lh titan-v7.0.3-singularity.iso' >> /usr/local/bin/verify-build.sh && \
+    echo '    echo ""' >> /usr/local/bin/verify-build.sh && \
+    echo '    echo "[+] Verifying checksum..."' >> /usr/local/bin/verify-build.sh && \
+    echo '    if [ -f "titan-v7.0.3-singularity.iso.sha256" ]; then' >> /usr/local/bin/verify-build.sh && \
+    echo '        sha256sum -c titan-v7.0.3-singularity.iso.sha256' >> /usr/local/bin/verify-build.sh && \
+    echo '    else' >> /usr/local/bin/verify-build.sh && \
+    echo '        echo "    Generating checksum..."' >> /usr/local/bin/verify-build.sh && \
+    echo '        sha256sum titan-v7.0.3-singularity.iso > titan-v7.0.3-singularity.iso.sha256' >> /usr/local/bin/verify-build.sh && \
+    echo '    fi' >> /usr/local/bin/verify-build.sh && \
+    echo 'else' >> /usr/local/bin/verify-build.sh && \
+    echo '    echo "[!] ISO not found. Run build first."' >> /usr/local/bin/verify-build.sh && \
+    echo 'fi' >> /usr/local/bin/verify-build.sh && \
+    chmod +x /usr/local/bin/verify-build.sh
+
+# ── Set Default Command ──
+USER root
+CMD ["/bin/bash"]
+
+# Labels
+LABEL org.titan.version="7.0.3" \
+      org.titan.name="TITAN SINGULARITY Build Environment" \
+      org.titan.authority="Dva.12" \
+      org.titan.status="OBLIVION_ACTIVE"

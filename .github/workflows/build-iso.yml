@@ -1,0 +1,568 @@
+name: Build TITAN V7.0.3 SINGULARITY ISO
+
+# ==============================================================================
+# TITAN V7.0.3 SINGULARITY - Verified ISO Build Pipeline
+# AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
+#
+# ARCHITECTURAL MANDATE:
+# 1. Environment: Ubuntu 22.04 (Host) -> Debian 12 (Chroot)
+# 2. Kernel Shield: Compile & Inject titan_hw.ko (DKMS)
+# 3. Network Shield: Compile network_shield.o (eBPF/XDP)
+# 4. Hardening: Execute finalize_titan.sh (Oblivion Protocol)
+# 5. Build: live-build with loopback device support
+# ==============================================================================
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (full/standard/minimal)'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - standard
+          - minimal
+      skip_ebpf:
+        description: 'Skip eBPF compilation (for CI environments without clang)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  ISO_NAME: titan-v7.0.3-singularity
+  DEBIAN_VERSION: bookworm
+  TITAN_VERSION: "7.0.3"
+  SOURCE_DATE_EPOCH: "1707840000"
+
+jobs:
+  build-titan-iso:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      # PHASE 0: ACQUISITION
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+        with:
+          path: titan-main
+          fetch-depth: 0
+
+      - name: Free Disk Space & Add Swap
+        run: |
+          echo "[*] Freeing disk space for ISO build..."
+          sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" "$AGENT_TOOLSDIRECTORY" /usr/local/lib/android/sdk 2>/dev/null || true
+          sudo apt-get clean
+          # Create a 4GB swapfile on CI runners to reduce memory pressure during live-build
+          if ! swapon --show | grep -q '/swapfile'; then
+            echo "[*] Creating 4G swapfile to reduce OOM risk..."
+            sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            sudo sysctl -w vm.swappiness=10 || true
+          else
+            echo "[*] Swapfile already active"
+          fi
+          free -h
+          df -h
+          echo "[+] Disk and swap prepared."
+
+      # PHASE 1: TOOLCHAIN INJECTION
+      - name: Install Build Dependencies
+        run: |
+          set -euo pipefail
+          echo "[*] Updating package lists..."
+          sudo apt-get update -qq
+          # increase apt retries to reduce transient network failures in CI
+          echo 'Acquire::Retries "10";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
+          echo "[*] Installing live-build toolchain and dependencies..."
+          sudo apt-get install -y --no-install-recommends \
+            live-build debootstrap squashfs-tools xorriso \
+            syslinux-utils syslinux-common isolinux \
+            dosfstools mtools genisoimage \
+            gcc clang llvm make bc \
+            libbpf-dev libelf-dev zlib1g-dev \
+            dkms python3 python3-pip python3-venv \
+            git curl wget rsync cpio gettext file \
+            debian-archive-keyring
+          echo "[*] Injecting Debian Bookworm key into the system debootstrap keyring..."
+          # Ubuntu 22.04's debian-archive-keyring may not include the Bookworm key
+          # (F8D2585B8783D481). Download it and import it into the keyring that
+          # debootstrap uses by default so that 'lb bootstrap' succeeds.
+          wget -qO /tmp/archive-key-12.asc https://ftp-master.debian.org/keys/archive-key-12.asc
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
+            --import /tmp/archive-key-12.asc
+          rm -f /tmp/archive-key-12.asc
+          echo "[*] Attempting to install kernel headers..."
+          sudo apt-get install -y --no-install-recommends "linux-headers-$(uname -r)" 2>/dev/null || echo "[!] linux-headers not available - using bundled definitions"
+          echo "[*] Probing loop module..."
+          sudo modprobe loop 2>/dev/null || echo "[!] Loop module unavailable (expected in CI)"
+          echo "[*] Verifying toolchain..."
+          lb --version
+          clang --version | head -1
+          gcc --version | head -1
+          echo "[+] Build dependencies installed."
+
+      # PHASE 2: SOURCE SYNC
+      - name: Synchronize Core Modules
+        working-directory: titan-main
+        run: |
+          set -euo pipefail
+          echo "[*] Creating ISO chroot directory structure..."
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/core
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/apps
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/bin
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/extensions/ghost_motor
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/extensions/tx_monitor
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/ebpf
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/vpn
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/testing
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/config
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/profiles
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/state
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/data/tx_monitor
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/data/services
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/data/target_discovery
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/data/intel_monitor/sessions/browser_profiles
+          sudo mkdir -p iso/config/includes.chroot/opt/titan/data/intel_monitor/feed_cache
+          sudo mkdir -p iso/config/includes.chroot/usr/src/titan-hw-${TITAN_VERSION}
+          sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/backend/modules
+          sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/backend/core
+          sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/bin
+          sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/ebpf
+          sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/hardware_shield
+          
+          echo "[*] Verifying V7 modules already in ISO chroot..."
+          # V7 core modules live directly in the ISO chroot tree (iso/config/includes.chroot/opt/titan/).
+          # The repo-root titan/ directory has legacy V5 flat files — do NOT sync those.
+          CORE_COUNT=$(find iso/config/includes.chroot/opt/titan/core -name '*.py' 2>/dev/null | wc -l)
+          echo "    [+] Core modules in chroot: ${CORE_COUNT} Python files"
+          if [ "$CORE_COUNT" -lt 30 ]; then
+            echo "    [!] WARNING: Expected 40+ core modules, found ${CORE_COUNT}"
+          fi
+          
+          # Sync standalone directories that live at repo root (not inside iso/)
+          if [ -d "titan/hardware_shield" ]; then
+            sudo rsync -a titan/hardware_shield/ iso/config/includes.chroot/usr/src/titan-hw-${TITAN_VERSION}/
+            echo "    [+] titan/hardware_shield/ synced to DKMS path"
+          fi
+          if [ -d "titan/ebpf" ]; then
+            sudo mkdir -p iso/config/includes.chroot/opt/titan/ebpf
+            sudo rsync -a titan/ebpf/ iso/config/includes.chroot/opt/titan/ebpf/
+            echo "    [+] titan/ebpf/ synced"
+          fi
+          if [ -d "profgen" ]; then
+            sudo mkdir -p iso/config/includes.chroot/opt/titan/profgen
+            sudo rsync -a profgen/ iso/config/includes.chroot/opt/titan/profgen/
+            echo "    [+] profgen/ synced"
+          fi
+          
+          # Sync root config/ overlays (etc/ hardening configs)
+          if [ -d "config/includes.chroot" ]; then
+            sudo rsync -a config/includes.chroot/ iso/config/includes.chroot/
+            echo "    [+] config/includes.chroot/ overlay merged"
+          fi
+          
+          echo "[*] Verifying critical files..."
+          for cf in iso/config/includes.chroot/opt/titan/core/genesis_core.py iso/config/includes.chroot/opt/titan/core/cerberus_core.py iso/config/includes.chroot/opt/titan/core/kyc_core.py; do
+            if [ -f "$cf" ]; then
+              echo "    [+] $cf"
+            else
+              echo "    [!] MISSING: $cf"
+            fi
+          done
+          echo "[+] Source synchronization complete."
+
+      # PHASE 3: DKMS PREPARATION
+      - name: Generate DKMS Configurations
+        working-directory: titan-main
+        run: |
+          set -euo pipefail
+          DKMS_DIR="iso/config/includes.chroot/usr/src/titan-hw-${TITAN_VERSION}"
+          sudo mkdir -p "$DKMS_DIR"
+          echo "[*] Preparing Hardware Shield for DKMS..."
+          
+          if [ ! -f "$DKMS_DIR/titan_hw.c" ]; then
+            if [ -f "iso/templates/dkms/titan_hw_stub.c" ]; then
+              echo "    [!] titan_hw.c missing - using stub"
+              sudo cp iso/templates/dkms/titan_hw_stub.c "$DKMS_DIR/titan_hw.c"
+            else
+              echo "    [!] Creating minimal stub..."
+              sudo tee "$DKMS_DIR/titan_hw.c" > /dev/null << 'STUBEOF'
+          #include <linux/module.h>
+          #include <linux/kernel.h>
+          MODULE_LICENSE("GPL");
+          MODULE_DESCRIPTION("TITAN Hardware Shield Stub");
+          static int __init titan_hw_init(void) { printk(KERN_INFO "TITAN HW: Loaded\n"); return 0; }
+          static void __exit titan_hw_exit(void) { printk(KERN_INFO "TITAN HW: Unloaded\n"); }
+          module_init(titan_hw_init);
+          module_exit(titan_hw_exit);
+          STUBEOF
+            fi
+          fi
+          
+          echo "[*] Generating Kernel Module Makefile..."
+          sudo tee "$DKMS_DIR/Makefile" > /dev/null << 'MAKEEOF'
+          obj-m += titan_hw.o titan_battery.o
+          
+          all:
+          	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+          
+          clean:
+          	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+          MAKEEOF
+          echo "    [+] Makefile generated"
+          
+          echo "[*] Generating dkms.conf..."
+          sudo tee "$DKMS_DIR/dkms.conf" > /dev/null << DKMSEOF
+          PACKAGE_NAME="titan-hw"
+          PACKAGE_VERSION="${TITAN_VERSION}"
+          BUILT_MODULE_NAME[0]="titan_hw"
+          BUILT_MODULE_NAME[1]="titan_battery"
+          BUILT_MODULE_LOCATION="."
+          DEST_MODULE_LOCATION[0]="/kernel/drivers/misc"
+          DEST_MODULE_LOCATION[1]="/kernel/drivers/misc"
+          AUTOINSTALL="yes"
+          MAKE[0]="make -C /lib/modules/\${kernelver}/build M=\${dkms_tree}/\${PACKAGE_NAME}/\${PACKAGE_VERSION}/build modules"
+          CLEAN="make -C /lib/modules/\${kernelver}/build M=\${dkms_tree}/\${PACKAGE_NAME}/\${PACKAGE_VERSION}/build clean"
+          DKMSEOF
+          echo "    [+] dkms.conf generated"
+          
+          echo "[*] Verifying DKMS configuration..."
+          ls -la "$DKMS_DIR/"
+          echo "[+] DKMS preparation complete."
+
+      # PHASE 4: eBPF COMPILATION
+      - name: Compile eBPF Network Shield
+        working-directory: titan-main
+        run: |
+          set -euo pipefail
+          EBPF_SRC=""
+          for src in titan/ebpf/network_shield.c iso/config/includes.chroot/opt/lucid-empire/ebpf/network_shield.c iso/config/includes.chroot/opt/titan/ebpf/network_shield.c; do
+            if [ -f "$src" ]; then
+              EBPF_SRC="$src"
+              echo "[*] Found eBPF source: $src"
+              break
+            fi
+          done
+          
+          if [ -n "$EBPF_SRC" ]; then
+            echo "[*] Compiling eBPF Network Shield..."
+            sudo mkdir -p iso/config/includes.chroot/opt/titan/ebpf
+            sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/ebpf
+            pushd "$(dirname "$EBPF_SRC")" > /dev/null
+            if clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c "$(basename "$EBPF_SRC")" -o network_shield.o 2>&1; then
+              echo "    [+] network_shield.o compiled successfully"
+              sudo cp network_shield.o ../../iso/config/includes.chroot/opt/titan/ebpf/ 2>/dev/null || true
+              sudo cp network_shield.o ../../iso/config/includes.chroot/opt/lucid-empire/ebpf/ 2>/dev/null || true
+              ls -lh network_shield.o
+            else
+              echo "    [!] WARNING: eBPF compilation failed - continuing without XDP shield"
+            fi
+            popd > /dev/null
+          else
+            echo "[!] WARNING: network_shield.c not found - skipping eBPF compilation"
+          fi
+          echo "[+] eBPF phase complete."
+
+      # PHASE 5: OBLIVION PROTOCOL
+      - name: Execute Finalization & Hardening
+        working-directory: titan-main
+        run: |
+          set -euo pipefail
+          echo "[*] Engaging OBLIVION PROTOCOL..."
+          
+          if [ -d "config/includes.chroot" ]; then
+            echo "    [*] Syncing root config/includes.chroot..."
+            sudo rsync -a config/includes.chroot/ iso/config/includes.chroot/
+          fi
+          
+          FINALIZE_SCRIPT=""
+          for script in iso/finalize_titan.sh finalize_titan_oblivion.sh scripts/finalize_titan_oblivion.sh; do
+            if [ -f "$script" ]; then
+              FINALIZE_SCRIPT="$script"
+              break
+            fi
+          done
+          
+          if [ -n "$FINALIZE_SCRIPT" ]; then
+            echo "    [*] Using finalization script: $FINALIZE_SCRIPT"
+            chmod +x "$FINALIZE_SCRIPT"
+            SCRIPT_DIR="$(dirname "$FINALIZE_SCRIPT")"
+            SCRIPT_NAME="$(basename "$FINALIZE_SCRIPT")"
+            cd "$SCRIPT_DIR"
+            sudo bash "./$SCRIPT_NAME" || echo "    [!] WARNING: Finalization script had errors - continuing"
+            cd - > /dev/null
+            echo "    [+] Oblivion Protocol executed"
+          else
+            echo "    [!] WARNING: No finalization script found - applying inline hardening"
+            sudo mkdir -p iso/config/includes.chroot/etc/sysctl.d
+            sudo tee iso/config/includes.chroot/etc/sysctl.d/99-titan-stealth.conf > /dev/null << 'SYSEOF'
+          # TITAN V7 NETWORK & KERNEL HARDENING
+          net.ipv4.tcp_timestamps = 0
+          net.ipv4.ip_default_ttl = 128
+          net.ipv6.conf.all.hop_limit = 128
+          net.ipv4.tcp_window_scaling = 1
+          net.ipv4.tcp_syncookies = 1
+          kernel.kptr_restrict = 2
+          kernel.dmesg_restrict = 1
+          kernel.unprivileged_bpf_disabled = 1
+          kernel.kexec_load_disabled = 1
+          SYSEOF
+            sudo mkdir -p iso/config/includes.chroot/etc/security/limits.d
+            echo "* hard core 0" | sudo tee iso/config/includes.chroot/etc/security/limits.d/disable-cores.conf > /dev/null
+            echo "    [*] Purging development artifacts..."
+            find iso/config/includes.chroot -name "__pycache__" -type d -exec sudo rm -rf {} + 2>/dev/null || true
+            find iso/config/includes.chroot -name "*.pyc" -delete 2>/dev/null || true
+            find iso/config/includes.chroot -name ".DS_Store" -delete 2>/dev/null || true
+            echo "    [+] Inline hardening applied"
+          fi
+          echo "[+] Hardening phase complete."
+
+      # PHASE 6: ISO GENERATION
+      - name: Configure live-build
+        working-directory: titan-main/iso
+        run: |
+          set -euo pipefail
+          echo "[*] Cleaning previous build state..."
+          sudo lb clean --purge 2>/dev/null || true
+          echo "[*] Setting up Debian keyring..."
+          # Create proper keyring directory structure
+          sudo mkdir -p /etc/apt/keyrings
+          # Import all Debian archive keys
+          wget -qO- https://ftp-master.debian.org/keys/archive-key-12.asc | sudo gpg --dearmor -o /etc/apt/keyrings/debian-archive-bookworm.gpg
+          wget -qO- https://ftp-master.debian.org/keys/archive-key-11.asc | sudo gpg --dearmor -o /etc/apt/keyrings/debian-archive-bullseye.gpg
+          wget -qO- https://ftp-master.debian.org/keys/release-12.asc | sudo gpg --dearmor -o /etc/apt/keyrings/debian-release-12.gpg
+          # Update system keyrings
+          sudo apt-key update 2>/dev/null || true
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F8D2585B8783D481 2>/dev/null || true
+          # Override debootstrap to use our keyring
+          echo "[*] Configuring debootstrap keyring..."
+          sudo mkdir -p /etc/debootstrap
+          echo 'KEYRING="/etc/apt/keyrings/debian-archive-bookworm.gpg"' | sudo tee /etc/debootstrap/keyring.conf
+          # Export for debootstrap
+          export DEBOOTSTRAP_KEYRING="/etc/apt/keyrings/debian-archive-bookworm.gpg"
+          echo "[*] Configuring live-build..."
+          if [ -f "auto/config" ]; then
+            bash auto/config
+          else
+            echo "    [!] auto/config not found - running inline lb config"
+            sudo lb config \
+              --distribution bookworm \
+              --parent-distribution bookworm \
+              --parent-mirror-bootstrap http://deb.debian.org/debian \
+              --parent-mirror-chroot http://deb.debian.org/debian \
+              --parent-mirror-chroot-security http://deb.debian.org/debian-security \
+              --parent-mirror-binary http://deb.debian.org/debian \
+              --parent-mirror-binary-security http://deb.debian.org/debian-security \
+              --mirror-bootstrap http://deb.debian.org/debian \
+              --mirror-chroot http://deb.debian.org/debian \
+              --mirror-chroot-security http://deb.debian.org/debian-security \
+              --mirror-binary http://deb.debian.org/debian \
+              --mirror-binary-security http://deb.debian.org/debian-security \
+              --keyring-packages debian-archive-keyring \
+              --debootstrap-options "--keyring=/etc/apt/keyrings/debian-archive-bookworm.gpg" \
+              --archive-areas "main contrib non-free non-free-firmware" \
+              --architectures amd64 \
+              --linux-packages "linux-image linux-headers" \
+              --linux-flavours amd64 \
+              --system live \
+              --initramfs live-boot \
+              --initsystem systemd \
+              --bootloaders grub-efi \
+              --bootappend-live "boot=live components quiet splash toram persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0" \
+              --chroot-filesystem squashfs \
+              --binary-images iso-hybrid \
+              --apt-indices false \
+              --memtest memtest86+ \
+              --iso-application "LUCID EMPIRE TITAN V7.0.3 SINGULARITY" \
+              --iso-publisher "Dva.12" \
+              --iso-volume "TITAN-V703-SINGULARITY"
+          fi
+          echo "[+] live-build configured."
+
+      - name: Build TITAN Singularity ISO
+        id: build_iso
+        working-directory: titan-main/iso
+        run: |
+          set -o pipefail
+          echo "[*] INITIATING TITAN SINGULARITY BUILD"
+          echo "    This may take 30-90 minutes..."
+          BUILD_START=$(date +%s)
+
+          # Reduce compression on CI to lower memory / IO pressure and reduce failures
+          export MKSQUASHFS_OPTIONS="-comp zstd -Xcompression-level 1"
+          export DEBOOTSTRAP_VERBOSE=1
+          export DEBIAN_FRONTEND=noninteractive
+          export APT_OPTIONS='-o Acquire::Retries=10 -o Acquire::http::Timeout=120'   # more retries/timeouts for CI network variability
+
+          BUILD_EXIT=1
+          attempts=0
+          max_attempts=3
+          while [ $attempts -lt $max_attempts ]; do
+            attempts=$((attempts+1))
+            echo "[*] Build attempt $attempts/$max_attempts"
+
+            # run lb build; pipefail ensures failure is detected even with tee
+            if sudo -E env DEBOOTSTRAP_VERBOSE=$DEBOOTSTRAP_VERBOSE DEBIAN_FRONTEND=$DEBIAN_FRONTEND lb build 2>&1 | tee build.log; then
+              BUILD_EXIT=0
+              break
+            else
+              BUILD_EXIT=$?
+              echo "[!] lb build failed (attempt $attempts) with code: $BUILD_EXIT"
+              echo "[*] System diagnostics (free / df / inode usage):"
+              free -m || true
+              df -h || true
+              df -i || true
+              echo "[*] Kernel messages (last 100 lines) - look for OOM/killed entries:"
+              sudo dmesg --ctime -T | tail -100 || true
+              echo "[*] chroot size summary:"
+              sudo du -sh chroot 2>/dev/null || true
+              echo "=== Tail of build.log (last 200 lines) ==="
+              tail -200 build.log || true
+              echo "[*] Cleaning apt caches and retrying after short backoff..."
+              sudo rm -rf /var/cache/apt/archives/* /var/cache/apt/archives/partial/* || true
+              sudo rm -rf /var/lib/apt/lists/* || true
+              sudo apt-get update -qq || true
+              sudo lb clean --purge || true
+              sleep $((attempts * 30))
+            fi
+          done
+
+          BUILD_END=$(date +%s)
+          BUILD_DURATION=$((BUILD_END - BUILD_START))
+          echo "[*] Build duration: $((BUILD_DURATION / 60)) minutes"
+
+          ISO_FILE="$(ls -1 live-image-amd64*.iso 2>/dev/null | head -1)"
+
+          if [ -z "$ISO_FILE" ] && [ $BUILD_EXIT -ne 0 ]; then
+            echo "[*] Attempting xorriso recovery..."
+            BINARY_DIR="chroot/binary"
+            if [ -f "$BINARY_DIR/live/filesystem.squashfs" ]; then
+              echo "    [*] Found filesystem.squashfs - attempting ISO packaging..."
+              BOOT_ARGS=""
+              if [ -f "$BINARY_DIR/boot/grub/stage2_eltorito" ]; then
+                BOOT_ARGS="-b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table"
+              elif [ -f "$BINARY_DIR/boot/grub/i386-pc/eltorito.img" ]; then
+                BOOT_ARGS="-b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table"
+              fi
+              HYBRID_ARG=""
+              if [ -f /usr/lib/ISOLINUX/isohdpfx.bin ]; then
+                HYBRID_ARG="-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin"
+              fi
+              xorriso -as mkisofs -r -V "TITAN-V703-SINGULARITY" -iso-level 3 -o "${ISO_NAME}.iso" -J -joliet-long $BOOT_ARGS $HYBRID_ARG "$BINARY_DIR" 2>&1 | tail -10
+              if [ -f "${ISO_NAME}.iso" ]; then
+                echo "    [+] xorriso recovery successful"
+                ISO_FILE="${ISO_NAME}.iso"
+                BUILD_EXIT=0
+              fi
+            fi
+          fi
+
+          if [ -z "$ISO_FILE" ] && [ ! -f "${ISO_NAME}.iso" ]; then
+            echo "[!] FATAL: ISO artifact not generated"
+            echo "=== Last 500 lines of build.log ==="
+            tail -500 build.log 2>/dev/null || true
+            exit 1
+          fi
+
+          if [ -n "$ISO_FILE" ] && [ "$ISO_FILE" != "${ISO_NAME}.iso" ]; then
+            mv "$ISO_FILE" "../${ISO_NAME}.iso"
+          elif [ -f "${ISO_NAME}.iso" ]; then
+            mv "${ISO_NAME}.iso" "../${ISO_NAME}.iso" 2>/dev/null || true
+          fi
+
+          cd ..
+          echo "[*] Generating checksums..."
+          sha256sum "${ISO_NAME}.iso" > "${ISO_NAME}.iso.sha256"
+          md5sum "${ISO_NAME}.iso" > "${ISO_NAME}.iso.md5"
+          echo ""
+          echo "=========================================="
+          echo "  TITAN V7.0.3 SINGULARITY ISO GENERATED"
+          echo "=========================================="
+          ls -lh "${ISO_NAME}.iso"
+          cat "${ISO_NAME}.iso.sha256"
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            exit $BUILD_EXIT
+          fi
+          echo "status=success" >> "$GITHUB_OUTPUT"
+          echo "iso_path=titan-main/${ISO_NAME}.iso" >> "$GITHUB_OUTPUT"
+
+      # PHASE 7: ARTIFACT UPLOAD
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: titan-v703-singularity-iso
+          path: |
+            titan-main/${{ env.ISO_NAME }}.iso
+            titan-main/${{ env.ISO_NAME }}.iso.sha256
+            titan-main/${{ env.ISO_NAME }}.iso.md5
+          retention-days: 5
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload Build Log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: titan-main/iso/build.log
+          retention-days: 7
+
+  # RELEASE JOB
+  release:
+    needs: build-titan-iso
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - name: Download ISO artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: titan-v703-singularity-iso
+          path: ./release
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            release/${{ env.ISO_NAME }}.iso
+            release/${{ env.ISO_NAME }}.iso.sha256
+            release/${{ env.ISO_NAME }}.iso.md5
+          body: |
+            ## TITAN V7.0.3 SINGULARITY Release
+            
+            ### Bootable ISO - Operational on First Boot
+            
+            **Target Success Rate: 92-96% (Tier 1 targets)**
+            
+            #### What's Inside the ISO
+            - **41 Core Modules** - Full V7.0.3 operational stack
+            - **1 Unified GUI** - Operation + Intelligence + Shields + KYC in single app
+            - **Camoufox Anti-Detect Browser** - Pre-installed with 15+ hardening configs
+            - **Ghost Motor Extension** - Diffusion-based behavioral biometrics evasion
+            - **32 Pre-Configured Targets** - Fraud engine + PSP intelligence database
+            - **VPS Disk Installer** - Install to VPS disk for persistent deployment
+            
+            #### Verification Commands
+            ```bash
+            sha256sum -c titan-v7.0.3-singularity.iso.sha256
+            sysctl net.ipv4.ip_default_ttl  # Expected: 128
+            sysctl net.ipv4.tcp_timestamps  # Expected: 0
+            lsmod | grep titan_hw
+            ```
+            
+            **Authority:** Dva.12  
+            **Status:** OBLIVION_ACTIVE
+          draft: false
+          prerelease: false

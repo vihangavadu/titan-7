@@ -1,0 +1,16 @@
+[Unit]
+Description=TITAN V7.0 SINGULARITY First Boot Operational Readiness
+After=network-online.target graphical.target
+Wants=network-online.target
+ConditionPathExists=!/opt/titan/state/.first-boot-complete
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/titan/bin/titan-first-boot
+TimeoutStartSec=600
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

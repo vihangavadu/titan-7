@@ -1,0 +1,166 @@
+name: Build Titan ISO
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space and add swap
+        run: |
+          echo "[*] Freeing disk space for ISO build..."
+          sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" "$AGENT_TOOLSDIRECTORY" /usr/local/lib/android/sdk 2>/dev/null || true
+          sudo apt-get clean
+          if ! swapon --show | grep -q '/swapfile'; then
+            sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+          fi
+          free -h && df -h
+
+      - name: Update package repositories
+        run: |
+          sudo apt-get update
+          echo 'Acquire::Retries "10";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            live-build \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            isolinux \
+            syslinux-utils \
+            syslinux-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools \
+            genisoimage \
+            git \
+            curl \
+            wget \
+            gnupg2 \
+            ca-certificates \
+            debian-archive-keyring
+
+      - name: Install Debian keyrings
+        run: |
+          sudo apt-get install -y debian-archive-keyring debian-keyring
+          # Import Bookworm key for cross-build from Ubuntu
+          wget -qO /tmp/archive-key-12.asc https://ftp-master.debian.org/keys/archive-key-12.asc
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
+            --import /tmp/archive-key-12.asc
+          rm -f /tmp/archive-key-12.asc
+
+      - name: Make scripts executable
+        run: |
+          chmod +x build_final.sh || true
+          chmod +x finalize_titan_oblivion.sh || true
+          chmod +x scripts/*.sh || true
+
+      - name: Prepare build environment
+        run: |
+          # Clean previous build
+          cd iso
+          sudo lb clean --all || true
+          cd ..
+          
+          # Ensure lb config is run so auto/config takes effect
+          cd iso
+          if [ -f "auto/config" ]; then
+            bash auto/config
+          else
+            echo "[!] auto/config missing, running inline lb config"
+            sudo lb config \
+              --distribution bookworm \
+              --parent-distribution bookworm \
+              --parent-mirror-bootstrap http://deb.debian.org/debian \
+              --mirror-bootstrap http://deb.debian.org/debian \
+              --archive-areas "main contrib non-free non-free-firmware" \
+              --architectures amd64 \
+              --linux-packages "linux-image linux-headers" \
+              --linux-flavours amd64 \
+              --system live \
+              --initramfs live-boot \
+              --initsystem systemd \
+              --bootloaders grub-efi \
+              --chroot-filesystem squashfs \
+              --binary-images iso-hybrid \
+              --apt-indices false \
+              --iso-application "LUCID EMPIRE TITAN V7.0.3 SINGULARITY" \
+              --iso-volume "TITAN-V703-SINGULARITY"
+          fi
+          cd ..
+
+      - name: Run final fusion build with retry
+        env:
+          MKSQUASHFS_OPTIONS: "-comp zstd -Xcompression-level 1"
+          DEBIAN_FRONTEND: noninteractive
+          DEBOOTSTRAP_VERBOSE: "1"
+        run: |
+          set -e
+          echo "Starting TITAN V7.0.3 ISO build..."
+          
+          # Attempt build with exponential backoff retry
+          MAX_ATTEMPTS=2
+          ATTEMPT=1
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Build attempt $ATTEMPT/$MAX_ATTEMPTS..."
+            if ./build_final.sh 2>&1 | tee build-execution.log; then
+              echo "Build successful!"
+              break
+            else
+              if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                echo "Build failed, cleaning and retrying..."
+                cd iso
+                sudo lb clean --all || true
+                cd ..
+                sleep 10
+              else
+                echo "Build failed after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+      - name: Check build output
+        if: always()
+        run: |
+          echo "Checking for ISO files..."
+          find . -name "*.iso" -o -name "*.hybrid.iso" 2>/dev/null || echo "No ISO found yet"
+          echo "Build log tail (last 50 lines):"
+          tail -50 titan_v7_final.log 2>/dev/null || tail -50 build-execution.log || echo "No build log available"
+
+      - name: Upload ISO artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: titan-iso
+          path: |
+            iso/live-image-amd64.hybrid.iso
+            iso/live-image-amd64.iso
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: |
+            titan_v7_final.log
+            build-execution.log
+            iso/build.log
+          retention-days: 7

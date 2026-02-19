@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Titan Browser
+GenericName=Hardened Anti-Detect Browser
+Comment=TITAN V7.0 — Phase 3 hardened Camoufox browser with full identity shield
+Exec=bash /opt/titan/bin/titan-browser
+Icon=web-browser
+Terminal=false
+Categories=Network;WebBrowser;Security;
+Keywords=browser;camoufox;antidetect;titan;
+StartupNotify=true

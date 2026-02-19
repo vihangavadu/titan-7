@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TITAN V7.0 SINGULARITY - Kiosk Menu
+  Minimal right-click menu with Trinity Apps only
+-->
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="TITAN V5.2">
+    <separator label="🔱 TRINITY APPS"/>
+    
+    <item label="🔥 Genesis - Profile Forge">
+      <action name="Execute">
+        <command>python3 /opt/titan/apps/app_genesis.py</command>
+      </action>
+    </item>
+    
+    <item label="🛡️ Cerberus - Card Validator">
+      <action name="Execute">
+        <command>python3 /opt/titan/apps/app_cerberus.py</command>
+      </action>
+    </item>
+    
+    <item label="🎭 KYC - Virtual Camera">
+      <action name="Execute">
+        <command>python3 /opt/titan/apps/app_kyc.py</command>
+      </action>
+    </item>
+    
+    <separator label="🌐 BROWSERS"/>
+    
+    <item label="Firefox (Lucid)">
+      <action name="Execute">
+        <command>/opt/lucid-empire/bin/lucid-firefox</command>
+      </action>
+    </item>
+    
+    <item label="Chromium (Lucid)">
+      <action name="Execute">
+        <command>/opt/lucid-empire/bin/lucid-chromium</command>
+      </action>
+    </item>
+    
+    <separator label="🔧 SYSTEM"/>
+    
+    <item label="Terminal">
+      <action name="Execute">
+        <command>x-terminal-emulator</command>
+      </action>
+    </item>
+    
+    <item label="File Manager">
+      <action name="Execute">
+        <command>pcmanfm</command>
+      </action>
+    </item>
+    
+    <separator/>
+    
+    <item label="⏻ Shutdown">
+      <action name="Execute">
+        <command>systemctl poweroff</command>
+      </action>
+    </item>
+    
+    <item label="🔄 Reboot">
+      <action name="Execute">
+        <command>systemctl reboot</command>
+      </action>
+    </item>
+  </menu>
+</openbox_menu>

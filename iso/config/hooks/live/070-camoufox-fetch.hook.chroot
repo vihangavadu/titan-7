@@ -1,0 +1,95 @@
+#!/bin/bash
+# LUCID EMPIRE :: Camoufox Browser Fetch Hook
+# AUTHORITY: Dva.12 | TITAN V7 SINGULARITY
+#
+# Downloads and installs the Camoufox anti-detect browser binary
+# inside the chroot during ISO build. This gives the ISO both:
+# - Vanilla Firefox ESR + Chromium (Naked Browser Protocol)
+# - Camoufox (patched Firefox with built-in anti-fingerprint)
+
+# set -e  # Disabled to prevent build failures on non-critical errors
+
+LUCID_ROOT="/opt/lucid-empire"
+CAMOUFOX_DIR="$LUCID_ROOT/camoufox"
+
+echo "[HOOK-CF] Camoufox Browser Fetch"
+echo "[HOOK-CF] ========================================"
+
+# Check if pip/camoufox module is available
+if ! command -v pip3 &>/dev/null; then
+    echo "[HOOK-CF] WARNING: pip3 not available, skipping Camoufox fetch"
+    exit 0
+fi
+
+# Install camoufox package if not already installed
+echo "[HOOK-CF] Installing camoufox Python package..."
+pip3 install --no-cache-dir --break-system-packages "camoufox[geoip]" browserforge 2>&1 | tail -5 || {
+    echo "[HOOK-CF] WARNING: camoufox pip install failed"
+    echo "[HOOK-CF] Camoufox will need to be installed manually after boot"
+    exit 0
+}
+
+# Fetch the patched browser binary (with retry + fallback)
+echo "[HOOK-CF] Fetching Camoufox browser binary..."
+FETCH_OK=0
+for attempt in 1 2 3; do
+    echo "[HOOK-CF] Attempt ${attempt}/3..."
+    python3 -m camoufox fetch 2>&1 && { FETCH_OK=1; break; }
+    echo "[HOOK-CF] Attempt ${attempt} failed, waiting 5s..."
+    sleep 5
+done
+
+if [ "$FETCH_OK" -eq 0 ]; then
+    echo "[HOOK-CF] WARNING: Camoufox binary fetch failed after 3 attempts"
+    echo "[HOOK-CF] Creating first-boot auto-fetch script..."
+    # Write a systemd one-shot that fetches on first network-available boot
+    cat > /etc/systemd/system/camoufox-fetch.service << 'EOSVC'
+[Unit]
+Description=Fetch Camoufox browser binary (one-shot)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/opt/lucid-empire/camoufox/.camoufox-fetched
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'python3 -m camoufox fetch && touch /opt/lucid-empire/camoufox/.camoufox-fetched && systemctl disable camoufox-fetch.service'
+RemainAfterExit=no
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
+EOSVC
+    mkdir -p /etc/systemd/system/multi-user.target.wants
+    ln -sf /etc/systemd/system/camoufox-fetch.service /etc/systemd/system/multi-user.target.wants/ 2>/dev/null || true
+    echo "[HOOK-CF] First-boot fetch service installed"
+else
+    # Mark as fetched so the first-boot service doesn't re-run
+    mkdir -p "$CAMOUFOX_DIR"
+    touch "$CAMOUFOX_DIR/.camoufox-fetched"
+fi
+
+# Verify the binary exists
+CAMOUFOX_BIN=$(python3 -c "import camoufox; print(camoufox.executable_path())" 2>/dev/null || echo "")
+if [ -n "$CAMOUFOX_BIN" ] && [ -f "$CAMOUFOX_BIN" ]; then
+    echo "[HOOK-CF] Camoufox binary verified: $CAMOUFOX_BIN"
+    echo "[HOOK-CF] Size: $(du -h "$CAMOUFOX_BIN" | cut -f1)"
+else
+    echo "[HOOK-CF] WARNING: Camoufox binary not found at expected path"
+    echo "[HOOK-CF] Will be fetched on first boot via camoufox-fetch.service"
+fi
+
+# Install playwright browsers for Genesis Engine
+echo "[HOOK-CF] Installing Playwright browsers for Genesis Engine..."
+pip3 install --no-cache-dir --break-system-packages playwright 2>&1 | tail -3 || true
+python3 -m playwright install firefox 2>&1 || {
+    echo "[HOOK-CF] WARNING: Playwright Firefox install failed"
+    echo "[HOOK-CF] Run 'python3 -m playwright install firefox' after boot"
+}
+
+# Verify installation
+echo "[HOOK-CF] Verifying Camoufox installation..."
+python3 -c "import camoufox; print('[HOOK-CF] Camoufox version:', camoufox.__version__)" 2>/dev/null || \
+    echo "[HOOK-CF] WARNING: Camoufox import check failed"
+
+echo "[HOOK-CF] ========================================"
+echo "[HOOK-CF] Camoufox setup complete"

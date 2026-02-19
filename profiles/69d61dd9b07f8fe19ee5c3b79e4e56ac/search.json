@@ -1,0 +1,1 @@
+{"version": 8, "engines": [{"_name": "Google", "_isAppProvided": true, "_metaData": {"order": 1}}, {"_name": "DuckDuckGo", "_isAppProvided": true, "_metaData": {"order": 2}}], "metaData": {"useSavedOrder": false, "defaultEngineId": "google@search.mozilla.orgdefault"}}

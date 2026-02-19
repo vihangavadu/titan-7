@@ -1,0 +1,57 @@
+{
+    "_comment": "TITAN V7.0 — Xray VLESS+Reality SERVER config template (doc §4.2). Deploy to /usr/local/etc/xray/config.json on VPS relay. Use setup-vps-relay.sh to auto-generate with real keys.",
+    "log": {
+        "loglevel": "warning"
+    },
+    "inbounds": [
+        {
+            "tag": "vless-reality",
+            "port": 443,
+            "protocol": "vless",
+            "settings": {
+                "clients": [
+                    {
+                        "id": "REPLACE_WITH_XRAY_UUID",
+                        "flow": "xtls-rprx-vision"
+                    }
+                ],
+                "decryption": "none"
+            },
+            "streamSettings": {
+                "network": "tcp",
+                "security": "reality",
+                "realitySettings": {
+                    "show": false,
+                    "dest": "learn.microsoft.com:443",
+                    "serverNames": [
+                        "learn.microsoft.com",
+                        "www.microsoft.com"
+                    ],
+                    "privateKey": "REPLACE_WITH_REALITY_PRIVATE_KEY",
+                    "shortIds": ["REPLACE_WITH_REALITY_SHORT_ID"]
+                }
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "tag": "direct",
+            "protocol": "freedom",
+            "settings": {}
+        },
+        {
+            "tag": "block",
+            "protocol": "blackhole",
+            "settings": {}
+        }
+    ],
+    "routing": {
+        "rules": [
+            {
+                "type": "field",
+                "outboundTag": "block",
+                "protocol": ["bittorrent"]
+            }
+        ]
+    }
+}

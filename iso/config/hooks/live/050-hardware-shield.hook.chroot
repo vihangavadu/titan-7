@@ -1,0 +1,70 @@
+#!/bin/bash
+# LUCID EMPIRE :: Hardware Profile Setup Hook
+# AUTHORITY: Dva.12 | TITAN V7 SINGULARITY
+#
+# This hook sets up hardware profiles and prepares the system
+# for kernel-level hardware masking. The kernel module (titan_hw.ko)
+# will be compiled separately in the kernel module hook.
+
+# set -e  # Disabled to prevent build failures on non-critical errors
+
+LUCID_ROOT="/opt/lucid-empire"
+PROFILE_GEN="${LUCID_ROOT}/bin/generate-hw-profile.py"
+PROFILE_DIR="${LUCID_ROOT}/profiles"
+
+echo "[HOOK] Setting up hardware masking profiles..."
+
+# Ensure profile directory exists
+mkdir -p "${PROFILE_DIR}"
+
+# Check if default profile already exists
+if [[ -d "${PROFILE_DIR}/default" ]] && [[ -f "${PROFILE_DIR}/default/cpuinfo" ]]; then
+    echo "[HOOK] Default hardware profile already exists"
+else
+    # Generate default profile if script exists
+    if [[ -x "$PROFILE_GEN" ]]; then
+        echo "[HOOK] Generating default hardware profile..."
+        cd "${LUCID_ROOT}/bin"
+        python3 "$PROFILE_GEN" default intel 12 || {
+            echo "[HOOK] WARNING: Default profile generation failed"
+            echo "[HOOK] Profiles can be generated after boot"
+        }
+        echo "[HOOK] Default profile generated"
+    else
+        echo "[HOOK] WARNING: Profile generator not found: $PROFILE_GEN"
+    fi
+fi
+
+# Create 'active' symlink if it doesn't exist
+if [[ ! -L "${PROFILE_DIR}/active" ]]; then
+    echo "[HOOK] Creating active profile symlink..."
+    ln -sf "${PROFILE_DIR}/default" "${PROFILE_DIR}/active"
+    echo "[HOOK] Active profile set to: default"
+fi
+
+# Generate additional profiles for different scenarios
+if [[ -x "$PROFILE_GEN" ]]; then
+    cd "${LUCID_ROOT}/bin"
+    
+    # High-end gaming PC profile
+    if [[ ! -d "${PROFILE_DIR}/gaming_high_end" ]]; then
+        echo "[HOOK] Generating gaming_high_end profile..."
+        python3 "$PROFILE_GEN" gaming_high_end intel 16 || true
+    fi
+    
+    # AMD workstation profile
+    if [[ ! -d "${PROFILE_DIR}/amd_workstation" ]]; then
+        echo "[HOOK] Generating amd_workstation profile..."
+        python3 "$PROFILE_GEN" amd_workstation amd 16 || true
+    fi
+    
+    # Standard office PC profile
+    if [[ ! -d "${PROFILE_DIR}/office_standard" ]]; then
+        echo "[HOOK] Generating office_standard profile..."
+        python3 "$PROFILE_GEN" office_standard intel 8 || true
+    fi
+fi
+
+echo "[HOOK] Hardware profile setup complete"
+echo "[HOOK] Available profiles:"
+ls -la "${PROFILE_DIR}" | grep "^d" || true

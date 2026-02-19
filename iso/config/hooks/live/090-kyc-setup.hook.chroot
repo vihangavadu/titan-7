@@ -1,0 +1,103 @@
+#!/bin/bash
+# TITAN V6 HOOK: 090-kyc-setup
+# AUTHORITY: Dva.12 | STATUS: SINGULARITY
+# PURPOSE: Configure Kernel Modules for Video Injection (Reality Synthesis)
+#
+# This hook wires the KYC Module into the kernel by:
+# 1. Configuring v4l2loopback to create a fake "Integrated Camera"
+# 2. Ensuring the module loads on boot
+# 3. Setting permissions on injection scripts
+# 4. Installing Node.js dependencies for 3D renderer
+
+# set -e  # Disabled to prevent build failures on non-critical errors
+
+KYC_DIR="/opt/lucid-empire/backend/modules/kyc_module"
+TITAN_KYC="/opt/titan/core"
+TITAN_ASSETS="/opt/titan/assets/motions"
+
+echo "[HOOK-KYC] TITAN KYC Module Configuration"
+echo "[HOOK-KYC] ========================================"
+
+# 1. Persist v4l2loopback module configuration for boot
+# Forces the fake camera to load with a specific card label ("Integrated Camera")
+# to fool browser media device enumeration checks
+echo "[HOOK-KYC] Configuring v4l2loopback kernel module..."
+cat <<EOF > /etc/modprobe.d/titan-camera.conf
+# TITAN V6 :: Virtual Camera Configuration
+# Card label matches common laptop webcam names to evade detection
+# V6: video_nr=2 to avoid conflicting with real webcam on video_nr=0
+options v4l2loopback video_nr=2 card_label="Integrated Camera" exclusive_caps=1
+EOF
+
+# 2. Ensure module loads on boot
+if ! grep -q "v4l2loopback" /etc/modules 2>/dev/null; then
+    echo "v4l2loopback" >> /etc/modules
+    echo "[HOOK-KYC] v4l2loopback added to /etc/modules"
+fi
+
+# 3. Set permissions for KYC injection scripts
+if [ -d "$KYC_DIR" ]; then
+    echo "[HOOK-KYC] Setting KYC script permissions..."
+    chmod +x "$KYC_DIR/camera_injector.py"    2>/dev/null || true
+    chmod +x "$KYC_DIR/reenactment_engine.py" 2>/dev/null || true
+    chmod +x "$KYC_DIR/app.py"                2>/dev/null || true
+
+    # 4. Install Node.js dependencies for 3D ID Renderer
+    if command -v npm &>/dev/null && [ -f "$KYC_DIR/package.json" ]; then
+        echo "[HOOK-KYC] Installing Node.js dependencies for 3D renderer..."
+        cd "$KYC_DIR"
+        npm install --omit=dev --loglevel=error 2>&1 || {
+            echo "[HOOK-KYC] WARNING: npm install failed (non-fatal)"
+        }
+    else
+        echo "[HOOK-KYC] WARNING: npm or package.json not found, skipping"
+    fi
+
+    # 5. Create assets directory for video injection
+    mkdir -p "$KYC_DIR/assets"
+    if [ ! -f "$KYC_DIR/assets/README.txt" ]; then
+        cat > "$KYC_DIR/assets/README.txt" << 'ASSETS'
+TITAN V6 KYC Module Assets
+===========================
+Place synthetic video files here:
+- synthetic_kyc_video.mp4  (for camera injection)
+- driving_video.mp4        (for neural reenactment)
+- source_identity.jpg      (static face for LivePortrait)
+ASSETS
+    fi
+else
+    echo "[HOOK-KYC] WARNING: KYC module directory not found at $KYC_DIR"
+    echo "[HOOK-KYC] v4l2loopback configured but KYC scripts missing"
+fi
+
+# 6. V6: Create /opt/titan/assets/motions directory for DMTG motion presets
+echo "[HOOK-KYC] Setting up V6 motion assets directory..."
+mkdir -p "$TITAN_ASSETS"
+if [ ! -f "$TITAN_ASSETS/README.txt" ]; then
+    cat > "$TITAN_ASSETS/README.txt" << 'MOTIONS'
+TITAN V6 Motion Assets (for DMTG Reenactment)
+===============================================
+Place motion driving videos here:
+- neutral.mp4      (subtle idle movement)
+- blink.mp4        (single eye blink)
+- blink_twice.mp4  (double blink for liveness)
+- smile.mp4        (natural smile)
+- head_left.mp4    (turn head left)
+- head_right.mp4   (turn head right)
+- head_nod.mp4     (nodding motion)
+- look_up.mp4      (look upward)
+- look_down.mp4    (look downward)
+MOTIONS
+fi
+
+# 7. V6: Set permissions on /opt/titan apps
+if [ -d "/opt/titan/apps" ]; then
+    chmod +x /opt/titan/apps/*.py 2>/dev/null || true
+    echo "[HOOK-KYC] V6 Trinity App permissions set"
+fi
+if [ -d "/opt/titan/bin" ]; then
+    chmod +x /opt/titan/bin/* 2>/dev/null || true
+fi
+
+echo "[HOOK-KYC] ========================================"
+echo "[HOOK-KYC] KYC Module Configuration Complete."

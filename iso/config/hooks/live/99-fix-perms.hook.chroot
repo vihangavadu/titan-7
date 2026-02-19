@@ -1,0 +1,346 @@
+#!/bin/bash
+# LUCID EMPIRE :: Final Permissions & Environment Hook
+# AUTHORITY: Dva.12 | TITAN V7.0 SINGULARITY
+#
+# Runs last (99-*) inside the chroot before squashfs compression.
+# Sets permissions, creates symlinks, installs pip deps, and
+# ensures the runtime environment is fully operational on first boot.
+
+# set -e  # Disabled to prevent build failures on non-critical errors
+
+LUCID_ROOT="/opt/lucid-empire"
+TITAN_ROOT="/opt/titan"
+
+echo "I: [LUCID-99] Final environment setup starting (V7.0 SINGULARITY)..."
+
+# ── 1. Executable Permissions ──────────────────────────────────────────────
+echo "I: [LUCID-99] Setting executable permissions..."
+
+chmod -R +x "$LUCID_ROOT/bin/"          2>/dev/null || true
+find "$LUCID_ROOT" -name "*.py" -exec chmod +x {} \;
+find "$LUCID_ROOT" -name "*.sh" -exec chmod +x {} \;
+chmod +x "$LUCID_ROOT/launch-titan.sh"  2>/dev/null || true
+
+# V6: Set permissions on /opt/titan
+if [ -d "$TITAN_ROOT" ]; then
+    find "$TITAN_ROOT" -name "*.py" -exec chmod +x {} \;
+    find "$TITAN_ROOT" -name "*.sh" -exec chmod +x {} \;
+    chmod +x "$TITAN_ROOT/bin/"* 2>/dev/null || true
+    chmod +x "$TITAN_ROOT/apps/"* 2>/dev/null || true
+    
+    # V7.0: All core modules executable
+    chmod +x "$TITAN_ROOT/core/integration_bridge.py" 2>/dev/null || true
+    chmod +x "$TITAN_ROOT/core/proxy_manager.py" 2>/dev/null || true
+    chmod +x "$TITAN_ROOT/core/target_intelligence.py" 2>/dev/null || true
+    chmod +x "$TITAN_ROOT/core/three_ds_strategy.py" 2>/dev/null || true
+    chmod +x "$TITAN_ROOT/bin/titan-browser" 2>/dev/null || true
+    
+    # Create profiles, state, and config directories
+    mkdir -p "$TITAN_ROOT/profiles" 2>/dev/null || true
+    mkdir -p "$TITAN_ROOT/state" 2>/dev/null || true
+    mkdir -p "$TITAN_ROOT/docs" 2>/dev/null || true
+    mkdir -p "$TITAN_ROOT/config" 2>/dev/null || true
+    mkdir -p "$TITAN_ROOT/vpn" 2>/dev/null || true
+    
+    # Protect sensitive config files
+    chmod 600 "$TITAN_ROOT/config/titan.env" 2>/dev/null || true
+    chmod 600 "$TITAN_ROOT/state/proxies.json" 2>/dev/null || true
+    chmod 600 "$TITAN_ROOT/vpn/xray-client.json" 2>/dev/null || true
+    chmod 700 "$TITAN_ROOT/config" 2>/dev/null || true
+    chmod 700 "$TITAN_ROOT/vpn" 2>/dev/null || true
+    
+    echo "I: [LUCID-99] V6 /opt/titan permissions set."
+fi
+
+echo "I: [LUCID-99] Permissions set."
+
+# ── 2. libfaketime Symlinks ────────────────────────────────────────────────
+# The temporal_wrapper.py searches these paths for the .so
+echo "I: [LUCID-99] Setting up libfaketime symlinks..."
+
+FAKETIME_PATHS=(
+    "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1"
+    "/usr/lib/faketime/libfaketime.so.1"
+)
+
+FAKETIME_FOUND=""
+for p in "${FAKETIME_PATHS[@]}"; do
+    if [ -f "$p" ]; then
+        FAKETIME_FOUND="$p"
+        break
+    fi
+done
+
+if [ -n "$FAKETIME_FOUND" ]; then
+    # Create convenience symlinks so LD_PRELOAD works from common paths
+    ln -sf "$FAKETIME_FOUND" /usr/lib/libfaketime.so.1       2>/dev/null || true
+    ln -sf "$FAKETIME_FOUND" /usr/local/lib/libfaketime.so.1 2>/dev/null || true
+    echo "I: [LUCID-99] libfaketime linked: $FAKETIME_FOUND"
+else
+    echo "I: [LUCID-99] WARNING: libfaketime not found (will be available after apt install)"
+fi
+
+# ── 3. Compile Hardware Shield .so (if not pre-compiled) ───────────────────
+echo "I: [LUCID-99] Checking Hardware Shield shared library..."
+
+HW_SO="$LUCID_ROOT/lib/libhardwareshield.so"
+HW_SRC="$LUCID_ROOT/lib/hardware_shield.c"
+
+if [ ! -f "$HW_SO" ] && [ -f "$HW_SRC" ]; then
+    echo "I: [LUCID-99] Compiling hardware_shield.c -> libhardwareshield.so..."
+    if command -v gcc &>/dev/null; then
+        gcc -shared -fPIC -O2 -o "$HW_SO" "$HW_SRC" -ldl && \
+            echo "I: [LUCID-99] libhardwareshield.so compiled." || \
+            echo "I: [LUCID-99] WARNING: gcc compilation failed"
+        # Compat symlink
+        ln -sf libhardwareshield.so "$LUCID_ROOT/lib/hardware_shield.so" 2>/dev/null || true
+    else
+        echo "I: [LUCID-99] WARNING: gcc not available, skipping .so compilation"
+    fi
+elif [ -f "$HW_SO" ]; then
+    echo "I: [LUCID-99] libhardwareshield.so already exists."
+fi
+
+# ── 4. Install Python pip Requirements ─────────────────────────────────────
+echo "I: [LUCID-99] Installing Python pip requirements..."
+
+# Install pip-only packages not available in Debian repos
+if command -v pip3 &>/dev/null; then
+    # V6: Install Cloud Brain + DMTG dependencies
+    # Note: scipy is installed via apt (python3-scipy in kyc_module.list.chroot)
+    pip3 install --no-cache-dir --break-system-packages \
+        openai httpx pydantic aiohttp onnxruntime 2>&1 | tail -5 || \
+        echo "I: [LUCID-99] WARNING: Some pip-only packages failed"
+    # Ensure scipy is importable (prefer system package, pip fallback)
+    python3 -c "import scipy" 2>/dev/null || \
+        pip3 install --no-cache-dir --break-system-packages scipy 2>&1 | tail -5 || \
+        echo "I: [LUCID-99] WARNING: scipy not available (install python3-scipy)"
+
+    # V6.1: Ensure Camoufox + browserforge are installed (backup for hook 070)
+    pip3 install --no-cache-dir --break-system-packages \
+        "camoufox[geoip]" browserforge 2>&1 | tail -5 || \
+        echo "I: [LUCID-99] WARNING: Camoufox pip install failed (will retry on first boot)"
+
+    # V7.0: QUIC Proxy + Phase 3 dependencies
+    pip3 install --no-cache-dir --break-system-packages \
+        aioquic pytz 2>&1 | tail -5 || \
+        echo "I: [LUCID-99] WARNING: aioquic/pytz install failed"
+
+    # V7.0: Playwright for referrer warmup chain automation
+    pip3 install --no-cache-dir --break-system-packages \
+        playwright 2>&1 | tail -5 || \
+        echo "I: [LUCID-99] WARNING: playwright install failed"
+    # Install Chromium browser for Playwright (smallest footprint)
+    python3 -m playwright install chromium 2>&1 | tail -3 || \
+        echo "I: [LUCID-99] WARNING: playwright browser install failed (will retry on first boot)"
+
+    # V7.0: LZ4 for sessionstore.jsonlz4 generation
+    pip3 install --no-cache-dir --break-system-packages \
+        lz4 2>&1 | tail -3 || \
+        echo "I: [LUCID-99] WARNING: lz4 install failed"
+
+    # V7.0: Cryptography for QUIC proxy cert generation
+    pip3 install --no-cache-dir --break-system-packages \
+        cryptography 2>&1 | tail -3 || \
+        echo "I: [LUCID-99] WARNING: cryptography install failed"
+
+    # V7.0: PSP SDKs for silent validation (cerberus_enhanced.py)
+    pip3 install --no-cache-dir --break-system-packages \
+        stripe httpx 2>&1 | tail -3 || \
+        echo "I: [LUCID-99] WARNING: stripe/httpx install failed"
+
+    # V7.0: FastAPI backend server
+    pip3 install --no-cache-dir --break-system-packages \
+        fastapi uvicorn 2>&1 | tail -5 || \
+        echo "I: [LUCID-99] WARNING: fastapi/uvicorn install failed"
+
+    # V7.0.3: LivePortrait for KYC neural reenactment
+    pip3 install --no-cache-dir --break-system-packages \
+        insightface onnxruntime-gpu 2>&1 | tail -5 || \
+        pip3 install --no-cache-dir --break-system-packages \
+            insightface onnxruntime 2>&1 | tail -5 || \
+        echo "I: [LUCID-99] WARNING: insightface install failed (KYC reenactment degraded)"
+
+    # V7.0.3: Generate KYC motion assets if not present
+    MOTIONS_DIR="/opt/titan/assets/motions"
+    if [ -f "$MOTIONS_DIR/generate_motions.py" ] && [ ! -f "$MOTIONS_DIR/neutral.mp4" ]; then
+        echo "I: [LUCID-99] Generating KYC motion assets..."
+        python3 "$MOTIONS_DIR/generate_motions.py" --output-dir "$MOTIONS_DIR" --method auto 2>&1 | tail -10 || \
+            echo "I: [LUCID-99] WARNING: Motion asset generation failed (install opencv-python or ffmpeg)"
+    fi
+fi
+
+REQ="$LUCID_ROOT/requirements.txt"
+if [ -f "$REQ" ] && command -v pip3 &>/dev/null; then
+    pip3 install --no-cache-dir --break-system-packages -r "$REQ" 2>&1 | \
+        tail -5 || echo "I: [LUCID-99] WARNING: Some pip packages failed"
+    echo "I: [LUCID-99] pip install complete."
+else
+    echo "I: [LUCID-99] Skipping pip install (no requirements.txt or pip3 not found)"
+fi
+
+# ── 4b. Phase 3 Environment Hardening Setup ──────────────────────────────
+echo "I: [LUCID-99] Phase 3: Setting up environment hardening..."
+
+# V7.0: Run font sanitizer to generate local.conf (Phase 3.1)
+if [ -f "$TITAN_ROOT/core/font_sanitizer.py" ]; then
+    echo "I: [LUCID-99] Phase 3.1: Generating font config (local.conf)..."
+    python3 -c "
+import sys
+sys.path.insert(0, '/opt/titan/core')
+try:
+    from font_sanitizer import FontSanitizer, TargetOS
+    sanitizer = FontSanitizer(TargetOS.WINDOWS_11)
+    sanitizer.generate_local_conf()
+    print('I: [LUCID-99] Phase 3.1: local.conf generated with rejectfont directives')
+except Exception as e:
+    print(f'I: [LUCID-99] Phase 3.1: Font config generation deferred to first boot: {e}')
+" 2>&1 || true
+fi
+
+# V7.0: Set permissions on Phase 2-3 modules
+chmod +x "$TITAN_ROOT/core/font_sanitizer.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/audio_hardener.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/timezone_enforcer.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/verify_deep_identity.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/titan_master_verify.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/kill_switch.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/generate_trajectory_model.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/purchase_history_engine.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/cerberus_enhanced.py" 2>/dev/null || true
+chmod +x "$TITAN_ROOT/core/kyc_enhanced.py" 2>/dev/null || true
+
+echo "I: [LUCID-99] Phase 3 setup complete."
+
+# ── 5. Enable Systemd Services (symlink method — reliable in chroot) ──────
+echo "I: [LUCID-99] Enabling systemd services..."
+
+SERVICE_WANTS="/etc/systemd/system/multi-user.target.wants"
+GRAPHICAL_WANTS="/etc/systemd/system/graphical.target.wants"
+mkdir -p "$SERVICE_WANTS"
+mkdir -p "$GRAPHICAL_WANTS"
+
+# V7.0: Non-GUI services → multi-user.target
+for svc in lucid-titan lucid-ebpf titan-first-boot; do
+    SVC_FILE="/etc/systemd/system/${svc}.service"
+    if [ -f "$SVC_FILE" ]; then
+        ln -sf "$SVC_FILE" "$SERVICE_WANTS/${svc}.service" 2>/dev/null || true
+        echo "I: [LUCID-99] Enabled: ${svc}.service (multi-user)"
+    else
+        echo "I: [LUCID-99] WARNING: ${svc}.service not found, skipping"
+    fi
+done
+
+# V7.0: GUI service → graphical.target (requires DISPLAY)
+SVC_FILE="/etc/systemd/system/lucid-console.service"
+if [ -f "$SVC_FILE" ]; then
+    ln -sf "$SVC_FILE" "$GRAPHICAL_WANTS/lucid-console.service" 2>/dev/null || true
+    echo "I: [LUCID-99] Enabled: lucid-console.service (graphical)"
+else
+    echo "I: [LUCID-99] WARNING: lucid-console.service not found, skipping"
+fi
+
+# ── 6. Create Active Profile Symlink (if not already set) ─────────────────
+PROFILES="$LUCID_ROOT/profiles"
+if [ ! -L "$PROFILES/active" ]; then
+    echo "I: [LUCID-99] Creating active profile symlink..."
+    rm -f "$PROFILES/active"
+    ln -sf "$PROFILES/default" "$PROFILES/active"
+fi
+
+# ── 7. ldconfig for Hardware Shield ───────────────────────────────────────
+echo "I: [LUCID-99] Updating shared library cache..."
+if [ -f "$HW_SO" ]; then
+    echo "$LUCID_ROOT/lib" > /etc/ld.so.conf.d/lucid-empire.conf
+    ldconfig 2>/dev/null || true
+fi
+
+# V6: Add /opt/titan/lib to ldconfig only if it exists and contains .so files
+if [ -d "$TITAN_ROOT/lib" ] && ls "$TITAN_ROOT/lib/"*.so* &>/dev/null; then
+    echo "$TITAN_ROOT/lib" > /etc/ld.so.conf.d/titan-v6.conf
+    ldconfig 2>/dev/null || true
+fi
+
+# ── 8. Desktop Entry Permissions ─────────────────────────────────────────
+echo "I: [LUCID-99] Setting desktop entry permissions..."
+chmod 644 /etc/xdg/autostart/lucid-titan-console.desktop 2>/dev/null || true
+# V7.0: Consolidated desktop entries (3 icons only)
+chmod 644 /usr/share/applications/titan-unified.desktop 2>/dev/null || true
+chmod 644 /usr/share/applications/titan-browser.desktop 2>/dev/null || true
+chmod 644 /usr/share/applications/titan-install.desktop 2>/dev/null || true
+chmod 644 /usr/share/applications/titan-configure.desktop 2>/dev/null || true
+chmod +x /opt/titan/bin/install-to-disk 2>/dev/null || true
+
+# V7.0: Hardening config file permissions
+chmod 644 /etc/fonts/local.conf 2>/dev/null || true
+chmod 644 /etc/pulse/daemon.conf 2>/dev/null || true
+chmod 644 /etc/nftables.conf 2>/dev/null || true
+chmod 644 /etc/sysctl.d/99-titan-hardening.conf 2>/dev/null || true
+chmod 644 /etc/NetworkManager/conf.d/10-titan-privacy.conf 2>/dev/null || true
+chmod 440 /etc/sudoers.d/titan-ops 2>/dev/null || true
+chmod 644 /etc/polkit-1/localauthority/50-local.d/10-titan-nopasswd.pkla 2>/dev/null || true
+chmod 644 /etc/udev/rules.d/99-titan-usb.rules 2>/dev/null || true
+chmod 644 /usr/lib/firefox-esr/defaults/pref/titan-hardening.js 2>/dev/null || true
+chmod 644 /etc/lightdm/lightdm.conf 2>/dev/null || true
+chmod 644 /etc/lightdm/lightdm-gtk-greeter.conf 2>/dev/null || true
+
+# ── 9. Live User Environment ─────────────────────────────────────────────
+# Debian live boots as 'user' — ensure home directory has desktop shortcuts
+echo "I: [LUCID-99] Preparing live user environment..."
+
+LIVE_HOME="/home/user"
+mkdir -p "$LIVE_HOME/Desktop"
+mkdir -p "$LIVE_HOME/.config/autostart"
+
+# Desktop shortcuts (V7.0: 3 consolidated icons)
+for desktop_file in \
+    titan-unified \
+    titan-browser \
+    titan-install; do
+    if [ -f "/usr/share/applications/${desktop_file}.desktop" ]; then
+        cp "/usr/share/applications/${desktop_file}.desktop" "$LIVE_HOME/Desktop/" 2>/dev/null || true
+        chmod +x "$LIVE_HOME/Desktop/${desktop_file}.desktop" 2>/dev/null || true
+    fi
+done
+
+# Ensure the live user owns their home
+chown -R 1000:1000 "$LIVE_HOME" 2>/dev/null || true
+
+# ── 10. GNOME Auto-Trust Desktop Files ────────────────────────────────────
+# GNOME 43+ requires explicit trust for desktop files to be launchable
+GNOME_TRUST_DIR="$LIVE_HOME/.local/share/nautilus/scripts"
+mkdir -p "$LIVE_HOME/.local/share" 2>/dev/null || true
+
+# Mark desktop files as trusted via metadata (GNOME 43+)
+TRUST_DIR="$LIVE_HOME/.local/share/glib-2.0/db"
+mkdir -p "$TRUST_DIR" 2>/dev/null || true
+chown -R 1000:1000 "$LIVE_HOME/.local" 2>/dev/null || true
+
+# ── 11. Lucid VPN Setup (Xray-core + Tailscale) ──────────────────────────
+# Install Xray-core (VLESS + Reality transport)
+if ! command -v xray &>/dev/null; then
+    echo "[HOOK-99] Installing Xray-core for Lucid VPN..."
+    bash -c "$(curl -sL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install 2>/dev/null || true
+fi
+
+# Install Tailscale (mesh backhaul for residential exit)
+if ! command -v tailscale &>/dev/null; then
+    echo "[HOOK-99] Installing Tailscale for Lucid VPN..."
+    curl -fsSL https://tailscale.com/install.sh | sh 2>/dev/null || true
+fi
+
+# Create VPN config directory
+mkdir -p /opt/titan/vpn
+chmod 700 /opt/titan/vpn
+
+# Set permissions on VPN setup wizard
+chmod +x /opt/titan/bin/titan-vpn-setup 2>/dev/null || true
+chmod +x /opt/titan/vpn/setup-vps-relay.sh 2>/dev/null || true
+
+# ── 12. DBUS Session Fix for Live Environment ────────────────────────────
+# Ensure dbus-x11 is available for PyQt6 to connect
+if ! command -v dbus-launch &>/dev/null; then
+    apt-get install -y --no-install-recommends dbus-x11 2>/dev/null || true
+fi
+
+echo "I: [LUCID-99] Final environment setup complete."

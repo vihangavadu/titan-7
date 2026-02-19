@@ -1,0 +1,12 @@
+[Unit]
+Description=TITAN V7.0 DNS Privacy Activation
+After=network-online.target unbound.service
+Wants=network-online.target unbound.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'echo "nameserver 127.0.0.1" > /etc/resolv.conf'
+
+[Install]
+WantedBy=multi-user.target

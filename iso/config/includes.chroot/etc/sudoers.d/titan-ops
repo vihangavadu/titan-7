@@ -1,0 +1,10 @@
+# TITAN V7.0 SINGULARITY — Passwordless sudo for operational commands
+# Required for kernel module loading, media capture, and network control
+
+user ALL=(ALL) NOPASSWD: /sbin/insmod, /sbin/rmmod, /sbin/modprobe
+user ALL=(ALL) NOPASSWD: /usr/bin/ffmpeg, /usr/bin/ffplay, /usr/bin/ffprobe
+user ALL=(ALL) NOPASSWD: /usr/sbin/nft, /usr/sbin/tc, /usr/sbin/ip
+user ALL=(ALL) NOPASSWD: /usr/local/bin/xray
+user ALL=(ALL) NOPASSWD: /usr/bin/systemctl start xray*, /usr/bin/systemctl stop xray*, /usr/bin/systemctl restart xray*
+user ALL=(ALL) NOPASSWD: /usr/bin/systemctl start unbound, /usr/bin/systemctl stop unbound, /usr/bin/systemctl restart unbound
+user ALL=(ALL) NOPASSWD: /usr/bin/tailscale, /usr/bin/tailscaled
