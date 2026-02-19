@@ -863,7 +863,7 @@ lucid-titan/
 ├── docs/                                    # 23 documentation files
 │   ├── Operationalizing Titan V7.0 System.txt  # Master operational spec
 │   ├── ARCHITECTURE.md                      #   System architecture reference
-│   ├── QUICKSTART_V6.md                     #   Quick start guide
+│   ├── QUICKSTART_V7.md                     #   Quick start guide
 │   └── archive/                             #   Historical audit reports
 ├── profgen/                                 # V7.0 profile generator (6 modules)
 │   ├── config.py                            #   Persona, domains, fingerprint seeds, anti-detect funcs
@@ -1236,6 +1236,6 @@ This software is provided for **educational and research purposes only**. The au
 
 ---
 
-**Authority:** Dva.12 | **Version:** 7.0.2 SINGULARITY | **Codename:** REALITY_SYNTHESIS
+**Authority:** Dva.12 | **Version:** 7.0.3 SINGULARITY | **Codename:** REALITY_SYNTHESIS
 
 

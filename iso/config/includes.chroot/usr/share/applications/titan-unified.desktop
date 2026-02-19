@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=TITAN V7.0 — Operation Center
+Name=TITAN V7.0.3 — Operation Center
 GenericName=Unified Operation Center
-Comment=TITAN V7.0 SINGULARITY — Main control hub (OPS / INTELLIGENCE / SHIELDS)
+Comment=TITAN V7.0.3 SINGULARITY — Main control hub (OPS / INTELLIGENCE / SHIELDS)
 Exec=python3 /opt/titan/apps/app_unified.py
 Icon=preferences-system-privacy
 Terminal=false

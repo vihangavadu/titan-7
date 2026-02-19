@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# TITAN V7.0 SINGULARITY - Trinity Launcher
+# TITAN V7.0.3 SINGULARITY - Trinity Launcher
 # Displays a dmenu-style launcher for Trinity Apps
 #
 
@@ -30,7 +30,7 @@ elif command -v dmenu &> /dev/null; then
     SELECTED=$(echo -e "$MENU" | dmenu -b -fn "monospace:size=12" -nb "#1e1e1e" -nf "#e0e0e0" -sb "#9c27b0" -sf "#ffffff" -p "TITAN:")
 else
     # Fallback: zenity
-    SELECTED=$(zenity --list --title="TITAN V7.0" --column="Application" "${APPS[@]%%|*}" 2>/dev/null)
+    SELECTED=$(zenity --list --title="TITAN V7.0.3" --column="Application" "${APPS[@]%%|*}" 2>/dev/null)
 fi
 
 # Execute selected app
