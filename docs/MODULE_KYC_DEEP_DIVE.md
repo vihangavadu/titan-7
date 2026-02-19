@@ -3,7 +3,7 @@
 ## The Mask: Virtual Camera & Identity Verification Bypass
 
 **Module:** `kyc_core.py` | **Lines:** 624 | **Path:** `/opt/titan/core/kyc_core.py`  
-**Version:** 7.0.2 | **Authority:** Dva.12
+**Version:** 7.0.3 | **Authority:** Dva.12
 
 ---
 

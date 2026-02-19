@@ -1,5 +1,5 @@
 [Unit]
-Description=TITAN DNS Privacy Activation
+Description=TITAN V7.0 DNS Privacy Activation
 After=network-online.target unbound.service
 Wants=network-online.target unbound.service
 

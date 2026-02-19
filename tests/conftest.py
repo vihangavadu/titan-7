@@ -23,6 +23,11 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "titan"))
 sys.path.insert(0, str(PROJECT_ROOT / "profgen"))
+# Also add ISO core modules so tests can cover deployed code paths
+ISO_CORE = PROJECT_ROOT / "iso" / "config" / "includes.chroot" / "opt" / "titan"
+if ISO_CORE.exists():
+    sys.path.insert(0, str(ISO_CORE))
+    sys.path.insert(0, str(ISO_CORE / "core"))
 
 from titan.titan_core import (
     TitanController,

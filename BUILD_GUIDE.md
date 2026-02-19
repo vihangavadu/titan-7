@@ -77,7 +77,29 @@ git clone https://github.com/YOUR_USERNAME/titan-main.git
 cd titan-main
 ```
 
-### Step 2: Run Build Script
+### Step 2: Run Pre-Build Verification
+
+**IMPORTANT:** Always run the pre-build verification scripts before building the ISO to ensure all components are present and configured correctly.
+
+```bash
+# Run comprehensive pre-build checklist
+python3 scripts/pre_build_checklist.py
+
+# Run environment configuration check
+./scripts/pre_build_env_check.sh
+
+# Run final ISO readiness verification (most thorough)
+python3 scripts/final_iso_readiness.py
+```
+
+All three scripts should report PASS status before proceeding. If any critical failures are reported, address them before building.
+
+**Verification Scripts:**
+- `pre_build_checklist.py` - Verifies directory structure, core modules, apps, configs
+- `pre_build_env_check.sh` - Verifies environment variables and API key placeholders
+- `final_iso_readiness.py` - Deep verification of Ghost Motor, Kill Switch, WebRTC, etc.
+
+### Step 3: Run Build Script
 
 ```bash
 chmod +x build_local.sh
@@ -92,7 +114,7 @@ The script will:
 5. ✓ Generate SHA256 checksum
 6. ✓ Verify ISO structure (BIOS/UEFI boot)
 
-### Step 3: Locate ISO
+### Step 4: Locate ISO
 
 ```bash
 cd iso/
@@ -103,7 +125,7 @@ ls -lh titan-v7.0.3-singularity.iso
 sha256sum -c titan-v7.0.3-singularity.iso.sha256
 ```
 
-### Step 4: Test in VM
+### Step 5: Test in VM
 
 ```bash
 # QEMU/KVM test

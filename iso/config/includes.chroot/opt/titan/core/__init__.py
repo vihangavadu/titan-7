@@ -60,6 +60,7 @@ from .fingerprint_injector import FingerprintInjector, FingerprintConfig, create
 from .referrer_warmup import ReferrerWarmup, WarmupPlan, create_warmup_plan, get_warmup_instructions
 from .advanced_profile_generator import AdvancedProfileGenerator, AdvancedProfileConfig
 from .target_presets import TARGET_PRESETS, get_target_preset, list_targets as list_target_presets, TargetPreset as SiteTargetPreset
+from .target_presets import get_target_preset_auto, list_all_targets, generate_preset_from_intel
 from .form_autofill_injector import FormAutofillInjector
 from .verify_deep_identity import verify_font_hygiene, verify_audio_hardening, verify_timezone_sync
 from .location_spoofer_linux import LinuxLocationSpoofer, LocationProfile, GeoCoordinates

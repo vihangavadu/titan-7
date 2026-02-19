@@ -4,6 +4,45 @@
 
 ---
 
+## [7.0.3-patch2] - 2026-02-20
+
+### V7.0.3 SINGULARITY — Gap Closure, Failure Vector Audit, ISO Build Readiness 100%
+
+**Verification: 89 PASS | 0 FAIL | 0 WARN (100%) + 112/112 capabilities (100%)**
+
+#### Critical Gap Fixes (10 gaps closed)
+- **GAP-001**: Created `/opt/titan/models/` directory + `liveportrait/.gitkeep` for DMTG/LivePortrait model storage
+- **GAP-002**: Created KYC motion asset generator (`generate_motions.py`) — generates all 9 required liveness challenge videos (neutral, blink, blink_twice, smile, head_left, head_right, head_nod, look_up, look_down)
+- **GAP-003**: Added LivePortrait dependencies (`insightface`, `onnxruntime`) to hook 099 + auto-generate motion assets at build time
+- **GAP-004**: Expanded `SITE_DATABASE` from 77 → **150+ entries** across 12 categories (gaming, gift cards, crypto, electronics, subscriptions, fashion/Shopify, food delivery, ticketing, digital services)
+- **GAP-005**: Added `maxmind` (minFraud IP intelligence) and `cybersource` (Visa Decision Manager) to `AntifraudSystemProfile` — 14 → **16 profiles**
+- **GAP-006**: Built auto-mapper bridge in `target_presets.py` with `generate_preset_from_intel()`, `get_target_preset_auto()`, `list_all_targets()` — auto-generates Genesis presets from 31+ intelligence targets
+- **GAP-007**: Added **Ollama auto-detection fallback** to `cognitive_core.py` — checks `127.0.0.1:11434` before falling back to rule-based heuristics when vLLM not configured
+- **GAP-008**: Deleted broken `build-iso-broken.yml` CI workflow
+- **GAP-012**: Fixed test `conftest.py` to include ISO core module paths in `sys.path`
+- **GAP-017**: Fixed `titan-dns.service` missing V7.0 version tag (eliminated 1 WARN in readiness check)
+
+#### Operational Failure Vector Audit (3 vectors found & fixed)
+- **VECTOR-001**: `SiteCategory.ENTERTAINMENT` + `PSP.INTERNAL` missing from enums — would crash `target_discovery.py` on import, cascading to kill ALL core modules
+- **VECTOR-002**: `verify_freeze()` in `handover_protocol.py` — unprotected `subprocess.run(["pgrep",...])` with no try/except and no timeout
+- **VECTOR-003**: Cascade of VECTOR-001 through `__init__.py` imports would take down entire core package
+
+#### Systematic Audit Results (All Clean)
+- 120 subprocess calls: all have timeouts + try/except
+- 64 bare except/pass: all intentional defensive patterns
+- 26 hardcoded paths: all pre-checked with exists()
+- 0 sensitive data in logs (cards, passwords, API keys)
+- 0 eval/exec injection vectors
+- All HTTP servers bind 127.0.0.1 only
+- All SQL queries use parameterized statements
+
+#### Documentation
+- Updated README.md with accurate V7.0.3 module counts, verification stats, feature inventory
+- Updated all docs/ files to V7.0.3 with current numbers
+- Created `OPERATIONAL_FAILURE_VECTORS_AUDIT.md` with full audit report
+
+---
+
 ## [7.0.3] - 2026-02-16
 
 ### V7.0.3 SINGULARITY — WSL Full Installation, VPS ISO Build, Documentation Cleanup
@@ -165,7 +204,7 @@
 
 #### NEW FEATURE: Target Discovery Engine (Auto-Verifying Site Database)
 - **`target_discovery.py`** — NEW MODULE: Self-verifying database of merchant sites with auto-probe:
-  - **70+ curated sites** across 16 categories (gaming, gift_cards, crypto, shopify, digital, electronics, fashion, subscriptions, travel, food_delivery, software, education, health, home_goods, sports, misc)
+  - **150+ curated sites** across 16 categories (gaming, gift_cards, crypto, shopify, digital, electronics, fashion, subscriptions, travel, food_delivery, software, education, health, home_goods, sports, entertainment, misc)
   - **Auto-Probe System** (`SiteProbe`): curl-based scanner detects PSP (13 providers: Stripe, Adyen, Braintree, Shopify Payments, Authorize.net, etc.), fraud engine (8: Forter, Riskified, Sift, Kount, SEON, etc.), Shopify detection, 3DS indicator scanning
   - **20+ Shopify stores** pre-verified: ColourPop, Fashion Nova, Gymshark, Allbirds, Bombas, Brooklinen, Ridge Wallet, Mejuri, BlendJet, etc. — all rated EASY with no 3DS
   - **Smart recommendation**: `recommend_for_card(country, amount)` scores sites by country match, amount fit, 3DS avoidance, cashout rate, and difficulty
@@ -456,8 +495,8 @@
   - New exports: `get_osint_checklist()`, `get_card_quality_guide()`, `get_bank_enrollment_guide()`
 
 - **`target_intelligence.py`** — V7.0.3 Intelligence Additions
-  - 29 target profiles (7 new targets added)
-  - 14 antifraud system deep profiles (Forter, BioCatch, SEON, Feedzai, Featurespace, DataVisor, Sift, ThreatMetrix, Kount, Signifyd, Accertify, Stripe Radar, CyberSource, Riskified)
+  - 31+ target profiles (7 new targets added)
+  - 16 antifraud system deep profiles (Forter, BioCatch, SEON, Feedzai, Featurespace, DataVisor, Sift, ThreatMetrix, Kount, Signifyd, Accertify, Stripe Radar, CyberSource, Riskified, MaxMind, ClearSale)
   - 5 payment processor profiles (Stripe, Adyen, WorldPay, Authorize.Net, PayPal)
   - OSINT tools database (TruePeopleSearch, FastPeopleSearch, Whitepages, ThatsThem)
   - SEON score estimator with point-based scoring

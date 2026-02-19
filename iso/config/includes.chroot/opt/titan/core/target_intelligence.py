@@ -775,6 +775,52 @@ ANTIFRAUD_PROFILES: Dict[str, AntifraudSystemProfile] = {
         ],
         cross_merchant_sharing=True,
     ),
+    "maxmind": AntifraudSystemProfile(
+        name="MaxMind minFraud", vendor="MaxMind Inc.",
+        algorithm_class="IP Intelligence + Risk Scoring (minFraud)",
+        detection_method="IP geolocation accuracy, proxy/VPN detection, email/device risk scoring via minFraud API",
+        key_signals=[
+            "IP risk score based on historical fraud reports",
+            "Proxy/VPN/TOR detection via IP intelligence database",
+            "Email domain age and disposable email detection",
+            "Distance between billing address and IP geolocation",
+            "ISP and ASN reputation scoring",
+            "Device tracking via minFraud Device Tracking JS",
+        ],
+        evasion_guidance=[
+            "Residential proxy MANDATORY — datacenter IPs flagged instantly",
+            "IP must geolocate within 100 miles of billing address",
+            "Use real ISP residential IP, not mobile carrier",
+            "Email must be aged (30+ days) on reputable domain (gmail, outlook)",
+            "Avoid known VPN ASN ranges (NordVPN, ExpressVPN, etc.)",
+            "MaxMind DB is updated weekly — recently flagged IPs stay hot for 30+ days",
+        ],
+        cross_merchant_sharing=False,
+        behavioral_biometrics=False,
+    ),
+    "cybersource": AntifraudSystemProfile(
+        name="CyberSource Decision Manager", vendor="Visa (CyberSource)",
+        algorithm_class="Rules Engine + ML Hybrid (Visa Network Intelligence)",
+        detection_method="260+ data fields per transaction, Visa network-wide velocity checks, device fingerprinting via Cardinal",
+        key_signals=[
+            "Visa network intelligence — sees ALL Visa transactions globally",
+            "Device fingerprinting via Cardinal Commerce integration",
+            "Velocity checks across Visa merchant network",
+            "Address verification via Visa AVS (strictest in industry)",
+            "3DS 2.0 enforcement via Cardinal Commerce",
+            "Real-time negative list matching (BIN, email, device, IP)",
+        ],
+        evasion_guidance=[
+            "CyberSource has Visa network visibility — card burns are PERMANENT across all Visa merchants",
+            "Strict AVS matching required — exact address format per Visa standards",
+            "Cardinal device fingerprint persists across sites — use fresh browser profile per attempt",
+            "Avoid EU cards on US merchants (PSD2 triggers mandatory 3DS)",
+            "Low-value transactions (<$50) often bypass ML scoring and use rules-only",
+            "Some merchants use CyberSource rules but disable ML — test with small amounts first",
+        ],
+        cross_merchant_sharing=True,
+        behavioral_biometrics=False,
+    ),
 }
 
 

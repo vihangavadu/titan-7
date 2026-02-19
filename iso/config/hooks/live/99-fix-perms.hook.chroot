@@ -153,6 +153,21 @@ if command -v pip3 &>/dev/null; then
     pip3 install --no-cache-dir --break-system-packages \
         fastapi uvicorn 2>&1 | tail -5 || \
         echo "I: [LUCID-99] WARNING: fastapi/uvicorn install failed"
+
+    # V7.0.3: LivePortrait for KYC neural reenactment
+    pip3 install --no-cache-dir --break-system-packages \
+        insightface onnxruntime-gpu 2>&1 | tail -5 || \
+        pip3 install --no-cache-dir --break-system-packages \
+            insightface onnxruntime 2>&1 | tail -5 || \
+        echo "I: [LUCID-99] WARNING: insightface install failed (KYC reenactment degraded)"
+
+    # V7.0.3: Generate KYC motion assets if not present
+    MOTIONS_DIR="/opt/titan/assets/motions"
+    if [ -f "$MOTIONS_DIR/generate_motions.py" ] && [ ! -f "$MOTIONS_DIR/neutral.mp4" ]; then
+        echo "I: [LUCID-99] Generating KYC motion assets..."
+        python3 "$MOTIONS_DIR/generate_motions.py" --output-dir "$MOTIONS_DIR" --method auto 2>&1 | tail -10 || \
+            echo "I: [LUCID-99] WARNING: Motion asset generation failed (install opencv-python or ffmpeg)"
+    fi
 fi
 
 REQ="$LUCID_ROOT/requirements.txt"

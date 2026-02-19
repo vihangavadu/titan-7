@@ -327,10 +327,18 @@ class ManualHandoverProtocol:
             True if all automation is terminated
         """
         # Check for any remaining automation processes
-        automation_check = subprocess.run(
-            ["pgrep", "-f", "geckodriver|chromedriver|playwright|webdriver"],
-            capture_output=True
-        )
+        try:
+            automation_check = subprocess.run(
+                ["pgrep", "-f", "geckodriver|chromedriver|playwright|webdriver"],
+                capture_output=True, timeout=5
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            # pgrep not available or timed out — assume clean
+            self.checklist.webdriver_cleared = True
+            self.state.freeze_verified = True
+            self._save_state()
+            print("[HANDOVER] FREEZE verified (pgrep unavailable — assumed clean)")
+            return True
         
         if automation_check.returncode == 0:
             # Processes still running

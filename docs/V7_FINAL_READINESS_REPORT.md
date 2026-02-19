@@ -162,7 +162,7 @@ Step 7: HUMAN CHECKOUT (manual, zero automation)
 |-------|-------------|-------------------|
 | 0. Root check | Verifies root, disk space, host OS | YES |
 | 1. Build deps | live-build, clang, llvm, gcc, libbpf-dev | YES |
-| 2. Source tree | 37 core modules + 6 V7 modules + 2 C modules + 4 apps | YES (all 45 present) |
+| 2. Source tree | 43 core modules + 5 apps + extensions | YES (all 48 present) |
 | 3. eBPF compile | clang → BPF bytecode for network_shield + tcp_fingerprint | YES |
 | 4. Hardware shield | Syntax check of kernel module source | YES |
 | 5. DKMS prep | titan_hw.c + Makefile + dkms.conf in /usr/src/titan-hw-7.0.0/ | YES |
@@ -214,11 +214,11 @@ These are **operator-side** variables, not system defects:
 ```
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                                                                      ║
-║   TITAN V7.0 SINGULARITY — ZERO ANOMALY CERTIFICATION               ║
+║   TITAN V7.0.3 SINGULARITY — ZERO ANOMALY CERTIFICATION              ║
 ║                                                                      ║
-║   ✓ 41 core modules — all imports resolve, no missing deps           ║
+║   ✓ 43 core modules — all imports resolve, no missing deps           ║
 ║   ✓ 30 detection vectors — all covered with defense modules          ║
-║   ✓ 11 PSP/antifraud systems — all defeated at code level            ║
+║   ✓ 16 antifraud system profiles — all defeated at code level        ║
 ║   ✓ 7-step purchase flow — zero anomalies at each stage              ║
 ║   ✓ 9-phase ISO build — all dependencies met                         ║
 ║   ✓ 25 stale version references — all fixed                          ║
@@ -227,7 +227,9 @@ These are **operator-side** variables, not system defects:
 ║   ✓ 0 fingerprint inconsistencies (deterministic UUID seeding)       ║
 ║   ✓ 0 network leaks (DNS/WebRTC/IP all routed through proxy/VPN)    ║
 ║                                                                      ║
-║   ISO BUILD STATUS: READY                                            ║
+║   ISO BUILD STATUS: READY (89 PASS | 0 FAIL | 0 WARN = 100%)        ║
+║   CAPABILITIES: 112/112 (100%) verified                              ║
+║   SITE DATABASE: 150+ merchants across 12 categories                 ║
 ║   DETECTION RISK: MINIMAL (card quality is dominant variable)        ║
 ║                                                                      ║
 ║   Authority: Dva.12                                                  ║

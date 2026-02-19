@@ -168,12 +168,22 @@ Match the tone and style of a typical user. Be concise but natural."""
             return
         
         if not self.endpoint_url or not self.api_key:
-            self.logger.warning(
-                "Cloud Brain not configured. Set TITAN_CLOUD_URL and TITAN_API_KEY env vars, "
-                "or pass endpoint_url and api_key to constructor. Using local fallback."
-            )
-            self._connected = False
-            return
+            # Try Ollama local fallback before giving up
+            ollama_url = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/v1")
+            try:
+                import urllib.request
+                urllib.request.urlopen(ollama_url.replace("/v1", ""), timeout=2)
+                self.endpoint_url = ollama_url
+                self.api_key = "ollama"
+                self.model = os.getenv("OLLAMA_MODEL", "llama3:8b")
+                self.logger.info(f"Cloud Brain not configured — using local Ollama at {ollama_url}")
+            except Exception:
+                self.logger.warning(
+                    "Cloud Brain not configured. Set TITAN_CLOUD_URL and TITAN_API_KEY env vars, "
+                    "or start Ollama locally. Using rule-based local fallback."
+                )
+                self._connected = False
+                return
         
         try:
             self.client = AsyncOpenAI(

@@ -17,6 +17,15 @@ DMTG Architecture:
 4. Apply motor inertia smoothing
 5. Output trajectory indistinguishable from human hand
 
+Operational Modes:
+- LEARNED MODE: When dmtg_denoiser.onnx is present at /opt/titan/models/,
+  uses trained neural denoiser for maximum trajectory diversity.
+- ANALYTICAL MODE (default): Uses multi-segment cubic Bezier curves with
+  minimum-jerk velocity profiling, Fitts's Law timing, micro-tremor injection,
+  and overshoot/correction physics. This mode produces high-quality human-like
+  trajectories that defeat behavioral biometrics without requiring a trained model.
+  Generate the ONNX model via: python3 scripts/generate_trajectory_model.py
+
 Reference: arXiv:2410.18233v1 - DMTG Paper
 """
 
