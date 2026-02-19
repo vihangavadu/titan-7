@@ -9,12 +9,12 @@
 | File/Folder | Size | Status | Purpose |
 |-------------|------|--------|---------|
 | `.devcontainer/` | 2 files | ACTIVE | VS Code devcontainer (Python 3.11 base) |
-| `.github/workflows/` | 3 files | ACTIVE | CI/CD: `build-iso.yml` (V7.0), `test-modules.yml`, `v6_iso_build.yml` (legacy) |
+| `.github/workflows/` | 2 files | ACTIVE | CI/CD: `build-iso.yml` (V7.0), `test-modules.yml` |
 | `.gitattributes` | 183B | ACTIVE | Git LFS / line ending config |
 | `.gitignore` | 1.3KB | ACTIVE | Build artifacts, pycache, venvs, ISOs, .so/.ko files |
 | `docs/` | 15 active + 20 archived | ACTIVE | V7.0 documentation suite |
 | `Final/` | 6 files | ARCHIVE | V7.0.3 session reports, pre-flight checks, mission scope |
-| `iso/` | 237 items | **CORE** | Live-build ISO structure — the entire deployable OS |
+| `iso/` | 283 items | **CORE** | Live-build ISO structure — the entire deployable OS |
 | `profgen/` | 7 files | **CORE** | Firefox profile forensic generator pipeline |
 | `profiles/` | 2 sample profiles | ARCHIVE | Sample generated profiles (dev/test artifacts) |
 | `scripts/` | 11 files | ACTIVE | Build, deploy, verify, operation scripts |
@@ -55,7 +55,7 @@
 | `custom.list.chroot` | 239 packages | ACTIVE — V7.0 header, all categories covered |
 | `kyc_module.list.chroot` | KYC deps | ACTIVE — scipy, opencv, etc. |
 
-### `iso/config/hooks/live/` (7 hooks)
+### `iso/config/hooks/live/` (10 hooks)
 
 | Hook | Lines | Status | Purpose |
 |------|-------|--------|---------|
@@ -67,12 +67,12 @@
 | `095-os-harden.hook.chroot` | 4.6KB | ACTIVE | 11-section OS hardening |
 | `99-fix-perms.hook.chroot` | 15KB | ACTIVE | Final perms, pip, systemd, desktop, VPN |
 
-### `iso/config/includes.chroot/opt/titan/` (CORE — 45 modules)
+### `iso/config/includes.chroot/opt/titan/` (CORE — 48 modules)
 
 | Subfolder | Files | Status |
 |-----------|-------|--------|
-| `core/` | 41 Python + 2 C + Makefile + build_ebpf.sh | **CORE** — All V7.0 modules |
-| `apps/` | 4 PyQt6 GUI apps | **CORE** — Unified, Genesis, Cerberus, KYC |
+| `core/` | 43 Python modules (32,198 lines) | **CORE** — All V7.0.3 modules |
+| `apps/` | 5 PyQt6 GUI apps (5,238 lines) | **CORE** — Unified, Genesis, Cerberus, KYC, Mission Control |
 | `bin/` | 6 launcher scripts | **CORE** — titan-browser, first-boot, install-to-disk, etc. |
 | `extensions/ghost_motor/` | JS + manifest | **CORE** — Behavioral biometrics augmentation |
 | `testing/` | 7 test modules | ACTIVE — Adversary sim, PSP sandbox, detection emulator |

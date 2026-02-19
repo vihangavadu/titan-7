@@ -85,6 +85,7 @@ class PSP(Enum):
     PAYU = "payu"
     CYBERSOURCE = "cybersource"
     NMI = "nmi"
+    INTERNAL = "internal"
     UNKNOWN = "unknown"
 
 
@@ -104,6 +105,7 @@ class SiteCategory(Enum):
     HEALTH = "health"
     HOME_GOODS = "home_goods"
     SPORTS = "sports"
+    ENTERTAINMENT = "entertainment"
     MISC = "misc"
 
 

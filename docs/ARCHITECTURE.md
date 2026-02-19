@@ -2,7 +2,7 @@
 
 ## System Architecture and Component Design
 
-**Version:** 7.0.2 | **Authority:** Dva.12
+**Version:** 7.0.3 | **Authority:** Dva.12
 
 ---
 
