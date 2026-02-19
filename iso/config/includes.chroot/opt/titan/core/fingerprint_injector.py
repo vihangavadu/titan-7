@@ -54,6 +54,9 @@ class FingerprintConfig:
     # Hardware profile binding
     hardware_profile: Optional[Dict] = None
 
+    # Hardware concurrency — must match kernel spoof (e.g. /proc/cpuinfo cpu cores)
+    hardware_concurrency: int = 16
+
 
 @dataclass
 class FingerprintResult:
@@ -314,6 +317,55 @@ class FingerprintInjector:
             }
         }
     
+    def generate_hardware_concurrency_script(self) -> str:
+        """
+        Generate a JavaScript snippet that overrides navigator.hardwareConcurrency.
+
+        The returned script uses Object.defineProperty with a getter and no
+        setter, making the property effectively read-only (attempts to assign
+        are silently ignored in non-strict mode or throw in strict mode).
+        configurable:false prevents the descriptor from being redefined by
+        page scripts after injection.
+
+        The default value (16) is chosen to match the cpu_cores reported by
+        the kernel spoof in NetlinkHWBridge.sync_with_injector().
+        """
+        concurrency = int(self.config.hardware_concurrency)
+        return (
+            "(function() {{\n"
+            "    'use strict';\n"
+            "    Object.defineProperty(navigator, 'hardwareConcurrency', {{\n"
+            "        get: function() {{ return {concurrency}; }},\n"
+            "        configurable: false,\n"
+            "        enumerable: true,\n"
+            "    }});\n"
+            "}})();"
+        ).format(concurrency=concurrency)
+
+    def inject_cdp_preload(self, driver) -> None:
+        """
+        Inject navigator.hardwareConcurrency override via CDP preload.
+
+        Calls Page.addScriptToEvaluateOnNewDocument so the script runs
+        in every new document context BEFORE any page JavaScript executes.
+        This prevents anti-fraud scripts from reading the real core count
+        before our override is in place.
+
+        Args:
+            driver: A Selenium / undetected-chromedriver WebDriver instance
+                    that exposes execute_cdp_cmd(), or any object with the
+                    same interface (e.g. Playwright's CDP session).
+        """
+        script = self.generate_hardware_concurrency_script()
+        driver.execute_cdp_cmd(
+            "Page.addScriptToEvaluateOnNewDocument",
+            {"source": script},
+        )
+        logger.info(
+            "[CDP] hardwareConcurrency preload injected → %d cores",
+            self.config.hardware_concurrency,
+        )
+
     def write_to_profile(self, profile_path: Path):
         """
         Write fingerprint configuration to profile directory.
@@ -610,7 +662,7 @@ class NetlinkHWBridge:
         
         kernel_profile = {
             "cpu_model": "Intel(R) Core(TM) i7-12700K",
-            "cpu_cores": 16,
+            "cpu_cores": injector.config.hardware_concurrency,
             "cpu_threads": 24,
             "webgl_vendor": injector.config.webgl_vendor,
             "webgl_renderer": injector.config.webgl_renderer,
