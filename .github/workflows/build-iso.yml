@@ -91,6 +91,15 @@ jobs:
             dkms python3 python3-pip python3-venv \
             git curl wget rsync cpio gettext file \
             debian-archive-keyring
+          echo "[*] Injecting Debian Bookworm key into the system debootstrap keyring..."
+          # Ubuntu 22.04's debian-archive-keyring may not include the Bookworm key
+          # (F8D2585B8783D481). Download it and import it into the keyring that
+          # debootstrap uses by default so that 'lb bootstrap' succeeds.
+          wget -qO /tmp/archive-key-12.asc https://ftp-master.debian.org/keys/archive-key-12.asc
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
+            --import /tmp/archive-key-12.asc
+          rm -f /tmp/archive-key-12.asc
           echo "[*] Attempting to install kernel headers..."
           sudo apt-get install -y --no-install-recommends "linux-headers-$(uname -r)" 2>/dev/null || echo "[!] linux-headers not available - using bundled definitions"
           echo "[*] Probing loop module..."
