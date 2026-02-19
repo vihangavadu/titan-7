@@ -2,7 +2,7 @@
 Type=Application
 Name=Titan Browser
 GenericName=Hardened Anti-Detect Browser
-Comment=TITAN V7.0 — Phase 3 hardened Camoufox browser with full identity shield
+Comment=TITAN V7.0.3 — Phase 3 hardened Camoufox browser with full identity shield
 Exec=bash /opt/titan/bin/titan-browser
 Icon=web-browser
 Terminal=false

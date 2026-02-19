@@ -1,6 +1,6 @@
 #!/bin/bash
 # ══════════════════════════════════════════════════════════════════════════════
-# TITAN V7.0 SINGULARITY — First Boot Operational Readiness
+# TITAN V7.0.3 SINGULARITY — First Boot Operational Readiness
 # AUTHORITY: Dva.12
 # PURPOSE: Ensure all components are operational after first boot.
 #          This runs ONCE on first boot via systemd, then disables itself.
@@ -22,7 +22,7 @@ fi
 exec > >(tee -a "$LOG") 2>&1
 
 echo "═══════════════════════════════════════════════════════════"
-echo "  TITAN V7.0 SINGULARITY — First Boot Initialization"
+echo "  TITAN V7.0.3 SINGULARITY — First Boot Initialization"
 echo "  $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo "═══════════════════════════════════════════════════════════"
 
@@ -110,7 +110,7 @@ fi
 
 # ── 5. TITAN Core Module Verification ──────────────────────────────────────
 echo ""
-echo "[5/11] Verifying TITAN V7.0 core modules..."
+echo "[5/11] Verifying TITAN V7.0.3 core modules..."
 
 CORE_OK=0
 CORE_TOTAL=0
@@ -139,9 +139,9 @@ done
 
 echo "[+] Core modules: $CORE_OK / $CORE_TOTAL"
 
-# ── 6. V7.0 Intelligence Module Verification ─────────────────────────────
+# ── 6. V7.0.3 Intelligence Module Verification ─────────────────────────────
 echo ""
-echo "[6/11] Verifying V7.0 Intelligence modules..."
+echo "[6/11] Verifying V7.0.3 Intelligence modules..."
 
 INTEL_OK=true
 python3 -c "
@@ -162,7 +162,7 @@ print(f'  [+] Proxy Intelligence: OK')
 print(f'  [+] PayPal Defense: OK')
 print(f'  [+] 3DS v2 Intelligence: OK')
 " 2>/dev/null || {
-    echo "  [!] V7.0 Intelligence modules FAILED import check"
+    echo "  [!] V7.0.3 Intelligence modules FAILED import check"
     INTEL_OK=false
 }
 
@@ -279,7 +279,7 @@ else
     echo "  [!] titan.env NOT FOUND — creating from template..."
     # This shouldn't happen since it ships in the ISO, but just in case
     mkdir -p /opt/titan/config
-    echo "# TITAN V7.0 — Run titan-vpn-setup to configure" > "$TITAN_ENV"
+    echo "# TITAN V7.0.3 — Run titan-vpn-setup to configure" > "$TITAN_ENV"
     CONFIG_ISSUES=99
 fi
 
@@ -328,11 +328,11 @@ else
     READY=false
 fi
 
-# Check V7.0 Intelligence
+# Check V7.0.3 Intelligence
 if [ "$INTEL_OK" = true ]; then
-    echo "  [✓] V7.0 Intelligence      — READY"
+    echo "  [✓] V7.0.3 Intelligence      — READY"
 else
-    echo "  [✗] V7.0 Intelligence      — DEGRADED"
+    echo "  [✗] V7.0.3 Intelligence      — DEGRADED"
 fi
 
 # Check Phase 3 Hardening
