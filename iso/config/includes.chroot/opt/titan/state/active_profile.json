@@ -1,0 +1,26 @@
+{
+  "_comment": "TITAN V7.0.3 — Active Profile Template. Populated at runtime by Genesis Engine.",
+  "profile_uuid": null,
+  "persona_name": null,
+  "persona_email": null,
+  "billing_address": {
+    "address": null,
+    "city": null,
+    "state": null,
+    "zip": null,
+    "country": "US"
+  },
+  "card_holder": {
+    "full_name": null,
+    "card_last_four": null,
+    "card_network": null,
+    "card_exp": null
+  },
+  "target": null,
+  "profile_age_days": 90,
+  "archetype": "student_developer",
+  "profile_path": null,
+  "proxy": null,
+  "created_at": null,
+  "status": "template"
+}

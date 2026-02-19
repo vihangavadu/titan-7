@@ -1236,6 +1236,6 @@ This software is provided for **educational and research purposes only**. The au
 
 ---
 
-**Authority:** Dva.12 | **Version:** 7.0.2 SINGULARITY | **Codename:** REALITY_SYNTHESIS
+**Authority:** Dva.12 | **Version:** 7.0.3 SINGULARITY | **Codename:** REALITY_SYNTHESIS
 
 

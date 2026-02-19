@@ -439,7 +439,7 @@ fi
 hdr "PHASE 5 — PREPARE KERNEL MODULE (DKMS)"
 # ==============================================================================
 
-DKMS_DIR="$CHROOT/usr/src/titan-hw-${TITAN_VERSION}.0"
+DKMS_DIR="$CHROOT/usr/src/titan-hw-${TITAN_VERSION}"
 mkdir -p "$DKMS_DIR"
 
 # Copy source from hardware_shield directory or V6 core
@@ -471,7 +471,7 @@ fi
 # Write DKMS config
 cat > "$DKMS_DIR/dkms.conf" << EOF
 PACKAGE_NAME="titan-hw"
-PACKAGE_VERSION="${TITAN_VERSION}.0"
+PACKAGE_VERSION="${TITAN_VERSION}"
 BUILT_MODULE_NAME[0]="titan_hw"
 DEST_MODULE_LOCATION[0]="/kernel/drivers/misc"
 AUTOINSTALL="yes"

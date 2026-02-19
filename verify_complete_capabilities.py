@@ -45,14 +45,8 @@ class CapabilityVerifier:
 
     def verify_core_modules(self):
         """Verify all core modules dynamically using list length."""
-        # note: total defined below will be used for headers and counts
         CORE_MODULES = [
             "__init__.py",
-        ]
-        total = len(CORE_MODULES)
-        self.header(f"CORE MODULES ({total} Total)")
-
-        # begin listing checks
             "advanced_profile_generator.py",
             "audio_hardener.py",
             "cerberus_core.py",

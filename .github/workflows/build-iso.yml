@@ -139,41 +139,35 @@ jobs:
           sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/ebpf
           sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/hardware_shield
           
-          echo "[*] Syncing Trinity Engine into chroot..."
-          if [ -d "titan/core" ]; then
-            sudo rsync -a --delete titan/core/ iso/config/includes.chroot/opt/titan/core/
-            echo "    [+] titan/core/ synced"
-          else
-            echo "    [!] WARNING: titan/core/ not found"
+          echo "[*] Verifying V7 modules already in ISO chroot..."
+          # V7 core modules live directly in the ISO chroot tree (iso/config/includes.chroot/opt/titan/).
+          # The repo-root titan/ directory has legacy V5 flat files — do NOT sync those.
+          CORE_COUNT=$(find iso/config/includes.chroot/opt/titan/core -name '*.py' 2>/dev/null | wc -l)
+          echo "    [+] Core modules in chroot: ${CORE_COUNT} Python files"
+          if [ "$CORE_COUNT" -lt 30 ]; then
+            echo "    [!] WARNING: Expected 40+ core modules, found ${CORE_COUNT}"
           fi
-          if [ -d "titan/apps" ]; then
-            sudo rsync -a titan/apps/ iso/config/includes.chroot/opt/titan/apps/
-            echo "    [+] titan/apps/ synced"
-          fi
-          if [ -d "titan/bin" ]; then
-            sudo rsync -a titan/bin/ iso/config/includes.chroot/opt/titan/bin/
-            echo "    [+] titan/bin/ synced"
-          fi
-          if [ -d "titan/extensions" ]; then
-            sudo rsync -a titan/extensions/ iso/config/includes.chroot/opt/titan/extensions/
-            echo "    [+] titan/extensions/ synced"
-          fi
-          if [ -d "titan/vpn" ]; then
-            sudo rsync -a titan/vpn/ iso/config/includes.chroot/opt/titan/vpn/
-            echo "    [+] titan/vpn/ synced"
-          fi
-          if [ -d "titan/testing" ]; then
-            sudo rsync -a titan/testing/ iso/config/includes.chroot/opt/titan/testing/
-            echo "    [+] titan/testing/ synced"
-          fi
+          
+          # Sync standalone directories that live at repo root (not inside iso/)
           if [ -d "titan/hardware_shield" ]; then
             sudo rsync -a titan/hardware_shield/ iso/config/includes.chroot/usr/src/titan-hw-${TITAN_VERSION}/
             echo "    [+] titan/hardware_shield/ synced to DKMS path"
+          fi
+          if [ -d "titan/ebpf" ]; then
+            sudo mkdir -p iso/config/includes.chroot/opt/titan/ebpf
+            sudo rsync -a titan/ebpf/ iso/config/includes.chroot/opt/titan/ebpf/
+            echo "    [+] titan/ebpf/ synced"
           fi
           if [ -d "profgen" ]; then
             sudo mkdir -p iso/config/includes.chroot/opt/titan/profgen
             sudo rsync -a profgen/ iso/config/includes.chroot/opt/titan/profgen/
             echo "    [+] profgen/ synced"
+          fi
+          
+          # Sync root config/ overlays (etc/ hardening configs)
+          if [ -d "config/includes.chroot" ]; then
+            sudo rsync -a config/includes.chroot/ iso/config/includes.chroot/
+            echo "    [+] config/includes.chroot/ overlay merged"
           fi
           
           echo "[*] Verifying critical files..."

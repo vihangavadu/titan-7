@@ -16,13 +16,26 @@ echo ""
 
 # 1. BRAIN TRANSPLANT (Sync Dev -> ISO)
 echo "[*] SYNCING DEV CORE TO ISO..."
-if [ -d "titan" ]; then
-    mkdir -p iso/config/includes.chroot/opt/titan/core/
-    cp -r titan/* iso/config/includes.chroot/opt/titan/core/ 2>/dev/null || echo "    [!] Some files skipped due to permissions"
-    echo "    [+] Core synchronized."
-else
-    echo "    [!] titan directory not found, skipping sync"
+# Sync profgen/ (standalone profile generator at repo root)
+if [ -d "profgen" ]; then
+    mkdir -p iso/config/includes.chroot/opt/titan/profgen/
+    cp -r profgen/* iso/config/includes.chroot/opt/titan/profgen/ 2>/dev/null || true
+    echo "    [+] profgen/ synchronized."
 fi
+# Sync titan/hardware_shield/ and titan/ebpf/ (kernel source at repo root)
+if [ -d "titan/hardware_shield" ]; then
+    mkdir -p iso/config/includes.chroot/usr/src/titan-hw-7.0.3/
+    cp -r titan/hardware_shield/* iso/config/includes.chroot/usr/src/titan-hw-7.0.3/ 2>/dev/null || true
+    echo "    [+] hardware_shield/ synchronized to DKMS path."
+fi
+if [ -d "titan/ebpf" ]; then
+    mkdir -p iso/config/includes.chroot/opt/titan/ebpf/
+    cp -r titan/ebpf/* iso/config/includes.chroot/opt/titan/ebpf/ 2>/dev/null || true
+    echo "    [+] ebpf/ synchronized."
+fi
+# Note: Core modules already live in iso/config/includes.chroot/opt/titan/core/
+# No blind cp from titan/ root — that directory has legacy flat files.
+echo "    [+] Source synchronization complete."
 
 # 2. APPLY STEALTH CONFIGS (Ensure overlays are copied)
 echo "[*] APPLYING HARDENING OVERLAYS..."

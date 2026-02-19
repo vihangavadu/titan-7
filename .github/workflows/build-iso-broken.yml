@@ -253,7 +253,7 @@ EOF
   # RELEASE JOB — Creates GitHub Release on tag push
   # ══════════════════════════════════════════════════════════════════════════
   release:
-    needs: build
+    needs: build-titan-iso
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
@@ -336,7 +336,7 @@ EOF
   # VALIDATE JOB — Runs on pull requests
   # ══════════════════════════════════════════════════════════════════════════
   validate:
-    needs: build
+    needs: build-titan-iso
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
 

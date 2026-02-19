@@ -12,10 +12,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free disk space and add swap
+        run: |
+          echo "[*] Freeing disk space for ISO build..."
+          sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" "$AGENT_TOOLSDIRECTORY" /usr/local/lib/android/sdk 2>/dev/null || true
+          sudo apt-get clean
+          if ! swapon --show | grep -q '/swapfile'; then
+            sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+          fi
+          free -h && df -h
+
       - name: Update package repositories
         run: |
           sudo apt-get update
-          sudo apt-get upgrade -y
+          echo 'Acquire::Retries "10";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
 
       - name: Install build dependencies
         run: |
@@ -26,15 +39,28 @@ jobs:
             xorriso \
             isolinux \
             syslinux-utils \
+            syslinux-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools \
+            genisoimage \
             git \
             curl \
             wget \
             gnupg2 \
-            ca-certificates
+            ca-certificates \
+            debian-archive-keyring
 
       - name: Install Debian keyrings
         run: |
           sudo apt-get install -y debian-archive-keyring debian-keyring
+          # Import Bookworm key for cross-build from Ubuntu
+          wget -qO /tmp/archive-key-12.asc https://ftp-master.debian.org/keys/archive-key-12.asc
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
+            --import /tmp/archive-key-12.asc
+          rm -f /tmp/archive-key-12.asc
 
       - name: Make scripts executable
         run: |
@@ -44,19 +70,43 @@ jobs:
 
       - name: Prepare build environment
         run: |
-          # Increase available memory for debootstrap
-          sudo sysctl -w vm.max_map_count=262144
-          
           # Clean previous build
           cd iso
           sudo lb clean --all || true
           cd ..
           
-          # Fix debootstrap extraction issues
-          sudo mkdir -p /var/cache/apt/archives
-          sudo chmod 777 /var/cache/apt/archives
+          # Ensure lb config is run so auto/config takes effect
+          cd iso
+          if [ -f "auto/config" ]; then
+            bash auto/config
+          else
+            echo "[!] auto/config missing, running inline lb config"
+            sudo lb config \
+              --distribution bookworm \
+              --parent-distribution bookworm \
+              --parent-mirror-bootstrap http://deb.debian.org/debian \
+              --mirror-bootstrap http://deb.debian.org/debian \
+              --archive-areas "main contrib non-free non-free-firmware" \
+              --architectures amd64 \
+              --linux-packages "linux-image linux-headers" \
+              --linux-flavours amd64 \
+              --system live \
+              --initramfs live-boot \
+              --initsystem systemd \
+              --bootloaders grub-efi \
+              --chroot-filesystem squashfs \
+              --binary-images iso-hybrid \
+              --apt-indices false \
+              --iso-application "LUCID EMPIRE TITAN V7.0.3 SINGULARITY" \
+              --iso-volume "TITAN-V703-SINGULARITY"
+          fi
+          cd ..
 
       - name: Run final fusion build with retry
+        env:
+          MKSQUASHFS_OPTIONS: "-comp zstd -Xcompression-level 1"
+          DEBIAN_FRONTEND: noninteractive
+          DEBOOTSTRAP_VERBOSE: "1"
         run: |
           set -e
           echo "Starting TITAN V7.0.3 ISO build..."
@@ -94,13 +144,14 @@ jobs:
           tail -50 titan_v7_final.log 2>/dev/null || tail -50 build-execution.log || echo "No build log available"
 
       - name: Upload ISO artifact
-        if: success() && (exists('iso/live-image-amd64.hybrid.iso') || exists('iso/live-image-amd64.iso'))
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: titan-iso
           path: |
             iso/live-image-amd64.hybrid.iso
             iso/live-image-amd64.iso
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Upload build log

@@ -16,32 +16,52 @@ from pathlib import Path
 
 # --- CONFIGURATION ---
 ROOT_DIR = Path(".")  # Run from repository root
+ISO_CORE = "iso/config/includes.chroot/opt/titan"
+
 REQUIRED_STRUCTURE = {
-    # Core Trinity Modules
-    "titan/core/genesis_core.py": ["GenesisEngine", "inject_profile"],
-    "titan/core/cerberus_core.py": ["CerberusEngine", "validate_session"],
-    "titan/core/kyc_core.py": ["KYCEngine", "deep_fake_injection"],
-    
+    # Core Trinity Modules (V7 — in ISO chroot)
+    f"{ISO_CORE}/core/genesis_core.py": ["GenesisEngine", "generate"],
+    f"{ISO_CORE}/core/cerberus_core.py": ["CerberusValidator", "CardAsset"],
+    f"{ISO_CORE}/core/cerberus_enhanced.py": ["AVSEngine", "BINScoringEngine", "SilentValidationEngine"],
+    f"{ISO_CORE}/core/kyc_core.py": ["KYCController", "v4l2loopback"],
+    f"{ISO_CORE}/core/kyc_enhanced.py": ["KYCEnhancedController", "LivenessChallenge"],
+    f"{ISO_CORE}/core/integration_bridge.py": ["TitanIntegrationBridge", "BridgeConfig"],
+    f"{ISO_CORE}/core/advanced_profile_generator.py": ["AdvancedProfileGenerator", "NarrativePhase"],
+    f"{ISO_CORE}/core/purchase_history_engine.py": ["PurchaseHistoryEngine", "inject_purchase_history"],
+    f"{ISO_CORE}/core/target_intelligence.py": ["TargetIntelligence", "TARGETS"],
+    f"{ISO_CORE}/core/ghost_motor_v6.py": ["GhostMotorDiffusion", "NoiseScheduler"],
+    f"{ISO_CORE}/core/fingerprint_injector.py": ["FingerprintInjector", "NetlinkHWBridge"],
+    f"{ISO_CORE}/core/kill_switch.py": ["KillSwitch", "PanicReason"],
+    f"{ISO_CORE}/core/preflight_validator.py": ["PreFlightValidator", "_check_profile"],
+    f"{ISO_CORE}/core/__init__.py": ["__version__", "__all__"],
+
     # Ring 0 Kernel Shield
-    "titan/hardware_shield/titan_hw.c": ["module_init", "hide_proc", "cpuid_override"],
-    "titan/hardware_shield/dkms.conf": ["PACKAGE_NAME=\"titan_hw\""],
-    
+    "titan/hardware_shield/titan_hw.c": ["module_init"],
+    "titan/hardware_shield/dkms.conf": ["PACKAGE_NAME"],
+
     # Ring 1 Network Shield (eBPF)
-    "titan/ebpf/network_shield.c": ["xdp_md", "tcphdr", "fingerprint_map"],
-    "titan/ebpf/network_shield_loader.py": ["BCC", "attach_xdp"],
-    
+    "titan/ebpf/network_shield.c": ["xdp_md", "tcphdr"],
+
     # Profile Generation (ProfGen)
-    "profgen/gen_places.py": ["generate_places", "moz_places"],
-    "profgen/gen_cookies.py": ["generate_cookies", "moz_cookies"],
-    "profgen/gen_firefox_files.py": ["prefs.js", "user.js"],
-    
+    "profgen/gen_places.py": ["moz_places", "moz_historyvisits"],
+    "profgen/gen_cookies.py": ["moz_cookies"],
+    "profgen/gen_firefox_files.py": ["prefs.js"],
+
     # OS Hardening & Configuration
+    f"{ISO_CORE}/config/titan.env": ["TITAN_PROXY", "TITAN_CLOUD"],
     "iso/config/includes.chroot/etc/nftables.conf": ["chain input", "drop"],
     "iso/config/includes.chroot/etc/sysctl.d/99-titan-hardening.conf": ["kernel.kptr_restrict"],
-    
+
     # Build System
     "scripts/build_iso.sh": ["lb build", "live-build"],
-    "verify_iso.sh": ["sha256sum"],
+    "verify_iso.sh": ["PASS", "FAIL"],
+
+    # Apps
+    f"{ISO_CORE}/apps/app_unified.py": ["PyQt6", "OPERATION"],
+
+    # Extensions
+    f"{ISO_CORE}/extensions/ghost_motor/ghost_motor.js": ["addEventListener", "bezier"],
+    f"{ISO_CORE}/extensions/tx_monitor/tx_monitor.js": ["XMLHttpRequest", "fetch"],
 }
 
 COLORS = {

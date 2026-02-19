@@ -73,8 +73,8 @@ fi
 echo "  [+] Available disk: ${AVAIL_SPACE}GB"
 
 # Verify we're in titan-main directory
-if [ ! -f "iso/finalize_titan.sh" ]; then
-    echo -e "${RED}[!] ERROR: Not in titan-main directory${NC}"
+if [ ! -d "iso/config/includes.chroot/opt/titan/core" ]; then
+    echo -e "${RED}[!] ERROR: Not in titan-main directory or ISO chroot missing${NC}"
     echo "  Run this script from: /path/to/titan-main/"
     exit 1
 fi
@@ -171,9 +171,19 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════
 echo -e "${BLUE}[5/5] Verifying Output${NC}"
 
-ISO_FILE="$SCRIPT_DIR/iso/titan-v7.0.3-singularity.iso"
+# Check for ISO output (lb build produces live-image-amd64.hybrid.iso by default)
+ISO_FILE=""
+for candidate in \
+    "$SCRIPT_DIR/iso/titan-v7.0.3-singularity.iso" \
+    "$SCRIPT_DIR/iso/live-image-amd64.hybrid.iso" \
+    "$SCRIPT_DIR/iso/live-image-amd64.iso"; do
+    if [ -f "$candidate" ]; then
+        ISO_FILE="$candidate"
+        break
+    fi
+done
 
-if [ -f "$ISO_FILE" ]; then
+if [ -n "$ISO_FILE" ]; then
     ISO_SIZE=$(du -h "$ISO_FILE" | cut -f1)
     echo "  [+] ISO created: $ISO_FILE"
     echo "  [+] Size: $ISO_SIZE"

@@ -9,7 +9,7 @@
 # set -e  # Disabled to prevent build failures on non-critical errors
 
 MODULE_NAME="titan-hw"
-MODULE_VERSION="7.0.0"
+MODULE_VERSION="7.0.3"
 DKMS_SRC_DIR="/usr/src/${MODULE_NAME}-${MODULE_VERSION}"
 LUCID_HW_DIR="/opt/titan/hardware_shield"
 MODULE_INSTALL_DIR="/opt/titan/kernel-modules"
@@ -56,7 +56,7 @@ fi
 # Generate DKMS configuration
 cat > "$DKMS_SRC_DIR/dkms.conf" << 'DKMSEOF'
 PACKAGE_NAME="titan-hw"
-PACKAGE_VERSION="7.0.0"
+PACKAGE_VERSION="7.0.3"
 BUILT_MODULE_NAME[0]="titan_hw"
 DEST_MODULE_LOCATION[0]="/kernel/drivers/misc"
 AUTOINSTALL="yes"
