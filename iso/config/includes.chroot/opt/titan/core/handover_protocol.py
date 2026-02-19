@@ -23,12 +23,15 @@ import os
 import json
 import time
 import subprocess
+import logging
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Callable
 from enum import Enum
 import signal
+
+logger = logging.getLogger("TITAN-V7-HANDOVER")
 
 
 class HandoverPhase(Enum):
