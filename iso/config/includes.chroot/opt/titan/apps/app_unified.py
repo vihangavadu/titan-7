@@ -539,42 +539,44 @@ class UnifiedOperationCenter(QMainWindow):
         # ═══════════════════════════════════════════════════════════════════
         actions_layout = QHBoxLayout()
         
-        self.forge_btn = QPushButton("🔥 FORGE PROFILE")
-        self.forge_btn.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        self.forge_btn = QPushButton("SYNTHESIZE PROFILE")
+        self.forge_btn.setFont(QFont("Inter", 14, QFont.Weight.Bold))
         self.forge_btn.setMinimumHeight(50)
         self.forge_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3A75C4;
                 color: white;
                 border: none;
-                border-radius: 5px;
+                border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: #ff8833;
+                background-color: #4A8AD8;
             }
             QPushButton:disabled {
-                background-color: #555;
+                background-color: #2A3444;
+                color: #64748B;
             }
         """)
         self.forge_btn.clicked.connect(self.forge_profile)
         actions_layout.addWidget(self.forge_btn)
         
-        self.launch_btn = QPushButton("🌐 LAUNCH BROWSER")
-        self.launch_btn.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        self.launch_btn = QPushButton("INITIATE SESSION")
+        self.launch_btn.setFont(QFont("Inter", 14, QFont.Weight.Bold))
         self.launch_btn.setMinimumHeight(50)
         self.launch_btn.setEnabled(False)
         self.launch_btn.setStyleSheet("""
             QPushButton {
-                background-color: #00aa00;
+                background-color: #2E7D32;
                 color: white;
                 border: none;
-                border-radius: 5px;
+                border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: #00cc00;
+                background-color: #388E3C;
             }
             QPushButton:disabled {
-                background-color: #555;
+                background-color: #2A3444;
+                color: #64748B;
             }
         """)
         self.launch_btn.clicked.connect(self.launch_browser)
@@ -1049,15 +1051,15 @@ class UnifiedOperationCenter(QMainWindow):
         kyc_layout = QVBoxLayout(kyc_tab)
         kyc_layout.setSpacing(10)
         
-        kyc_header = QLabel("🎭 KYC — THE MASK")
-        kyc_header.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        kyc_header = QLabel("VERIFICATION COMPLIANCE")
+        kyc_header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
         kyc_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        kyc_header.setStyleSheet("color: #9c27b0;")
+        kyc_header.setStyleSheet("color: #3A75C4;")
         kyc_layout.addWidget(kyc_header)
         
         kyc_subtitle = QLabel("System-Level Virtual Camera Controller — Works with ANY app")
         kyc_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        kyc_subtitle.setStyleSheet("color: #888; font-size: 11px;")
+        kyc_subtitle.setStyleSheet("color: #94A3B8; font-size: 11px;")
         kyc_layout.addWidget(kyc_subtitle)
         
         # KYC Controls
@@ -1069,7 +1071,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.kyc_image_label = QLabel("No image loaded\n\nClick 'Load Image'\nto select a face photo")
         self.kyc_image_label.setMinimumSize(220, 260)
         self.kyc_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.kyc_image_label.setStyleSheet("background-color: #2d2d2d; border: 2px dashed #444; border-radius: 8px;")
+        self.kyc_image_label.setStyleSheet("background-color: #1C2330; border: 2px dashed #2A3444; border-radius: 8px;")
         kyc_src_layout.addWidget(self.kyc_image_label)
         self.kyc_load_btn = QPushButton("📁 Load Image")
         self.kyc_load_btn.setMinimumHeight(30)
@@ -1127,11 +1129,11 @@ class UnifiedOperationCenter(QMainWindow):
         kyc_status_layout = QHBoxLayout(kyc_status_group)
         kyc_status_layout.addWidget(QLabel("Device:"))
         self.kyc_device_label = QLabel("/dev/video10")
-        self.kyc_device_label.setStyleSheet("color: #9c27b0; font-family: Consolas;")
+        self.kyc_device_label.setStyleSheet("color: #3A75C4; font-family: 'JetBrains Mono', monospace;")
         kyc_status_layout.addWidget(self.kyc_device_label)
         kyc_status_layout.addStretch()
         self.kyc_status_indicator = QLabel("⚪ STOPPED")
-        self.kyc_status_indicator.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.kyc_status_indicator.setFont(QFont("Inter", 11, QFont.Weight.Bold))
         kyc_status_layout.addWidget(self.kyc_status_indicator)
         kyc_layout.addWidget(kyc_status_group)
         
@@ -1139,15 +1141,15 @@ class UnifiedOperationCenter(QMainWindow):
         kyc_btn_layout = QHBoxLayout()
         self.kyc_start_btn = QPushButton("▶️ START STREAM")
         self.kyc_start_btn.setMinimumHeight(45)
-        self.kyc_start_btn.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        self.kyc_start_btn.setStyleSheet("QPushButton{background:#4CAF50;color:white;border:none;border-radius:8px;} QPushButton:hover{background:#66BB6A;}")
+        self.kyc_start_btn.setFont(QFont("Inter", 11, QFont.Weight.Bold))
+        self.kyc_start_btn.setStyleSheet("QPushButton{background:#2E7D32;color:white;border:none;border-radius:8px;} QPushButton:hover{background:#388E3C;}")
         self.kyc_start_btn.clicked.connect(self._kyc_start)
         kyc_btn_layout.addWidget(self.kyc_start_btn)
         
         self.kyc_stop_btn = QPushButton("⏹️ STOP")
         self.kyc_stop_btn.setMinimumHeight(45)
         self.kyc_stop_btn.setEnabled(False)
-        self.kyc_stop_btn.setStyleSheet("QPushButton{background:#f44336;color:white;border:none;border-radius:8px;} QPushButton:hover{background:#ef5350;} QPushButton:disabled{background:#555;color:#888;}")
+        self.kyc_stop_btn.setStyleSheet("QPushButton{background:#D32F2F;color:white;border:none;border-radius:8px;} QPushButton:hover{background:#EF5350;} QPushButton:disabled{background:#2A3444;color:#64748B;}")
         self.kyc_stop_btn.clicked.connect(self._kyc_stop)
         kyc_btn_layout.addWidget(self.kyc_stop_btn)
         kyc_layout.addLayout(kyc_btn_layout)
@@ -2986,6 +2988,13 @@ def show_splash(app):
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+
+    # Apply enterprise theme globally at QApplication level
+    try:
+        from titan_enterprise_theme import apply_enterprise_theme_to_app
+        apply_enterprise_theme_to_app(app)
+    except ImportError:
+        pass
 
     splash = show_splash(app)
 

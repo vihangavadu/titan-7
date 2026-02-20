@@ -343,12 +343,12 @@ class KYCApp(QMainWindow):
         device_layout = QHBoxLayout()
         device_layout.addWidget(QLabel("Device:"))
         self.device_label = QLabel("/dev/video2")
-        self.device_label.setStyleSheet("color: #9c27b0; font-family: Consolas;")
+        self.device_label.setStyleSheet("color: #3A75C4; font-family: Consolas;")
         device_layout.addWidget(self.device_label)
         device_layout.addStretch()
         
         self.status_indicator = QLabel("⚪ STOPPED")
-        self.status_indicator.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.status_indicator.setFont(QFont("Inter", 12, QFont.Weight.Bold))
         device_layout.addWidget(self.status_indicator)
         status_layout.addLayout(device_layout)
         
@@ -359,7 +359,7 @@ class KYCApp(QMainWindow):
         
         self.start_btn = QPushButton("▶️ START STREAM")
         self.start_btn.setMinimumHeight(50)
-        self.start_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.start_btn.setFont(QFont("Inter", 12, QFont.Weight.Bold))
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
@@ -446,12 +446,12 @@ class KYCApp(QMainWindow):
         self.doc_mode_btn.setMinimumHeight(40)
         self.doc_mode_btn.setStyleSheet("""
             QPushButton {
-                background-color: rgba(156, 39, 176, 0.2);
-                color: #ce93d8;
-                border: 1px solid #9c27b0;
+                background-color: rgba(58, 117, 196, 0.2);
+                color: #4A8AD8;
+                border: 1px solid #3A75C4;
                 border-radius: 6px;
             }
-            QPushButton:hover { background-color: rgba(156, 39, 176, 0.35); }
+            QPushButton:hover { background-color: rgba(58, 117, 196, 0.35); }
         """)
         self.doc_mode_btn.clicked.connect(self.stream_document)
         doc_btn_layout.addWidget(self.doc_mode_btn)
@@ -545,13 +545,13 @@ class KYCApp(QMainWindow):
         btn_row = QHBoxLayout()
         inject_front_btn = QPushButton("📄 Inject Front")
         inject_front_btn.setMinimumHeight(36)
-        inject_front_btn.setStyleSheet("background: #9c27b0; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        inject_front_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         inject_front_btn.clicked.connect(lambda: self._inject_document("front"))
         btn_row.addWidget(inject_front_btn)
 
         inject_back_btn = QPushButton("📄 Inject Back")
         inject_back_btn.setMinimumHeight(36)
-        inject_back_btn.setStyleSheet("background: #7b1fa2; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        inject_back_btn.setStyleSheet("background: #2D5F9E; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         inject_back_btn.clicked.connect(lambda: self._inject_document("back"))
         btn_row.addWidget(inject_back_btn)
 
@@ -575,7 +575,7 @@ class KYCApp(QMainWindow):
         for ch in challenges:
             ch_btn = QPushButton(ch)
             ch_btn.setMinimumHeight(30)
-            ch_btn.setStyleSheet("background: rgba(156,39,176,0.15); color: #ce93d8; border: 1px solid rgba(156,39,176,0.3); border-radius: 4px; padding: 2px 8px; font-size: 10px;")
+            ch_btn.setStyleSheet("background: rgba(58,117,196,0.15); color: #4A8AD8; border: 1px solid rgba(58,117,196,0.3); border-radius: 4px; padding: 2px 8px; font-size: 10px;")
             ch_btn.clicked.connect(lambda checked, c=ch: self._trigger_challenge(c))
             liveness_layout.addWidget(ch_btn)
         layout.addWidget(liveness_group)
@@ -735,7 +735,7 @@ class KYCApp(QMainWindow):
 
         activity_btn = QPushButton("📱 Start Background Activity")
         activity_btn.setMinimumHeight(36)
-        activity_btn.setStyleSheet("background: #9c27b0; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        activity_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         activity_btn.clicked.connect(self._start_mobile_activity)
         btn_row.addWidget(activity_btn)
 
@@ -820,7 +820,7 @@ class KYCApp(QMainWindow):
                 self.image_preview.setStyleSheet("""
                     QLabel {
                         background-color: #2d2d2d;
-                        border: 2px solid #9c27b0;
+                        border: 2px solid #3A75C4;
                         border-radius: 8px;
                     }
                 """)
@@ -1095,7 +1095,7 @@ class KYCApp(QMainWindow):
 
         self.speak_to_cam_btn = QPushButton("🎬 Speak to Camera (Video + Audio)")
         self.speak_to_cam_btn.setMinimumHeight(40)
-        self.speak_to_cam_btn.setStyleSheet("QPushButton { background-color: #9c27b0; color: white; font-weight: bold; font-size: 13px; }")
+        self.speak_to_cam_btn.setStyleSheet("QPushButton { background-color: #3A75C4; color: white; font-weight: bold; font-size: 13px; }")
         self.speak_to_cam_btn.clicked.connect(self._speak_to_camera)
         btn_row1.addWidget(self.speak_to_cam_btn)
         ag_layout.addLayout(btn_row1)
@@ -1235,7 +1235,13 @@ class KYCApp(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    
+
+    try:
+        from titan_enterprise_theme import apply_enterprise_theme_to_app
+        apply_enterprise_theme_to_app(app)
+    except ImportError:
+        pass
+
     splash = None
     try:
         from titan_splash import show_titan_splash

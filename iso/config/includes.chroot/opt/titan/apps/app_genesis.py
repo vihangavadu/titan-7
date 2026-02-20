@@ -946,7 +946,13 @@ class GenesisApp(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    
+
+    try:
+        from titan_enterprise_theme import apply_enterprise_theme_to_app
+        apply_enterprise_theme_to_app(app)
+    except ImportError:
+        pass
+
     splash = None
     try:
         from titan_splash import show_titan_splash

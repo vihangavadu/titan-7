@@ -83,7 +83,7 @@ class DrainPlanDialog(QDialog):
         self.plan_display.setPlainText(plan_text)
         self.plan_display.setStyleSheet("""
             QTextEdit {
-                background-color: #1a1a2e;
+                background-color: #1C2330;
                 color: #e0e0e0;
                 border: 1px solid #333;
                 border-radius: 6px;
@@ -97,14 +97,14 @@ class DrainPlanDialog(QDialog):
         copy_btn = QPushButton("Copy to Clipboard")
         copy_btn.setStyleSheet("""
             QPushButton {
-                background-color: #ff9800;
+                background-color: #E6A817;
                 color: white;
                 border: none;
                 border-radius: 6px;
                 padding: 10px 20px;
                 font-weight: bold;
             }
-            QPushButton:hover { background-color: #ffa726; }
+            QPushButton:hover { background-color: #F0BD3E; }
         """)
         copy_btn.clicked.connect(lambda: QApplication.clipboard().setText(plan_text))
         btn_layout.addWidget(copy_btn)
@@ -304,12 +304,12 @@ class CerberusApp(QMainWindow):
         traffic_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         self.traffic_light = QLabel("⚪")
-        self.traffic_light.setFont(QFont("Segoe UI Emoji", 64))
+        self.traffic_light.setFont(QFont("Inter Emoji", 64))
         self.traffic_light.setAlignment(Qt.AlignmentFlag.AlignCenter)
         traffic_layout.addWidget(self.traffic_light)
         
         self.status_text = QLabel("READY")
-        self.status_text.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        self.status_text.setFont(QFont("Inter", 18, QFont.Weight.Bold))
         self.status_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_text.setStyleSheet("color: #888;")
         traffic_layout.addWidget(self.status_text)
@@ -343,7 +343,7 @@ class CerberusApp(QMainWindow):
         
         self.validate_btn = QPushButton("🔍 VALIDATE")
         self.validate_btn.setMinimumHeight(45)
-        self.validate_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.validate_btn.setFont(QFont("Inter", 12, QFont.Weight.Bold))
         self.validate_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3A75C4;
@@ -352,10 +352,10 @@ class CerberusApp(QMainWindow):
                 border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: #26c6da;
+                background-color: #4A8AD8;
             }
             QPushButton:pressed {
-                background-color: #0097a7;
+                background-color: #2D5F9E;
             }
             QPushButton:disabled {
                 background-color: #555;
@@ -403,17 +403,17 @@ class CerberusApp(QMainWindow):
         # Strategy button (shown after LIVE validation)
         self.strategy_btn = QPushButton("Extraction Strategy")
         self.strategy_btn.setMinimumHeight(40)
-        self.strategy_btn.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.strategy_btn.setFont(QFont("Inter", 11, QFont.Weight.Bold))
         self.strategy_btn.setVisible(False)
         self.strategy_btn.setStyleSheet("""
             QPushButton {
-                background-color: #ff9800;
+                background-color: #E6A817;
                 color: white;
                 border: none;
                 border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: #ffa726;
+                background-color: #F0BD3E;
             }
             QPushButton:pressed {
                 background-color: #e65100;
@@ -461,7 +461,7 @@ class CerberusApp(QMainWindow):
         stats_layout.addWidget(export_btn)
         
         bulk_btn = QPushButton("Bulk Validate")
-        bulk_btn.setStyleSheet("color: #ff9800; background: transparent; border: 1px solid #ff9800; border-radius: 4px; padding: 4px 10px;")
+        bulk_btn.setStyleSheet("color: #E6A817; background: transparent; border: 1px solid #E6A817; border-radius: 4px; padding: 4px 10px;")
         bulk_btn.clicked.connect(self.bulk_validate)
         stats_layout.addWidget(bulk_btn)
         
@@ -508,7 +508,7 @@ class CerberusApp(QMainWindow):
 
         bin_score_btn = QPushButton("📊 Score BIN")
         bin_score_btn.setMinimumHeight(36)
-        bin_score_btn.setStyleSheet("background: #ff9800; color: white; border: none; border-radius: 6px; padding: 0 16px; font-weight: bold;")
+        bin_score_btn.setStyleSheet("background: #E6A817; color: white; border: none; border-radius: 6px; padding: 0 16px; font-weight: bold;")
         bin_score_btn.clicked.connect(self._score_bin)
         input_row.addWidget(bin_score_btn)
         layout.addLayout(input_row)
@@ -1285,7 +1285,13 @@ class CerberusApp(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    
+
+    try:
+        from titan_enterprise_theme import apply_enterprise_theme_to_app
+        apply_enterprise_theme_to_app(app)
+    except ImportError:
+        pass
+
     splash = None
     try:
         from titan_splash import show_titan_splash

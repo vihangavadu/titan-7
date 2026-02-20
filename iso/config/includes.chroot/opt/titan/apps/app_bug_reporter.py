@@ -592,9 +592,9 @@ class BugReporterWindow(QMainWindow):
 
         # Header
         header = QHBoxLayout()
-        title_lbl = QLabel("Bug Reporter + Auto-Patcher")
-        title_lbl.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        title_lbl.setStyleSheet("color: #5588ff;")
+        title_lbl = QLabel("Diagnostic Reporter + Auto-Patcher")
+        title_lbl.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+        title_lbl.setStyleSheet("color: #3A75C4;")
         header.addWidget(title_lbl)
         header.addStretch()
 
@@ -1090,13 +1090,19 @@ class BugReporterWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("TITAN Bug Reporter")
+    app.setApplicationName("TITAN Diagnostic Reporter")
     app.setStyle("Fusion")
+
+    try:
+        from titan_enterprise_theme import apply_enterprise_theme_to_app
+        apply_enterprise_theme_to_app(app)
+    except ImportError:
+        pass
 
     splash = None
     try:
         from titan_splash import show_titan_splash
-        splash = show_titan_splash(app, "BUG REPORTER & AUTO-PATCHER", "#5588ff")
+        splash = show_titan_splash(app, "DIAGNOSTIC REPORTER", "#3A75C4")
     except Exception:
         pass
 
