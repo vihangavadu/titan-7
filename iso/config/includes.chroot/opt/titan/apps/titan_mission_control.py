@@ -15,22 +15,25 @@ if not os.path.exists(ENV_PATH):
     ENV_PATH = ".env" # Fallback for local dev
 load_dotenv(ENV_PATH)
 
-# TITAN CYBERPUNK THEME PALETTE
-COLORS = {
-    "bg": "#0a0e17",         # Deep midnight
-    "fg": "#00d4ff",         # Neon cyan
-    "fg_dim": "#556677",     # Muted text
-    "accent": "#0e1420",     # Panel base
-    "accent_hover": "#121a28",
-    "green": "#00ff88",      # Success green
-    "orange": "#ff6b35",     # Genesis orange
-    "alert": "#ff4444",      # Error red
-    "warn": "#ffaa00",       # Warning amber
-    "panel": "#0e1420",      # Panel background
-    "border": "#1a2640",     # Border color
-    "highlight": "#00d4ff",  # Selection highlight
-    "text": "#c8d2dc",       # Primary text
-}
+# TITAN ENTERPRISE HRUX PALETTE
+try:
+    from titan_enterprise_theme import MISSION_CONTROL_COLORS as COLORS
+except ImportError:
+    COLORS = {
+        "bg": "#151A21",         # Slate UI
+        "fg": "#4A8AD8",         # Corporate Trust Blue
+        "fg_dim": "#64748B",     # Muted text
+        "accent": "#1C2330",     # Panel base
+        "accent_hover": "#232B3A",
+        "green": "#4CAF50",      # Secure Green
+        "orange": "#FFB74D",     # Warning Amber
+        "alert": "#EF5350",      # Action Red
+        "warn": "#E6A817",       # Warning
+        "panel": "#1C2330",      # Panel background
+        "border": "#2A3444",     # Border color
+        "highlight": "#3A75C4",  # Selection highlight
+        "text": "#E2E8F0",       # Primary text
+    }
 
 class TitanMissionControl:
     def __init__(self, root):

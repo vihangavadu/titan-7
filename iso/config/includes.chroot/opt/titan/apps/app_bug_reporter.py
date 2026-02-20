@@ -577,104 +577,12 @@ class BugReporterWindow(QMainWindow):
         self._ingest_crash_logs()
 
     def _apply_dark_theme(self):
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(10, 14, 23))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(200, 210, 220))
-        palette.setColor(QPalette.ColorRole.Base, QColor(14, 20, 32))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(18, 26, 40))
-        palette.setColor(QPalette.ColorRole.Text, QColor(200, 210, 220))
-        palette.setColor(QPalette.ColorRole.Button, QColor(18, 26, 40))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor(200, 210, 220))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor(85, 136, 255))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(14, 20, 32))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(200, 210, 220))
-        self.setPalette(palette)
-        self.setStyleSheet("""
-            QMainWindow { background-color: #0a0e17; }
-            QGroupBox {
-                font-weight: bold;
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                color: #5588ff;
-                border: 1px solid rgba(85, 136, 255, 0.3);
-                border-radius: 8px;
-                margin-top: 12px;
-                padding-top: 14px;
-                background-color: rgba(14, 20, 32, 0.85);
-            }
-            QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 8px; color: #5588ff; }
-            QLabel { color: #c8d2dc; }
-            QPushButton {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background-color: rgba(85, 136, 255, 0.1);
-                border: 1px solid rgba(85, 136, 255, 0.3);
-                border-radius: 6px;
-                padding: 6px 16px;
-                color: #5588ff;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: rgba(85, 136, 255, 0.2); border: 1px solid #5588ff; }
-            QPushButton:pressed { background-color: rgba(85, 136, 255, 0.3); }
-            QPushButton:disabled { background-color: rgba(30, 40, 55, 0.5); border: 1px solid rgba(100, 110, 120, 0.2); color: #556; }
-            QPushButton#critical { background: rgba(139, 0, 0, 0.4); border-color: rgba(255, 68, 68, 0.5); color: #ff6666; }
-            QPushButton#critical:hover { background: rgba(170, 0, 0, 0.5); border-color: #f44; }
-            QPushButton#success { background: rgba(26, 107, 26, 0.4); border-color: rgba(68, 255, 68, 0.5); color: #66ff66; }
-            QLineEdit, QTextEdit, QComboBox, QSpinBox {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background-color: rgba(18, 26, 40, 0.9);
-                border: 1px solid rgba(85, 136, 255, 0.2);
-                border-radius: 6px;
-                padding: 6px 8px;
-                color: #e0e6ed;
-                selection-background-color: #5588ff;
-                selection-color: #0a0e17;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus { border: 1px solid #5588ff; background-color: rgba(85, 136, 255, 0.05); }
-            QTabWidget::pane { border: 1px solid rgba(85, 136, 255, 0.2); border-radius: 6px; background-color: rgba(10, 14, 23, 0.95); }
-            QTabBar::tab {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background: rgba(14, 20, 32, 0.8);
-                color: #667;
-                padding: 10px 20px;
-                margin-right: 2px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                font-weight: bold;
-            }
-            QTabBar::tab:selected { background: rgba(85, 136, 255, 0.15); color: #5588ff; border-bottom: 2px solid #5588ff; }
-            QTabBar::tab:hover { background: rgba(85, 136, 255, 0.1); color: #c8d2dc; }
-            QTableWidget {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background-color: rgba(14, 20, 32, 0.9);
-                border: 1px solid rgba(85, 136, 255, 0.2);
-                border-radius: 6px;
-                gridline-color: rgba(85, 136, 255, 0.1);
-                color: #e0e6ed;
-            }
-            QTableWidget::item:selected { background-color: rgba(85, 136, 255, 0.25); color: #ffffff; }
-            QHeaderView::section {
-                background-color: rgba(18, 26, 40, 0.95);
-                color: #5588ff;
-                padding: 6px;
-                border: none;
-                border-bottom: 1px solid rgba(85, 136, 255, 0.3);
-                font-weight: bold;
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-            }
-            QListWidget {
-                background-color: rgba(14, 20, 32, 0.9);
-                border: 1px solid rgba(85, 136, 255, 0.2);
-                border-radius: 6px;
-                color: #e0e6ed;
-            }
-            QListWidget::item:selected { background-color: rgba(85, 136, 255, 0.25); color: #ffffff; }
-            QScrollBar:vertical { background: #0a0e17; width: 8px; border: none; }
-            QScrollBar::handle:vertical { background: rgba(85, 136, 255, 0.3); border-radius: 4px; min-height: 30px; }
-            QScrollBar::handle:vertical:hover { background: rgba(85, 136, 255, 0.5); }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
-            QStatusBar { color: #556; font-family: 'JetBrains Mono', 'Consolas', monospace; }
-            QToolTip { background-color: #0e1420; color: #5588ff; border: 1px solid #5588ff; padding: 4px 8px; border-radius: 4px; }
-        """)
+        """Apply Enterprise HRUX theme from centralized theme module."""
+        try:
+            from titan_enterprise_theme import apply_enterprise_theme
+            apply_enterprise_theme(self)
+        except ImportError:
+            pass  # Fallback: no theme applied
 
     def _build_ui(self):
         central = QWidget()

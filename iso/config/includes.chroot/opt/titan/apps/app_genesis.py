@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 SINGULARITY - Genesis Profile Forge: Profile Generation GUI
+TITAN V7.5 SINGULARITY — Identity Synthesis Engine
 
 PyQt6 Desktop Application for creating aged browser profiles.
-User selects target from dropdown, enters persona details, clicks "Forge".
+User selects target from dropdown, enters persona details, clicks "Synthesize".
 Profile is generated for MANUAL use by the human operator.
 
-NO AUTOMATION - This is augmentation, not a bot.
+NO AUTOMATION — This is augmentation, not a bot.
 """
 
 import sys
@@ -90,13 +90,13 @@ class GenesisApp(QMainWindow):
         self.last_profile: GeneratedProfile = None
         
         self.init_ui()
-        self.apply_dark_theme()
+        self._apply_theme()
     
     def init_ui(self):
-        self.setWindowTitle("🔥 GENESIS - The Forge | TITAN V7.0.3")
+        self.setWindowTitle("TITAN — Identity Synthesis Engine")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#ff6b35")
+            set_titan_icon(self, "#3A75C4")
         except Exception:
             pass
         self.setMinimumSize(600, 700)
@@ -109,19 +109,19 @@ class GenesisApp(QMainWindow):
         layout.setContentsMargins(20, 20, 20, 20)
         
         # Header
-        header = QLabel("🔥 GENESIS - THE FORGE")
-        header.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
+        header = QLabel("Identity Synthesis Engine")
+        header.setFont(QFont("Inter", 22, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #ff6b35; margin-bottom: 10px;")
+        header.setStyleSheet("color: #3A75C4; margin-bottom: 10px;")
         layout.addWidget(header)
         
-        subtitle = QLabel("Profile Generation for Human Operations")
+        subtitle = QLabel("Environment Emulation for Human Operations")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color: #888; font-size: 12px;")
+        subtitle.setStyleSheet("color: #94A3B8; font-size: 12px;")
         layout.addWidget(subtitle)
         
         # Target Selection Group
-        target_group = QGroupBox("🎯 Target Selection")
+        target_group = QGroupBox("Infrastructure Assessment")
         target_layout = QFormLayout(target_group)
         
         self.target_combo = QComboBox()
@@ -135,14 +135,14 @@ class GenesisApp(QMainWindow):
         target_layout.addRow("Target:", self.target_combo)
         
         self.target_notes = QLabel("")
-        self.target_notes.setStyleSheet("color: #888; font-style: italic;")
+        self.target_notes.setStyleSheet("color: #94A3B8; font-style: italic;")
         self.target_notes.setWordWrap(True)
         target_layout.addRow("", self.target_notes)
         
         layout.addWidget(target_group)
         
         # Persona Group
-        persona_group = QGroupBox("👤 Persona Details")
+        persona_group = QGroupBox("Identity Configuration")
         persona_layout = QFormLayout(persona_group)
         
         self.name_input = QLineEdit()
@@ -168,7 +168,7 @@ class GenesisApp(QMainWindow):
         layout.addWidget(persona_group)
         
         # Profile Settings Group
-        settings_group = QGroupBox("⚙️ Profile Settings")
+        settings_group = QGroupBox("Synthesis Parameters")
         settings_layout = QFormLayout(settings_group)
         
         self.age_spin = QSpinBox()
@@ -228,26 +228,26 @@ class GenesisApp(QMainWindow):
         
         layout.addWidget(settings_group)
         
-        # Forge Button
-        self.forge_btn = QPushButton("🔥 FORGE PROFILE")
+        # Synthesize Button
+        self.forge_btn = QPushButton("Synthesize Profile")
         self.forge_btn.setMinimumHeight(50)
-        self.forge_btn.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        self.forge_btn.setFont(QFont("Inter", 14, QFont.Weight.Bold))
         self.forge_btn.setStyleSheet("""
             QPushButton {
-                background-color: #ff6b35;
+                background-color: #3A75C4;
                 color: white;
                 border: none;
                 border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: #ff8c5a;
+                background-color: #4A8AD8;
             }
             QPushButton:pressed {
-                background-color: #cc5629;
+                background-color: #2D5F9E;
             }
             QPushButton:disabled {
-                background-color: #555;
-                color: #888;
+                background-color: #2A3444;
+                color: #64748B;
             }
         """)
         self.forge_btn.clicked.connect(self.forge_profile)
@@ -261,31 +261,31 @@ class GenesisApp(QMainWindow):
         layout.addWidget(self.progress_bar)
         
         # Status Group
-        status_group = QGroupBox("📊 Status")
+        status_group = QGroupBox("Status")
         status_layout = QVBoxLayout(status_group)
         
-        self.status_label = QLabel("Ready to forge")
+        self.status_label = QLabel("Ready")
         self.status_label.setStyleSheet("color: #4CAF50; font-size: 14px;")
         status_layout.addWidget(self.status_label)
         
         self.output_label = QLabel("Output: -")
-        self.output_label.setStyleSheet("color: #888;")
+        self.output_label.setStyleSheet("color: #94A3B8;")
         self.output_label.setWordWrap(True)
         status_layout.addWidget(self.output_label)
         
         # Launch browser button (hidden until profile is ready)
-        self.launch_btn = QPushButton("🚀 Launch Browser with Profile")
+        self.launch_btn = QPushButton("Initiate Interactive Session")
         self.launch_btn.setMinimumHeight(40)
         self.launch_btn.setVisible(False)
         self.launch_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #2E7D32;
                 color: white;
                 border: none;
                 border-radius: 6px;
             }
             QPushButton:hover {
-                background-color: #66BB6A;
+                background-color: #388E3C;
             }
         """)
         self.launch_btn.clicked.connect(self.launch_browser)
@@ -297,145 +297,21 @@ class GenesisApp(QMainWindow):
         layout.addStretch()
         
         # Footer
-        footer = QLabel("TITAN V7.0.3 SINGULARITY | Reality Synthesis Suite")
+        footer = QLabel("TITAN V7.5 SINGULARITY | Identity Synthesis Engine")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer.setStyleSheet("color: #555; font-size: 10px;")
+        footer.setStyleSheet("color: #64748B; font-size: 10px;")
         layout.addWidget(footer)
         
         # Initialize target notes
         self.on_target_changed(0)
     
-    def apply_dark_theme(self):
-        """Apply Dark Cyberpunk theme — matches Unified Operation Center"""
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(10, 14, 23))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(200, 210, 220))
-        palette.setColor(QPalette.ColorRole.Base, QColor(14, 20, 32))
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(18, 26, 40))
-        palette.setColor(QPalette.ColorRole.Text, QColor(200, 210, 220))
-        palette.setColor(QPalette.ColorRole.Button, QColor(18, 26, 40))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor(200, 210, 220))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor(255, 107, 53))
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(10, 14, 23))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(14, 20, 32))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(200, 210, 220))
-        self.setPalette(palette)
-
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #0a0e17;
-            }
-            QGroupBox {
-                font-weight: bold;
-                font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
-                color: #ff6b35;
-                border: 1px solid rgba(255, 107, 53, 0.3);
-                border-radius: 8px;
-                margin-top: 12px;
-                padding-top: 14px;
-                background-color: rgba(14, 20, 32, 0.85);
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 8px;
-                color: #ff6b35;
-            }
-            QLabel {
-                color: #c8d2dc;
-            }
-            QLineEdit, QComboBox, QSpinBox {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background-color: rgba(18, 26, 40, 0.9);
-                border: 1px solid rgba(255, 107, 53, 0.2);
-                border-radius: 6px;
-                padding: 6px 8px;
-                color: #e0e6ed;
-                selection-background-color: #ff6b35;
-                selection-color: #0a0e17;
-            }
-            QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
-                border: 1px solid #ff6b35;
-                background-color: rgba(255, 107, 53, 0.05);
-            }
-            QComboBox::drop-down {
-                border: none;
-                background: transparent;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #0e1420;
-                border: 1px solid #ff6b35;
-                color: #e0e6ed;
-                selection-background-color: #ff6b35;
-                selection-color: #0a0e17;
-            }
-            QPushButton {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background-color: rgba(255, 107, 53, 0.1);
-                border: 1px solid rgba(255, 107, 53, 0.3);
-                border-radius: 6px;
-                padding: 8px 16px;
-                color: #ff6b35;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 107, 53, 0.2);
-                border: 1px solid #ff6b35;
-            }
-            QPushButton:pressed {
-                background-color: rgba(255, 107, 53, 0.3);
-            }
-            QPushButton:disabled {
-                background-color: rgba(30, 40, 55, 0.5);
-                border: 1px solid rgba(100, 110, 120, 0.2);
-                color: #556;
-            }
-            QCheckBox {
-                color: #c8d2dc;
-                spacing: 8px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #ff6b35;
-                border: 1px solid #ff6b35;
-                border-radius: 3px;
-            }
-            QProgressBar {
-                border: 1px solid rgba(255, 107, 53, 0.3);
-                border-radius: 4px;
-                background-color: rgba(14, 20, 32, 0.8);
-                text-align: center;
-                color: #ff6b35;
-            }
-            QProgressBar::chunk {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #ff6b35, stop:1 #ff9800);
-                border-radius: 3px;
-            }
-            QScrollBar:vertical {
-                background: #0a0e17;
-                width: 8px;
-                border: none;
-            }
-            QScrollBar::handle:vertical {
-                background: rgba(255, 107, 53, 0.3);
-                border-radius: 4px;
-                min-height: 30px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: rgba(255, 107, 53, 0.5);
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            QToolTip {
-                background-color: #0e1420;
-                color: #ff6b35;
-                border: 1px solid #ff6b35;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-            }
-        """)
+    def _apply_theme(self):
+        """Apply Enterprise HRUX theme from centralized theme module."""
+        try:
+            from titan_enterprise_theme import apply_enterprise_theme
+            apply_enterprise_theme(self)
+        except ImportError:
+            pass  # Fallback: no theme applied
     
     def on_target_changed(self, index):
         """Update UI when target selection changes"""
@@ -515,7 +391,7 @@ class GenesisApp(QMainWindow):
     def on_progress(self, message: str):
         """Update status during generation"""
         self.status_label.setText(message)
-        self.status_label.setStyleSheet("color: #FFC107; font-size: 14px;")
+        self.status_label.setStyleSheet("color: #E6A817; font-size: 14px;")
     
     def on_finished(self, result):
         """Handle generation completion"""
@@ -524,18 +400,18 @@ class GenesisApp(QMainWindow):
         
         if isinstance(result, Exception):
             self.status_label.setText(f"Error: {str(result)}")
-            self.status_label.setStyleSheet("color: #f44336; font-size: 14px;")
-            QMessageBox.critical(self, "Forge Failed", str(result))
+            self.status_label.setStyleSheet("color: #EF5350; font-size: 14px;")
+            QMessageBox.critical(self, "Synthesis Failed", str(result))
         else:
             self.last_profile = result
-            self.status_label.setText(f"✅ Profile forged successfully!")
+            self.status_label.setText(f"Profile synthesized successfully")
             self.status_label.setStyleSheet("color: #4CAF50; font-size: 14px;")
             self.output_label.setText(f"Output: {result.profile_path}")
             self.launch_btn.setVisible(True)
             
             QMessageBox.information(
                 self, 
-                "Profile Ready",
+                "Profile Ready — Synthesis Complete",
                 f"Profile created at:\n{result.profile_path}\n\n"
                 f"History entries: {result.history_count}\n"
                 f"Cookies: {result.cookies_count}\n"
@@ -558,7 +434,7 @@ class GenesisApp(QMainWindow):
         
         os.system(f"{cmd} &")
         
-        self.status_label.setText(f"🚀 Launched {browser} with profile")
+        self.status_label.setText(f"Session initiated — {browser} launched")
 
 
 def main():
@@ -568,7 +444,7 @@ def main():
     splash = None
     try:
         from titan_splash import show_titan_splash
-        splash = show_titan_splash(app, "GENESIS ENGINE", "#ff6b35")
+        splash = show_titan_splash(app, "IDENTITY SYNTHESIS ENGINE", "#3A75C4")
     except Exception:
         pass
     

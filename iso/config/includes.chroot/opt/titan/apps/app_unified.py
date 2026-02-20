@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 SINGULARITY - Unified Operation Center
+TITAN V7.5 SINGULARITY — Unified Operations Dashboard
 Complete GUI for end-to-end operations
 
 Integrates:
-- Target selection with presets + V7.0 target intelligence
-- Proxy configuration with DNS leak prevention
-- Card validation (Cerberus) + AVS intelligence + freshness scoring
-- Profile generation (Genesis)
+- Infrastructure assessment with presets + V7.5 target intelligence
+- Network configuration with DNS leak prevention
+- Asset validation (Cerberus) + AVS intelligence + freshness scoring
+- Identity synthesis (Genesis)
 - Browser launch with fingerprint verification checklist
-- KYC module (when needed)
-- Handover protocol
-- V7.0 Intelligence Panel (AVS, Visa Alerts, PayPal Defense, 3DS v2, Proxy Intel)
+- Verification compliance module (when needed)
+- Operational handover
+- V7.5 Intelligence Panel (AVS, Visa Alerts, PayPal Defense, 3DS v2, Proxy Intel)
 
 Flow:
 1. User inputs: Target, Proxy, Card, Persona
 2. Cerberus validates card (BIN, 3DS, AVS) + freshness check
-3. Genesis forges profile (500MB+, 90-day history)
+3. Genesis synthesizes profile (500MB+, 90-day history)
 4. Browser launches with all shields
 5. Handover document generated for operator
 """
@@ -1688,177 +1688,12 @@ class UnifiedOperationCenter(QMainWindow):
                     badge.setStyleSheet("color: #ff6600; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
     
     def apply_dark_theme(self):
-        """Apply Dark Cyberpunk theme — #0a0e17 midnight, #00d4ff cyan, #00ff88 green, glassmorphism"""
-        palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(10, 14, 23))        # #0a0e17 deep midnight
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(200, 210, 220))  # cool white
-        palette.setColor(QPalette.ColorRole.Base, QColor(14, 20, 32))           # #0e1420 panel base
-        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(18, 26, 40))  # #121a28
-        palette.setColor(QPalette.ColorRole.Text, QColor(200, 210, 220))
-        palette.setColor(QPalette.ColorRole.Button, QColor(18, 26, 40))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor(200, 210, 220))
-        palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 212, 255))     # #00d4ff neon cyan
-        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(10, 14, 23))
-        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(14, 20, 32))
-        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(200, 210, 220))
-        self.setPalette(palette)
-        
-        self.setStyleSheet("""
-            /* === DARK CYBERPUNK THEME === */
-            /* Deep midnight: #0a0e17 | Cyan: #00d4ff | Green: #00ff88 */
-            
-            QMainWindow {
-                background-color: #0a0e17;
-            }
-            
-            QGroupBox {
-                font-weight: bold;
-                font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
-                color: #00d4ff;
-                border: 1px solid rgba(0, 212, 255, 0.3);
-                border-radius: 8px;
-                margin-top: 12px;
-                padding-top: 14px;
-                background-color: rgba(14, 20, 32, 0.85);
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 8px;
-                color: #00d4ff;
-            }
-            
-            QLabel {
-                color: #c8d2dc;
-            }
-            
-            QLineEdit, QComboBox, QSpinBox, QTextEdit {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background-color: rgba(18, 26, 40, 0.9);
-                border: 1px solid rgba(0, 212, 255, 0.2);
-                border-radius: 6px;
-                padding: 6px 8px;
-                color: #e0e6ed;
-                selection-background-color: #00d4ff;
-                selection-color: #0a0e17;
-            }
-            QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
-                border: 1px solid #00d4ff;
-                background-color: rgba(0, 212, 255, 0.05);
-            }
-            
-            QComboBox::drop-down {
-                border: none;
-                background: transparent;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #0e1420;
-                border: 1px solid #00d4ff;
-                color: #e0e6ed;
-                selection-background-color: #00d4ff;
-                selection-color: #0a0e17;
-            }
-            
-            QPushButton {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background-color: rgba(0, 212, 255, 0.1);
-                border: 1px solid rgba(0, 212, 255, 0.3);
-                border-radius: 6px;
-                padding: 8px 16px;
-                color: #00d4ff;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(0, 212, 255, 0.2);
-                border: 1px solid #00d4ff;
-            }
-            QPushButton:pressed {
-                background-color: rgba(0, 212, 255, 0.3);
-            }
-            QPushButton:disabled {
-                background-color: rgba(30, 40, 55, 0.5);
-                border: 1px solid rgba(100, 110, 120, 0.2);
-                color: #556;
-            }
-            
-            QTabWidget::pane {
-                border: 1px solid rgba(0, 212, 255, 0.2);
-                border-radius: 6px;
-                background-color: rgba(10, 14, 23, 0.95);
-            }
-            QTabBar::tab {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                background: rgba(14, 20, 32, 0.8);
-                color: #667;
-                padding: 10px 20px;
-                margin-right: 2px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                font-weight: bold;
-            }
-            QTabBar::tab:selected {
-                background: rgba(0, 212, 255, 0.15);
-                color: #00d4ff;
-                border-bottom: 2px solid #00d4ff;
-            }
-            QTabBar::tab:hover {
-                background: rgba(0, 212, 255, 0.1);
-                color: #c8d2dc;
-            }
-            
-            QProgressBar {
-                border: 1px solid rgba(0, 212, 255, 0.3);
-                border-radius: 4px;
-                background-color: rgba(14, 20, 32, 0.8);
-                text-align: center;
-                color: #00d4ff;
-            }
-            QProgressBar::chunk {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #00d4ff, stop:1 #00ff88);
-                border-radius: 3px;
-            }
-            
-            QCheckBox {
-                color: #c8d2dc;
-                spacing: 8px;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #00d4ff;
-                border: 1px solid #00d4ff;
-                border-radius: 3px;
-            }
-            
-            QScrollBar:vertical {
-                background: #0a0e17;
-                width: 8px;
-                border: none;
-            }
-            QScrollBar::handle:vertical {
-                background: rgba(0, 212, 255, 0.3);
-                border-radius: 4px;
-                min-height: 30px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: rgba(0, 212, 255, 0.5);
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            
-            QFrame {
-                border: none;
-            }
-            
-            QToolTip {
-                background-color: #0e1420;
-                color: #00d4ff;
-                border: 1px solid #00d4ff;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-            }
-        """)
+        """Apply Enterprise HRUX theme from centralized theme module."""
+        try:
+            from titan_enterprise_theme import apply_enterprise_theme
+            apply_enterprise_theme(self)
+        except ImportError:
+            pass  # Fallback: no theme applied
     
     def load_targets(self):
         """Load target presets into dropdown"""
