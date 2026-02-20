@@ -779,6 +779,9 @@ SITE_DATABASE: List[MerchantSite] = [
         "Stripe. Very low friction. Long-term subs.", success_rate=0.87),
 ]
 
+# Alias for backward compatibility — app_cerberus.py imports this name
+MERCHANT_DATABASE = SITE_DATABASE
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SITE AUTO-PROBE ENGINE
@@ -1360,32 +1363,115 @@ class TargetDiscovery:
 
 # Google dork queries designed to find easy merchant sites
 DISCOVERY_DORKS = [
-    # Shopify stores (easy checkout, usually Stripe/Shopify Payments, no custom fraud)
+    # ── Shopify stores (easy checkout, Stripe/Shopify Payments, no custom fraud) ──
     {"query": 'site:myshopify.com "add to cart" -password -login', "category": "shopify", "expected_psp": "shopify_payments"},
     {"query": '"powered by shopify" "add to cart" inurl:products', "category": "shopify", "expected_psp": "shopify_payments"},
     {"query": '"cdn.shopify.com" "buy now" -alibaba -amazon', "category": "shopify", "expected_psp": "shopify_payments"},
     {"query": 'inurl:"/collections/" "checkout" site:*.com "shopify"', "category": "shopify", "expected_psp": "shopify_payments"},
+    {"query": '"shopify" "free shipping" "add to cart" inurl:products -amazon', "category": "shopify", "expected_psp": "shopify_payments"},
+    {"query": 'site:myshopify.com "gift card" "buy" -password', "category": "shopify", "expected_psp": "shopify_payments"},
+    {"query": '"powered by shopify" "buy it now" "credit card" -ebay', "category": "shopify", "expected_psp": "shopify_payments"},
+    {"query": '"shopify" "express checkout" "pay now" site:*.com', "category": "shopify", "expected_psp": "shopify_payments"},
 
-    # Stripe merchants (generally low 3DS, risk-based via Radar)
+    # ── Stripe merchants (risk-based 3DS via Radar, generally low friction) ──
     {"query": '"js.stripe.com/v3" "checkout" "add to cart" -github -stackoverflow', "category": "digital", "expected_psp": "stripe"},
     {"query": '"pk_live_" "checkout" "buy" site:*.com -github', "category": "digital", "expected_psp": "stripe"},
+    {"query": '"stripe.com" "payment" "buy now" "add to cart" -docs -api', "category": "digital", "expected_psp": "stripe"},
+    {"query": '"js.stripe.com" "subscribe" "monthly" site:*.com -github', "category": "subscriptions", "expected_psp": "stripe"},
+    {"query": '"stripe checkout" "one-time payment" site:*.com -stackoverflow', "category": "digital", "expected_psp": "stripe"},
 
-    # Digital goods (instant delivery, high cashout)
+    # ── Digital goods (instant delivery, high cashout) ──
     {"query": '"buy gift card" "instant delivery" "credit card" -amazon -walmart', "category": "gift_cards", "expected_psp": "stripe"},
     {"query": '"game key" "instant delivery" "add to cart" -steam -epic', "category": "gaming", "expected_psp": "stripe"},
     {"query": '"digital download" "buy now" "credit card" "no registration"', "category": "digital", "expected_psp": "stripe"},
+    {"query": '"instant code delivery" "buy" "gift card" -amazon -target', "category": "gift_cards", "expected_psp": "stripe"},
+    {"query": '"digital gift card" "email delivery" "buy now" -walmart', "category": "gift_cards", "expected_psp": "stripe"},
+    {"query": '"steam gift card" "buy" "instant" -steam.com -amazon', "category": "gift_cards", "expected_psp": "stripe"},
+    {"query": '"xbox gift card" "buy online" "instant delivery" -microsoft', "category": "gift_cards", "expected_psp": "stripe"},
+    {"query": '"psn card" "buy" "instant" "credit card" -playstation.com', "category": "gift_cards", "expected_psp": "stripe"},
+    {"query": '"itunes gift card" "buy online" "instant" -apple.com', "category": "gift_cards", "expected_psp": "stripe"},
+    {"query": '"google play gift card" "buy" "instant delivery" -play.google', "category": "gift_cards", "expected_psp": "stripe"},
+    {"query": '"roblox gift card" "buy" "instant" -roblox.com', "category": "gift_cards", "expected_psp": "stripe"},
+    {"query": '"fortnite v-bucks" "buy" "gift card" -epicgames.com', "category": "gaming", "expected_psp": "stripe"},
 
-    # Authorize.net merchants (lowest 3DS friction of all PSPs)
+    # ── Gaming marketplaces & keys ──
+    {"query": '"game key" "buy" "instant" "checkout" -steam -epic -origin', "category": "gaming", "expected_psp": "stripe"},
+    {"query": '"cd key" "buy now" "add to cart" site:*.com -amazon', "category": "gaming", "expected_psp": "stripe"},
+    {"query": '"game code" "instant delivery" "purchase" site:*.com', "category": "gaming", "expected_psp": "stripe"},
+    {"query": '"buy game" "digital code" "checkout" -playstation -xbox -nintendo', "category": "gaming", "expected_psp": "stripe"},
+
+    # ── Authorize.net merchants (lowest 3DS friction of all PSPs) ──
     {"query": '"accept.authorize.net" "checkout" "add to cart"', "category": "misc", "expected_psp": "authorize_net"},
     {"query": '"authorizenet" "buy now" "credit card" site:*.com', "category": "misc", "expected_psp": "authorize_net"},
+    {"query": '"authorize.net" "payment" "order" "checkout" site:*.com', "category": "misc", "expected_psp": "authorize_net"},
 
-    # Subscription services (low amounts, recurring exempt from 3DS)
+    # ── Subscription services (low amounts, recurring exempt from 3DS) ──
     {"query": '"subscribe now" "$9.99" "credit card" -facebook -twitter', "category": "subscriptions", "expected_psp": "stripe"},
     {"query": '"monthly subscription" "start free trial" "card" site:*.com', "category": "subscriptions", "expected_psp": "stripe"},
+    {"query": '"annual plan" "subscribe" "credit card" "checkout" -apple -google', "category": "subscriptions", "expected_psp": "stripe"},
+    {"query": '"premium plan" "buy now" "$4.99" OR "$9.99" OR "$14.99" site:*.com', "category": "subscriptions", "expected_psp": "stripe"},
+    {"query": '"saas" "pricing" "buy" "checkout" "stripe" site:*.com -github', "category": "subscriptions", "expected_psp": "stripe"},
 
-    # Crypto/gift card sites (highest cashout)
+    # ── Crypto / voucher sites (highest cashout) ──
     {"query": '"buy bitcoin" "gift card" "credit card" "instant" -coinbase -binance', "category": "crypto", "expected_psp": "stripe"},
     {"query": '"buy crypto" "voucher" "debit card" "no kyc"', "category": "crypto", "expected_psp": "stripe"},
+    {"query": '"crypto voucher" "buy" "credit card" "instant" site:*.com', "category": "crypto", "expected_psp": "stripe"},
+    {"query": '"bitcoin voucher" "buy now" "no verification" -coinbase', "category": "crypto", "expected_psp": "stripe"},
+
+    # ── Electronics & gadgets ──
+    {"query": '"buy electronics" "checkout" "add to cart" "free shipping" -amazon -ebay -walmart', "category": "electronics", "expected_psp": "stripe"},
+    {"query": '"buy phone" "checkout" "credit card" site:*.com -apple -samsung -amazon', "category": "electronics", "expected_psp": "stripe"},
+    {"query": '"buy laptop" "add to cart" "free shipping" site:*.com -amazon -bestbuy', "category": "electronics", "expected_psp": "stripe"},
+    {"query": '"electronics store" "checkout" "stripe" site:*.com -amazon', "category": "electronics", "expected_psp": "stripe"},
+
+    # ── Fashion & apparel ──
+    {"query": '"buy sneakers" "add to cart" "checkout" site:*.com -nike -adidas -amazon', "category": "fashion", "expected_psp": "stripe"},
+    {"query": '"streetwear" "buy now" "shopify" "add to cart" -amazon', "category": "fashion", "expected_psp": "shopify_payments"},
+    {"query": '"designer" "buy" "checkout" "free shipping" site:*.com -amazon -ebay', "category": "fashion", "expected_psp": "stripe"},
+    {"query": '"clothing store" "add to cart" "powered by shopify" -amazon', "category": "fashion", "expected_psp": "shopify_payments"},
+
+    # ── Software & SaaS ──
+    {"query": '"buy license" "software" "checkout" "credit card" site:*.com -microsoft', "category": "software", "expected_psp": "stripe"},
+    {"query": '"software key" "buy" "instant delivery" "download" -amazon', "category": "software", "expected_psp": "stripe"},
+    {"query": '"windows key" "buy" "instant" "checkout" -microsoft.com', "category": "software", "expected_psp": "stripe"},
+    {"query": '"office key" "buy" "instant delivery" -microsoft.com -amazon', "category": "software", "expected_psp": "stripe"},
+    {"query": '"vpn subscription" "buy" "checkout" "credit card" site:*.com', "category": "software", "expected_psp": "stripe"},
+
+    # ── Travel & bookings ──
+    {"query": '"book now" "hotel" "credit card" "checkout" site:*.com -booking.com -expedia -airbnb', "category": "travel", "expected_psp": "stripe"},
+    {"query": '"flight booking" "pay now" "credit card" site:*.com -kayak -google', "category": "travel", "expected_psp": "stripe"},
+
+    # ── Food delivery & meal kits ──
+    {"query": '"meal kit" "subscribe" "checkout" "credit card" site:*.com -hellofresh', "category": "food_delivery", "expected_psp": "stripe"},
+    {"query": '"food delivery" "order now" "checkout" site:*.com -doordash -ubereats', "category": "food_delivery", "expected_psp": "stripe"},
+
+    # ── Health & supplements ──
+    {"query": '"buy supplements" "add to cart" "checkout" site:*.com -amazon -gnc', "category": "health", "expected_psp": "stripe"},
+    {"query": '"vitamins" "buy now" "shopify" "add to cart" -amazon', "category": "health", "expected_psp": "shopify_payments"},
+
+    # ── Education & courses ──
+    {"query": '"online course" "buy now" "checkout" "credit card" site:*.com -udemy -coursera', "category": "education", "expected_psp": "stripe"},
+    {"query": '"enroll now" "course" "payment" "stripe" site:*.com -udemy', "category": "education", "expected_psp": "stripe"},
+
+    # ── Home goods & furniture ──
+    {"query": '"buy furniture" "add to cart" "checkout" site:*.com -amazon -ikea -wayfair', "category": "home_goods", "expected_psp": "stripe"},
+    {"query": '"home decor" "buy now" "shopify" "add to cart" -amazon', "category": "home_goods", "expected_psp": "shopify_payments"},
+
+    # ── Sports & outdoor ──
+    {"query": '"sports equipment" "buy" "add to cart" "checkout" site:*.com -amazon -dickssportinggoods', "category": "sports", "expected_psp": "stripe"},
+    {"query": '"outdoor gear" "buy now" "shopify" site:*.com -amazon -rei', "category": "sports", "expected_psp": "shopify_payments"},
+
+    # ── NMI / lesser-known PSPs (very low 3DS) ──
+    {"query": '"secure.nmi.com" "checkout" "buy" site:*.com', "category": "misc", "expected_psp": "nmi"},
+    {"query": '"pay.google.com" "checkout" "buy now" site:*.com -google.com', "category": "misc", "expected_psp": "stripe"},
+
+    # ── WooCommerce stores (WordPress, often Stripe, low friction) ──
+    {"query": '"woocommerce" "add to cart" "checkout" "credit card" site:*.com -wordpress.org', "category": "misc", "expected_psp": "stripe"},
+    {"query": '"place order" "woocommerce" "card number" site:*.com -github', "category": "misc", "expected_psp": "stripe"},
+
+    # ── Braintree merchants ──
+    {"query": '"braintreegateway.com" "checkout" "buy" site:*.com -github', "category": "misc", "expected_psp": "braintree"},
+    {"query": '"braintree" "payment" "add to cart" site:*.com -paypal.com', "category": "misc", "expected_psp": "braintree"},
 ]
 
 # Search engine URLs for dorking
@@ -1501,7 +1587,7 @@ class AutoDiscovery:
                 seen.add(d)
                 unique.append(d)
         
-        return unique[:20]  # Max 20 per query
+        return unique[:30]  # Max 30 per query
     
     def _score_3ds_bypass(self, probe_result: Dict) -> Dict:
         """Score a probed site's 3DS bypass potential using ThreeDSBypassEngine"""
@@ -1547,7 +1633,7 @@ class AutoDiscovery:
                 if domain not in all_domains and domain not in self._discovered_cache:
                     all_domains[domain] = dork
             
-            time.sleep(2)  # Rate limit between searches
+            time.sleep(1.2)  # Rate limit between searches
         
         results = []
         

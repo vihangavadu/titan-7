@@ -685,8 +685,8 @@ class CerberusApp(QMainWindow):
         disco_row.addWidget(QLabel("Engine:"))
         disco_row.addWidget(self.disco_engine)
         self.disco_max = QSpinBox()
-        self.disco_max.setRange(5, 100)
-        self.disco_max.setValue(20)
+        self.disco_max.setRange(10, 500)
+        self.disco_max.setValue(100)
         self.disco_max.setMinimumHeight(32)
         disco_row.addWidget(QLabel("Max sites:"))
         disco_row.addWidget(self.disco_max)
@@ -699,7 +699,7 @@ class CerberusApp(QMainWindow):
         self.disco_result = QPlainTextEdit()
         self.disco_result.setReadOnly(True)
         self.disco_result.setFont(QFont("JetBrains Mono", 9))
-        self.disco_result.setMaximumHeight(120)
+        self.disco_result.setMinimumHeight(200)
         self.disco_result.setPlaceholderText("Discovery results will appear here...")
         disco_layout.addWidget(self.disco_result)
         layout.addWidget(disco_group)
@@ -754,31 +754,83 @@ class CerberusApp(QMainWindow):
             self.target_table.setItem(i, 7, rate_item)
 
     def _run_discovery(self):
-        """Run auto-discovery via Google dorking."""
+        """Run auto-discovery via Google dorking in a background thread."""
         if not DISCOVERY_AVAILABLE:
             self.disco_result.setPlainText("⚠️ target_discovery module not available")
             return
-        self.disco_result.setPlainText("🔍 Running auto-discovery... (this may take 30-60 seconds)")
-        QTimer.singleShot(100, self._do_discovery)
+        
+        # Prevent double-click
+        if hasattr(self, '_disco_running') and self._disco_running:
+            return
+        self._disco_running = True
+        
+        engine = self.disco_engine.currentText()
+        max_sites = self.disco_max.value()
+        self.disco_result.setPlainText(
+            f"🔍 Running auto-discovery ({len(DISCOVERY_DORKS)} dork queries, engine={engine})...\n"
+            f"   Target: {max_sites} sites. This may take 2-5 minutes.\n"
+            f"   Do NOT close this tab."
+        )
+        
+        import threading
+        thread = threading.Thread(
+            target=self._do_discovery_worker,
+            args=(engine, max_sites),
+            daemon=True
+        )
+        thread.start()
 
-    def _do_discovery(self):
+    def _do_discovery_worker(self, engine, max_sites):
+        """Background worker for discovery — runs off the main thread."""
         try:
             disco = AutoDiscovery()
             results = disco.discover_sites(
-                engine=self.disco_engine.currentText(),
-                max_per_query=self.disco_max.value(),
+                engine=engine,
+                max_per_query=max_sites,
                 auto_probe=False
             )
+            # Build result text
             text = f"═══ DISCOVERED {len(results)} NEW TARGETS ═══\n\n"
-            for r in results[:20]:
-                domain = r.get('domain', '?')
-                classification = r.get('classification', '?')
-                text += f"  {domain:35s}  [{classification}]\n"
-            if len(results) > 20:
-                text += f"\n  ... and {len(results)-20} more"
-            self.disco_result.setPlainText(text)
+            # Group by category
+            by_cat = {}
+            for r in results:
+                cat = r.get('expected_category', 'misc')
+                by_cat.setdefault(cat, []).append(r)
+            
+            for cat, sites in sorted(by_cat.items()):
+                text += f"── {cat.upper()} ({len(sites)} sites) ──\n"
+                for r in sites:
+                    domain = r.get('domain', '?')
+                    classification = r.get('classification', 'unprobed')
+                    psp = r.get('expected_psp', '?')
+                    text += f"  {domain:40s}  [{classification:20s}]  PSP: {psp}\n"
+                text += "\n"
+            
+            text += f"\n{'═'*60}\nTotal: {len(results)} sites across {len(by_cat)} categories"
+            
+            # Update GUI from main thread via QTimer
+            from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
+            QMetaObject.invokeMethod(
+                self.disco_result, "setPlainText",
+                Qt.ConnectionType.QueuedConnection,
+                Q_ARG(str, text)
+            )
         except Exception as e:
-            self.disco_result.setPlainText(f"Discovery error: {e}")
+            try:
+                from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
+                QMetaObject.invokeMethod(
+                    self.disco_result, "setPlainText",
+                    Qt.ConnectionType.QueuedConnection,
+                    Q_ARG(str, f"Discovery error: {e}\n\nThis may be caused by:\n"
+                          f"  - No internet connection\n"
+                          f"  - curl not installed\n"
+                          f"  - Search engine blocking requests\n\n"
+                          f"Try a different engine (bing/duckduckgo) or check connectivity.")
+                )
+            except Exception:
+                pass
+        finally:
+            self._disco_running = False
 
     # ═══════════════════════════════════════════════════════════════════
     # TAB 4: CARD QUALITY GRADER
