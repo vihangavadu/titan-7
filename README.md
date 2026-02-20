@@ -48,6 +48,46 @@ Push to `main` or trigger `workflow_dispatch` to run the `Build Titan ISO` workf
 - ✅ **Bug Reporter + Auto-Patcher** — PyQt6 GUI + Windsurf IDE integration for automated patching
 - ✅ **Memory Pressure Manager** — 4-zone RAM monitoring prevents browser jank on 8GB systems
 
+### V7.0.3-PATCH2 (2026-02-20) — Backend API + GUI UX + Branding
+
+**6 Critical Bug Fixes:**
+- ✅ `lucid_api.py` — Fixed `CoreOrchestrator` → `Cortex` (class didn't exist)
+- ✅ `lucid_api.py` — Fixed `CommerceInjector` class instantiation (it's functions, not a class)
+- ✅ `validation_api.py` — Fixed `/api/aged-profiles` → `/api/profiles` (endpoint didn't exist)
+- ✅ `app_unified.py` — Fixed `CardAsset(pan=...)` → `number=...` (wrong field name)
+- ✅ `app_cerberus.py` — Fixed `ValidationWorker` → `ValidateWorker` (class name mismatch)
+- ✅ `requirements.txt` — Added missing `python-dotenv` dependency
+
+**GUI Premium Cyberpunk Theme Upgrade (5 apps):**
+- ✅ All PyQt6 apps upgraded from flat dark to premium glassmorphism (deep midnight `#0a0e17`, neon accents, JetBrains Mono)
+- ✅ Each app has unique accent color: Unified (cyan), Genesis (orange), Cerberus (cyan), KYC (purple), Bug Reporter (blue)
+- ✅ `titan_mission_control.py` (tkinter) upgraded to matching cyberpunk palette
+
+**Cerberus Major Feature Expansion (12 new features):**
+- ✅ Converted from single-page to 4-tab interface: Validate | BIN Intel | Targets | Quality
+- ✅ **BIN Intelligence tab** — BIN database lookup, AI BIN scoring, bank pattern prediction
+- ✅ **Target Discovery tab** — 50+ merchant database browser with filtering, auto-discovery via Google dorking
+- ✅ **Card Quality tab** — AVS pre-check, OSINT verification checklist, card quality grading, geo consistency check
+
+**Professional Branding Package:**
+- ✅ SVG logo (cyberpunk hex shield with circuit traces)
+- ✅ Wallpaper generator (1920x1080, 2560x1440, lock screen — pure Python, no Pillow)
+- ✅ GRUB boot theme, XFCE desktop config, LightDM login screen
+- ✅ 7 app icons (48px + 128px hex variants)
+- ✅ `.desktop` shortcut files for all apps
+- ✅ Branded splash screens on all PyQt6 apps (programmatic QPainter, no file deps)
+- ✅ Branded window icons on all apps (hex "T" in accent color)
+- ✅ One-command installer: `sudo bash /opt/titan/branding/install_branding.sh`
+
+**UX Enhancements:**
+- ✅ Live status bar with real-time clock on `app_unified.py`
+- ✅ Reusable `titan_splash.py` and `titan_icon.py` modules for consistent branding
+
+**Documentation:**
+- ✅ `docs/TITAN_UNDETECTABILITY_AUDIT.md` — 53 detection algorithms cross-verified against 7 rings of evasion
+- ✅ `docs/GUI_CODEBASE_CROSSREF_REPORT.md` — Updated with all 6 bugs + 5 GUI upgrades
+- ✅ Full API dependency audit (15 external APIs catalogued with priority)
+
 **ISO SHA256:** `724dfd5cd0949c013e30870bd40dcab9fe33aeed5138df5982d11d38bacccf95`
 
 ---

@@ -26,10 +26,11 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QTextEdit, QPushButton, QGroupBox, QFormLayout,
     QProgressBar, QMessageBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QFrame, QSplitter, QDialog, QDialogButtonBox,
-    QFileDialog
+    QFileDialog, QTabWidget, QComboBox, QSpinBox, QPlainTextEdit,
+    QScrollArea
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QColor, QBrush
+from PyQt6.QtGui import QFont, QColor, QBrush, QPalette
 
 import asyncio
 from cerberus_core import (
@@ -39,6 +40,25 @@ from cerberus_core import (
 from cerberus_enhanced import (
     MaxDrainEngine, BINScoringEngine, generate_drain_plan, format_drain_plan
 )
+
+# Import enhanced modules (graceful fallback)
+try:
+    from cerberus_enhanced import (
+        AVSEngine, SilentValidationEngine, GeoMatchChecker,
+        OSINTVerifier, CardQualityGrader, IssuingBankPatternPredictor
+    )
+    ENHANCED_AVAILABLE = True
+except ImportError:
+    ENHANCED_AVAILABLE = False
+
+try:
+    from target_discovery import (
+        AutoDiscovery, MERCHANT_DATABASE, SiteCategory, SiteDifficulty,
+        DISCOVERY_DORKS
+    )
+    DISCOVERY_AVAILABLE = True
+except ImportError:
+    DISCOVERY_AVAILABLE = False
 
 
 class DrainPlanDialog(QDialog):
@@ -222,26 +242,53 @@ class CerberusApp(QMainWindow):
     
     def init_ui(self):
         self.setWindowTitle("🛡️ CERBERUS - The Gatekeeper | TITAN V7.0.3")
-        self.setMinimumSize(550, 650)
+        try:
+            from titan_icon import set_titan_icon
+            set_titan_icon(self, "#00bcd4")
+        except Exception:
+            pass
+        self.setMinimumSize(850, 750)
         
         # Central widget
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        main_layout = QVBoxLayout(central)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(12, 12, 12, 12)
         
         # Header
         header = QLabel("🛡️ CERBERUS - THE GATEKEEPER")
-        header.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
+        header.setFont(QFont("JetBrains Mono", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #00bcd4; margin-bottom: 5px;")
-        layout.addWidget(header)
+        header.setStyleSheet("color: #00bcd4; margin-bottom: 2px; font-family: 'JetBrains Mono', 'Consolas', monospace;")
+        main_layout.addWidget(header)
         
-        subtitle = QLabel("Zero-Touch Card Validation")
+        subtitle = QLabel("Zero-Touch Card Validation + BIN Intelligence + Target Discovery")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color: #888; font-size: 12px;")
-        layout.addWidget(subtitle)
+        subtitle.setStyleSheet("color: #556; font-size: 11px;")
+        main_layout.addWidget(subtitle)
+        
+        # ═══ TABBED INTERFACE ═══
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+        
+        # Tab 1: Validate (existing UI)
+        validate_tab = QWidget()
+        layout = QVBoxLayout(validate_tab)
+        layout.setSpacing(12)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(validate_tab, "🔍 Validate")
+        
+        # Tab 2: BIN Intelligence
+        self._build_bin_tab()
+        
+        # Tab 3: Target Discovery
+        self._build_target_tab()
+        
+        # Tab 4: Card Quality
+        self._build_quality_tab()
+        
+        # ═══ VALIDATION TAB CONTENT (existing) ═══
         
         # Traffic Light Display
         self.traffic_frame = QFrame()
@@ -431,6 +478,488 @@ class CerberusApp(QMainWindow):
         footer.setStyleSheet("color: #555; font-size: 10px;")
         layout.addWidget(footer)
     
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 2: BIN INTELLIGENCE
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_bin_tab(self):
+        """BIN lookup, scoring, and bank pattern analysis."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "🏦 BIN Intel")
+
+        # BIN Input
+        input_row = QHBoxLayout()
+        input_row.addWidget(QLabel("BIN (first 6):"))
+        self.bin_input = QLineEdit()
+        self.bin_input.setPlaceholderText("e.g. 421783")
+        self.bin_input.setMaxLength(8)
+        self.bin_input.setFont(QFont("JetBrains Mono", 12))
+        self.bin_input.setMinimumHeight(36)
+        input_row.addWidget(self.bin_input, stretch=2)
+
+        bin_lookup_btn = QPushButton("🔍 Lookup BIN")
+        bin_lookup_btn.setMinimumHeight(36)
+        bin_lookup_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 16px; font-weight: bold;")
+        bin_lookup_btn.clicked.connect(self._lookup_bin)
+        input_row.addWidget(bin_lookup_btn)
+
+        bin_score_btn = QPushButton("📊 Score BIN")
+        bin_score_btn.setMinimumHeight(36)
+        bin_score_btn.setStyleSheet("background: #ff9800; color: white; border: none; border-radius: 6px; padding: 0 16px; font-weight: bold;")
+        bin_score_btn.clicked.connect(self._score_bin)
+        input_row.addWidget(bin_score_btn)
+        layout.addLayout(input_row)
+
+        # BIN Result display
+        self.bin_result = QPlainTextEdit()
+        self.bin_result.setReadOnly(True)
+        self.bin_result.setFont(QFont("JetBrains Mono", 10))
+        self.bin_result.setPlaceholderText("Enter a BIN and click Lookup or Score...")
+        self.bin_result.setMinimumHeight(200)
+        layout.addWidget(self.bin_result)
+
+        # Bank Pattern Predictor
+        pattern_group = QGroupBox("🧠 Issuing Bank Pattern Predictor")
+        pattern_layout = QVBoxLayout(pattern_group)
+        pattern_row = QHBoxLayout()
+        pattern_row.addWidget(QLabel("Amount $:"))
+        self.pattern_amount = QSpinBox()
+        self.pattern_amount.setRange(1, 10000)
+        self.pattern_amount.setValue(150)
+        self.pattern_amount.setMinimumHeight(32)
+        pattern_row.addWidget(self.pattern_amount)
+        pattern_row.addWidget(QLabel("MCC:"))
+        self.pattern_mcc = QComboBox()
+        self.pattern_mcc.addItems(["5411 - Grocery", "5912 - Pharmacy", "5999 - Retail", "5944 - Jewelry", "4812 - Telecom", "5732 - Electronics"])
+        self.pattern_mcc.setMinimumHeight(32)
+        pattern_row.addWidget(self.pattern_mcc)
+        predict_btn = QPushButton("Predict")
+        predict_btn.setMinimumHeight(32)
+        predict_btn.setStyleSheet("background: #9c27b0; color: white; border: none; border-radius: 6px; padding: 0 14px;")
+        predict_btn.clicked.connect(self._predict_pattern)
+        pattern_row.addWidget(predict_btn)
+        pattern_layout.addLayout(pattern_row)
+        self.pattern_result = QLabel("Enter BIN above, set amount + MCC, then click Predict")
+        self.pattern_result.setWordWrap(True)
+        self.pattern_result.setStyleSheet("color: #889; padding: 6px;")
+        pattern_layout.addWidget(self.pattern_result)
+        layout.addWidget(pattern_group)
+
+    def _lookup_bin(self):
+        """Look up BIN in local database."""
+        bin6 = self.bin_input.text().strip()[:6]
+        if len(bin6) < 6:
+            self.bin_result.setPlainText("⚠️ Enter at least 6 digits")
+            return
+        try:
+            info = self.validator.lookup_bin(bin6)
+            if info:
+                text = f"═══ BIN LOOKUP: {bin6} ═══\n\n"
+                text += f"  Bank:      {info.get('bank', 'Unknown')}\n"
+                text += f"  Country:   {info.get('country', 'Unknown')}\n"
+                text += f"  Type:      {info.get('type', 'Unknown')}\n"
+                text += f"  Level:     {info.get('level', 'Unknown')}\n"
+                text += f"  Network:   {'Visa' if bin6[0] == '4' else 'Mastercard' if bin6[0] == '5' else 'Amex' if bin6[:2] in ('34','37') else 'Other'}\n"
+                text += f"\n  Luhn Prefix Valid: ✅\n"
+            else:
+                text = f"BIN {bin6} not found in local database.\n"
+                text += f"Network: {'Visa' if bin6[0] == '4' else 'Mastercard' if bin6[0] == '5' else 'Amex' if bin6[:2] in ('34','37') else 'Discover' if bin6[:4] == '6011' else 'Unknown'}\n"
+            self.bin_result.setPlainText(text)
+        except Exception as e:
+            self.bin_result.setPlainText(f"Error: {e}")
+
+    def _score_bin(self):
+        """Score BIN using BINScoringEngine."""
+        bin6 = self.bin_input.text().strip()[:6]
+        if len(bin6) < 6:
+            self.bin_result.setPlainText("⚠️ Enter at least 6 digits")
+            return
+        try:
+            scorer = BINScoringEngine()
+            score = scorer.score_bin(bin6)
+            text = f"═══ BIN INTELLIGENCE SCORE: {bin6} ═══\n\n"
+            text += f"  Overall Score:     {score.overall_score:.0f}/100\n"
+            text += f"  Success Rate:      {score.success_rate_estimate}\n"
+            text += f"  Velocity Limit:    {score.velocity_limit}\n"
+            text += f"  3DS Likelihood:    {score.three_ds_likelihood}\n"
+            text += f"  AVS Strictness:    {score.avs_strictness}\n"
+            text += f"  Fraud Score Risk:  {score.fraud_score_risk}\n"
+            text += f"  Best Targets:      {', '.join(score.best_targets[:5])}\n"
+            text += f"  Avoid Targets:     {', '.join(score.avoid_targets[:3])}\n"
+            text += f"  Max Single Amount: ${score.max_single_amount:.0f}\n"
+            text += f"\n{'─'*50}\n"
+            rec = scorer.get_target_recommendation(bin6, self.pattern_amount.value())
+            text += f"\n  Target Rec for ${self.pattern_amount.value()}:\n"
+            text += f"    Recommended: {rec.get('recommended_target', 'N/A')}\n"
+            text += f"    Strategy:    {rec.get('strategy', 'N/A')}\n"
+            text += f"    Risk Level:  {rec.get('risk_level', 'N/A')}\n"
+            self.bin_result.setPlainText(text)
+        except Exception as e:
+            self.bin_result.setPlainText(f"Error scoring BIN: {e}")
+
+    def _predict_pattern(self):
+        """Predict if transaction matches bank's fraud model."""
+        bin6 = self.bin_input.text().strip()[:6]
+        if len(bin6) < 6:
+            self.pattern_result.setText("⚠️ Enter BIN first")
+            return
+        try:
+            if ENHANCED_AVAILABLE:
+                predictor = IssuingBankPatternPredictor()
+                mcc = self.pattern_mcc.currentText().split(" - ")[0].strip()
+                amount = self.pattern_amount.value()
+                prediction = predictor.predict(bin6, amount=amount, mcc=mcc)
+                color = "#00ff88" if prediction.in_pattern else "#ff4444"
+                conf = f"{prediction.confidence*100:.0f}%"
+                self.pattern_result.setText(
+                    f"<b style='color:{color}'>{'✅ IN PATTERN' if prediction.in_pattern else '⚠️ OUT OF PATTERN'}</b> "
+                    f"(confidence: {conf}) — {prediction.recommendation}"
+                )
+            else:
+                self.pattern_result.setText("⚠️ cerberus_enhanced module not available")
+        except Exception as e:
+            self.pattern_result.setText(f"Error: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 3: TARGET DISCOVERY
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_target_tab(self):
+        """Target discovery — merchant database + auto-discovery."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "🎯 Targets")
+
+        # Filter controls
+        filter_row = QHBoxLayout()
+        filter_row.addWidget(QLabel("Category:"))
+        self.target_category = QComboBox()
+        self.target_category.addItems(["All", "Gift Cards", "Digital Goods", "Electronics", "Fashion", "Crypto", "Services", "Subscriptions"])
+        self.target_category.setMinimumHeight(32)
+        self.target_category.currentTextChanged.connect(self._filter_targets)
+        filter_row.addWidget(self.target_category)
+
+        filter_row.addWidget(QLabel("Difficulty:"))
+        self.target_difficulty = QComboBox()
+        self.target_difficulty.addItems(["All", "Easy", "Medium", "Hard"])
+        self.target_difficulty.setMinimumHeight(32)
+        self.target_difficulty.currentTextChanged.connect(self._filter_targets)
+        filter_row.addWidget(self.target_difficulty)
+
+        filter_row.addWidget(QLabel("Max Amount $:"))
+        self.target_max_amount = QSpinBox()
+        self.target_max_amount.setRange(0, 50000)
+        self.target_max_amount.setValue(5000)
+        self.target_max_amount.setMinimumHeight(32)
+        filter_row.addWidget(self.target_max_amount)
+
+        load_btn = QPushButton("📋 Load Database")
+        load_btn.setMinimumHeight(32)
+        load_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        load_btn.clicked.connect(self._load_target_database)
+        filter_row.addWidget(load_btn)
+        layout.addLayout(filter_row)
+
+        # Target table
+        self.target_table = QTableWidget()
+        self.target_table.setColumnCount(8)
+        self.target_table.setHorizontalHeaderLabels(["Domain", "Name", "Category", "Difficulty", "PSP", "3DS", "Max $", "Success %"])
+        self.target_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.target_table.setAlternatingRowColors(True)
+        self.target_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.target_table.setMinimumHeight(250)
+        layout.addWidget(self.target_table)
+
+        # Auto-discovery section
+        disco_group = QGroupBox("🔎 Auto-Discovery (Google Dorking)")
+        disco_layout = QVBoxLayout(disco_group)
+        disco_row = QHBoxLayout()
+        self.disco_engine = QComboBox()
+        self.disco_engine.addItems(["google", "bing", "duckduckgo"])
+        self.disco_engine.setMinimumHeight(32)
+        disco_row.addWidget(QLabel("Engine:"))
+        disco_row.addWidget(self.disco_engine)
+        self.disco_max = QSpinBox()
+        self.disco_max.setRange(5, 100)
+        self.disco_max.setValue(20)
+        self.disco_max.setMinimumHeight(32)
+        disco_row.addWidget(QLabel("Max sites:"))
+        disco_row.addWidget(self.disco_max)
+        disco_btn = QPushButton("🚀 Discover New Targets")
+        disco_btn.setMinimumHeight(32)
+        disco_btn.setStyleSheet("background: #ff6b35; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        disco_btn.clicked.connect(self._run_discovery)
+        disco_row.addWidget(disco_btn)
+        disco_layout.addLayout(disco_row)
+        self.disco_result = QPlainTextEdit()
+        self.disco_result.setReadOnly(True)
+        self.disco_result.setFont(QFont("JetBrains Mono", 9))
+        self.disco_result.setMaximumHeight(120)
+        self.disco_result.setPlaceholderText("Discovery results will appear here...")
+        disco_layout.addWidget(self.disco_result)
+        layout.addWidget(disco_group)
+
+        # Auto-load on tab creation
+        QTimer.singleShot(100, self._load_target_database)
+
+    def _load_target_database(self):
+        """Load merchant database into table."""
+        try:
+            if not DISCOVERY_AVAILABLE:
+                self.target_table.setRowCount(1)
+                self.target_table.setItem(0, 0, QTableWidgetItem("target_discovery module not available"))
+                return
+            sites = MERCHANT_DATABASE
+            self._all_targets = sites
+            self._filter_targets()
+        except Exception as e:
+            self.disco_result.setPlainText(f"Error loading database: {e}")
+
+    def _filter_targets(self):
+        """Filter target table by category and difficulty."""
+        if not hasattr(self, '_all_targets'):
+            return
+        cat = self.target_category.currentText()
+        diff = self.target_difficulty.currentText()
+        filtered = []
+        for site in self._all_targets:
+            if cat != "All" and cat.lower().replace(" ", "_") not in str(getattr(site, 'category', '')).lower():
+                continue
+            if diff != "All" and diff.lower() not in str(getattr(site, 'difficulty', '')).lower():
+                continue
+            filtered.append(site)
+
+        self.target_table.setRowCount(len(filtered))
+        for i, site in enumerate(filtered):
+            self.target_table.setItem(i, 0, QTableWidgetItem(getattr(site, 'domain', str(site))))
+            self.target_table.setItem(i, 1, QTableWidgetItem(getattr(site, 'name', '')))
+            self.target_table.setItem(i, 2, QTableWidgetItem(str(getattr(site, 'category', '')).split('.')[-1]))
+            self.target_table.setItem(i, 3, QTableWidgetItem(str(getattr(site, 'difficulty', '')).split('.')[-1]))
+            self.target_table.setItem(i, 4, QTableWidgetItem(str(getattr(site, 'psp', '')).split('.')[-1]))
+            self.target_table.setItem(i, 5, QTableWidgetItem(getattr(site, 'three_ds', 'unknown')))
+            self.target_table.setItem(i, 6, QTableWidgetItem(f"${getattr(site, 'max_amount', 0):,.0f}"))
+            rate = getattr(site, 'success_rate', 0)
+            rate_item = QTableWidgetItem(f"{rate*100:.0f}%" if isinstance(rate, float) else str(rate))
+            if isinstance(rate, float) and rate >= 0.8:
+                rate_item.setForeground(QBrush(QColor("#00ff88")))
+            elif isinstance(rate, float) and rate >= 0.5:
+                rate_item.setForeground(QBrush(QColor("#ffaa00")))
+            else:
+                rate_item.setForeground(QBrush(QColor("#ff4444")))
+            self.target_table.setItem(i, 7, rate_item)
+
+    def _run_discovery(self):
+        """Run auto-discovery via Google dorking."""
+        if not DISCOVERY_AVAILABLE:
+            self.disco_result.setPlainText("⚠️ target_discovery module not available")
+            return
+        self.disco_result.setPlainText("🔍 Running auto-discovery... (this may take 30-60 seconds)")
+        QTimer.singleShot(100, self._do_discovery)
+
+    def _do_discovery(self):
+        try:
+            disco = AutoDiscovery()
+            results = disco.discover_sites(
+                engine=self.disco_engine.currentText(),
+                max_per_query=self.disco_max.value(),
+                auto_probe=False
+            )
+            text = f"═══ DISCOVERED {len(results)} NEW TARGETS ═══\n\n"
+            for r in results[:20]:
+                domain = r.get('domain', '?')
+                classification = r.get('classification', '?')
+                text += f"  {domain:35s}  [{classification}]\n"
+            if len(results) > 20:
+                text += f"\n  ... and {len(results)-20} more"
+            self.disco_result.setPlainText(text)
+        except Exception as e:
+            self.disco_result.setPlainText(f"Discovery error: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 4: CARD QUALITY GRADER
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_quality_tab(self):
+        """Card quality grading — combines BIN + AVS + OSINT + Geo."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "⭐ Quality")
+
+        # Card info input
+        card_group = QGroupBox("💳 Card + Billing Info")
+        card_layout = QFormLayout(card_group)
+        self.q_bin = QLineEdit()
+        self.q_bin.setPlaceholderText("First 6 digits")
+        self.q_bin.setMaxLength(8)
+        card_layout.addRow("BIN:", self.q_bin)
+        self.q_name = QLineEdit()
+        self.q_name.setPlaceholderText("John Smith")
+        card_layout.addRow("Cardholder:", self.q_name)
+        self.q_address = QLineEdit()
+        self.q_address.setPlaceholderText("123 Main St")
+        card_layout.addRow("Address:", self.q_address)
+        self.q_city = QLineEdit()
+        self.q_city.setPlaceholderText("New York")
+        card_layout.addRow("City:", self.q_city)
+        self.q_state = QLineEdit()
+        self.q_state.setPlaceholderText("NY")
+        self.q_state.setMaxLength(2)
+        card_layout.addRow("State:", self.q_state)
+        self.q_zip = QLineEdit()
+        self.q_zip.setPlaceholderText("10001")
+        self.q_zip.setMaxLength(10)
+        card_layout.addRow("ZIP:", self.q_zip)
+        self.q_phone = QLineEdit()
+        self.q_phone.setPlaceholderText("(212) 555-1234")
+        card_layout.addRow("Phone:", self.q_phone)
+        layout.addWidget(card_group)
+
+        # Action buttons
+        btn_row = QHBoxLayout()
+        avs_btn = QPushButton("🏠 Check AVS")
+        avs_btn.setMinimumHeight(36)
+        avs_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        avs_btn.clicked.connect(self._check_avs)
+        btn_row.addWidget(avs_btn)
+
+        osint_btn = QPushButton("🔎 OSINT Checklist")
+        osint_btn.setMinimumHeight(36)
+        osint_btn.setStyleSheet("background: #9c27b0; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        osint_btn.clicked.connect(self._generate_osint)
+        btn_row.addWidget(osint_btn)
+
+        grade_btn = QPushButton("⭐ Grade Card")
+        grade_btn.setMinimumHeight(36)
+        grade_btn.setStyleSheet("background: #ff6b35; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        grade_btn.clicked.connect(self._grade_card)
+        btn_row.addWidget(grade_btn)
+
+        geo_btn = QPushButton("🌍 Geo Check")
+        geo_btn.setMinimumHeight(36)
+        geo_btn.setStyleSheet("background: #4caf50; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        geo_btn.clicked.connect(self._check_geo)
+        btn_row.addWidget(geo_btn)
+        layout.addLayout(btn_row)
+
+        # Result display
+        self.quality_result = QPlainTextEdit()
+        self.quality_result.setReadOnly(True)
+        self.quality_result.setFont(QFont("JetBrains Mono", 10))
+        self.quality_result.setPlaceholderText("Fill in card + billing info above, then use the analysis tools...")
+        layout.addWidget(self.quality_result)
+
+    def _check_avs(self):
+        """Run AVS pre-verification."""
+        if not ENHANCED_AVAILABLE:
+            self.quality_result.setPlainText("⚠️ cerberus_enhanced module not available")
+            return
+        try:
+            avs = AVSEngine()
+            result = avs.check_avs(
+                card_billing_address=self.q_address.text(),
+                card_billing_zip=self.q_zip.text(),
+                card_billing_state=self.q_state.text(),
+                target_address=self.q_address.text(),
+                target_zip=self.q_zip.text()
+            )
+            text = f"═══ AVS PRE-CHECK ═══\n\n"
+            text += f"  AVS Code:      {result.avs_code.value} ({result.avs_code.name})\n"
+            text += f"  Street Match:  {'✅' if result.street_match else '❌'}\n"
+            text += f"  ZIP Match:     {'✅' if result.zip_match else '❌'}\n"
+            text += f"  State Valid:   {'✅' if result.state_valid else '❌'}\n"
+            text += f"  Confidence:    {result.confidence*100:.0f}%\n"
+            self.quality_result.setPlainText(text)
+        except Exception as e:
+            self.quality_result.setPlainText(f"AVS Error: {e}")
+
+    def _generate_osint(self):
+        """Generate OSINT verification checklist."""
+        if not ENHANCED_AVAILABLE:
+            self.quality_result.setPlainText("⚠️ cerberus_enhanced module not available")
+            return
+        try:
+            osint = OSINTVerifier()
+            checklist = osint.generate_verification_checklist(
+                name=self.q_name.text(),
+                address=self.q_address.text(),
+                city=self.q_city.text(),
+                state=self.q_state.text(),
+                zip_code=self.q_zip.text(),
+                phone=self.q_phone.text()
+            )
+            text = f"═══ OSINT VERIFICATION CHECKLIST ═══\n\n"
+            for source, info in checklist.get('sources', {}).items():
+                text += f"  [{source.upper()}]\n"
+                text += f"    URL:   {info.get('url', 'N/A')}\n"
+                text += f"    Query: {info.get('query', 'N/A')}\n"
+                text += f"    Check: {', '.join(info.get('checks', []))}\n\n"
+            text += f"{'─'*50}\n"
+            text += f"  Total Sources: {checklist.get('total_sources', 0)}\n"
+            text += f"  Priority: {checklist.get('priority_order', 'N/A')}\n"
+            self.quality_result.setPlainText(text)
+        except Exception as e:
+            self.quality_result.setPlainText(f"OSINT Error: {e}")
+
+    def _grade_card(self):
+        """Grade card quality using CardQualityGrader."""
+        if not ENHANCED_AVAILABLE:
+            self.quality_result.setPlainText("⚠️ cerberus_enhanced module not available")
+            return
+        try:
+            grader = CardQualityGrader()
+            bin6 = self.q_bin.text().strip()[:6]
+            if len(bin6) < 6:
+                self.quality_result.setPlainText("⚠️ Enter BIN first")
+                return
+            report = grader.grade_card(
+                bin_number=bin6,
+                billing_address=self.q_address.text(),
+                billing_zip=self.q_zip.text(),
+                billing_state=self.q_state.text(),
+                cardholder_name=self.q_name.text()
+            )
+            grade_colors = {"PREMIUM": "🟢", "DEGRADED": "🟡", "LOW": "🔴"}
+            text = f"═══ CARD QUALITY GRADE ═══\n\n"
+            text += f"  Grade:           {grade_colors.get(report.grade.value, '⚪')} {report.grade.value}\n"
+            text += f"  Success Rate:    {report.success_rate_estimate}\n"
+            text += f"  BIN Score:       {report.bin_score:.0f}/100\n"
+            text += f"  AVS Score:       {report.avs_score:.0f}/100\n"
+            text += f"  Geo Score:       {report.geo_score:.0f}/100\n"
+            text += f"  OSINT Score:     {report.osint_score:.0f}/100\n"
+            text += f"\n  Recommendation:\n    {report.recommendation}\n"
+            self.quality_result.setPlainText(text)
+        except Exception as e:
+            self.quality_result.setPlainText(f"Grading Error: {e}")
+
+    def _check_geo(self):
+        """Check geographic consistency."""
+        if not ENHANCED_AVAILABLE:
+            self.quality_result.setPlainText("⚠️ cerberus_enhanced module not available")
+            return
+        try:
+            geo = GeoMatchChecker()
+            state = self.q_state.text().strip().upper()
+            result = geo.check_geo_consistency(
+                billing_state=state,
+                exit_ip_state=None,
+                browser_timezone=""
+            )
+            text = f"═══ GEO CONSISTENCY CHECK ═══\n\n"
+            text += f"  Billing State:    {state}\n"
+            text += f"  Expected TZ:      {result.get('expected_timezone', 'N/A')}\n"
+            text += f"  Geo Match:        {'✅' if result.get('geo_match') else '⚠️ Check proxy'}\n"
+            text += f"  Recommendation:   {result.get('recommendation', 'N/A')}\n"
+            self.quality_result.setPlainText(text)
+        except Exception as e:
+            self.quality_result.setPlainText(f"Geo Error: {e}")
+
     def apply_dark_theme(self):
         """Apply Dark Cyberpunk theme — matches Unified Operation Center"""
         palette = QPalette()

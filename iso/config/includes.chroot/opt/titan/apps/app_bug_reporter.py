@@ -563,6 +563,11 @@ class BugReporterWindow(QMainWindow):
         self.auto_patcher = AutoPatcher(self.db)
 
         self.setWindowTitle("TITAN Bug Reporter + Auto-Patcher")
+        try:
+            from titan_icon import set_titan_icon
+            set_titan_icon(self, "#5588ff")
+        except Exception:
+            pass
         self.setMinimumSize(1000, 700)
         self._apply_dark_theme()
         self._build_ui()

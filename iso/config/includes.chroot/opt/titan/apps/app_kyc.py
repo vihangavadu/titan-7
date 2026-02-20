@@ -120,6 +120,11 @@ class KYCApp(QMainWindow):
     
     def init_ui(self):
         self.setWindowTitle("🎭 KYC - The Mask | TITAN V7.0.3")
+        try:
+            from titan_icon import set_titan_icon
+            set_titan_icon(self, "#9c27b0")
+        except Exception:
+            pass
         self.setMinimumSize(750, 700)
         
         # Central widget

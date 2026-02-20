@@ -264,6 +264,11 @@ class UnifiedOperationCenter(QMainWindow):
     
     def init_ui(self):
         self.setWindowTitle("Titan OS — Operation Center")
+        try:
+            from titan_icon import set_titan_icon
+            set_titan_icon(self, "#00d4ff")
+        except Exception:
+            pass
         self.setMinimumSize(1100, 950)
         
         # Central widget

@@ -94,6 +94,11 @@ class GenesisApp(QMainWindow):
     
     def init_ui(self):
         self.setWindowTitle("🔥 GENESIS - The Forge | TITAN V7.0.3")
+        try:
+            from titan_icon import set_titan_icon
+            set_titan_icon(self, "#ff6b35")
+        except Exception:
+            pass
         self.setMinimumSize(600, 700)
         
         # Central widget
