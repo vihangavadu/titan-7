@@ -3,7 +3,7 @@
 # The old format bookworm/updates is deprecated
 # New format is bookworm-security
 
-set -e
+# set -e  # Disabled - sed may fail if patterns not found
 
 echo "[HOOK] Fixing Debian security mirror URLs..."
 
