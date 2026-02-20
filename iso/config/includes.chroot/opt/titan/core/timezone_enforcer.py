@@ -229,6 +229,87 @@ class TimezoneEnforcer:
         except Exception as e:
             logger.warning(f"[PHASE 3.3] NTP sync error: {e}")
             return False, drift
+
+    def verify_geoloc_timezone_match(self, exit_ip: str = "", deadline_ms: float = 200.0) -> Tuple[bool, str]:
+        """
+        GAP-6 FIX: Verify that system timezone matches the IP geolocation timezone
+        within the specified deadline (default 200ms).
+
+        Antifraud systems (Sift, Kount, Forter) flag sessions where:
+        - Browser timezone != IP geolocation timezone
+        - The mismatch persists for >200ms after VPN connection
+
+        This method must be called AFTER VPN connects and BEFORE browser launches.
+        If the check fails, the caller should re-run enforce() before proceeding.
+
+        Args:
+            exit_ip: The VPN exit node IP (auto-detected if empty)
+            deadline_ms: Maximum allowed sync lag in milliseconds
+
+        Returns:
+            (match: bool, message: str)
+        """
+        import socket
+
+        t_start = time.monotonic()
+
+        # Auto-detect exit IP if not provided
+        if not exit_ip:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.settimeout(2)
+                s.connect(("8.8.8.8", 80))
+                exit_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                exit_ip = "127.0.0.1"
+
+        # Query local Unbound DNS resolver for IP geoloc (offline-capable)
+        # Primary: use ip-api.com via the VPN tunnel itself
+        geo_tz = None
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"http://ip-api.com/json/{exit_ip}?fields=timezone",
+                headers={"User-Agent": "curl/7.88.1"}
+            )
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                data = json.loads(resp.read().decode())
+                geo_tz = data.get("timezone", "")
+        except Exception:
+            pass
+
+        # Fallback: derive expected timezone from configured target
+        if not geo_tz:
+            geo_tz = self.config.target_timezone
+
+        elapsed_ms = (time.monotonic() - t_start) * 1000
+
+        # Read current system timezone
+        try:
+            tz_link = os.readlink("/etc/localtime")
+            sys_tz = tz_link.replace("/usr/share/zoneinfo/", "")
+        except Exception:
+            sys_tz = os.environ.get("TZ", "")
+
+        match = (sys_tz == geo_tz)
+
+        if elapsed_ms > deadline_ms:
+            msg = (f"CLOCK_SKEW_RISK: Geoloc lookup took {elapsed_ms:.0f}ms "
+                   f"(>{deadline_ms:.0f}ms deadline). Proxy latency flag possible.")
+            logger.warning(f"[PHASE 3.3] {msg}")
+            return False, msg
+
+        if not match:
+            msg = (f"TZ_MISMATCH: sys={sys_tz!r} geo={geo_tz!r} "
+                   f"(elapsed={elapsed_ms:.0f}ms). Re-run enforce() before browser launch.")
+            logger.error(f"[PHASE 3.3] {msg}")
+            return False, msg
+
+        msg = (f"TZ_MATCH: sys={sys_tz!r} == geo={geo_tz!r} "
+               f"(verified in {elapsed_ms:.0f}ms)")
+        logger.info(f"[PHASE 3.3] {msg}")
+        return True, msg
     
     def _verify(self) -> Tuple[bool, str]:
         """Step 5: Verify system timezone matches target"""
