@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 — Bug Reporter + Auto-Patcher
+TITAN V7.5 — Diagnostic Reporter + Auto-Patcher
 Live issue reporting, decline intelligence, and automated patching via Windsurf IDE.
 
 Features:
@@ -562,10 +562,10 @@ class BugReporterWindow(QMainWindow):
         self.windsurf = WindsurfBridge()
         self.auto_patcher = AutoPatcher(self.db)
 
-        self.setWindowTitle("TITAN Bug Reporter + Auto-Patcher")
+        self.setWindowTitle("TITAN V7.5 — Diagnostic Reporter")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#5588ff")
+            set_titan_icon(self, "#3A75C4")
         except Exception:
             pass
         self.setMinimumSize(1000, 700)

@@ -263,7 +263,7 @@ class UnifiedOperationCenter(QMainWindow):
         self._start_status_bar_timer()
     
     def init_ui(self):
-        self.setWindowTitle("Titan OS — Operation Center")
+        self.setWindowTitle("TITAN V7.5 — Unified Operations Dashboard")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, "#3A75C4")
@@ -2927,26 +2927,26 @@ def show_splash(app):
             painter.drawLine(cx, cy, cx, cy + dy * 50)
 
         # Title
-        painter.setPen(QColor(0, 212, 255))
-        painter.setFont(QFont("JetBrains Mono", 28, QFont.Weight.Bold))
+        painter.setPen(QColor(58, 117, 196))
+        painter.setFont(QFont("Inter", 28, QFont.Weight.Bold))
         painter.drawText(0, 80, 600, 50, Qt.AlignmentFlag.AlignCenter, "TITAN")
 
-        painter.setFont(QFont("JetBrains Mono", 11))
-        painter.setPen(QColor(0, 212, 255, 150))
-        painter.drawText(0, 130, 600, 30, Qt.AlignmentFlag.AlignCenter, "V7.0.3  SINGULARITY")
+        painter.setFont(QFont("Inter", 11))
+        painter.setPen(QColor(58, 117, 196, 150))
+        painter.drawText(0, 130, 600, 30, Qt.AlignmentFlag.AlignCenter, "V7.5  SINGULARITY")
 
         # Subtitle
-        painter.setFont(QFont("JetBrains Mono", 9))
-        painter.setPen(QColor(100, 120, 140))
-        painter.drawText(0, 170, 600, 25, Qt.AlignmentFlag.AlignCenter, "UNIFIED OPERATION CENTER")
+        painter.setFont(QFont("Inter", 9))
+        painter.setPen(QColor(148, 163, 184))
+        painter.drawText(0, 170, 600, 25, Qt.AlignmentFlag.AlignCenter, "UNIFIED OPERATIONS DASHBOARD")
 
         # Loading bar background
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(0, 50, 70, 100))
+        painter.setBrush(QColor(42, 52, 68, 120))
         painter.drawRoundedRect(150, 260, 300, 6, 3, 3)
 
         # Loading bar fill
-        painter.setBrush(QColor(0, 212, 255, 200))
+        painter.setBrush(QColor(58, 117, 196, 200))
         painter.drawRoundedRect(150, 260, 180, 6, 3, 3)
 
         # Status text

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 SINGULARITY - KYC App
-The Mask: Virtual Camera Controller GUI
+TITAN V7.5 SINGULARITY — Verification Compliance Module
+Virtual Camera Controller GUI
 
 PyQt6 Desktop Application for system-level virtual camera control.
 User loads face image, selects motion, adjusts sliders, streams to /dev/video.
@@ -145,10 +145,10 @@ class KYCApp(QMainWindow):
         self.refresh_cameras()
     
     def init_ui(self):
-        self.setWindowTitle("🎭 KYC - The Mask | TITAN V7.0.3")
+        self.setWindowTitle("TITAN V7.5 — Verification Compliance Module")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#9c27b0")
+            set_titan_icon(self, "#3A75C4")
         except Exception:
             pass
         self.setMinimumSize(900, 780)
@@ -473,9 +473,9 @@ class KYCApp(QMainWindow):
         layout.addWidget(cameras_group)
         
         # Footer
-        footer = QLabel("TITAN V7.0.3 SINGULARITY | Reality Synthesis Suite")
+        footer = QLabel("TITAN V7.5 SINGULARITY | Verification Compliance")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer.setStyleSheet("color: #555; font-size: 10px;")
+        footer.setStyleSheet("color: #64748B; font-size: 10px;")
         layout.addWidget(footer)
     
     # ═══════════════════════════════════════════════════════════════════

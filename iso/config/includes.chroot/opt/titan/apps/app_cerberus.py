@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 SINGULARITY - Cerberus App
-The Gatekeeper: Card Validation GUI
+TITAN V7.5 SINGULARITY — Asset Validation & Risk Assessment
+Card Validation GUI
 
 PyQt6 Desktop Application for zero-touch card validation.
 User pastes card -> App shows Traffic Light (Green/Yellow/Red).
@@ -241,10 +241,10 @@ class CerberusApp(QMainWindow):
         self.apply_dark_theme()
     
     def init_ui(self):
-        self.setWindowTitle("🛡️ CERBERUS - The Gatekeeper | TITAN V7.0.3")
+        self.setWindowTitle("TITAN V7.5 — Asset Validation & Risk Assessment")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#00bcd4")
+            set_titan_icon(self, "#3A75C4")
         except Exception:
             pass
         self.setMinimumSize(850, 750)
@@ -473,9 +473,9 @@ class CerberusApp(QMainWindow):
         layout.addLayout(stats_layout)
         
         # Footer
-        footer = QLabel("TITAN V7.0.3 SINGULARITY | Reality Synthesis Suite")
+        footer = QLabel("TITAN V7.5 SINGULARITY | Asset Validation Engine")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer.setStyleSheet("color: #555; font-size: 10px;")
+        footer.setStyleSheet("color: #64748B; font-size: 10px;")
         layout.addWidget(footer)
     
     # ═══════════════════════════════════════════════════════════════════

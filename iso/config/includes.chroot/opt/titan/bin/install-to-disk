@@ -306,13 +306,14 @@ log "GRUB installation complete."
 hdr "PHASE 5 — VPS-SPECIFIC OPTIMIZATIONS"
 # ==============================================================================
 
-# VNC server for headless VPS GUI access
-log "Installing VNC server for remote GUI access..."
+# ── VNC server for headless VPS GUI access ──
+log "Installing VNC + xrdp for remote GUI access..."
 chroot "$MOUNT_ROOT" /bin/bash -c "
     apt-get install -y --no-install-recommends \
         tigervnc-standalone-server tigervnc-common \
+        xrdp \
         xfce4 xfce4-terminal dbus-x11 2>/dev/null || true
-" 2>/dev/null || warn "VNC/XFCE install had issues (may need manual setup)"
+" 2>/dev/null || warn "VNC/xrdp/XFCE install had issues (may need manual setup)"
 
 # Create VNC startup for user
 mkdir -p "$MOUNT_ROOT/home/user/.vnc"
@@ -336,7 +337,7 @@ chroot "$MOUNT_ROOT" /bin/bash -c "
 # Create VNC systemd service
 cat > "$MOUNT_ROOT/etc/systemd/system/titan-vnc.service" << 'EOF'
 [Unit]
-Description=TITAN V7.0 VNC Server (Display :1)
+Description=TITAN V7.5 VNC Server (Display :1)
 After=network.target
 
 [Service]
@@ -358,9 +359,59 @@ chroot "$MOUNT_ROOT" /bin/bash -c "systemctl enable titan-vnc.service" 2>/dev/nu
 log "VNC server configured on :1 (port 5901)"
 log "VNC password: titan"
 
+# ── xrdp (Windows RDP) server for native RDP access ──
+log "Configuring xrdp for Windows RDP access on port 3389..."
+
+# Configure xrdp to use XFCE
+cat > "$MOUNT_ROOT/etc/xrdp/startwm.sh" << 'XRDPEOF'
+#!/bin/sh
+if [ -r /etc/default/locale ]; then
+    . /etc/default/locale
+    export LANG LANGUAGE
+fi
+export PYTHONPATH=/opt/titan/core:/opt/titan/apps
+startxfce4
+XRDPEOF
+chmod +x "$MOUNT_ROOT/etc/xrdp/startwm.sh"
+
+# Optimize xrdp for performance over RDP
+if [ -f "$MOUNT_ROOT/etc/xrdp/xrdp.ini" ]; then
+    # Set max bpp to 24 for speed, enable bulk compression
+    sed -i 's/^max_bpp=.*/max_bpp=24/' "$MOUNT_ROOT/etc/xrdp/xrdp.ini"
+    sed -i 's/^#tcp_nodelay=.*/tcp_nodelay=true/' "$MOUNT_ROOT/etc/xrdp/xrdp.ini"
+    sed -i 's/^tcp_nodelay=.*/tcp_nodelay=true/' "$MOUNT_ROOT/etc/xrdp/xrdp.ini"
+    # Use Xvnc backend (most compatible)
+    sed -i 's/^#xserverbpp=.*/xserverbpp=24/' "$MOUNT_ROOT/etc/xrdp/xrdp.ini"
+fi
+
+# Optimize sesman for faster session creation
+if [ -f "$MOUNT_ROOT/etc/xrdp/sesman.ini" ]; then
+    sed -i 's/^MaxSessions=.*/MaxSessions=10/' "$MOUNT_ROOT/etc/xrdp/sesman.ini"
+fi
+
+# Create xrdp performance tuning sysctl
+cat > "$MOUNT_ROOT/etc/sysctl.d/99-titan-rdp-optimize.conf" << 'RDPEOF'
+# TITAN V7.5 — RDP/VNC Performance Optimization
+# Increase TCP buffer sizes for smoother remote desktop
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+# Disable Nagle for lower latency
+net.ipv4.tcp_nodelay = 1
+# Faster keepalive for RDP sessions
+net.ipv4.tcp_keepalive_time = 60
+net.ipv4.tcp_keepalive_intvl = 10
+net.ipv4.tcp_keepalive_probes = 6
+RDPEOF
+
+chroot "$MOUNT_ROOT" /bin/bash -c "systemctl enable xrdp.service" 2>/dev/null || true
+log "xrdp configured on port 3389 (standard Windows RDP)"
+log "Connect via: mstsc.exe → <VPS_IP>:3389 (user/titan)"
+
 # Sudoers for user
 cat > "$MOUNT_ROOT/etc/sudoers.d/titan-user" << 'EOF'
-# TITAN V7.0 — VPS user permissions
+# TITAN V7.5 — VPS user permissions
 user ALL=(ALL) NOPASSWD: ALL
 EOF
 chmod 440 "$MOUNT_ROOT/etc/sudoers.d/titan-user"
@@ -385,7 +436,7 @@ rmdir "$MOUNT_ROOT" 2>/dev/null || true
 sync
 
 # ==============================================================================
-hdr "INSTALLATION COMPLETE — TITAN V7.0 SINGULARITY"
+hdr "INSTALLATION COMPLETE — TITAN V7.5 SINGULARITY"
 # ==============================================================================
 echo ""
 echo -e "  ${GREEN}${BOLD}Disk:${NC}       $TARGET_DISK"
@@ -400,18 +451,20 @@ echo -e "    ${RED}${BOLD}⚠ CHANGE THESE IMMEDIATELY AFTER FIRST LOGIN${NC}"
 echo ""
 echo -e "  ${CYAN}Access after reboot:${NC}"
 echo -e "    SSH:  ssh root@<VPS_IP>"
+echo -e "    RDP:  mstsc.exe → <VPS_IP>:3389 (user/titan)"
 echo -e "    VNC:  <VPS_IP>:5901 (password: titan)"
 echo ""
 echo -e "  ${CYAN}Services enabled:${NC}"
 echo -e "    lucid-titan.service    — Kernel shields + backend API"
 echo -e "    lucid-console.service  — GUI auto-launch"
 echo -e "    titan-first-boot.service — Browser + dependency check"
+echo -e "    xrdp.service           — Windows RDP on :3389"
 echo -e "    titan-vnc.service      — VNC server on :5901"
 echo -e "    ssh                    — SSH access"
 echo ""
 echo -e "  ${CYAN}Next steps:${NC}"
 echo -e "    1. Remove live media / reboot"
-echo -e "    2. Connect via SSH or VNC"
+echo -e "    2. Connect via RDP (mstsc.exe), SSH, or VNC"
 echo -e "    3. Change passwords: passwd root && passwd user"
 echo -e "    4. Run: python3 /opt/titan/apps/app_unified.py"
 echo ""
