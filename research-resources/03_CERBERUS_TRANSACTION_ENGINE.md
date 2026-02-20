@@ -94,9 +94,9 @@ Cross-references cardholder data against public records:
 
 ## 3. Target Discovery (`target_discovery.py`, `target_presets.py`)
 
-### 50+ Pre-Configured Merchant Profiles
+### Pre-Configured Merchant Profiles (9 built-in, extensible)
 
-Each target preset contains:
+The `target_presets.py` module ships with 9 built-in merchant profiles (Eneba, G2A, Kinguin, Steam, PlayStation, etc.) with the `generate_preset_from_intel()` function allowing operators to auto-generate new presets from target intelligence. Each target preset contains:
 
 ```python
 @dataclass

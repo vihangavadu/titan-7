@@ -131,7 +131,7 @@ For Firefox profiles, Genesis uses the `profgen` pipeline to create forensic-gra
 
 ## Archetype-Based Profile Generation
 
-Genesis supports **persona archetypes** that create consistent behavioral patterns:
+Genesis supports **persona archetypes** (via `ProfileArchetype` enum and `ARCHETYPE_CONFIGS` dict) that create consistent behavioral patterns:
 
 | Archetype | Age Range | Hardware | Browsing Pattern |
 |-----------|-----------|----------|-----------------|

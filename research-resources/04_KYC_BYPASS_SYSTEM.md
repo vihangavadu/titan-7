@@ -32,6 +32,8 @@ KYC (Know Your Customer) verification is the process where platforms verify a us
 
 ### Layer 1: Virtual Camera (`v4l2loopback`)
 
+The main controller class is `KYCController` (in `kyc_core.py`), which manages the virtual camera pipeline.
+
 **Technique**: Linux kernel module `v4l2loopback` creates a virtual video device (`/dev/video2`) that appears as a real webcam to any application. FFmpeg pipes video content to this device.
 
 ```
