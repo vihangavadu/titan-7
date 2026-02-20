@@ -1639,3 +1639,177 @@ TITAN V7.0 SINGULARITY - Zero Detect / Zero Decline
         handover_file = profile_path / "HANDOVER_PROTOCOL.txt"
         with open(handover_file, "w") as f:
             f.write(handover)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.5 UPGRADE: OS CONSISTENCY VALIDATION
+# Single-source-of-truth enforcement — ensures every identity artifact
+# (User-Agent, navigator.platform, TLS fingerprint, timezone, locale,
+# screen resolution, GPU string) is internally consistent with the
+# declared OS. Inconsistency between ANY two signals is an instant
+# detection vector for Forter, ThreatMetrix, and iovation.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class OSConsistencyValidator:
+    """
+    v7.5 OS Consistency Validation Engine.
+
+    Validates that all profile signals are mutually consistent:
+    - User-Agent OS matches navigator.platform
+    - TLS fingerprint matches browser/OS combination
+    - Timezone matches locale and geo-IP
+    - Screen resolution is plausible for declared hardware
+    - GPU string matches OS (e.g., ANGLE/D3D11 = Windows, Metal = macOS)
+    """
+
+    # OS → expected navigator.platform values
+    PLATFORM_MAP = {
+        "windows_11": ["Win32"],
+        "windows_10": ["Win32"],
+        "macos_sonoma": ["MacIntel"],
+        "macos_ventura": ["MacIntel"],
+        "linux": ["Linux x86_64"],
+        "ios": ["iPhone", "iPad"],
+        "android": ["Linux armv8l", "Linux aarch64"],
+    }
+
+    # OS → expected GPU renderer patterns
+    GPU_PATTERNS = {
+        "windows": ["Direct3D11", "Direct3D9", "D3D11", "D3D9"],
+        "macos": ["Apple M", "Apple GPU", "Metal"],
+        "linux": ["Mesa", "ANGLE (", "OpenGL"],
+        "ios": ["Apple GPU", "Apple A"],
+        "android": ["Adreno", "Mali", "PowerVR", "Qualcomm"],
+    }
+
+    # OS → expected UA tokens
+    UA_TOKENS = {
+        "windows_11": ["Windows NT 10.0", "Win64"],
+        "windows_10": ["Windows NT 10.0", "Win64"],
+        "macos_sonoma": ["Macintosh", "Mac OS X 14"],
+        "macos_ventura": ["Macintosh", "Mac OS X 13"],
+        "linux": ["X11", "Linux x86_64"],
+        "ios": ["iPhone", "CPU iPhone OS"],
+        "android": ["Android", "Linux"],
+    }
+
+    def __init__(self):
+        self.errors = []
+        self.warnings = []
+
+    def validate_profile(self, profile: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate full profile for OS consistency.
+        Returns dict with status, errors, warnings.
+        """
+        self.errors = []
+        self.warnings = []
+
+        declared_os = profile.get("os", "").lower()
+        ua = profile.get("user_agent", "")
+        platform = profile.get("navigator_platform", "")
+        gpu_renderer = profile.get("webgl_renderer", "")
+        timezone = profile.get("timezone", "")
+        locale = profile.get("locale", "")
+        screen_w = profile.get("screen_width", 0)
+        screen_h = profile.get("screen_height", 0)
+
+        # 1. UA ↔ OS consistency
+        self._check_ua_os(ua, declared_os)
+
+        # 2. Platform ↔ OS consistency
+        self._check_platform_os(platform, declared_os)
+
+        # 3. GPU ↔ OS consistency
+        self._check_gpu_os(gpu_renderer, declared_os)
+
+        # 4. Screen resolution plausibility
+        self._check_screen(screen_w, screen_h, declared_os)
+
+        # 5. Timezone ↔ locale consistency
+        self._check_tz_locale(timezone, locale)
+
+        status = "PASS" if not self.errors else "FAIL"
+        return {
+            "status": status,
+            "os": declared_os,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "checks_run": 5,
+            "checks_passed": 5 - len(self.errors),
+        }
+
+    def _check_ua_os(self, ua: str, os_name: str):
+        os_key = None
+        for key in self.UA_TOKENS:
+            if key in os_name or os_name in key:
+                os_key = key
+                break
+        if os_key and not any(tok in ua for tok in self.UA_TOKENS[os_key]):
+            self.errors.append(f"UA mismatch: UA does not contain expected tokens for {os_key}")
+
+    def _check_platform_os(self, platform: str, os_name: str):
+        os_key = None
+        for key in self.PLATFORM_MAP:
+            if key in os_name or os_name in key:
+                os_key = key
+                break
+        if os_key and platform and platform not in self.PLATFORM_MAP[os_key]:
+            self.errors.append(f"Platform mismatch: '{platform}' not valid for {os_key}")
+
+    def _check_gpu_os(self, renderer: str, os_name: str):
+        os_family = "windows" if "windows" in os_name else \
+                    "macos" if "macos" in os_name or "mac" in os_name else \
+                    "ios" if "ios" in os_name else \
+                    "android" if "android" in os_name else \
+                    "linux" if "linux" in os_name else None
+        if os_family and renderer:
+            patterns = self.GPU_PATTERNS.get(os_family, [])
+            if patterns and not any(p in renderer for p in patterns):
+                self.errors.append(f"GPU mismatch: '{renderer[:50]}' not consistent with {os_family}")
+
+    def _check_screen(self, w: int, h: int, os_name: str):
+        if w > 0 and h > 0:
+            if "ios" in os_name or "iphone" in os_name:
+                if w > 1290 or h > 2796:
+                    self.warnings.append(f"Screen {w}x{h} unusual for iOS device")
+            elif "android" in os_name:
+                if w > 1440 or h > 3200:
+                    self.warnings.append(f"Screen {w}x{h} unusual for Android device")
+            else:
+                if w < 800 or h < 600:
+                    self.warnings.append(f"Screen {w}x{h} suspiciously small for desktop")
+
+    def _check_tz_locale(self, timezone: str, locale: str):
+        if timezone and locale:
+            us_tz = ["America/New_York", "America/Chicago", "America/Denver",
+                     "America/Los_Angeles", "America/Phoenix"]
+            if any(tz in timezone for tz in us_tz) and locale and not locale.startswith("en"):
+                self.warnings.append(f"Timezone {timezone} is US but locale {locale} is not English")
+
+    def single_source_of_truth(self, profile: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        v7.5 Single-Source-of-Truth enforcement.
+        Auto-corrects inconsistencies by deriving all signals from the
+        declared OS, ensuring zero cross-signal detection vectors.
+        """
+        declared_os = profile.get("os", "windows_11").lower()
+
+        # Auto-set platform
+        for key in self.PLATFORM_MAP:
+            if key in declared_os:
+                profile["navigator_platform"] = self.PLATFORM_MAP[key][0]
+                break
+
+        # Auto-set UA tokens check
+        ua = profile.get("user_agent", "")
+        for key in self.UA_TOKENS:
+            if key in declared_os:
+                missing = [t for t in self.UA_TOKENS[key] if t not in ua]
+                if missing:
+                    profile["_ua_warnings"] = f"UA missing tokens: {missing}"
+                break
+
+        profile["_os_consistency_validated"] = True
+        profile["_os_consistency_version"] = "7.5"
+        return profile

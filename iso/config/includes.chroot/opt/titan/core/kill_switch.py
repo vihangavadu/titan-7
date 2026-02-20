@@ -786,3 +786,215 @@ def send_panic_signal(reason: str = "manual_trigger"):
     signal_file = Path("/opt/titan/state/kill_signal")
     signal_file.parent.mkdir(parents=True, exist_ok=True)
     signal_file.write_text(reason)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.5 UPGRADE: MEMORY PRESSURE MANAGER
+# Monitors system memory and manages pressure zones to prevent OOM kills
+# during operations. OOM kills leave forensic traces in dmesg and can
+# corrupt profile state. This manager proactively manages memory to
+# keep the system in a safe operating zone.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MemoryZone(Enum):
+    """Memory pressure zones with automatic response actions."""
+    GREEN = "green"       # <60% — normal operation
+    YELLOW = "yellow"     # 60-75% — start shedding caches
+    ORANGE = "orange"     # 75-85% — aggressive cleanup, warn operator
+    RED = "red"           # >85% — emergency: kill non-essential processes
+
+
+class MemoryPressureManager:
+    """
+    v7.5 Memory Pressure Manager with 4-zone automatic response.
+
+    Problem: TITAN runs multiple heavy processes (Camoufox, ONNX inference,
+    FFmpeg for KYC, eBPF maps). On 4-8GB VPS instances, memory pressure
+    can trigger OOM killer which:
+    - Leaves forensic traces in dmesg/journald
+    - Corrupts browser profile state mid-session
+    - Kills the kill switch daemon itself (ironic)
+
+    Solution: Proactive memory management with zone-based responses:
+    - GREEN (<60%): Normal operation
+    - YELLOW (60-75%): Drop page cache, trim malloc arenas
+    - ORANGE (75-85%): Kill background noise generators, warn operator
+    - RED (>85%): Emergency profile save + process termination
+    """
+
+    # Processes safe to kill in ORANGE/RED zones (by name substring)
+    EXPENDABLE_PROCESSES = [
+        "background_noise",
+        "trajectory_precompute",
+        "intel_monitor",
+        "warmup_browser",
+    ]
+
+    def __init__(self, yellow_pct: float = 60.0, orange_pct: float = 75.0,
+                 red_pct: float = 85.0, poll_interval_s: float = 5.0):
+        self.thresholds = {
+            MemoryZone.YELLOW: yellow_pct,
+            MemoryZone.ORANGE: orange_pct,
+            MemoryZone.RED: red_pct,
+        }
+        self.poll_interval = poll_interval_s
+        self.current_zone = MemoryZone.GREEN
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+        self._callbacks: Dict[MemoryZone, list] = {z: [] for z in MemoryZone}
+        self.logger = logging.getLogger("TITAN-MEMORY-MGR")
+
+    def get_memory_usage(self) -> Dict[str, Any]:
+        """Read current memory usage from /proc/meminfo."""
+        try:
+            meminfo = Path("/proc/meminfo").read_text()
+            values = {}
+            for line in meminfo.splitlines():
+                parts = line.split()
+                if len(parts) >= 2:
+                    key = parts[0].rstrip(":")
+                    values[key] = int(parts[1])  # kB
+
+            total = values.get("MemTotal", 1)
+            available = values.get("MemAvailable", total)
+            used = total - available
+            pct = (used / total) * 100.0
+
+            return {
+                "total_mb": total // 1024,
+                "used_mb": used // 1024,
+                "available_mb": available // 1024,
+                "percent_used": round(pct, 1),
+                "swap_total_mb": values.get("SwapTotal", 0) // 1024,
+                "swap_used_mb": (values.get("SwapTotal", 0) - values.get("SwapFree", 0)) // 1024,
+            }
+        except Exception as e:
+            self.logger.error(f"Cannot read /proc/meminfo: {e}")
+            return {"percent_used": 0, "error": str(e)}
+
+    def classify_zone(self, pct: float) -> MemoryZone:
+        """Classify current memory usage into a pressure zone."""
+        if pct >= self.thresholds[MemoryZone.RED]:
+            return MemoryZone.RED
+        elif pct >= self.thresholds[MemoryZone.ORANGE]:
+            return MemoryZone.ORANGE
+        elif pct >= self.thresholds[MemoryZone.YELLOW]:
+            return MemoryZone.YELLOW
+        return MemoryZone.GREEN
+
+    def on_zone_change(self, zone: MemoryZone, callback):
+        """Register callback for zone transition."""
+        self._callbacks[zone].append(callback)
+
+    def _respond_yellow(self):
+        """YELLOW zone: drop caches and trim malloc arenas."""
+        self.logger.warning("[MEMORY] YELLOW zone — dropping page cache")
+        try:
+            # Drop page cache (requires root or sysctl vm.drop_caches permission)
+            subprocess.run(
+                "echo 1 > /proc/sys/vm/drop_caches",
+                shell=True, capture_output=True, timeout=5
+            )
+            # Trim glibc malloc arenas
+            subprocess.run(
+                ["python3", "-c", "import ctypes; ctypes.CDLL('libc.so.6').malloc_trim(0)"],
+                capture_output=True, timeout=5
+            )
+        except Exception as e:
+            self.logger.error(f"[MEMORY] Yellow response failed: {e}")
+
+    def _respond_orange(self):
+        """ORANGE zone: kill expendable background processes."""
+        self.logger.warning("[MEMORY] ORANGE zone — killing expendable processes")
+        self._respond_yellow()  # Also do yellow actions
+        try:
+            result = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.splitlines():
+                for proc_name in self.EXPENDABLE_PROCESSES:
+                    if proc_name in line:
+                        parts = line.split()
+                        if len(parts) > 1:
+                            pid = int(parts[1])
+                            os.kill(pid, signal.SIGTERM)
+                            self.logger.info(f"[MEMORY] Killed expendable process: {proc_name} (PID {pid})")
+        except Exception as e:
+            self.logger.error(f"[MEMORY] Orange response failed: {e}")
+
+    def _respond_red(self):
+        """RED zone: emergency — save state and aggressive cleanup."""
+        self.logger.critical("[MEMORY] RED zone — emergency memory cleanup!")
+        self._respond_orange()  # Also do orange actions
+        try:
+            # Force Python GC
+            import gc
+            gc.collect()
+            # Drop all caches aggressively
+            subprocess.run(
+                "echo 3 > /proc/sys/vm/drop_caches",
+                shell=True, capture_output=True, timeout=5
+            )
+            # Write emergency state marker
+            state_file = Path("/opt/titan/state/memory_emergency")
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({
+                "timestamp": time.time(),
+                "memory": self.get_memory_usage(),
+                "action": "emergency_cleanup",
+            }))
+        except Exception as e:
+            self.logger.critical(f"[MEMORY] Red response failed: {e}")
+
+    def _monitor_loop(self):
+        """Background monitoring loop."""
+        while self._running:
+            mem = self.get_memory_usage()
+            pct = mem.get("percent_used", 0)
+            new_zone = self.classify_zone(pct)
+
+            if new_zone != self.current_zone:
+                old_zone = self.current_zone
+                self.current_zone = new_zone
+                self.logger.info(f"[MEMORY] Zone transition: {old_zone.value} → {new_zone.value} ({pct}%)")
+
+                # Execute zone response
+                if new_zone == MemoryZone.YELLOW:
+                    self._respond_yellow()
+                elif new_zone == MemoryZone.ORANGE:
+                    self._respond_orange()
+                elif new_zone == MemoryZone.RED:
+                    self._respond_red()
+
+                # Fire callbacks
+                for cb in self._callbacks.get(new_zone, []):
+                    try:
+                        cb(new_zone, mem)
+                    except Exception:
+                        pass
+
+            time.sleep(self.poll_interval)
+
+    def start(self):
+        """Start memory pressure monitoring."""
+        self._running = True
+        self._thread = threading.Thread(
+            target=self._monitor_loop, daemon=True, name="titan-memory-mgr"
+        )
+        self._thread.start()
+        self.logger.info("[MEMORY] Pressure manager started")
+
+    def stop(self):
+        """Stop memory pressure monitoring."""
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=3.0)
+        self.logger.info("[MEMORY] Pressure manager stopped")
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get current memory manager status."""
+        mem = self.get_memory_usage()
+        return {
+            "running": self._running,
+            "zone": self.current_zone.value,
+            "memory": mem,
+            "thresholds": {z.value: v for z, v in self.thresholds.items()},
+        }

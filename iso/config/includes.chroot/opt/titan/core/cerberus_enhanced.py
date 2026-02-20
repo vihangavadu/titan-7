@@ -2072,3 +2072,166 @@ def generate_drain_plan(bin_number, amount_limit=None, preferred_categories=None
 def format_drain_plan(plan):
     """V7.0.2: Format drain plan as readable text"""
     return MaxDrainEngine().format_plan_text(plan)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.5 UPGRADE: AVS PRE-CHECK ENGINE
+# Validates billing address against USPS ZIP-state database BEFORE
+# submitting to payment processor. Prevents AVS mismatch declines
+# which burn cards and trigger bank fraud alerts.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AVSPreCheckEngine:
+    """
+    v7.5 AVS Pre-Check Engine with USPS ZIP-state validation.
+
+    Problem: AVS mismatches (wrong ZIP for state, wrong street format)
+    cause immediate decline + fraud flag at the issuing bank. Once flagged,
+    the card is burned for ALL future attempts.
+
+    Solution: Pre-validate address components before submission:
+    1. ZIP code matches state (USPS ZIP prefix ranges)
+    2. Street address format normalization (Apt → #, Suite → Ste)
+    3. City/state consistency check
+    4. PO Box detection (many merchants reject PO Boxes)
+    """
+
+    # USPS ZIP code prefix → state mapping (first 3 digits)
+    ZIP_STATE_MAP = {
+        range(10, 70): "NY", range(70, 80): "NJ", range(80, 100): "PA",
+        range(100, 150): "NY", range(150, 197): "PA",
+        range(197, 200): "DE", range(200, 206): "DC",
+        range(206, 220): "MD", range(220, 247): "VA",
+        range(247, 269): "WV", range(270, 290): "NC",
+        range(290, 300): "SC", range(300, 320): "GA",
+        range(320, 340): "FL", range(350, 370): "AL",
+        range(370, 386): "TN", range(386, 398): "MS",
+        range(400, 428): "KY", range(430, 459): "OH",
+        range(460, 480): "IN", range(480, 500): "MI",
+        range(500, 529): "IA", range(530, 550): "WI",
+        range(550, 568): "MN", range(570, 578): "SD",
+        range(580, 589): "ND", range(590, 600): "MT",
+        range(600, 630): "IL", range(630, 659): "MO",
+        range(660, 680): "KS", range(680, 694): "NE",
+        range(700, 715): "LA", range(716, 730): "AR",
+        range(730, 750): "OK", range(750, 800): "TX",
+        range(800, 816): "CO", range(820, 832): "WY",
+        range(832, 839): "ID", range(840, 848): "UT",
+        range(850, 866): "AZ", range(870, 885): "NM",
+        range(889, 900): "NV", range(900, 966): "CA",
+        range(967, 969): "HI", range(970, 980): "OR",
+        range(980, 995): "WA", range(995, 1000): "AK",
+    }
+
+    # Common address abbreviation normalization
+    ADDRESS_NORMALIZATIONS = {
+        r'\bApartment\b': 'Apt',
+        r'\bSuite\b': 'Ste',
+        r'\bBuilding\b': 'Bldg',
+        r'\bFloor\b': 'Fl',
+        r'\bRoom\b': 'Rm',
+        r'\bStreet\b': 'St',
+        r'\bAvenue\b': 'Ave',
+        r'\bBoulevard\b': 'Blvd',
+        r'\bDrive\b': 'Dr',
+        r'\bLane\b': 'Ln',
+        r'\bRoad\b': 'Rd',
+        r'\bCourt\b': 'Ct',
+        r'\bPlace\b': 'Pl',
+        r'\bCircle\b': 'Cir',
+        r'\bNorth\b': 'N',
+        r'\bSouth\b': 'S',
+        r'\bEast\b': 'E',
+        r'\bWest\b': 'W',
+    }
+
+    def __init__(self):
+        self._zip_cache = {}
+
+    def validate_zip_state(self, zip_code: str, state: str) -> Dict[str, Any]:
+        """
+        Validate that ZIP code prefix matches the declared state.
+        Returns validation result with expected state if mismatch.
+        """
+        zip_clean = zip_code.strip().replace("-", "")[:5]
+        if not zip_clean.isdigit() or len(zip_clean) < 3:
+            return {"valid": False, "error": "Invalid ZIP format", "zip": zip_code}
+
+        prefix = int(zip_clean[:3])
+        expected_state = None
+
+        for zip_range, st in self.ZIP_STATE_MAP.items():
+            if prefix in zip_range:
+                expected_state = st
+                break
+
+        state_upper = state.strip().upper()
+        if expected_state is None:
+            return {"valid": False, "error": f"ZIP prefix {prefix} not in database",
+                    "zip": zip_clean, "state": state_upper}
+
+        match = state_upper == expected_state
+        return {
+            "valid": match,
+            "zip": zip_clean,
+            "state_input": state_upper,
+            "state_expected": expected_state,
+            "error": None if match else f"ZIP {zip_clean} belongs to {expected_state}, not {state_upper}",
+        }
+
+    def normalize_address(self, address: str) -> str:
+        """
+        Normalize street address to USPS standard abbreviations.
+        Reduces AVS partial-match failures caused by format differences.
+        """
+        normalized = address.strip()
+        for pattern, replacement in self.ADDRESS_NORMALIZATIONS.items():
+            normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
+
+        # Remove extra whitespace
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+
+        # Normalize unit numbers: "Apt. 5B" → "Apt 5B", "#5B" stays
+        normalized = re.sub(r'(Apt|Ste|Bldg|Fl|Rm)\.?\s*#?\s*', r'\1 ', normalized)
+
+        return normalized
+
+    def detect_po_box(self, address: str) -> bool:
+        """Detect PO Box addresses (rejected by many merchants)."""
+        return bool(re.search(r'\bP\.?O\.?\s*Box\b', address, re.IGNORECASE))
+
+    def pre_check(self, address: str, city: str, state: str,
+                  zip_code: str) -> Dict[str, Any]:
+        """
+        Full AVS pre-check: validate all address components before submission.
+        Returns comprehensive validation report.
+        """
+        results = {
+            "address_original": address,
+            "address_normalized": self.normalize_address(address),
+            "city": city.strip(),
+            "state": state.strip().upper(),
+            "zip": zip_code.strip(),
+            "checks": {},
+        }
+
+        # ZIP-state validation
+        zip_check = self.validate_zip_state(zip_code, state)
+        results["checks"]["zip_state_match"] = zip_check["valid"]
+        if not zip_check["valid"]:
+            results["checks"]["zip_state_error"] = zip_check["error"]
+
+        # PO Box detection
+        results["checks"]["po_box_detected"] = self.detect_po_box(address)
+
+        # Address has street number
+        results["checks"]["has_street_number"] = bool(re.match(r'^\d+\s', address.strip()))
+
+        # Overall pass/fail
+        results["avs_ready"] = (
+            zip_check["valid"] and
+            not results["checks"]["po_box_detected"] and
+            results["checks"]["has_street_number"]
+        )
+
+        return results

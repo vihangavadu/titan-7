@@ -38,7 +38,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-__version__ = "7.0.0"
+__version__ = "7.5.0"
 __author__ = "Dva.12"
 
 
@@ -421,6 +421,96 @@ class TLSParrotEngine:
             return ParrotTarget.SAFARI_17_MACOS
         else:
             return ParrotTarget.CHROME_131_WIN11
+
+    # ── v7.5 JA4 Permutation + Dynamic GREASE Shuffling ──────────────────────
+
+    def generate_ja4_fingerprint(self, target: ParrotTarget) -> str:
+        """
+        Generate a dynamic JA4 fingerprint string from template parameters.
+        JA4 format: t<ver>d<ciphers><exts>h<alpn>_<cipher_hash>_<ext_hash>
+        This allows runtime verification that our Client Hello matches expected JA4.
+        """
+        template = self.get_template(target)
+        ver = "13" if 0x0304 in template.supported_versions else "12"
+        # Count non-GREASE ciphers and extensions
+        real_ciphers = [c for c in template.cipher_suites if c not in GREASE_VALUES]
+        real_exts = [e for e in template.extensions if e not in GREASE_VALUES]
+        n_ciphers = f"{len(real_ciphers):02d}"
+        n_exts = f"{len(real_exts):02d}"
+        alpn_flag = "h2" if "h2" in template.alpn_protocols else "h1"
+
+        # Cipher hash: sorted cipher hex values, SHA-256 truncated to 12
+        cipher_str = ",".join(f"{c:04x}" for c in sorted(real_ciphers))
+        cipher_hash = hashlib.sha256(cipher_str.encode()).hexdigest()[:12]
+
+        # Extension hash: sorted extension IDs, SHA-256 truncated to 12
+        ext_str = ",".join(f"{e:04x}" for e in sorted(real_exts))
+        ext_hash = hashlib.sha256(ext_str.encode()).hexdigest()[:12]
+
+        return f"t{ver}d{n_ciphers}{n_exts}{alpn_flag}_{cipher_hash}_{ext_hash}"
+
+    def ja4_permutation(self, target: ParrotTarget, sni: str = "") -> Dict:
+        """
+        v7.5 JA4 Permutation Engine — generates a unique-per-session Client Hello
+        that still produces the same JA4 hash as the target browser.
+
+        Technique: JA4 hashes sorted cipher/extension lists, so we can freely
+        reorder the wire-order of ciphers and extensions without changing the
+        JA4 fingerprint. This defeats correlation attacks that track exact
+        byte-sequence ordering across sessions.
+        """
+        template = self.get_template(target)
+
+        # Separate TLS 1.3 ciphers (0x13xx) from legacy ciphers
+        tls13_ciphers = [c for c in template.cipher_suites if (c >> 8) == 0x13]
+        legacy_ciphers = [c for c in template.cipher_suites if (c >> 8) != 0x13]
+
+        # Shuffle within each group (JA4 sorts before hashing, so order is free)
+        random.shuffle(tls13_ciphers)
+        random.shuffle(legacy_ciphers)
+        permuted_ciphers = tls13_ciphers + legacy_ciphers
+
+        # Permute extension order (keep SNI=0 first, padding last)
+        exts = list(template.extensions)
+        sni_ext = [e for e in exts if e == 0]
+        padding_ext = [e for e in exts if e == 21]
+        middle_exts = [e for e in exts if e != 0 and e != 21]
+        random.shuffle(middle_exts)
+        permuted_exts = sni_ext + middle_exts + padding_ext
+
+        # Apply dynamic GREASE shuffling
+        if template.grease_enabled:
+            permuted_ciphers = self._grease_shuffle(permuted_ciphers)
+            permuted_exts = self._grease_shuffle(permuted_exts)
+
+        config = self.generate_parrot_config(target=target, sni=sni)
+        config["cipher_suites"] = permuted_ciphers
+        config["extensions"] = permuted_exts
+        config["ja4_permuted"] = True
+        config["ja4_computed"] = self.generate_ja4_fingerprint(target)
+        return config
+
+    def _grease_shuffle(self, values: List[int]) -> List[int]:
+        """
+        v7.5 Dynamic GREASE Shuffling — rotate GREASE values each session.
+        Chrome picks random GREASE values from RFC 8701 pool on every connection.
+        We replicate this by stripping old GREASE and inserting fresh random ones.
+        """
+        # Strip any existing GREASE values
+        cleaned = [v for v in values if v not in GREASE_VALUES]
+        # Pick 1-2 fresh random GREASE values
+        n_grease = random.choice([1, 2])
+        fresh_grease = random.sample(GREASE_VALUES, k=n_grease)
+        # Insert at position 0 and optionally at end
+        result = [fresh_grease[0]] + cleaned
+        if n_grease > 1:
+            result.append(fresh_grease[1])
+        return result
+
+    @property
+    def templates(self) -> Dict:
+        """Expose templates dict for status reporting."""
+        return self._templates
 
     def verify_consistency(self, profile: Dict) -> Dict:
         """

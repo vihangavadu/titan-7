@@ -855,6 +855,232 @@ class TrajectoryPrecomputeBuffer:
                 gc.collect()  # Collect during idle, not during dispatch
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.5 UPGRADE: α-DDIM DIFFUSION TRAJECTORY GENERATION
+# Accelerated denoising using DDIM (Denoising Diffusion Implicit Models)
+# with α-schedule skip for 5x faster trajectory generation while
+# preserving fractal variability. Reference: arXiv:2010.02502
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AlphaDDIMScheduler:
+    """
+    α-DDIM accelerated diffusion scheduler.
+    Skips intermediate timesteps using deterministic DDIM sampling,
+    reducing 50-step diffusion to 10 steps with negligible quality loss.
+    """
+
+    def __init__(self, full_steps: int = 50, ddim_steps: int = 10,
+                 schedule_type: str = "cosine", eta: float = 0.0):
+        self.full_steps = full_steps
+        self.ddim_steps = ddim_steps
+        self.eta = eta  # 0 = deterministic DDIM, 1 = full DDPM stochasticity
+
+        # Compute full schedule
+        base = NoiseScheduler(full_steps, schedule_type)
+        self.alphas_cumprod = base.alphas_cumprod
+
+        # Select subset of timesteps (uniform skip)
+        self.timesteps = np.linspace(0, full_steps - 1, ddim_steps, dtype=int)[::-1]
+
+    def step(self, model_output: np.ndarray, t_idx: int,
+             sample: np.ndarray) -> np.ndarray:
+        """
+        DDIM deterministic step: x_{t-1} from x_t without added noise.
+        x_{t-1} = √(ᾱ_{t-1}) * pred_x0 + √(1-ᾱ_{t-1}-σ²) * ε_θ + σ * z
+        """
+        t = self.timesteps[t_idx]
+        t_prev = self.timesteps[t_idx + 1] if t_idx + 1 < len(self.timesteps) else 0
+
+        alpha_t = self.alphas_cumprod[t]
+        alpha_prev = self.alphas_cumprod[t_prev] if t_prev > 0 else 1.0
+
+        # Predict x_0
+        pred_x0 = (sample - np.sqrt(1 - alpha_t) * model_output) / np.sqrt(alpha_t)
+
+        # Compute σ for stochasticity control
+        sigma = self.eta * np.sqrt((1 - alpha_prev) / (1 - alpha_t)) * np.sqrt(1 - alpha_t / alpha_prev)
+
+        # Direction pointing to x_t
+        dir_xt = np.sqrt(max(1 - alpha_prev - sigma ** 2, 0)) * model_output
+
+        # x_{t-1}
+        prev_sample = np.sqrt(alpha_prev) * pred_x0 + dir_xt
+
+        if self.eta > 0 and t_prev > 0:
+            noise = np.random.randn(*sample.shape)
+            prev_sample += sigma * noise
+
+        return prev_sample
+
+
+class GhostMotorV7(GhostMotorDiffusion):
+    """
+    v7.5 Ghost Motor with α-DDIM acceleration, fatigue entropy engine,
+    and coercion/duress detection defeat.
+
+    Improvements over V7.0:
+    - 5x faster trajectory generation via DDIM skip scheduling
+    - Fatigue entropy: gradually degrades precision over long sessions
+    - Coercion defeat: contextual rhythm synthesis prevents duress detection
+    """
+
+    def __init__(self, config: Optional[TrajectoryConfig] = None,
+                 ddim_steps: int = 10, eta: float = 0.0):
+        super().__init__(config)
+        self.ddim_scheduler = AlphaDDIMScheduler(
+            full_steps=self.config.num_diffusion_steps,
+            ddim_steps=ddim_steps,
+            schedule_type=self.config.noise_schedule,
+            eta=eta,
+        )
+        self._session_start = time.time()
+        self._trajectory_count = 0
+        self._fatigue_enabled = True
+
+    def generate_path_ddim(self, start_pos: Tuple[float, float],
+                           end_pos: Tuple[float, float],
+                           duration_ms: Optional[float] = None) -> GeneratedTrajectory:
+        """
+        Generate trajectory using accelerated α-DDIM sampling.
+        ~5x faster than full diffusion with equivalent quality.
+        """
+        distance = np.sqrt((end_pos[0] - start_pos[0]) ** 2 +
+                           (end_pos[1] - start_pos[1]) ** 2)
+
+        if duration_ms is None:
+            base_duration = 100 + distance * 0.8
+            duration_ms = base_duration * random.uniform(0.8, 1.2)
+            duration_ms = np.clip(duration_ms, self.config.min_duration_ms,
+                                  self.config.max_duration_ms)
+
+        num_points = max(10, int(duration_ms / 16))
+        path = np.random.randn(num_points, 2) * self.config.entropy_scale
+
+        # Apply fatigue entropy modifier
+        fatigue = self._get_fatigue_factor()
+        path *= (1.0 + fatigue * 0.3)
+
+        # Accelerated DDIM reverse diffusion
+        for i in range(len(self.ddim_scheduler.timesteps) - 1):
+            t = self.ddim_scheduler.timesteps[i]
+            predicted_noise = self._analytical_denoise(path, t, start_pos, end_pos)
+            path = self.ddim_scheduler.step(predicted_noise, i, path)
+
+        path = self._scale_to_screen(path, start_pos, end_pos)
+        path = self._apply_motor_inertia(path)
+        path = self._add_micro_tremors(path)
+
+        # Apply fatigue-induced precision degradation
+        if self._fatigue_enabled and fatigue > 0.1:
+            path = self._apply_fatigue_jitter(path, fatigue)
+
+        if random.random() < self.config.overshoot_probability:
+            path = self._add_overshoot(path, end_pos)
+        if random.random() < self.config.correction_probability:
+            path = self._add_correction(path)
+        if SCIPY_AVAILABLE and len(path) > 4:
+            path = self._spline_smooth(path)
+
+        timestamps = self._generate_timestamps(len(path), duration_ms)
+        points = self._create_trajectory_points(path, timestamps)
+        entropy = self._calculate_entropy(path)
+
+        self._trajectory_count += 1
+        return GeneratedTrajectory(
+            points=points, start_pos=start_pos, end_pos=end_pos,
+            duration_ms=duration_ms, entropy_score=entropy
+        )
+
+    # ── Fatigue Entropy Engine ──────────────────────────────────────────────
+
+    def _get_fatigue_factor(self) -> float:
+        """
+        Calculate fatigue factor based on session duration and trajectory count.
+        Humans get less precise over time — this prevents the "too perfect for
+        too long" detection signal that BioCatch and Forter flag.
+
+        Returns 0.0 (fresh) to 1.0 (fatigued).
+        """
+        elapsed_min = (time.time() - self._session_start) / 60.0
+        # Fatigue ramps up after 15 minutes, plateaus at 60 minutes
+        time_fatigue = min(1.0, max(0.0, (elapsed_min - 15) / 45.0))
+        # Repetition fatigue: increases with trajectory count
+        rep_fatigue = min(1.0, self._trajectory_count / 500.0)
+        return min(1.0, (time_fatigue * 0.6 + rep_fatigue * 0.4))
+
+    def _apply_fatigue_jitter(self, path: np.ndarray, fatigue: float) -> np.ndarray:
+        """
+        Apply fatigue-induced jitter: slightly degrade trajectory precision
+        as the session progresses. Mimics human hand tiredness.
+        """
+        jitter_amplitude = fatigue * 2.5  # Up to 2.5px extra jitter when fully fatigued
+        jitter = np.random.randn(*path.shape) * jitter_amplitude
+        # Apply more jitter at end of trajectory (tired hand overshoots more)
+        weight = np.linspace(0.3, 1.0, len(path)).reshape(-1, 1)
+        path += jitter * weight
+        return path
+
+    def reset_fatigue(self):
+        """Reset fatigue counters (e.g., after a simulated break)."""
+        self._session_start = time.time()
+        self._trajectory_count = 0
+
+    # ── Coercion / Duress Detection Defeat ──────────────────────────────────
+
+    def contextual_rhythm_synthesis(self, action_type: str = "checkout") -> dict:
+        """
+        v7.5 Coercion Defeat — synthesize contextual behavioral rhythm that
+        defeats duress/coercion detection algorithms.
+
+        Advanced antifraud systems (BioCatch, Forter) detect when a user is
+        being coerced by analyzing:
+        - Abnormally fast form completion (someone dictating)
+        - Lack of natural hesitation patterns
+        - Uniform typing cadence (robotic)
+        - Missing micro-pauses between cognitive decisions
+
+        This method generates a rhythm profile that includes natural hesitation,
+        decision pauses, and cognitive load signatures appropriate for the action.
+        """
+        rhythms = {
+            "checkout": {
+                "pre_action_pause_ms": random.uniform(800, 2500),
+                "field_transition_ms": random.uniform(300, 900),
+                "typing_burst_chars": random.randint(3, 7),
+                "inter_burst_pause_ms": random.uniform(100, 400),
+                "review_pause_ms": random.uniform(2000, 6000),
+                "submit_hesitation_ms": random.uniform(500, 3000),
+                "scroll_before_submit": random.random() < 0.4,
+                "re_read_probability": 0.25,
+            },
+            "login": {
+                "pre_action_pause_ms": random.uniform(300, 1200),
+                "field_transition_ms": random.uniform(200, 600),
+                "typing_burst_chars": random.randint(4, 10),
+                "inter_burst_pause_ms": random.uniform(50, 200),
+                "review_pause_ms": random.uniform(500, 1500),
+                "submit_hesitation_ms": random.uniform(200, 800),
+                "scroll_before_submit": False,
+                "re_read_probability": 0.05,
+            },
+            "form_fill": {
+                "pre_action_pause_ms": random.uniform(500, 2000),
+                "field_transition_ms": random.uniform(400, 1200),
+                "typing_burst_chars": random.randint(2, 6),
+                "inter_burst_pause_ms": random.uniform(150, 500),
+                "review_pause_ms": random.uniform(1000, 4000),
+                "submit_hesitation_ms": random.uniform(800, 4000),
+                "scroll_before_submit": random.random() < 0.3,
+                "re_read_probability": 0.15,
+            },
+        }
+        rhythm = rhythms.get(action_type, rhythms["form_fill"])
+        rhythm["action_type"] = action_type
+        rhythm["fatigue_factor"] = self._get_fatigue_factor()
+        rhythm["cognitive_load"] = random.uniform(0.3, 0.8)
+        return rhythm
+
+
 def get_forter_safe_params() -> dict:
     """Get Forter-safe behavioral parameters for operator reference"""
     return FORTER_SAFE_PARAMS
