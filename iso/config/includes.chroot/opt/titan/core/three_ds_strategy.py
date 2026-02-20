@@ -475,7 +475,7 @@ def get_3ds_strategy() -> ThreeDSStrategy:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V7.0.3: 3DS BYPASS & DOWNGRADE ENGINE
+# V7.5: 3DS BYPASS & DOWNGRADE ENGINE
 # Comprehensive 3DS attack surface: downgrade, timeout, frictionless abuse,
 # amount manipulation, PSP-specific vulnerabilities
 # ═══════════════════════════════════════════════════════════════════════════

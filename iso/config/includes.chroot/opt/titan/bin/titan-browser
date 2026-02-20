@@ -105,7 +105,7 @@ echo -e "${CYAN}║${NC}        ██║   ██║   ██║   ██╔═
 echo -e "${CYAN}║${NC}        ██║   ██║   ██║   ██║  ██║██║ ╚████║                ${CYAN}║${NC}"
 echo -e "${CYAN}║${NC}        ╚═╝   ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝                ${CYAN}║${NC}"
 echo -e "${CYAN}║${NC}                                                            ${CYAN}║${NC}"
-echo -e "${CYAN}║${NC}     V7.0.3 SINGULARITY - Reality Synthesis Browser          ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}     V7.5 SINGULARITY - Reality Synthesis Browser            ${CYAN}║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

@@ -3,7 +3,7 @@ import sqlite3, secrets, random
 from datetime import timedelta
 from .config import *
 
-# V7.0.3 FINAL PATCH: Currency must match billing country across all
+# V7.5 FINAL PATCH: Currency must match billing country across all
 # commerce cookies.  Hardcoded "USD" when persona is non-US is a
 # cross-correlation vector — fraud systems check currency cookie vs
 # card BIN country vs IP geolocation vs billing address.
@@ -35,7 +35,7 @@ def generate(profile_path):
     def ac(host, name, value, age_days=None, http_only=1, secure=1, same_site=0, expiry_days=None):
         """Add cookie with organic creation time spread and varied expiry.
         
-        V7.0.3 PATCH: lastAccessed is now derived from the cookie's age
+        V7.5 PATCH: lastAccessed is now derived from the cookie's age
         tier, NOT from a flat random(0,72h) window.  Old behaviour made
         ALL cookies have lastAccessed within the same 3-day band — a
         forensic detection vector because real Firefox updates lastAccessed
@@ -144,13 +144,13 @@ def generate(profile_path):
     ac(".adyen.com", "adyen-device-fingerprint", secrets.token_hex(32), 30, http_only=0)
 
     # ── Eneba (created ~25 days ago — organic approach) ──
-    # V7.0.3 FINAL PATCH: GA cookie domain depth must match cookie domain.
+    # V7.5 FINAL PATCH: GA cookie domain depth must match cookie domain.
     # .eneba.com = 2 dot-separated parts → GA1.2.* (not GA1.1.)
     # Fraud systems cross-reference GA cookie format vs domain — mismatch = synthetic.
     ac(".eneba.com", "_ga", f"GA1.2.{random.randint(1000000000,9999999999)}.{int((NOW-timedelta(days=25)).timestamp())}", 25, http_only=0, secure=0)
     _eneba_ga4_mid = secrets.token_hex(5).upper()
     ac(".eneba.com", f"_ga_{_eneba_ga4_mid}", f"GS1.1.{int(NOW.timestamp())}.{random.randint(8,25)}.1.{int(NOW.timestamp())-random.randint(60,600)}.60.0.0", 25, http_only=0, secure=0)
-    # V7.0.3 FINAL PATCH: locale and currency must match persona, not hardcoded US
+    # V7.5 FINAL PATCH: locale and currency must match persona, not hardcoded US
     ac(".eneba.com", "locale", PERSONA_LOCALE, 25, http_only=0)
     ac(".eneba.com", "currency", _COUNTRY_CURRENCY.get(BILLING.get("country","US"), "USD"), 25, http_only=0)
     ac(".eneba.com", "cookie_consent", '{"analytics":true,"marketing":true,"functional":true}', 25, http_only=0)
@@ -191,7 +191,7 @@ def generate(profile_path):
     ac(".twitch.tv", "unique_id_durable", secrets.token_hex(16), 50)
     ac(".twitch.tv", "twilight-user", '{"authToken":"' + secrets.token_hex(16) + '"}', 50)
 
-    # ── V7.0.3 PATCH: SameSite=Lax cookies ──
+    # ── V7.5 PATCH: SameSite=Lax cookies ──
     # Modern sites set SameSite=Lax (value=1) or SameSite=Strict (value=2).
     # Having ALL cookies with sameSite=0 (None) is a synthetic detection vector
     # because Chrome 80+ and Firefox 86+ default to Lax.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 SINGULARITY — Branding Asset Generator
+TITAN V7.5 SINGULARITY — Branding Asset Generator
 Generates wallpapers, splash screens, and login backgrounds
 using PIL/Pillow with cyberpunk aesthetic.
 
@@ -408,7 +408,7 @@ def main():
     output_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent
 
     print("=" * 60)
-    print("  TITAN V7.0.3 SINGULARITY — Branding Asset Generator")
+    print("  TITAN V7.5 SINGULARITY — Branding Asset Generator")
     print("=" * 60)
 
     # Wallpapers

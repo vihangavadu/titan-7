@@ -1282,7 +1282,7 @@ class PurchaseHistoryEngine:
                               creation_time: datetime) -> str:
         """Generate __stripe_mid as UUID v4 (real Stripe format).
         
-        V7.0.3 PATCH: Real __stripe_mid is a standard UUID v4:
+        V7.5 PATCH: Real __stripe_mid is a standard UUID v4:
         xxxxxxxx-xxxx-4xxx-Nxxx-xxxxxxxxxxxx
         Old format (hash.timestamp.random) was flagged by Stripe Radar.
         """

@@ -1,5 +1,5 @@
 """
-TITAN V7.0.3 — Bug Patch Bridge
+TITAN V7.5 — Bug Patch Bridge
 Daemon that watches for new bug reports and auto-dispatches to Windsurf IDE.
 
 Runs as a background service alongside the Bug Reporter GUI.

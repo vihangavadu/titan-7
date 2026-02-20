@@ -1,5 +1,5 @@
 """
-TITAN V7.0.3 SINGULARITY — Profile Generator Package
+TITAN V7.5 SINGULARITY — Profile Generator Package
 
 Unified entry point for generating forensically clean Firefox profiles.
 Calls all sub-generators in the correct order with proper error handling.
@@ -42,7 +42,7 @@ def generate_profile(profile_path, skip_storage=False):
     t0 = time.time()
 
     print(f"\n{'='*60}")
-    print(f"  TITAN PROFILE GENERATOR — V7.0.3")
+    print(f"  TITAN PROFILE GENERATOR — V7.5")
     print(f"  Target: {profile_path}")
     print(f"{'='*60}\n")
 

@@ -1,5 +1,5 @@
 """
-TITAN V7.0.3 SINGULARITY — KYC Voice Engine
+TITAN V7.5 SINGULARITY — KYC Voice Engine
 Text-to-Speech synthesis for video+voice KYC challenges.
 
 Handles the "Record a video saying X" KYC challenge type where the

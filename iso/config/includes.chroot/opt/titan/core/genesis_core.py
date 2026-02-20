@@ -396,7 +396,7 @@ class GenesisEngine:
         """
         Main entry point - creates a complete aged profile.
         
-        V7.0.3: Attempts to use the profgen pipeline for forensic-grade Firefox
+        V7.5: Attempts to use the profgen pipeline for forensic-grade Firefox
         profiles (places_metadata tables, SameSite cookies, containers.json,
         user.js, etc.).  Falls back to the built-in writer when profgen is not
         available (e.g. Chromium profiles or missing profgen package).
@@ -419,13 +419,13 @@ class GenesisEngine:
         
         profgen_used = False
         
-        # V7.0.3: Use profgen pipeline for forensic-grade Firefox profiles
+        # V7.5: Use profgen pipeline for forensic-grade Firefox profiles
         if config.browser == "firefox":
             try:
                 from profgen import generate_profile as _profgen_generate
                 _profgen_generate(profile_path, skip_storage=False)
                 profgen_used = True
-                logger.info("[V7.0.3] profgen pipeline produced forensic-grade profile")
+                logger.info("[V7.5] profgen pipeline produced forensic-grade profile")
             except ImportError:
                 logger.debug("profgen not available — falling back to built-in writer")
             except Exception as exc:
@@ -586,7 +586,7 @@ class GenesisEngine:
     def _generate_stripe_mid(self, config: ProfileConfig, creation_time: datetime) -> str:
         """Generate pre-aged Stripe merchant device ID in UUID v4 format.
         
-        V7.0.3 PATCH: Real __stripe_mid is a standard UUID v4:
+        V7.5 PATCH: Real __stripe_mid is a standard UUID v4:
         xxxxxxxx-xxxx-4xxx-Nxxx-xxxxxxxxxxxx where version nibble=4
         and variant nibble=8/9/a/b.  Old format (hash.timestamp.random)
         does NOT match and Stripe's backend flags it as non-genuine.

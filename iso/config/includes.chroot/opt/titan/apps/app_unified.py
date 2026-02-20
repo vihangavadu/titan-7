@@ -1238,6 +1238,8 @@ class UnifiedOperationCenter(QMainWindow):
             ("vpn", "Lucid VPN"),
             ("cockpit", "Cockpit Daemon"),
             ("pulseaudio", "PulseAudio (44100Hz locked)"),
+            ("xrdp", "xrdp RDP Server (port 3389)"),
+            ("vnc", "VNC Server (port 5901)"),
         ]
         for svc_id, svc_name in service_list:
             badge = QLabel("⚪ UNKNOWN")
@@ -1670,6 +1672,8 @@ class UnifiedOperationCenter(QMainWindow):
             "vpn": lambda: os.path.exists("/run/titan-vpn.pid") or os.system("pgrep -f xray >/dev/null 2>&1") == 0,
             "cockpit": lambda: os.path.exists("/run/titan/cockpit.sock"),
             "pulseaudio": lambda: os.system("pactl info >/dev/null 2>&1") == 0,
+            "xrdp": lambda: os.system("systemctl is-active --quiet xrdp 2>/dev/null") == 0,
+            "vnc": lambda: os.system("systemctl is-active --quiet titan-vnc 2>/dev/null") == 0,
         }
         
         for svc_id, check_fn in svc_checks.items():

@@ -170,7 +170,7 @@ __all__ = [
     # V6.1 3DS Strategy & Detection
     'ThreeDSStrategy', 'get_3ds_strategy', 'get_3ds_detection_guide',
     'VBV_TEST_BINS', 'THREE_DS_NETWORK_SIGNATURES', 'AMOUNT_THRESHOLDS',
-    # V7.0.3 3DS Bypass & Downgrade Engine
+    # V7.5 3DS Bypass & Downgrade Engine
     'ThreeDSBypassEngine', 'get_3ds_bypass_score', 'get_3ds_bypass_plan',
     'get_downgrade_attacks', 'get_psd2_exemptions', 'get_psp_vulnerabilities',
     'PSP_3DS_VULNERABILITIES', 'PSD2_EXEMPTIONS', 'THREE_DS_DOWNGRADE_ATTACKS',
@@ -178,7 +178,7 @@ __all__ = [
     'NonVBVRecommendationEngine', 'get_non_vbv_recommendations',
     'get_non_vbv_country_profile', 'get_easy_countries', 'get_all_non_vbv_bins',
     'COUNTRY_PROFILES', 'NON_VBV_BINS', 'COUNTRY_DIFFICULTY_RANKING',
-    # V7.0.3 Target Discovery + Auto-Discovery + Bypass Scoring
+    # V7.5 Target Discovery + Auto-Discovery + Bypass Scoring
     'TargetDiscovery', 'SiteProbe', 'AutoDiscovery',
     'get_easy_sites', 'get_2d_sites', 'get_shopify_sites',
     'recommend_sites', 'probe_site', 'get_site_stats', 'search_sites',
@@ -187,10 +187,10 @@ __all__ = [
     # V7.0.2 DarkWeb & Forum Intel Monitor
     'IntelMonitor', 'get_intel_sources', 'get_intel_feed',
     'get_intel_alerts', 'get_intel_settings',
-    # V7.0.3 Transaction Monitor (24/7 capture + decline decoder)
+    # V7.5 Transaction Monitor (24/7 capture + decline decoder)
     'TransactionMonitor', 'DeclineDecoder', 'decode_decline',
     'get_tx_stats', 'start_tx_monitor',
-    # V7.0.3 Service Orchestrator (auto-start, daily discovery, feedback loop)
+    # V7.5 Service Orchestrator (auto-start, daily discovery, feedback loop)
     'TitanServiceManager', 'DailyDiscoveryScheduler', 'OperationalFeedbackLoop',
     'get_service_manager', 'start_all_services', 'stop_all_services', 'get_services_status',
     # V6.1 OSINT & Card Quality
@@ -266,8 +266,8 @@ __all__ = [
     'CockpitClient', 'CockpitDaemon', 'CommandAction',
     # V7.0 Cross-Device Sync (Waydroid)
     'WaydroidSyncEngine', 'SyncConfig', 'MobilePersona', 'start_cross_device_sync',
-    # V7.0.3 Bug Reporter + Auto-Patcher Bridge
+    # V7.5 Bug Reporter + Auto-Patcher Bridge
     'BugPatchBridge',
-    # V7.0.3 Memory Pressure Manager
+    # V7.5 Memory Pressure Manager
     'MemoryPressureManager',
 ]

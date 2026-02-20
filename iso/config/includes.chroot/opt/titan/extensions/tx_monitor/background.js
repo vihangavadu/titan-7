@@ -1,5 +1,5 @@
 /**
- * TITAN V7.0.3 — TX Monitor Background Service Worker
+ * TITAN V7.5 — TX Monitor Background Service Worker
  * 
  * Uses webRequest API to monitor payment-related HTTP responses
  * at the network level (catches requests content scripts might miss).

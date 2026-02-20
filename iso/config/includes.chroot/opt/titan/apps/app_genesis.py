@@ -93,32 +93,66 @@ class GenesisApp(QMainWindow):
         self._apply_theme()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN — Identity Synthesis Engine")
+        self.setWindowTitle("TITAN V7.5 — Identity Synthesis Engine")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, "#3A75C4")
         except Exception:
             pass
-        self.setMinimumSize(600, 700)
+        self.setMinimumSize(900, 800)
         
         # Central widget
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        main_layout = QVBoxLayout(central)
+        main_layout.setSpacing(6)
+        main_layout.setContentsMargins(8, 8, 8, 8)
         
         # Header
-        header = QLabel("Identity Synthesis Engine")
-        header.setFont(QFont("Inter", 22, QFont.Weight.Bold))
+        header = QLabel("TITAN V7.5 — Identity Synthesis Engine")
+        header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #3A75C4; margin-bottom: 10px;")
-        layout.addWidget(header)
+        header.setStyleSheet("color: #3A75C4; padding: 4px;")
+        main_layout.addWidget(header)
         
-        subtitle = QLabel("Environment Emulation for Human Operations")
+        subtitle = QLabel("PROFILE GENERATION & MANAGEMENT")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color: #94A3B8; font-size: 12px;")
-        layout.addWidget(subtitle)
+        subtitle.setStyleSheet("color: #94A3B8; font-size: 11px; font-family: 'JetBrains Mono', monospace; margin-bottom: 4px;")
+        main_layout.addWidget(subtitle)
+        
+        # === TABBED INTERFACE ===
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+        
+        # ── Tab 1: SYNTHESIZE ──
+        self._build_synthesize_tab()
+        
+        # ── Tab 2: PROFILE HISTORY ──
+        self._build_history_tab()
+        
+        # ── Tab 3: PROFILE INSPECTOR ──
+        self._build_inspector_tab()
+        
+        # ── Tab 4: BATCH SYNTHESIS ──
+        self._build_batch_tab()
+        
+        # Footer
+        footer = QLabel("TITAN V7.5 SINGULARITY | Identity Synthesis Engine")
+        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer.setStyleSheet("color: #64748B; font-size: 10px;")
+        main_layout.addWidget(footer)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 1: SYNTHESIZE (original single-panel form)
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _build_synthesize_tab(self):
+        """Main profile synthesis form."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "Synthesize")
         
         # Target Selection Group
         target_group = QGroupBox("Infrastructure Assessment")
@@ -293,17 +327,489 @@ class GenesisApp(QMainWindow):
         
         layout.addWidget(status_group)
         
-        # Spacer
-        layout.addStretch()
-        
-        # Footer
-        footer = QLabel("TITAN V7.5 SINGULARITY | Identity Synthesis Engine")
-        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer.setStyleSheet("color: #64748B; font-size: 10px;")
-        layout.addWidget(footer)
-        
         # Initialize target notes
         self.on_target_changed(0)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 2: PROFILE HISTORY
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _build_history_tab(self):
+        """Profile history — list all previously generated profiles."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "History")
+        
+        # Controls
+        ctrl_row = QHBoxLayout()
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setStyleSheet("background-color: #3A75C4; color: white; border: none; border-radius: 4px; padding: 8px 16px;")
+        refresh_btn.clicked.connect(self._refresh_history)
+        ctrl_row.addWidget(refresh_btn)
+        
+        delete_btn = QPushButton("Delete Selected")
+        delete_btn.setStyleSheet("background-color: #C62828; color: white; border: none; border-radius: 4px; padding: 8px 16px;")
+        delete_btn.clicked.connect(self._delete_selected_profile)
+        ctrl_row.addWidget(delete_btn)
+        
+        export_btn = QPushButton("Export Selected")
+        export_btn.setStyleSheet("background-color: #2E7D32; color: white; border: none; border-radius: 4px; padding: 8px 16px;")
+        export_btn.clicked.connect(self._export_selected_profile)
+        ctrl_row.addWidget(export_btn)
+        
+        ctrl_row.addStretch()
+        layout.addLayout(ctrl_row)
+        
+        # Profile list
+        from PyQt6.QtWidgets import QListWidget
+        self.history_list = QListWidget()
+        self.history_list.setMinimumHeight(200)
+        self.history_list.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        self.history_list.itemClicked.connect(self._on_history_item_clicked)
+        layout.addWidget(self.history_list)
+        
+        # Profile details
+        details_group = QGroupBox("Profile Details")
+        details_layout = QVBoxLayout(details_group)
+        self.history_details = QTextEdit()
+        self.history_details.setReadOnly(True)
+        self.history_details.setPlaceholderText("Select a profile from the list above to view details...")
+        self.history_details.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        details_layout.addWidget(self.history_details)
+        layout.addWidget(details_group)
+        
+        # Stats
+        self.history_stats = QLabel("Profiles: 0 | Total Size: 0 MB")
+        self.history_stats.setStyleSheet("color: #94A3B8; font-size: 11px;")
+        layout.addWidget(self.history_stats)
+    
+    def _refresh_history(self):
+        """Scan profile directory and list all generated profiles."""
+        self.history_list.clear()
+        self.history_details.clear()
+        profile_dir = Path("/opt/titan/profiles")
+        total_size = 0
+        count = 0
+        
+        if profile_dir.exists():
+            for p in sorted(profile_dir.iterdir(), key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True):
+                if p.is_dir() and p.name.startswith("titan_"):
+                    try:
+                        size = sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+                        total_size += size
+                        count += 1
+                        age_file = p / ".genesis_meta.json"
+                        meta = ""
+                        if age_file.exists():
+                            import json
+                            with open(age_file) as f:
+                                data = json.load(f)
+                            meta = f" | {data.get('persona_name', '?')} | {data.get('age_days', '?')}d | {data.get('browser', '?')}"
+                        self.history_list.addItem(f"{p.name}  ({size / 1024 / 1024:.1f} MB){meta}")
+                    except Exception:
+                        self.history_list.addItem(f"{p.name}  (error reading)")
+        
+        if count == 0:
+            self.history_list.addItem("No profiles found in /opt/titan/profiles/")
+        
+        self.history_stats.setText(f"Profiles: {count} | Total Size: {total_size / 1024 / 1024:.1f} MB")
+    
+    def _on_history_item_clicked(self, item):
+        """Show details for selected profile."""
+        name = item.text().split("  ")[0].strip()
+        profile_path = Path("/opt/titan/profiles") / name
+        meta_file = profile_path / ".genesis_meta.json"
+        
+        text = f"Profile: {name}\nPath: {profile_path}\n\n"
+        if meta_file.exists():
+            try:
+                import json
+                with open(meta_file) as f:
+                    data = json.load(f)
+                text += "METADATA:\n"
+                for k, v in data.items():
+                    text += f"  {k}: {v}\n"
+            except Exception as e:
+                text += f"Error reading metadata: {e}\n"
+        else:
+            text += "No metadata file found (.genesis_meta.json)\n"
+        
+        # List top-level contents
+        if profile_path.exists():
+            text += f"\nCONTENTS:\n"
+            for item_path in sorted(profile_path.iterdir()):
+                if item_path.is_dir():
+                    sub_count = sum(1 for _ in item_path.rglob("*") if _.is_file())
+                    text += f"  [DIR]  {item_path.name}/  ({sub_count} files)\n"
+                else:
+                    text += f"  [FILE] {item_path.name}  ({item_path.stat().st_size / 1024:.1f} KB)\n"
+        
+        self.history_details.setPlainText(text)
+    
+    def _delete_selected_profile(self):
+        """Delete selected profile from disk."""
+        current = self.history_list.currentItem()
+        if not current:
+            QMessageBox.warning(self, "No Selection", "Select a profile to delete.")
+            return
+        name = current.text().split("  ")[0].strip()
+        profile_path = Path("/opt/titan/profiles") / name
+        
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Permanently delete profile?\n{profile_path}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            import shutil
+            try:
+                shutil.rmtree(profile_path)
+                self._refresh_history()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to delete: {e}")
+    
+    def _export_selected_profile(self):
+        """Export selected profile as tar.gz archive."""
+        current = self.history_list.currentItem()
+        if not current:
+            QMessageBox.warning(self, "No Selection", "Select a profile to export.")
+            return
+        name = current.text().split("  ")[0].strip()
+        profile_path = Path("/opt/titan/profiles") / name
+        
+        save_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Profile", f"{name}.tar.gz", "Archives (*.tar.gz)"
+        )
+        if save_path:
+            import tarfile
+            try:
+                with tarfile.open(save_path, "w:gz") as tar:
+                    tar.add(str(profile_path), arcname=name)
+                QMessageBox.information(self, "Exported", f"Profile exported to:\n{save_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Export failed: {e}")
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 3: PROFILE INSPECTOR
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _build_inspector_tab(self):
+        """Inspect a profile — view cookies, history, fingerprint, trust score."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "Inspector")
+        
+        # Path input
+        path_row = QHBoxLayout()
+        self.inspect_path = QLineEdit()
+        self.inspect_path.setPlaceholderText("/opt/titan/profiles/titan_XXXXXX")
+        self.inspect_path.setMinimumHeight(30)
+        path_row.addWidget(self.inspect_path)
+        
+        browse_btn = QPushButton("Browse...")
+        browse_btn.setStyleSheet("background-color: #334155; color: white; border: none; border-radius: 4px; padding: 8px 12px;")
+        browse_btn.clicked.connect(self._browse_profile)
+        path_row.addWidget(browse_btn)
+        
+        inspect_btn = QPushButton("Inspect")
+        inspect_btn.setStyleSheet("background-color: #3A75C4; color: white; border: none; border-radius: 4px; padding: 8px 16px;")
+        inspect_btn.clicked.connect(self._run_inspect)
+        path_row.addWidget(inspect_btn)
+        layout.addLayout(path_row)
+        
+        # Inspection sub-tabs
+        self.inspect_tabs = QTabWidget()
+        layout.addWidget(self.inspect_tabs)
+        
+        # -- Summary sub-tab --
+        summary_w = QWidget()
+        summary_l = QVBoxLayout(summary_w)
+        self.inspect_summary = QTextEdit()
+        self.inspect_summary.setReadOnly(True)
+        self.inspect_summary.setPlaceholderText("Load a profile to see summary: age, browser, persona, trust score...")
+        self.inspect_summary.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        summary_l.addWidget(self.inspect_summary)
+        self.inspect_tabs.addTab(summary_w, "Summary")
+        
+        # -- Cookies sub-tab --
+        cookies_w = QWidget()
+        cookies_l = QVBoxLayout(cookies_w)
+        self.inspect_cookies = QTextEdit()
+        self.inspect_cookies.setReadOnly(True)
+        self.inspect_cookies.setPlaceholderText("Cookie inventory will appear here...")
+        self.inspect_cookies.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        cookies_l.addWidget(self.inspect_cookies)
+        self.inspect_tabs.addTab(cookies_w, "Cookies")
+        
+        # -- History sub-tab --
+        hist_w = QWidget()
+        hist_l = QVBoxLayout(hist_w)
+        self.inspect_history = QTextEdit()
+        self.inspect_history.setReadOnly(True)
+        self.inspect_history.setPlaceholderText("Browsing history entries will appear here...")
+        self.inspect_history.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        hist_l.addWidget(self.inspect_history)
+        self.inspect_tabs.addTab(hist_w, "History")
+        
+        # -- Fingerprint sub-tab --
+        fp_w = QWidget()
+        fp_l = QVBoxLayout(fp_w)
+        self.inspect_fingerprint = QTextEdit()
+        self.inspect_fingerprint.setReadOnly(True)
+        self.inspect_fingerprint.setPlaceholderText("Hardware fingerprint details will appear here...")
+        self.inspect_fingerprint.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        fp_l.addWidget(self.inspect_fingerprint)
+        self.inspect_tabs.addTab(fp_w, "Fingerprint")
+    
+    def _browse_profile(self):
+        """Open directory picker for profile path."""
+        path = QFileDialog.getExistingDirectory(self, "Select Profile Directory", "/opt/titan/profiles")
+        if path:
+            self.inspect_path.setText(path)
+    
+    def _run_inspect(self):
+        """Inspect the selected profile directory."""
+        profile_path = Path(self.inspect_path.text().strip())
+        if not profile_path.exists():
+            self.inspect_summary.setPlainText(f"Profile path does not exist: {profile_path}")
+            return
+        
+        # Summary
+        meta_file = profile_path / ".genesis_meta.json"
+        summary = f"PROFILE INSPECTION: {profile_path.name}\n{'=' * 60}\n\n"
+        
+        if meta_file.exists():
+            try:
+                import json
+                with open(meta_file) as f:
+                    data = json.load(f)
+                summary += "METADATA:\n"
+                for k, v in data.items():
+                    summary += f"  {k:25s}: {v}\n"
+                summary += "\n"
+            except Exception as e:
+                summary += f"Metadata error: {e}\n\n"
+        
+        # Size analysis
+        total_files = 0
+        total_size = 0
+        for f in profile_path.rglob("*"):
+            if f.is_file():
+                total_files += 1
+                total_size += f.stat().st_size
+        summary += f"DISK USAGE:\n  Files: {total_files}\n  Size: {total_size / 1024 / 1024:.2f} MB\n\n"
+        
+        # Trust score estimate
+        has_cookies = (profile_path / "cookies.sqlite").exists() or (profile_path / "Cookies").exists()
+        has_history = (profile_path / "places.sqlite").exists() or (profile_path / "History").exists()
+        has_localstorage = (profile_path / "webappsstore.sqlite").exists() or (profile_path / "Local Storage").exists()
+        trust = 0
+        if has_cookies: trust += 30
+        if has_history: trust += 30
+        if has_localstorage: trust += 20
+        if total_files > 50: trust += 10
+        if total_size > 50 * 1024 * 1024: trust += 10
+        summary += f"TRUST SCORE ESTIMATE: {trust}/100\n"
+        summary += f"  Cookies: {'PRESENT' if has_cookies else 'MISSING'}\n"
+        summary += f"  History: {'PRESENT' if has_history else 'MISSING'}\n"
+        summary += f"  LocalStorage: {'PRESENT' if has_localstorage else 'MISSING'}\n"
+        
+        self.inspect_summary.setPlainText(summary)
+        
+        # Cookies
+        cookie_text = "COOKIE INVENTORY:\n" + "=" * 60 + "\n\n"
+        cookie_files = list(profile_path.rglob("cookies*")) + list(profile_path.rglob("Cookies*"))
+        if cookie_files:
+            for cf in cookie_files:
+                cookie_text += f"  {cf.relative_to(profile_path)}  ({cf.stat().st_size / 1024:.1f} KB)\n"
+        else:
+            cookie_text += "  No cookie files found.\n"
+        self.inspect_cookies.setPlainText(cookie_text)
+        
+        # History
+        hist_text = "BROWSING HISTORY:\n" + "=" * 60 + "\n\n"
+        hist_files = list(profile_path.rglob("places*")) + list(profile_path.rglob("History*"))
+        if hist_files:
+            for hf in hist_files:
+                hist_text += f"  {hf.relative_to(profile_path)}  ({hf.stat().st_size / 1024:.1f} KB)\n"
+        else:
+            hist_text += "  No history files found.\n"
+        self.inspect_history.setPlainText(hist_text)
+        
+        # Fingerprint
+        fp_text = "FINGERPRINT DATA:\n" + "=" * 60 + "\n\n"
+        fp_files = list(profile_path.rglob("*fingerprint*")) + list(profile_path.rglob("*prefs*")) + list(profile_path.rglob("*Preferences*"))
+        if fp_files:
+            for ff in fp_files:
+                fp_text += f"  {ff.relative_to(profile_path)}  ({ff.stat().st_size / 1024:.1f} KB)\n"
+        else:
+            fp_text += "  No fingerprint/preference files found.\n"
+        self.inspect_fingerprint.setPlainText(fp_text)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 4: BATCH SYNTHESIS
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _build_batch_tab(self):
+        """Batch profile synthesis — generate multiple profiles at once."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "Batch")
+        
+        # Batch config
+        config_group = QGroupBox("Batch Configuration")
+        config_layout = QFormLayout(config_group)
+        
+        self.batch_count = QSpinBox()
+        self.batch_count.setRange(2, 50)
+        self.batch_count.setValue(5)
+        self.batch_count.setMinimumHeight(30)
+        config_layout.addRow("Number of Profiles:", self.batch_count)
+        
+        self.batch_target = QComboBox()
+        self.batch_target.setMinimumHeight(30)
+        for preset in GenesisEngine.get_available_targets():
+            self.batch_target.addItem(
+                f"{preset.display_name} ({preset.category.value})",
+                preset.name
+            )
+        config_layout.addRow("Target:", self.batch_target)
+        
+        self.batch_browser = QComboBox()
+        self.batch_browser.addItems(["Firefox", "Chromium", "Random"])
+        self.batch_browser.setMinimumHeight(30)
+        config_layout.addRow("Browser:", self.batch_browser)
+        
+        self.batch_age_min = QSpinBox()
+        self.batch_age_min.setRange(7, 365)
+        self.batch_age_min.setValue(30)
+        self.batch_age_min.setSuffix(" days")
+        self.batch_age_min.setMinimumHeight(30)
+        config_layout.addRow("Min Age:", self.batch_age_min)
+        
+        self.batch_age_max = QSpinBox()
+        self.batch_age_max.setRange(7, 365)
+        self.batch_age_max.setValue(180)
+        self.batch_age_max.setSuffix(" days")
+        self.batch_age_max.setMinimumHeight(30)
+        config_layout.addRow("Max Age:", self.batch_age_max)
+        
+        self.batch_auto_persona = QCheckBox("Auto-generate persona names and emails")
+        self.batch_auto_persona.setChecked(True)
+        config_layout.addRow("", self.batch_auto_persona)
+        
+        layout.addWidget(config_group)
+        
+        # Buttons
+        btn_row = QHBoxLayout()
+        self.batch_start_btn = QPushButton("Start Batch Synthesis")
+        self.batch_start_btn.setMinimumHeight(45)
+        self.batch_start_btn.setFont(QFont("Inter", 12, QFont.Weight.Bold))
+        self.batch_start_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3A75C4;
+                color: white;
+                border: none;
+                border-radius: 6px;
+            }
+            QPushButton:hover { background-color: #4A8AD8; }
+            QPushButton:disabled { background-color: #2A3444; color: #64748B; }
+        """)
+        self.batch_start_btn.clicked.connect(self._start_batch)
+        btn_row.addWidget(self.batch_start_btn)
+        
+        self.batch_stop_btn = QPushButton("Stop")
+        self.batch_stop_btn.setMinimumHeight(45)
+        self.batch_stop_btn.setEnabled(False)
+        self.batch_stop_btn.setStyleSheet("background-color: #C62828; color: white; border: none; border-radius: 6px; padding: 8px 16px;")
+        self.batch_stop_btn.clicked.connect(self._stop_batch)
+        btn_row.addWidget(self.batch_stop_btn)
+        layout.addLayout(btn_row)
+        
+        # Progress
+        self.batch_progress = QProgressBar()
+        self.batch_progress.setMinimumHeight(12)
+        self.batch_progress.setTextVisible(True)
+        layout.addWidget(self.batch_progress)
+        
+        # Log
+        self.batch_log = QTextEdit()
+        self.batch_log.setReadOnly(True)
+        self.batch_log.setPlaceholderText("Batch synthesis log will appear here...")
+        self.batch_log.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        layout.addWidget(self.batch_log)
+    
+    def _start_batch(self):
+        """Start batch profile synthesis."""
+        import random
+        count = self.batch_count.value()
+        self.batch_progress.setRange(0, count)
+        self.batch_progress.setValue(0)
+        self.batch_log.clear()
+        self.batch_start_btn.setEnabled(False)
+        self.batch_stop_btn.setEnabled(True)
+        self._batch_cancelled = False
+        
+        target_name = self.batch_target.currentData()
+        target = GenesisEngine.get_target_by_name(target_name)
+        
+        first_names = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda",
+                       "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica",
+                       "Thomas", "Sarah", "Christopher", "Karen", "Daniel", "Lisa", "Matthew", "Nancy"]
+        last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+                      "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
+                      "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson"]
+        
+        self.batch_log.append(f"Starting batch synthesis: {count} profiles for {target_name}\n")
+        
+        for i in range(count):
+            if self._batch_cancelled:
+                self.batch_log.append(f"\n[CANCELLED] Stopped at profile {i}/{count}")
+                break
+            
+            fname = random.choice(first_names)
+            lname = random.choice(last_names)
+            age = random.randint(self.batch_age_min.value(), self.batch_age_max.value())
+            browser_choice = self.batch_browser.currentText().lower()
+            if browser_choice == "random":
+                browser_choice = random.choice(["firefox", "chromium"])
+            
+            self.batch_log.append(f"[{i+1}/{count}] Synthesizing: {fname} {lname} | {age}d | {browser_choice}")
+            
+            try:
+                config = ProfileConfig(
+                    target=target,
+                    persona_name=f"{fname} {lname}",
+                    persona_email=f"{fname.lower()}.{lname.lower()}{random.randint(10,99)}@gmail.com",
+                    persona_address={"full": f"{random.randint(100,9999)} Main St", "phone": ""},
+                    age_days=age,
+                    browser=browser_choice,
+                    include_social_history=True,
+                    include_shopping_history=True,
+                    hardware_profile="us_windows_desktop"
+                )
+                profile = self.engine.forge_profile(config)
+                self.batch_log.append(f"  -> OK: {profile.profile_path}")
+            except Exception as e:
+                self.batch_log.append(f"  -> ERROR: {e}")
+            
+            self.batch_progress.setValue(i + 1)
+            QApplication.processEvents()
+        
+        self.batch_start_btn.setEnabled(True)
+        self.batch_stop_btn.setEnabled(False)
+        if not self._batch_cancelled:
+            self.batch_log.append(f"\nBatch complete: {count} profiles generated.")
+    
+    def _stop_batch(self):
+        """Cancel batch synthesis."""
+        self._batch_cancelled = True
     
     def _apply_theme(self):
         """Apply Enterprise HRUX theme from centralized theme module."""

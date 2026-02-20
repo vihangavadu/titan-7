@@ -1,4 +1,4 @@
-# TITAN V7.0.3 SINGULARITY — GRUB2 Theme
+# TITAN V7.5 SINGULARITY — GRUB2 Theme
 # Install: cp -r /opt/titan/branding/grub /boot/grub/themes/titan
 # Enable: GRUB_THEME="/boot/grub/themes/titan/theme.txt" in /etc/default/grub
 
@@ -37,7 +37,7 @@ terminal-height: "60%"
     top = 12%
     width = 300
     height = 40
-    text = "TITAN V7.0.3 SINGULARITY"
+    text = "TITAN V7.5 SINGULARITY"
     font = "JetBrains Mono Bold 18"
     color = "#00d4ff"
     align = "center"

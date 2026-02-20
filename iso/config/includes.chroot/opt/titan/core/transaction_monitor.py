@@ -1,5 +1,5 @@
 """
-TITAN V7.0.3 SINGULARITY — Transaction Monitor
+TITAN V7.5 SINGULARITY — Transaction Monitor
 24/7 real-time capture and analysis of all purchase attempts.
 
 Architecture:

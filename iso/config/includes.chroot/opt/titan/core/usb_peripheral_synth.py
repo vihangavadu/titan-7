@@ -1,5 +1,5 @@
 """
-TITAN V7.0.3 — USB Peripheral Synthesis
+TITAN V7.5 — USB Peripheral Synthesis
 
 Generates a realistic synthetic USB device tree via gadgetfs/configfs.
 Populates the system with virtual peripherals (webcam, microphone, input

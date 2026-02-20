@@ -487,7 +487,7 @@ SITE_DATABASE: List[MerchantSite] = [
         "Adyen. Free cancellation. Moderate friction.", success_rate=0.62),
 
     # ─────────────────────────────────────────────────────────────────────
-    # EXPANDED DATABASE V7.0.3 — Additional Gaming & Digital
+    # EXPANDED DATABASE V7.5 — Additional Gaming & Digital
     # ─────────────────────────────────────────────────────────────────────
     MerchantSite("gamesplanet.com", "Gamesplanet", SiteCategory.GAMING, SiteDifficulty.EASY,
         PSP.STRIPE, "none", "basic", False, ["GB", "DE", "FR", "US"],
@@ -1353,7 +1353,7 @@ class TargetDiscovery:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V7.0.3: AUTO-DISCOVERY ENGINE
+# V7.5: AUTO-DISCOVERY ENGINE
 # Automatically finds new easy/2D/Shopify targets via Google dorking,
 # probes them, and classifies by 3DS bypass potential
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1398,7 +1398,7 @@ SEARCH_ENGINES = {
 
 class AutoDiscovery:
     """
-    V7.0.3: Automatically discovers new merchant targets via:
+    V7.5: Automatically discovers new merchant targets via:
     1. Google dorking with curated queries
     2. Auto-probing discovered domains for PSP/3DS/fraud engine
     3. 3DS bypass scoring and classification

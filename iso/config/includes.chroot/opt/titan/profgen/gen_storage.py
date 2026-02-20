@@ -157,7 +157,7 @@ def generate(profile_path):
             pattern = random.choice(CACHE_KEY_PATTERNS)
             k, vfn = pattern(idx, dom)
             v = vfn()
-            # V7.0.3 PATCH: Old code appended raw base64(random_bytes) to the
+            # V7.5 PATCH: Old code appended raw base64(random_bytes) to the
             # end of realistic JSON values.  This creates an obvious pattern:
             # valid JSON followed by a wall of base64 gibberish.  Fraud ML
             # models trained on real localStorage can detect this instantly.

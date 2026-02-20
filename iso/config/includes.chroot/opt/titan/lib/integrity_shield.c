@@ -1,5 +1,5 @@
 /*
- * TITAN V7.0.3 SINGULARITY — Integrity Shield
+ * TITAN V7.5 SINGULARITY — Integrity Shield
  * LD_PRELOAD library that hides v4l2loopback from KYC provider detection.
  *
  * KYC providers (Jumio, Onfido, Veriff, Au10tix) detect virtual cameras by:

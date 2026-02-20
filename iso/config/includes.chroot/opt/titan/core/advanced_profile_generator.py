@@ -1194,7 +1194,7 @@ class AdvancedProfileGenerator:
     def _generate_stripe_mid(self, config: AdvancedProfileConfig) -> str:
         """Generate pre-aged Stripe __stripe_mid as UUID v4 (real format).
         
-        V7.0.3 PATCH: Real __stripe_mid is a standard UUID v4.
+        V7.5 PATCH: Real __stripe_mid is a standard UUID v4.
         Old format (hash.timestamp.random) was flagged by Stripe Radar.
         """
         creation_time = datetime.now() - timedelta(days=config.profile_age_days + 30)

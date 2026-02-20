@@ -161,13 +161,13 @@ class KYCApp(QMainWindow):
         main_layout.setContentsMargins(12, 12, 12, 12)
         
         # Header
-        header = QLabel("🎭 KYC - THE MASK")
-        header.setFont(QFont("JetBrains Mono", 20, QFont.Weight.Bold))
+        header = QLabel("VERIFICATION COMPLIANCE MODULE")
+        header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #9c27b0; margin-bottom: 2px; font-family: 'JetBrains Mono', 'Consolas', monospace;")
+        header.setStyleSheet("color: #3A75C4; margin-bottom: 2px;")
         main_layout.addWidget(header)
         
-        subtitle = QLabel("Virtual Camera + Document Injection + Liveness Bypass + Mobile Sync")
+        subtitle = QLabel("Virtual Camera + Document Injection + Liveness Response + Mobile Sync")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet("color: #556; font-size: 11px;")
         main_layout.addWidget(subtitle)
@@ -557,13 +557,13 @@ class KYCApp(QMainWindow):
 
         selfie_btn = QPushButton("🤳 Start Selfie Feed")
         selfie_btn.setMinimumHeight(36)
-        selfie_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        selfie_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         selfie_btn.clicked.connect(self._start_selfie_feed)
         btn_row.addWidget(selfie_btn)
 
         session_btn = QPushButton("🚀 Create Full Session")
         session_btn.setMinimumHeight(36)
-        session_btn.setStyleSheet("background: #ff6b35; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        session_btn.setStyleSheet("background: #E6A817; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         session_btn.clicked.connect(self._create_kyc_session)
         btn_row.addWidget(session_btn)
         layout.addLayout(btn_row)
@@ -729,7 +729,7 @@ class KYCApp(QMainWindow):
 
         sync_btn = QPushButton("🔄 Sync Cookies")
         sync_btn.setMinimumHeight(36)
-        sync_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        sync_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
         sync_btn.clicked.connect(self._sync_mobile_cookies)
         btn_row.addWidget(sync_btn)
 
@@ -1239,7 +1239,7 @@ def main():
     splash = None
     try:
         from titan_splash import show_titan_splash
-        splash = show_titan_splash(app, "KYC BYPASS MODULE", "#9c27b0")
+        splash = show_titan_splash(app, "VERIFICATION COMPLIANCE", "#3A75C4")
     except Exception:
         pass
     

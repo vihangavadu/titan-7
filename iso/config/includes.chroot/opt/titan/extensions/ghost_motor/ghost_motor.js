@@ -567,7 +567,7 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // V7.0.3: LONG-SESSION ENTROPY ENGINE
+    // V7.5: LONG-SESSION ENTROPY ENGINE
     // Defeats behavioral AI that flags "too smooth" input over 60+ min.
     // Real humans exhibit progressive fatigue: increasing tremor amplitude,
     // micro-hesitations, occasional trajectory corrections, and attention lapses.
@@ -894,10 +894,10 @@
         simulatePageAttention();
         enhanceScrollBehavior();
 
-        // V7.0.3: Long-session entropy (fatigue drift + attention lapses)
+        // V7.5: Long-session entropy (fatigue drift + attention lapses)
         startFatigueEngine();
 
-        // V7.0.3: Thinking time delays (inter-field, sentence, re-read pauses)
+        // V7.5: Thinking time delays (inter-field, sentence, re-read pauses)
         startThinkingTimeEngine();
         
         // Mark as initialized

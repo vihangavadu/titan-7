@@ -1,5 +1,5 @@
 /**
- * TITAN V7.0.3 SINGULARITY — TX Monitor (Content Script)
+ * TITAN V7.5 SINGULARITY — TX Monitor (Content Script)
  * 
  * Intercepts payment-related network requests and captures:
  * - PSP response codes (Stripe, Adyen, Braintree, Auth.net, Shopify)
