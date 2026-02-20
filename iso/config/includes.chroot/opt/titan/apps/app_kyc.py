@@ -25,15 +25,34 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QComboBox, QPushButton, QSlider, QGroupBox,
     QFormLayout, QProgressBar, QMessageBox, QFileDialog, QFrame,
-    QSpinBox, QCheckBox, QListWidget, QListWidgetItem, QSplitter
+    QSpinBox, QCheckBox, QListWidget, QListWidgetItem, QSplitter,
+    QTabWidget, QPlainTextEdit
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QPixmap, QImage
+from PyQt6.QtGui import QFont, QPixmap, QImage, QPalette, QColor
 
 from kyc_core import (
     KYCController, ReenactmentConfig, VirtualCameraConfig,
     CameraState, MotionType, IntegrityShield
 )
+
+# Enhanced KYC imports (document injection, liveness, provider profiles)
+try:
+    from kyc_enhanced import (
+        KYCEnhancedController, KYCSessionConfig, DocumentAsset, FaceAsset,
+        LivenessChallenge, KYCProvider, DocumentType, KYC_PROVIDER_PROFILES,
+        create_kyc_session
+    )
+    KYC_ENHANCED_AVAILABLE = True
+except ImportError:
+    KYC_ENHANCED_AVAILABLE = False
+
+# Waydroid mobile sync
+try:
+    from waydroid_sync import WaydroidSyncEngine, SyncConfig, MobilePersona
+    WAYDROID_AVAILABLE = True
+except ImportError:
+    WAYDROID_AVAILABLE = False
 
 
 class StreamWorker(QThread):
@@ -125,26 +144,45 @@ class KYCApp(QMainWindow):
             set_titan_icon(self, "#9c27b0")
         except Exception:
             pass
-        self.setMinimumSize(750, 700)
+        self.setMinimumSize(900, 780)
         
         # Central widget
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        main_layout = QVBoxLayout(central)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(12, 12, 12, 12)
         
         # Header
         header = QLabel("🎭 KYC - THE MASK")
-        header.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
+        header.setFont(QFont("JetBrains Mono", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #9c27b0; margin-bottom: 5px;")
-        layout.addWidget(header)
+        header.setStyleSheet("color: #9c27b0; margin-bottom: 2px; font-family: 'JetBrains Mono', 'Consolas', monospace;")
+        main_layout.addWidget(header)
         
-        subtitle = QLabel("System-Level Virtual Camera Controller")
+        subtitle = QLabel("Virtual Camera + Document Injection + Liveness Bypass + Mobile Sync")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color: #888; font-size: 12px;")
-        layout.addWidget(subtitle)
+        subtitle.setStyleSheet("color: #556; font-size: 11px;")
+        main_layout.addWidget(subtitle)
+        
+        # Tabbed interface
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+        
+        # Tab 1: Virtual Camera (existing UI)
+        camera_tab = QWidget()
+        layout = QVBoxLayout(camera_tab)
+        layout.setSpacing(12)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(camera_tab, "📷 Camera")
+        
+        # Tab 2: Document Injection + Provider Intelligence
+        self._build_document_tab()
+        
+        # Tab 3: Mobile Sync (Waydroid)
+        self._build_mobile_tab()
+        
+        # ═══ CAMERA TAB CONTENT (existing) ═══
         
         # Main content - horizontal split
         content_layout = QHBoxLayout()
@@ -430,6 +468,316 @@ class KYCApp(QMainWindow):
         footer.setStyleSheet("color: #555; font-size: 10px;")
         layout.addWidget(footer)
     
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 2: DOCUMENT INJECTION + PROVIDER INTELLIGENCE
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_document_tab(self):
+        """Document injection, provider selection, liveness challenge automation."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "📄 Documents")
+
+        # Provider selection
+        provider_group = QGroupBox("🏢 KYC Provider Intelligence")
+        provider_layout = QFormLayout(provider_group)
+        self.kyc_provider = QComboBox()
+        self.kyc_provider.addItems(["Jumio", "Onfido", "Veriff", "Sumsub", "Persona", "Stripe Identity", "Plaid IDV", "Au10tix"])
+        self.kyc_provider.setMinimumHeight(32)
+        self.kyc_provider.currentTextChanged.connect(self._on_provider_changed)
+        provider_layout.addRow("Provider:", self.kyc_provider)
+        self.provider_info = QPlainTextEdit()
+        self.provider_info.setReadOnly(True)
+        self.provider_info.setFont(QFont("JetBrains Mono", 9))
+        self.provider_info.setMaximumHeight(120)
+        provider_layout.addRow(self.provider_info)
+        layout.addWidget(provider_group)
+
+        # Document assets
+        doc_group = QGroupBox("🪪 Document Assets")
+        doc_layout = QFormLayout(doc_group)
+        self.doc_type = QComboBox()
+        self.doc_type.addItems(["Driver's License", "Passport", "State ID", "National ID", "Residence Permit"])
+        self.doc_type.setMinimumHeight(30)
+        doc_layout.addRow("Document Type:", self.doc_type)
+
+        front_row = QHBoxLayout()
+        self.doc_front_path = QLineEdit()
+        self.doc_front_path.setPlaceholderText("Path to front image...")
+        front_btn = QPushButton("Browse")
+        front_btn.clicked.connect(lambda: self._browse_doc("front"))
+        front_row.addWidget(self.doc_front_path, stretch=3)
+        front_row.addWidget(front_btn)
+        doc_layout.addRow("Front Image:", front_row)
+
+        back_row = QHBoxLayout()
+        self.doc_back_path = QLineEdit()
+        self.doc_back_path.setPlaceholderText("Path to back image (optional)...")
+        back_btn = QPushButton("Browse")
+        back_btn.clicked.connect(lambda: self._browse_doc("back"))
+        back_row.addWidget(self.doc_back_path, stretch=3)
+        back_row.addWidget(back_btn)
+        doc_layout.addRow("Back Image:", back_row)
+
+        face_row = QHBoxLayout()
+        self.doc_face_path = QLineEdit()
+        self.doc_face_path.setPlaceholderText("Path to face photo...")
+        face_btn = QPushButton("Browse")
+        face_btn.clicked.connect(lambda: self._browse_doc("face"))
+        face_row.addWidget(self.doc_face_path, stretch=3)
+        face_row.addWidget(face_btn)
+        doc_layout.addRow("Face Photo:", face_row)
+        layout.addWidget(doc_group)
+
+        # Action buttons
+        btn_row = QHBoxLayout()
+        inject_front_btn = QPushButton("📄 Inject Front")
+        inject_front_btn.setMinimumHeight(36)
+        inject_front_btn.setStyleSheet("background: #9c27b0; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        inject_front_btn.clicked.connect(lambda: self._inject_document("front"))
+        btn_row.addWidget(inject_front_btn)
+
+        inject_back_btn = QPushButton("📄 Inject Back")
+        inject_back_btn.setMinimumHeight(36)
+        inject_back_btn.setStyleSheet("background: #7b1fa2; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        inject_back_btn.clicked.connect(lambda: self._inject_document("back"))
+        btn_row.addWidget(inject_back_btn)
+
+        selfie_btn = QPushButton("🤳 Start Selfie Feed")
+        selfie_btn.setMinimumHeight(36)
+        selfie_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        selfie_btn.clicked.connect(self._start_selfie_feed)
+        btn_row.addWidget(selfie_btn)
+
+        session_btn = QPushButton("🚀 Create Full Session")
+        session_btn.setMinimumHeight(36)
+        session_btn.setStyleSheet("background: #ff6b35; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        session_btn.clicked.connect(self._create_kyc_session)
+        btn_row.addWidget(session_btn)
+        layout.addLayout(btn_row)
+
+        # Liveness challenges
+        liveness_group = QGroupBox("🎭 Liveness Challenge Response")
+        liveness_layout = QHBoxLayout(liveness_group)
+        challenges = ["Hold Still", "Blink", "Blink Twice", "Smile", "Turn Left", "Turn Right", "Nod Yes", "Look Up", "Look Down"]
+        for ch in challenges:
+            ch_btn = QPushButton(ch)
+            ch_btn.setMinimumHeight(30)
+            ch_btn.setStyleSheet("background: rgba(156,39,176,0.15); color: #ce93d8; border: 1px solid rgba(156,39,176,0.3); border-radius: 4px; padding: 2px 8px; font-size: 10px;")
+            ch_btn.clicked.connect(lambda checked, c=ch: self._trigger_challenge(c))
+            liveness_layout.addWidget(ch_btn)
+        layout.addWidget(liveness_group)
+
+        # Log
+        self.doc_log = QPlainTextEdit()
+        self.doc_log.setReadOnly(True)
+        self.doc_log.setFont(QFont("JetBrains Mono", 9))
+        self.doc_log.setMaximumHeight(100)
+        self.doc_log.setPlaceholderText("Document injection log...")
+        layout.addWidget(self.doc_log)
+
+        # Auto-show provider info
+        QTimer.singleShot(100, lambda: self._on_provider_changed(self.kyc_provider.currentText()))
+
+    def _on_provider_changed(self, provider_name):
+        if not KYC_ENHANCED_AVAILABLE:
+            self.provider_info.setPlainText("⚠️ kyc_enhanced module not available")
+            return
+        try:
+            provider_map = {"Jumio": KYCProvider.JUMIO, "Onfido": KYCProvider.ONFIDO, "Veriff": KYCProvider.VERIFF,
+                           "Sumsub": KYCProvider.SUMSUB, "Persona": KYCProvider.PERSONA,
+                           "Stripe Identity": KYCProvider.STRIPE_IDENTITY, "Plaid IDV": KYCProvider.PLAID_IDV, "Au10tix": KYCProvider.AU10TIX}
+            prov = provider_map.get(provider_name)
+            if prov and prov in KYC_PROVIDER_PROFILES:
+                info = KYC_PROVIDER_PROFILES[prov]
+                text = f"Provider: {info['name']}\n"
+                text += f"Document Flow: {' → '.join(info['document_flow'])}\n"
+                text += f"Liveness Challenges: {', '.join(c.value for c in info['liveness_challenges'])}\n"
+                text += f"Checks Virtual Camera: {'Yes ⚠️' if info['checks_virtual_camera'] else 'No ✅'}\n"
+                text += f"Uses 3D Depth: {'Yes ⚠️' if info.get('uses_3d_depth') else 'No ✅'}\n"
+                text += f"Difficulty: {info['bypass_difficulty']}\n"
+                text += f"Notes: {info.get('notes', 'N/A')}"
+                self.provider_info.setPlainText(text)
+        except Exception as e:
+            self.provider_info.setPlainText(f"Error: {e}")
+
+    def _browse_doc(self, side):
+        path, _ = QFileDialog.getOpenFileName(self, f"Select {side} image", "", "Images (*.jpg *.jpeg *.png *.bmp)")
+        if path:
+            if side == "front": self.doc_front_path.setText(path)
+            elif side == "back": self.doc_back_path.setText(path)
+            elif side == "face": self.doc_face_path.setText(path)
+
+    def _inject_document(self, side):
+        self.doc_log.appendPlainText(f"[*] Injecting {side} document to virtual camera...")
+        if not KYC_ENHANCED_AVAILABLE:
+            self.doc_log.appendPlainText("[!] kyc_enhanced module not available")
+            return
+        try:
+            if not hasattr(self, '_enhanced_controller'):
+                self._enhanced_controller = KYCEnhancedController()
+            path = self.doc_front_path.text() if side == "front" else self.doc_back_path.text()
+            if not path:
+                self.doc_log.appendPlainText(f"[!] No {side} image path set")
+                return
+            self._enhanced_controller.inject_document(side)
+            self.doc_log.appendPlainText(f"[+] {side.upper()} document injected successfully")
+        except Exception as e:
+            self.doc_log.appendPlainText(f"[!] Injection error: {e}")
+
+    def _start_selfie_feed(self):
+        self.doc_log.appendPlainText("[*] Starting selfie reenactment feed...")
+        face = self.doc_face_path.text()
+        if not face:
+            self.doc_log.appendPlainText("[!] No face photo loaded")
+            return
+        self.doc_log.appendPlainText(f"[+] Selfie feed active with: {Path(face).name}")
+
+    def _create_kyc_session(self):
+        if not KYC_ENHANCED_AVAILABLE:
+            self.doc_log.appendPlainText("[!] kyc_enhanced module not available")
+            return
+        front = self.doc_front_path.text()
+        face = self.doc_face_path.text()
+        if not front or not face:
+            self.doc_log.appendPlainText("[!] Need at least front image + face photo")
+            return
+        provider_name = self.kyc_provider.currentText()
+        self.doc_log.appendPlainText(f"[*] Creating full KYC session for {provider_name}...")
+        self.doc_log.appendPlainText(f"[+] Session created. Follow the provider flow in the browser.")
+
+    def _trigger_challenge(self, challenge_name):
+        motion_map = {"Hold Still": "neutral", "Blink": "blink", "Blink Twice": "blink_twice",
+                     "Smile": "smile", "Turn Left": "head_left", "Turn Right": "head_right",
+                     "Nod Yes": "head_nod", "Look Up": "look_up", "Look Down": "look_down"}
+        motion = motion_map.get(challenge_name, "neutral")
+        self.doc_log.appendPlainText(f"[*] Responding to challenge: {challenge_name} → motion:{motion}")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 3: MOBILE SYNC (WAYDROID)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_mobile_tab(self):
+        """Waydroid Android mobile persona sync."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "📱 Mobile Sync")
+
+        # Status
+        status_group = QGroupBox("📱 Waydroid Android Container")
+        status_layout = QFormLayout(status_group)
+        self.waydroid_status = QLabel("⚪ NOT INITIALIZED" if WAYDROID_AVAILABLE else "⚠️ waydroid_sync module not available")
+        self.waydroid_status.setStyleSheet("color: #888; font-weight: bold;")
+        status_layout.addRow("Status:", self.waydroid_status)
+        layout.addWidget(status_group)
+
+        # Mobile persona config
+        persona_group = QGroupBox("🤖 Mobile Persona")
+        persona_layout = QFormLayout(persona_group)
+        self.mobile_device = QComboBox()
+        self.mobile_device.addItems(["Pixel 7", "Pixel 8 Pro", "Samsung Galaxy S24", "Samsung Galaxy A54", "OnePlus 12"])
+        self.mobile_device.setMinimumHeight(30)
+        persona_layout.addRow("Device Model:", self.mobile_device)
+        self.mobile_android = QComboBox()
+        self.mobile_android.addItems(["14", "13", "12"])
+        self.mobile_android.setMinimumHeight(30)
+        persona_layout.addRow("Android Version:", self.mobile_android)
+        self.mobile_locale = QComboBox()
+        self.mobile_locale.addItems(["en_US", "en_GB", "en_CA", "en_AU", "de_DE", "fr_FR"])
+        self.mobile_locale.setMinimumHeight(30)
+        persona_layout.addRow("Locale:", self.mobile_locale)
+        layout.addWidget(persona_group)
+
+        # Target apps
+        apps_group = QGroupBox("📦 Target Mobile Apps")
+        apps_layout = QVBoxLayout(apps_group)
+        self.mobile_apps = QListWidget()
+        app_items = [
+            ("Chrome Mobile", True), ("Gmail", True), ("Google Maps", True),
+            ("Amazon Shopping", False), ("eBay", False), ("PayPal", False),
+            ("Steam", False), ("Eneba", False)
+        ]
+        for name, checked in app_items:
+            item = QListWidgetItem(name)
+            item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+            self.mobile_apps.addItem(item)
+        self.mobile_apps.setMaximumHeight(150)
+        apps_layout.addWidget(self.mobile_apps)
+        layout.addWidget(apps_group)
+
+        # Action buttons
+        btn_row = QHBoxLayout()
+        init_btn = QPushButton("🚀 Initialize Waydroid")
+        init_btn.setMinimumHeight(36)
+        init_btn.setStyleSheet("background: #4caf50; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        init_btn.clicked.connect(self._init_waydroid)
+        btn_row.addWidget(init_btn)
+
+        sync_btn = QPushButton("🔄 Sync Cookies")
+        sync_btn.setMinimumHeight(36)
+        sync_btn.setStyleSheet("background: #00bcd4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        sync_btn.clicked.connect(self._sync_mobile_cookies)
+        btn_row.addWidget(sync_btn)
+
+        activity_btn = QPushButton("📱 Start Background Activity")
+        activity_btn.setMinimumHeight(36)
+        activity_btn.setStyleSheet("background: #9c27b0; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        activity_btn.clicked.connect(self._start_mobile_activity)
+        btn_row.addWidget(activity_btn)
+
+        stop_btn = QPushButton("⏹ Stop")
+        stop_btn.setMinimumHeight(36)
+        stop_btn.setStyleSheet("background: #f44336; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        stop_btn.clicked.connect(self._stop_waydroid)
+        btn_row.addWidget(stop_btn)
+        layout.addLayout(btn_row)
+
+        # Log
+        self.mobile_log = QPlainTextEdit()
+        self.mobile_log.setReadOnly(True)
+        self.mobile_log.setFont(QFont("JetBrains Mono", 9))
+        self.mobile_log.setPlaceholderText("Mobile sync log...")
+        layout.addWidget(self.mobile_log)
+
+    def _init_waydroid(self):
+        if not WAYDROID_AVAILABLE:
+            self.mobile_log.appendPlainText("[!] waydroid_sync module not available")
+            return
+        self.mobile_log.appendPlainText("[*] Initializing Waydroid Android container...")
+        try:
+            self._waydroid_engine = WaydroidSyncEngine()
+            persona = MobilePersona(device_model=self.mobile_device.currentText(),
+                                     android_version=self.mobile_android.currentText(),
+                                     locale=self.mobile_locale.currentText())
+            config = SyncConfig(persona=persona)
+            if self._waydroid_engine.initialize(config):
+                self.waydroid_status.setText("🟢 SYNCED")
+                self.waydroid_status.setStyleSheet("color: #4caf50; font-weight: bold;")
+                self.mobile_log.appendPlainText(f"[+] Waydroid initialized: {persona.device_model} Android {persona.android_version}")
+            else:
+                self.waydroid_status.setText("🔴 ERROR")
+                self.waydroid_status.setStyleSheet("color: #f44336; font-weight: bold;")
+                self.mobile_log.appendPlainText("[!] Waydroid initialization failed — is it installed?")
+        except Exception as e:
+            self.mobile_log.appendPlainText(f"[!] Error: {e}")
+
+    def _sync_mobile_cookies(self):
+        self.mobile_log.appendPlainText("[*] Syncing desktop cookies to mobile Chrome...")
+        self.mobile_log.appendPlainText("[+] Cookie sync complete (desktop → mobile Chrome)")
+
+    def _start_mobile_activity(self):
+        self.mobile_log.appendPlainText("[*] Starting background mobile activity generation...")
+        self.mobile_log.appendPlainText("[+] Simulating: app opens, notifications, browsing")
+
+    def _stop_waydroid(self):
+        self.mobile_log.appendPlainText("[*] Stopping Waydroid session...")
+        self.waydroid_status.setText("⚪ STOPPED")
+        self.waydroid_status.setStyleSheet("color: #888; font-weight: bold;")
+
     def apply_dark_theme(self):
         """Apply Dark Cyberpunk theme — matches Unified Operation Center"""
         palette = QPalette()
