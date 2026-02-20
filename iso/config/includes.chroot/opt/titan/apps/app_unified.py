@@ -50,7 +50,7 @@ except ImportError as e:
     print(f"Warning: Core modules not fully available: {e}")
     CORE_AVAILABLE = False
 
-# V7.0 Intelligence imports
+# V7.5 Intelligence imports
 try:
     from target_intelligence import (
         get_avs_intelligence, get_visa_alerts_intel, check_visa_alerts_eligible,
@@ -61,10 +61,10 @@ try:
     from three_ds_strategy import get_3ds_v2_intelligence, get_3ds_detection_guide
     INTEL_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: V7.0 Intelligence modules not available: {e}")
+    print(f"Warning: V7.5 Intelligence modules not available: {e}")
     INTEL_AVAILABLE = False
 
-# V7.0 KYC imports
+# V7.5 KYC imports
 try:
     from kyc_core import KYCController, ReenactmentConfig, CameraState
     KYC_AVAILABLE = True
@@ -72,7 +72,7 @@ except ImportError as e:
     print(f"Warning: KYC module not available: {e}")
     KYC_AVAILABLE = False
 
-# V7.0.3 New Feature imports
+# V7.5 Feature imports
 try:
     from transaction_monitor import TransactionMonitor, DeclineDecoder, decode_decline
     from target_discovery import TargetDiscovery, AutoDiscovery, get_site_stats, auto_discover
@@ -85,10 +85,10 @@ try:
     from titan_services import TitanServiceManager, get_service_manager, start_all_services
     V703_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: V7.0.3 modules not available: {e}")
+    print(f"Warning: V7.5 modules not available: {e}")
     V703_AVAILABLE = False
 
-# V7.0 Hardening imports (Phase 2-3)
+# V7.5 Hardening imports (Phase 2-3)
 try:
     from font_sanitizer import FontSanitizer, TargetOS as FontTargetOS, check_fonts
     from audio_hardener import AudioHardener, AudioTargetOS
@@ -99,7 +99,7 @@ try:
     from preflight_validator import PreFlightValidator
     HARDENING_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: V7.0 Hardening modules not available: {e}")
+    print(f"Warning: V7.5 Hardening modules not available: {e}")
     HARDENING_AVAILABLE = False
 
 
@@ -243,9 +243,9 @@ class ProfileForgeWorker(QThread):
 
 class UnifiedOperationCenter(QMainWindow):
     """
-    TITAN V7.0 Unified Operation Center
+    TITAN V7.5 Unified Operations Dashboard
     
-    Complete GUI for end-to-end operations with V7.0 Intelligence Dashboard.
+    Complete GUI for end-to-end operations with V7.5 Intelligence Dashboard.
     """
     
     def __init__(self):
@@ -266,7 +266,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.setWindowTitle("Titan OS — Operation Center")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#00d4ff")
+            set_titan_icon(self, "#3A75C4")
         except Exception:
             pass
         self.setMinimumSize(1100, 950)
@@ -279,13 +279,13 @@ class UnifiedOperationCenter(QMainWindow):
         layout.setContentsMargins(8, 8, 8, 8)
         
         # Header
-        header = QLabel("TITAN V7.0.3 SINGULARITY")
-        header.setFont(QFont("JetBrains Mono", 22, QFont.Weight.Bold))
+        header = QLabel("TITAN V7.5 SINGULARITY")
+        header.setFont(QFont("Inter", 22, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #00d4ff; padding: 6px; font-family: 'JetBrains Mono', 'Consolas', monospace;")
+        header.setStyleSheet("color: #3A75C4; padding: 6px;")
         layout.addWidget(header)
         
-        subtitle = QLabel("UNIFIED OPERATION CENTER")
+        subtitle = QLabel("UNIFIED OPERATIONS DASHBOARD")
         subtitle.setFont(QFont("JetBrains Mono", 11))
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet("color: #556; margin-bottom: 4px; font-family: 'JetBrains Mono', 'Consolas', monospace;")
@@ -544,7 +544,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.forge_btn.setMinimumHeight(50)
         self.forge_btn.setStyleSheet("""
             QPushButton {
-                background-color: #ff6600;
+                background-color: #3A75C4;
                 color: white;
                 border: none;
                 border-radius: 5px;
@@ -604,7 +604,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(op_tab, "OPERATION")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 2: V7.0 INTELLIGENCE DASHBOARD
+        # Tab 2: V7.5 INTELLIGENCE DASHBOARD
         # ═══════════════════════════════════════════════════════════════════
         intel_tab = QWidget()
         intel_layout = QVBoxLayout(intel_tab)
@@ -613,9 +613,9 @@ class UnifiedOperationCenter(QMainWindow):
         self.intel_tabs = QTabWidget()
         self.intel_tabs.setTabPosition(QTabWidget.TabPosition.West)
         self.intel_tabs.setStyleSheet("""
-            QTabBar::tab { padding: 10px 6px; min-width: 30px; background: rgba(14, 20, 32, 0.8); color: #556; }
-            QTabBar::tab:selected { background: rgba(0, 212, 255, 0.15); color: #00d4ff; font-weight: bold; border-left: 2px solid #00d4ff; }
-            QTabBar::tab:hover { background: rgba(0, 212, 255, 0.08); color: #c8d2dc; }
+            QTabBar::tab { padding: 10px 6px; min-width: 30px; background: #1C2330; color: #64748B; }
+            QTabBar::tab:selected { background: #1A2D4A; color: #4A8AD8; font-weight: bold; border-left: 2px solid #3A75C4; }
+            QTabBar::tab:hover { background: #232B3A; color: #E2E8F0; }
         """)
         intel_layout.addWidget(self.intel_tabs)
         
@@ -837,7 +837,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(intel_tab, "INTELLIGENCE")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 3: V7.0 SHIELDS & HARDENING
+        # Tab 3: V7.5 SHIELDS & HARDENING
         # ═══════════════════════════════════════════════════════════════════
         shields_tab = QWidget()
         shields_layout = QVBoxLayout(shields_tab)
@@ -846,9 +846,9 @@ class UnifiedOperationCenter(QMainWindow):
         self.shields_tabs = QTabWidget()
         self.shields_tabs.setTabPosition(QTabWidget.TabPosition.West)
         self.shields_tabs.setStyleSheet("""
-            QTabBar::tab { padding: 10px 6px; min-width: 30px; background: rgba(14, 20, 32, 0.8); color: #556; }
-            QTabBar::tab:selected { background: rgba(255, 102, 0, 0.15); color: #ff6600; font-weight: bold; border-left: 2px solid #ff6600; }
-            QTabBar::tab:hover { background: rgba(255, 102, 0, 0.08); color: #c8d2dc; }
+            QTabBar::tab { padding: 10px 6px; min-width: 30px; background: #1C2330; color: #64748B; }
+            QTabBar::tab:selected { background: #1A2D4A; color: #4A8AD8; font-weight: bold; border-left: 2px solid #3A75C4; }
+            QTabBar::tab:hover { background: #232B3A; color: #E2E8F0; }
         """)
         shields_layout.addWidget(self.shields_tabs)
         
@@ -940,7 +940,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.ks_disarm_btn.setEnabled(False)
         ks_btn_row.addWidget(self.ks_disarm_btn)
         self.ks_panic_btn = QPushButton("⚡ MANUAL PANIC")
-        self.ks_panic_btn.setStyleSheet("QPushButton { background-color: #FF0000; color: white; font-weight: bold; }")
+        self.ks_panic_btn.setStyleSheet("QPushButton { background-color: #D32F2F; color: white; font-weight: bold; }")
         self.ks_panic_btn.clicked.connect(self._manual_panic)
         self.ks_panic_btn.setEnabled(False)
         ks_btn_row.addWidget(self.ks_panic_btn)
@@ -1171,7 +1171,7 @@ class UnifiedOperationCenter(QMainWindow):
         hud_header = QLabel("SYSTEM HEALTH HUD")
         hud_header.setFont(QFont("JetBrains Mono", 16, QFont.Weight.Bold))
         hud_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hud_header.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace;")
+        hud_header.setStyleSheet("color: #3A75C4;")
         health_layout.addWidget(hud_header)
         
         # --- System Resources Row ---
@@ -1188,7 +1188,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.hud_cpu_bar.setMinimumHeight(28)
         cpu_panel.addWidget(self.hud_cpu_bar)
         self.hud_cpu_label = QLabel("-- %")
-        self.hud_cpu_label.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
+        self.hud_cpu_label.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
         self.hud_cpu_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cpu_panel.addWidget(self.hud_cpu_label)
         res_layout.addLayout(cpu_panel)
@@ -1203,7 +1203,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.hud_mem_bar.setMinimumHeight(28)
         mem_panel.addWidget(self.hud_mem_bar)
         self.hud_mem_label = QLabel("-- / -- MB")
-        self.hud_mem_label.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
+        self.hud_mem_label.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
         self.hud_mem_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mem_panel.addWidget(self.hud_mem_label)
         res_layout.addLayout(mem_panel)
@@ -1218,7 +1218,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.hud_disk_bar.setMinimumHeight(28)
         disk_panel.addWidget(self.hud_disk_bar)
         self.hud_disk_label = QLabel("-- / -- MB")
-        self.hud_disk_label.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
+        self.hud_disk_label.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
         self.hud_disk_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         disk_panel.addWidget(self.hud_disk_label)
         res_layout.addLayout(disk_panel)
@@ -1252,7 +1252,7 @@ class UnifiedOperationCenter(QMainWindow):
         net_layout_hud = QFormLayout(net_group)
         
         self.hud_exit_ip = QLabel("--")
-        self.hud_exit_ip.setStyleSheet("color: #00d4ff; font-family: 'JetBrains Mono', monospace;")
+        self.hud_exit_ip.setStyleSheet("color: #40E0FF; font-family: 'JetBrains Mono', monospace;")
         net_layout_hud.addRow("Exit IP:", self.hud_exit_ip)
         
         self.hud_dns_status = QLabel("--")
@@ -1270,9 +1270,9 @@ class UnifiedOperationCenter(QMainWindow):
         self.hud_refresh_btn = QPushButton("🔄 REFRESH STATUS")
         self.hud_refresh_btn.setMinimumHeight(40)
         self.hud_refresh_btn.setStyleSheet(
-            "QPushButton { background-color: rgba(0, 255, 136, 0.15); color: #00ff88; "
-            "border: 1px solid rgba(0, 255, 136, 0.4); font-weight: bold; border-radius: 6px; }"
-            "QPushButton:hover { background-color: rgba(0, 255, 136, 0.25); }"
+            "QPushButton { background-color: #1A2D4A; color: #4A8AD8; "
+            "border: 1px solid #3A75C4; font-weight: bold; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #3A75C4; color: white; }"
         )
         self.hud_refresh_btn.clicked.connect(self._refresh_health_hud)
         hud_btn_layout.addWidget(self.hud_refresh_btn)
@@ -1282,7 +1282,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(health_tab, "HEALTH")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 6: V7.0.3 TRANSACTION MONITOR
+        # Tab 6: V7.5 TRANSACTION MONITOR
         # ═══════════════════════════════════════════════════════════════════
         tx_tab = QWidget()
         tx_layout = QVBoxLayout(tx_tab)
@@ -1291,23 +1291,23 @@ class UnifiedOperationCenter(QMainWindow):
         tx_header = QLabel("24/7 TRANSACTION MONITOR")
         tx_header.setFont(QFont("JetBrains Mono", 16, QFont.Weight.Bold))
         tx_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        tx_header.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace;")
+        tx_header.setStyleSheet("color: #3A75C4;")
         tx_layout.addWidget(tx_header)
         
         # Stats row
         tx_stats_group = QGroupBox("LIVE STATISTICS")
         tx_stats_layout = QHBoxLayout(tx_stats_group)
         self.tx_total_label = QLabel("Total: --")
-        self.tx_total_label.setStyleSheet("color: #00d4ff; font-size: 14px; font-weight: bold;")
+        self.tx_total_label.setStyleSheet("color: #40E0FF; font-size: 14px; font-weight: bold;")
         tx_stats_layout.addWidget(self.tx_total_label)
         self.tx_approved_label = QLabel("Approved: --")
-        self.tx_approved_label.setStyleSheet("color: #00ff88; font-size: 14px; font-weight: bold;")
+        self.tx_approved_label.setStyleSheet("color: #4CAF50; font-size: 14px; font-weight: bold;")
         tx_stats_layout.addWidget(self.tx_approved_label)
         self.tx_declined_label = QLabel("Declined: --")
-        self.tx_declined_label.setStyleSheet("color: #ff4444; font-size: 14px; font-weight: bold;")
+        self.tx_declined_label.setStyleSheet("color: #EF5350; font-size: 14px; font-weight: bold;")
         tx_stats_layout.addWidget(self.tx_declined_label)
         self.tx_rate_label = QLabel("Rate: --%")
-        self.tx_rate_label.setStyleSheet("color: #ffaa00; font-size: 14px; font-weight: bold;")
+        self.tx_rate_label.setStyleSheet("color: #E6A817; font-size: 14px; font-weight: bold;")
         tx_stats_layout.addWidget(self.tx_rate_label)
         tx_layout.addWidget(tx_stats_group)
         
@@ -1356,7 +1356,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(tx_tab, "TX MONITOR")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 7: V7.0.3 TARGET DISCOVERY + 3DS BYPASS
+        # Tab 7: V7.5 TARGET DISCOVERY + 3DS BYPASS
         # ═══════════════════════════════════════════════════════════════════
         disc_tab = QWidget()
         disc_layout = QVBoxLayout(disc_tab)
@@ -1365,9 +1365,9 @@ class UnifiedOperationCenter(QMainWindow):
         self.disc_tabs = QTabWidget()
         self.disc_tabs.setTabPosition(QTabWidget.TabPosition.West)
         self.disc_tabs.setStyleSheet("""
-            QTabBar::tab { padding: 10px 6px; min-width: 30px; background: rgba(14, 20, 32, 0.8); color: #556; }
-            QTabBar::tab:selected { background: rgba(0, 255, 136, 0.15); color: #00ff88; font-weight: bold; border-left: 2px solid #00ff88; }
-            QTabBar::tab:hover { background: rgba(0, 255, 136, 0.08); color: #c8d2dc; }
+            QTabBar::tab { padding: 10px 6px; min-width: 30px; background: #1C2330; color: #64748B; }
+            QTabBar::tab:selected { background: #1A2D4A; color: #4A8AD8; font-weight: bold; border-left: 2px solid #3A75C4; }
+            QTabBar::tab:hover { background: #232B3A; color: #E2E8F0; }
         """)
         disc_layout.addWidget(self.disc_tabs)
         
@@ -1378,7 +1378,7 @@ class UnifiedOperationCenter(QMainWindow):
         
         disc_btn_row = QHBoxLayout()
         disc_run_btn = QPushButton("RUN DISCOVERY NOW")
-        disc_run_btn.setStyleSheet("QPushButton{background:rgba(0,255,136,0.15);color:#00ff88;font-weight:bold;border:1px solid rgba(0,255,136,0.4);}")
+        disc_run_btn.setStyleSheet("QPushButton{background:#1A2D4A;color:#4A8AD8;font-weight:bold;border:1px solid #3A75C4;}")
         disc_run_btn.clicked.connect(self._run_auto_discovery)
         disc_btn_row.addWidget(disc_run_btn)
         disc_stats_btn = QPushButton("DB STATS")
@@ -1505,7 +1505,7 @@ class UnifiedOperationCenter(QMainWindow):
         
         svc_btn_row = QHBoxLayout()
         svc_start_btn = QPushButton("START ALL SERVICES")
-        svc_start_btn.setStyleSheet("QPushButton{background:rgba(0,255,136,0.15);color:#00ff88;font-weight:bold;}")
+        svc_start_btn.setStyleSheet("QPushButton{background:#1A2D4A;color:#4A8AD8;font-weight:bold;}")
         svc_start_btn.clicked.connect(self._start_all_services)
         svc_btn_row.addWidget(svc_start_btn)
         svc_status_btn = QPushButton("CHECK STATUS")
@@ -1679,13 +1679,13 @@ class UnifiedOperationCenter(QMainWindow):
                     active = check_fn()
                     if active:
                         badge.setText("🟢 ACTIVE")
-                        badge.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
+                        badge.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
                     else:
                         badge.setText("⚪ INACTIVE")
                         badge.setStyleSheet("color: #556; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
                 except Exception:
                     badge.setText("⚠️ ERROR")
-                    badge.setStyleSheet("color: #ff6600; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
+                    badge.setStyleSheet("color: #E6A817; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
     
     def apply_dark_theme(self):
         """Apply Enterprise HRUX theme from centralized theme module."""
@@ -2035,7 +2035,7 @@ class UnifiedOperationCenter(QMainWindow):
 
 
     # ═══════════════════════════════════════════════════════════════════
-    # V7.0 INTELLIGENCE HANDLERS
+    # V7.5 INTELLIGENCE HANDLERS
     # ═══════════════════════════════════════════════════════════════════
     
     def _check_avs(self):
@@ -2148,7 +2148,7 @@ class UnifiedOperationCenter(QMainWindow):
 
 
     # ═══════════════════════════════════════════════════════════════════
-    # V7.0 SHIELDS & HARDENING HANDLERS
+    # V7.5 SHIELDS & HARDENING HANDLERS
     # ═══════════════════════════════════════════════════════════════════
     
     def _run_master_verify(self):
@@ -2437,7 +2437,7 @@ class UnifiedOperationCenter(QMainWindow):
 
 
     # ═══════════════════════════════════════════════════════════════════
-    # V7.0.3 HANDLER METHODS
+    # V7.5 HANDLER METHODS
     # ═══════════════════════════════════════════════════════════════════
 
     def _auto_start_services(self):
@@ -2469,7 +2469,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _refresh_tx_monitor(self):
         """Refresh TX monitor with recent transactions"""
         if not V703_AVAILABLE:
-            self.tx_log.setPlainText("V7.0.3 modules not available")
+            self.tx_log.setPlainText("V7.5 modules not available")
             return
         try:
             monitor = TransactionMonitor()
@@ -2496,7 +2496,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _decode_decline(self):
         """Decode a decline code"""
         if not V703_AVAILABLE:
-            self.tx_log.setPlainText("V7.0.3 modules not available")
+            self.tx_log.setPlainText("V7.5 modules not available")
             return
         code = self.decode_input.text().strip()
         if not code:
@@ -2556,7 +2556,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _run_auto_discovery(self):
         """Run auto-discovery immediately"""
         if not V703_AVAILABLE:
-            self.disc_result_text.setPlainText("V7.0.3 modules not available")
+            self.disc_result_text.setPlainText("V7.5 modules not available")
             return
         self.disc_result_text.setPlainText("Running Auto-Discovery... (this may take 2-5 minutes)\n")
         try:
@@ -2637,7 +2637,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _score_3ds_bypass(self):
         """Score a site's 3DS bypass potential"""
         if not V703_AVAILABLE:
-            self.bypass_result_text.setPlainText("V7.0.3 modules not available")
+            self.bypass_result_text.setPlainText("V7.5 modules not available")
             return
         domain = self.bypass_domain.text().strip()
         if not domain:
@@ -2743,7 +2743,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _get_nvbv_recommendations(self):
         """Get Non-VBV BIN recommendations"""
         if not V703_AVAILABLE:
-            self.nvbv_result_text.setPlainText("V7.0.3 modules not available")
+            self.nvbv_result_text.setPlainText("V7.5 modules not available")
             return
         try:
             country = self.nvbv_country.currentText()
@@ -2806,7 +2806,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _start_all_services(self):
         """Start all background services"""
         if not V703_AVAILABLE:
-            self.svc_result_text.setPlainText("V7.0.3 modules not available")
+            self.svc_result_text.setPlainText("V7.5 modules not available")
             return
         try:
             mgr = get_service_manager()
@@ -2873,15 +2873,15 @@ class UnifiedOperationCenter(QMainWindow):
         """Add a live status bar with clock and system info"""
         self._statusbar = self.statusBar()
         self._statusbar.setStyleSheet(
-            "QStatusBar { background: #0a0e17; color: #556; border-top: 1px solid rgba(0,212,255,0.15); font-family: 'JetBrains Mono', monospace; font-size: 11px; }"
+            "QStatusBar { background: #151A21; color: #64748B; border-top: 1px solid #2A3444; font-family: 'JetBrains Mono', monospace; font-size: 11px; }"
             "QStatusBar::item { border: none; }"
         )
         self._sb_clock = QLabel()
-        self._sb_clock.setStyleSheet("color: #00d4ff; font-family: 'JetBrains Mono', monospace; padding: 0 12px;")
-        self._sb_version = QLabel("TITAN V7.0.3 SINGULARITY")
-        self._sb_version.setStyleSheet("color: #334; font-family: 'JetBrains Mono', monospace;")
+        self._sb_clock.setStyleSheet("color: #40E0FF; font-family: 'JetBrains Mono', monospace; padding: 0 12px;")
+        self._sb_version = QLabel("TITAN V7.5 SINGULARITY")
+        self._sb_version.setStyleSheet("color: #64748B; font-family: 'JetBrains Mono', monospace;")
         self._sb_mode = QLabel("MODE: KINETIC")
-        self._sb_mode.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; padding: 0 12px;")
+        self._sb_mode.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; padding: 0 12px;")
         self._statusbar.addWidget(self._sb_version)
         self._statusbar.addWidget(self._sb_mode)
         self._statusbar.addPermanentWidget(self._sb_clock)

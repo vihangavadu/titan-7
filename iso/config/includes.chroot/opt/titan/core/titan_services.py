@@ -1,5 +1,5 @@
 """
-TITAN V7.0.3 SINGULARITY — Service Orchestrator
+TITAN V7.5 SINGULARITY — Service Orchestrator
 Auto-starts and manages all background services:
   - Transaction Monitor (24/7 capture on port 7443)
   - Daily Auto-Discovery (finds new easy targets once per day)

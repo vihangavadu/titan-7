@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 LUCID EMPIRE :: Backend API Server
-TITAN V7.0 SINGULARITY
+TITAN V7.5 SINGULARITY
 
 Starts the FastAPI backend that serves:
   - /api/validation/* — Forensic validation endpoints
@@ -93,30 +93,39 @@ async def status():
 # ── Module Status Endpoints (v7.5) ──────────────────────────────────────────
 @app.get("/api/genesis/status")
 async def genesis_status():
-    """Genesis Core identity forge status."""
+    """Genesis identity synthesis engine status."""
     try:
-        from genesis_core import GenesisCore
-        return {"status": "operational", "module": "genesis_core", "version": "7.5"}
+        from genesis_core import GenesisEngine
+        targets = GenesisEngine.get_available_targets()
+        return {"status": "operational", "module": "genesis_core", "version": "7.5", "targets_loaded": len(targets)}
     except Exception as e:
         return {"status": "degraded", "module": "genesis_core", "error": str(e)}
 
 
 @app.get("/api/cerberus/status")
 async def cerberus_status():
-    """Cerberus Enhanced transaction intelligence status."""
+    """Cerberus Enhanced asset validation intelligence status."""
     try:
-        from cerberus_enhanced import CerberusEnhanced
-        return {"status": "operational", "module": "cerberus_enhanced", "version": "7.5"}
+        from cerberus_enhanced import AVSEngine, BINScoringEngine, AVSPreCheckEngine
+        return {
+            "status": "operational", "module": "cerberus_enhanced", "version": "7.5",
+            "engines": ["AVSEngine", "BINScoringEngine", "SilentValidationEngine",
+                        "GeoMatchChecker", "IssuingBankPatternPredictor", "MaxDrainEngine",
+                        "AVSPreCheckEngine"]
+        }
     except Exception as e:
         return {"status": "degraded", "module": "cerberus_enhanced", "error": str(e)}
 
 
 @app.get("/api/kyc/status")
 async def kyc_status():
-    """KYC Enhanced identity verification status."""
+    """KYC Enhanced verification compliance status."""
     try:
-        from kyc_enhanced import KYCEnhanced
-        return {"status": "operational", "module": "kyc_enhanced", "version": "7.5"}
+        from kyc_enhanced import KYCEnhancedController, AmbientLightingNormalizer
+        return {
+            "status": "operational", "module": "kyc_enhanced", "version": "7.5",
+            "components": ["KYCEnhancedController", "AmbientLightingNormalizer"]
+        }
     except Exception as e:
         return {"status": "degraded", "module": "kyc_enhanced", "error": str(e)}
 
@@ -165,9 +174,11 @@ async def hardware_status():
 async def tls_status():
     """TLS Parrot Engine status."""
     try:
-        from tls_parrot import TLSParrotEngine
-        engine = TLSParrotEngine()
-        return {"status": "operational", "module": "tls_parrot", "version": "7.5", "targets": len(engine.templates)}
+        from tls_parrot import TLSParrotEngine, JA4PermutationEngine, DynamicGREASEShuffler
+        return {
+            "status": "operational", "module": "tls_parrot", "version": "7.5",
+            "components": ["TLSParrotEngine", "JA4PermutationEngine", "DynamicGREASEShuffler"]
+        }
     except Exception as e:
         return {"status": "degraded", "module": "tls_parrot", "error": str(e)}
 
@@ -217,5 +228,5 @@ if __name__ == "__main__":
         logger.error("uvicorn not installed. Run: pip3 install uvicorn")
         sys.exit(1)
 
-    logger.info("Starting TITAN V7.0 Backend API on 0.0.0.0:8000")
+    logger.info("Starting TITAN V7.5 Backend API on 0.0.0.0:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
