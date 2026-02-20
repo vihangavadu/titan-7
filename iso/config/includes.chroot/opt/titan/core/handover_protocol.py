@@ -27,7 +27,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Callable
+from typing import Optional, Dict, List, Callable, Any
 from enum import Enum
 import signal
 
