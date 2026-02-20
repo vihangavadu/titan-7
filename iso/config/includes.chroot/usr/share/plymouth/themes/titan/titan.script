@@ -1,0 +1,80 @@
+# Titan OS V7.0.3 — Plymouth Boot Splash Script
+# Minimal, elegant dark boot animation with pulsing logo text
+
+# ─── Background ──────────────────────────────────────────────
+Window.SetBackgroundTopColor(0.04, 0.05, 0.09);    # #0a0e17
+Window.SetBackgroundBottomColor(0.02, 0.03, 0.06); # #050810
+
+# ─── Centered Logo Text ─────────────────────────────────────
+logo_text.image = Image.Text("TITAN OS", 0, 0.83, 1.0, 1, "Sans Bold 42");
+logo_text.sprite = Sprite(logo_text.image);
+logo_text.sprite.SetX(Window.GetWidth() / 2 - logo_text.image.GetWidth() / 2);
+logo_text.sprite.SetY(Window.GetHeight() / 2 - 60);
+
+version_text.image = Image.Text("V7.0.3 SINGULARITY", 0.33, 0.4, 0.47, 1, "Sans 16");
+version_text.sprite = Sprite(version_text.image);
+version_text.sprite.SetX(Window.GetWidth() / 2 - version_text.image.GetWidth() / 2);
+version_text.sprite.SetY(Window.GetHeight() / 2 + 10);
+
+# ─── Progress Bar ────────────────────────────────────────────
+progress_bar.original_image = Image.Text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", 0.13, 0.18, 0.28, 1, "Sans 10");
+progress_bar.sprite = Sprite(progress_bar.original_image);
+progress_bar.sprite.SetX(Window.GetWidth() / 2 - progress_bar.original_image.GetWidth() / 2);
+progress_bar.sprite.SetY(Window.GetHeight() / 2 + 80);
+
+progress_fill_count = 0;
+
+fun refresh_callback() {
+    # Pulse the logo opacity for a breathing effect
+    time = Plymouth.GetTime();
+    opacity = 0.7 + 0.3 * Math.Abs(Math.Sin(time * 1.5));
+    logo_text.sprite.SetOpacity(opacity);
+
+    # Subtle version text fade
+    version_text.sprite.SetOpacity(0.5 + 0.2 * Math.Abs(Math.Sin(time * 0.8)));
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# ─── Boot Progress ───────────────────────────────────────────
+fun boot_progress_callback(time, progress) {
+    # Update the progress bar fill based on boot progress
+    bar_width = progress_bar.original_image.GetWidth() * progress;
+    if (bar_width > 10) {
+        fill_text_str = "";
+        num_chars = Math.Int(40 * progress);
+        for (i = 0; i < num_chars; i++) {
+            fill_text_str += "━";
+        }
+        if (fill_text_str != "") {
+            fill_image = Image.Text(fill_text_str, 0, 0.83, 1.0, 1, "Sans 10");
+            progress_fill.sprite = Sprite(fill_image);
+            progress_fill.sprite.SetX(Window.GetWidth() / 2 - progress_bar.original_image.GetWidth() / 2);
+            progress_fill.sprite.SetY(Window.GetHeight() / 2 + 80);
+        }
+    }
+}
+Plymouth.SetBootProgressFunction(boot_progress_callback);
+
+# ─── Hide Messages (clean boot) ─────────────────────────────
+fun message_callback(text) {
+    # Suppress boot messages for clean experience
+}
+Plymouth.SetMessageFunction(message_callback);
+
+# ─── Password Prompt (for encrypted drives) ─────────────────
+fun display_password_callback(prompt, bullets) {
+    pw_prompt.image = Image.Text(prompt, 0, 0.83, 1.0, 1, "Sans 14");
+    pw_prompt.sprite = Sprite(pw_prompt.image);
+    pw_prompt.sprite.SetX(Window.GetWidth() / 2 - pw_prompt.image.GetWidth() / 2);
+    pw_prompt.sprite.SetY(Window.GetHeight() / 2 + 120);
+
+    bullet_str = "";
+    for (i = 0; i < bullets; i++) {
+        bullet_str += "●";
+    }
+    pw_bullets.image = Image.Text(bullet_str, 0, 0.83, 1.0, 1, "Sans 18");
+    pw_bullets.sprite = Sprite(pw_bullets.image);
+    pw_bullets.sprite.SetX(Window.GetWidth() / 2 - pw_bullets.image.GetWidth() / 2);
+    pw_bullets.sprite.SetY(Window.GetHeight() / 2 + 160);
+}
+Plymouth.SetDisplayPasswordFunction(display_password_callback);

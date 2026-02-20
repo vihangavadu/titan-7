@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Genesis
+GenericName=Profile Forge
+Comment=Generate aged browser profiles
+Exec=python3 /opt/titan/apps/app_genesis.py
+Icon=document-new
+Terminal=false
+Categories=System;Security;
+Keywords=genesis;profile;forge;
+StartupNotify=true

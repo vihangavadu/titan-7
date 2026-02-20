@@ -1,0 +1,159 @@
+#!/bin/bash
+# Titan OS V7.0.3 — Desktop Environment Setup Hook
+# Configures Plymouth, wallpaper, theme, and OS identity during ISO build
+
+set -e
+
+echo "[TITAN] Setting up Titan OS desktop identity..."
+
+# ─── 1. Plymouth Boot Splash ────────────────────────────────
+if [ -d /usr/share/plymouth/themes/titan ]; then
+    echo "[+] Installing Titan Plymouth theme..."
+    plymouth-set-default-theme titan 2>/dev/null || true
+    # Update initramfs to include Plymouth theme
+    if command -v update-initramfs &>/dev/null; then
+        update-initramfs -u 2>/dev/null || true
+    fi
+fi
+
+# ─── 2. OS Identity Override ────────────────────────────────
+# Ensure /etc/os-release shows Titan OS, not Debian
+if [ -f /etc/os-release.titan ]; then
+    cp /etc/os-release.titan /etc/os-release
+fi
+
+# ─── 3. Set Default GTK Theme ──────────────────────────────
+mkdir -p /etc/gtk-3.0
+cat > /etc/gtk-3.0/settings.ini << 'EOF'
+[Settings]
+gtk-theme-name=Arc-Dark
+gtk-icon-theme-name=Papirus-Dark
+gtk-font-name=Cantarell 10
+gtk-cursor-theme-name=Adwaita
+gtk-cursor-theme-size=24
+gtk-toolbar-style=GTK_TOOLBAR_BOTH_HORIZ
+gtk-toolbar-icon-size=GTK_ICON_SIZE_SMALL_TOOLBAR
+gtk-button-images=0
+gtk-menu-images=0
+gtk-enable-event-sounds=0
+gtk-enable-input-feedback-sounds=0
+gtk-xft-antialias=1
+gtk-xft-hinting=1
+gtk-xft-hintstyle=hintslight
+gtk-xft-rgba=rgb
+gtk-application-prefer-dark-theme=1
+EOF
+
+# ─── 4. Set Default Qt Theme to Match ──────────────────────
+mkdir -p /etc/environment.d
+cat > /etc/environment.d/50-titan-qt.conf << 'EOF'
+QT_QPA_PLATFORMTHEME=gtk3
+QT_STYLE_OVERRIDE=adwaita-dark
+EOF
+
+# ─── 5. Openbox Theme ──────────────────────────────────────
+# Create a minimal dark Openbox theme matching our color scheme
+THEME_DIR="/usr/share/themes/TitanDark/openbox-3"
+mkdir -p "$THEME_DIR"
+cat > "$THEME_DIR/themerc" << 'EOF'
+# Titan OS — Openbox Window Theme
+# Deep midnight with cyan accents
+
+# Title bar
+window.active.title.bg: flat solid
+window.active.title.bg.color: #0e1420
+window.active.label.text.color: #00d4ff
+window.active.label.text.font: shadow=n
+
+window.inactive.title.bg: flat solid
+window.inactive.title.bg.color: #0a0e17
+window.inactive.label.text.color: #556678
+window.inactive.label.text.font: shadow=n
+
+# Buttons
+window.active.button.unpressed.bg: flat solid
+window.active.button.unpressed.bg.color: #0e1420
+window.active.button.unpressed.image.color: #00d4ff
+
+window.active.button.hover.bg: flat solid
+window.active.button.hover.bg.color: #162030
+window.active.button.hover.image.color: #00ffcc
+
+window.active.button.pressed.bg: flat solid
+window.active.button.pressed.bg.color: #00d4ff
+window.active.button.pressed.image.color: #0a0e17
+
+window.inactive.button.unpressed.bg: flat solid
+window.inactive.button.unpressed.bg.color: #0a0e17
+window.inactive.button.unpressed.image.color: #334455
+
+# Close button special colors
+window.active.button.close.unpressed.image.color: #ff6644
+window.active.button.close.hover.bg: flat solid
+window.active.button.close.hover.bg.color: #ff6644
+window.active.button.close.hover.image.color: #ffffff
+
+# Border
+window.active.border.color: #00d4ff30
+window.inactive.border.color: #1e2d4020
+border.width: 1
+padding.width: 6
+padding.height: 4
+
+# Handle (bottom resize grip)
+window.active.handle.bg: flat solid
+window.active.handle.bg.color: #0e1420
+window.inactive.handle.bg: flat solid
+window.inactive.handle.bg.color: #0a0e17
+window.handle.width: 4
+
+# Grip
+window.active.grip.bg: flat solid
+window.active.grip.bg.color: #0e1420
+window.inactive.grip.bg: flat solid
+window.inactive.grip.bg.color: #0a0e17
+
+# Menu
+menu.title.bg: flat solid
+menu.title.bg.color: #0e1420
+menu.title.text.color: #00d4ff
+menu.title.text.font: shadow=n
+
+menu.items.bg: flat solid
+menu.items.bg.color: #0a0e17
+menu.items.text.color: #c8d2dc
+menu.items.disabled.text.color: #445566
+
+menu.items.active.bg: flat solid
+menu.items.active.bg.color: #00d4ff20
+menu.items.active.text.color: #00d4ff
+
+menu.separator.color: #1e2d40
+menu.separator.width: 1
+menu.separator.padding.width: 8
+menu.separator.padding.height: 4
+
+# OSD (on-screen display)
+osd.bg: flat solid
+osd.bg.color: #0a0e17
+osd.label.text.color: #00d4ff
+osd.border.color: #00d4ff30
+osd.border.width: 1
+EOF
+
+# ─── 6. Remove Debian Branding Leftovers ───────────────────
+# Remove /etc/motd if it contains Debian text
+if grep -qi "debian" /etc/motd 2>/dev/null; then
+    echo "" > /etc/motd
+fi
+
+# Remove Debian desktop backgrounds
+rm -f /usr/share/desktop-base/active-theme 2>/dev/null || true
+
+# ─── 7. Set Openbox Autostart Executable ───────────────────
+chmod +x /etc/xdg/openbox/autostart 2>/dev/null || true
+
+# ─── 8. Set Profile Script Executable ──────────────────────
+chmod +x /etc/profile.d/titan-prompt.sh 2>/dev/null || true
+
+echo "[+] Titan OS desktop identity configured."

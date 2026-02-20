@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TITAN V7.0 SINGULARITY - Kiosk Window Manager Configuration
-  
-  This Openbox config creates a minimal kiosk environment:
-  - No desktop icons
-  - No system tray
-  - Only Trinity Apps + Browser visible
-  - Keyboard shortcuts for Trinity Apps
+  Titan OS V7.0.3 — Openbox Window Manager Configuration
+  Minimal operation environment with keyboard shortcuts
 -->
 <openbox_config xmlns="http://openbox.org/3.4/rc">
   <resistance>
@@ -31,18 +26,18 @@
   </placement>
   
   <theme>
-    <name>Nightmare</name>
+    <name>TitanDark</name>
     <titleLayout>NLIMC</titleLayout>
     <keepBorder>yes</keepBorder>
     <animateIconify>yes</animateIconify>
     <font place="ActiveWindow">
-      <name>Sans</name>
+      <name>Cantarell</name>
       <size>10</size>
       <weight>Bold</weight>
       <slant>Normal</slant>
     </font>
     <font place="InactiveWindow">
-      <name>Sans</name>
+      <name>Cantarell</name>
       <size>10</size>
       <weight>Normal</weight>
       <slant>Normal</slant>

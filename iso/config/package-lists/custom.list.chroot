@@ -249,6 +249,20 @@ unbound-anchor
 # --- V6: DKMS for Hardware Shield V6 (Netlink Injection) ---
 dkms
 
+# --- V7.0.3: Desktop UX — Titan OS Identity ---
+# Panel/dock, compositor, wallpaper, notifications, system monitor
+tint2
+conky-all
+feh
+picom
+dunst
+plymouth
+plymouth-themes
+papirus-icon-theme
+arc-theme
+fonts-cantarell
+pcmanfm
+
 # --- V7.0.2: VPS Deployment Packages ---
 # These are used by build_vps_image.sh for persistent disk deployments.
 # cloud-guest-utils  # installed by VPS builder only (not in Debian live repos)

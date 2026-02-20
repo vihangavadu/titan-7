@@ -1,11 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=TITAN V7.0 SINGULARITY
-Comment=Unified Operation Center — All modules in one app
-Exec=python3 /opt/titan/apps/app_unified.py
-Icon=preferences-system-privacy
+Name=Titan OS Welcome
+Comment=First-boot welcome and system readiness check
+Exec=bash /opt/titan/bin/titan-welcome
+Icon=dialog-information
 Terminal=false
-Categories=System;Security;
-StartupNotify=true
+Categories=System;
+StartupNotify=false
 X-GNOME-Autostart-enabled=true
-X-GNOME-Autostart-Delay=3
+X-GNOME-Autostart-Delay=5
+Hidden=false

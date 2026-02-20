@@ -262,7 +262,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.load_targets()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN V7.0.3 SINGULARITY - Operation Center")
+        self.setWindowTitle("Titan OS — Operation Center")
         self.setMinimumSize(1100, 950)
         
         # Central widget
