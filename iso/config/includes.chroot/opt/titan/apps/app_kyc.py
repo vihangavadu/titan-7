@@ -54,6 +54,13 @@ try:
 except ImportError:
     WAYDROID_AVAILABLE = False
 
+# Voice engine for speech KYC challenges
+try:
+    from kyc_voice_engine import KYCVoiceEngine, SpeechVideoConfig, VoiceProfile, VoiceGender
+    VOICE_AVAILABLE = True
+except ImportError:
+    VOICE_AVAILABLE = False
+
 
 class StreamWorker(QThread):
     """Background worker for camera streaming"""
@@ -181,6 +188,9 @@ class KYCApp(QMainWindow):
         
         # Tab 3: Mobile Sync (Waydroid)
         self._build_mobile_tab()
+        
+        # Tab 4: Voice + Video Recording (speech KYC challenges)
+        self._build_voice_tab()
         
         # ═══ CAMERA TAB CONTENT (existing) ═══
         
@@ -1142,6 +1152,237 @@ class KYCApp(QMainWindow):
         if not cameras:
             self.camera_list.addItem("No cameras found")
     
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 4: VOICE + VIDEO RECORDING (Speech KYC Challenges)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_voice_tab(self):
+        """Voice synthesis for 'record a video saying X' KYC challenges."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "🎤 Voice")
+
+        # Status
+        voice_status = QGroupBox("🎤 Voice Engine Status")
+        vs_layout = QVBoxLayout(voice_status)
+        self.voice_status_label = QLabel("Checking voice engine...")
+        self.voice_status_label.setStyleSheet("color: #aaa; font-size: 12px;")
+        vs_layout.addWidget(self.voice_status_label)
+        layout.addWidget(voice_status)
+
+        # Check voice engine
+        if VOICE_AVAILABLE:
+            try:
+                engine = KYCVoiceEngine()
+                status = engine.get_status()
+                backend = status['backend']
+                if status['available']:
+                    self.voice_status_label.setText(f"✅ Voice engine ready — Backend: {backend.upper()}")
+                    self.voice_status_label.setStyleSheet("color: #4caf50; font-size: 12px; font-weight: bold;")
+                else:
+                    self.voice_status_label.setText("⚠️ No TTS backend found — install espeak-ng or piper")
+                    self.voice_status_label.setStyleSheet("color: #ff9800; font-size: 12px;")
+            except Exception as e:
+                self.voice_status_label.setText(f"❌ Voice engine error: {e}")
+                self.voice_status_label.setStyleSheet("color: #f44336; font-size: 12px;")
+        else:
+            self.voice_status_label.setText("❌ kyc_voice_engine module not available")
+            self.voice_status_label.setStyleSheet("color: #f44336; font-size: 12px;")
+
+        # Speech text input
+        speech_group = QGroupBox("💬 Speech Challenge")
+        sg_layout = QVBoxLayout(speech_group)
+
+        sg_layout.addWidget(QLabel("Text to speak (what the KYC provider asks you to say):"))
+        self.speech_text = QPlainTextEdit()
+        self.speech_text.setPlaceholderText(
+            "Example: My name is John Davis and today is February twentieth two thousand twenty six"
+        )
+        self.speech_text.setMaximumHeight(80)
+        sg_layout.addWidget(self.speech_text)
+
+        # Voice settings
+        voice_settings = QHBoxLayout()
+
+        voice_settings.addWidget(QLabel("Voice:"))
+        self.voice_gender_combo = QComboBox()
+        self.voice_gender_combo.addItems(["Male", "Female"])
+        self.voice_gender_combo.setMinimumWidth(100)
+        voice_settings.addWidget(self.voice_gender_combo)
+
+        voice_settings.addWidget(QLabel("Accent:"))
+        self.voice_accent_combo = QComboBox()
+        self.voice_accent_combo.addItems(["US English", "British English", "Australian"])
+        self.voice_accent_combo.setMinimumWidth(130)
+        voice_settings.addWidget(self.voice_accent_combo)
+
+        voice_settings.addWidget(QLabel("Speed:"))
+        self.voice_speed_spin = QSpinBox()
+        self.voice_speed_spin.setRange(50, 200)
+        self.voice_speed_spin.setValue(100)
+        self.voice_speed_spin.setSuffix("%")
+        voice_settings.addWidget(self.voice_speed_spin)
+
+        voice_settings.addStretch()
+        sg_layout.addLayout(voice_settings)
+
+        # Voice reference (for cloning)
+        ref_layout = QHBoxLayout()
+        ref_layout.addWidget(QLabel("Voice reference (optional, for cloning):"))
+        self.voice_ref_path = QLineEdit()
+        self.voice_ref_path.setPlaceholderText("Path to reference voice .wav (leave empty for default)")
+        ref_layout.addWidget(self.voice_ref_path)
+        voice_ref_btn = QPushButton("Browse")
+        voice_ref_btn.clicked.connect(self._browse_voice_ref)
+        ref_layout.addWidget(voice_ref_btn)
+        sg_layout.addLayout(ref_layout)
+
+        layout.addWidget(speech_group)
+
+        # Action buttons
+        action_group = QGroupBox("🎬 Actions")
+        ag_layout = QVBoxLayout(action_group)
+
+        btn_row1 = QHBoxLayout()
+        self.test_speech_btn = QPushButton("🔊 Test Speech (Audio Only)")
+        self.test_speech_btn.setMinimumHeight(40)
+        self.test_speech_btn.clicked.connect(self._test_speech)
+        btn_row1.addWidget(self.test_speech_btn)
+
+        self.speak_to_cam_btn = QPushButton("🎬 Speak to Camera (Video + Audio)")
+        self.speak_to_cam_btn.setMinimumHeight(40)
+        self.speak_to_cam_btn.setStyleSheet("QPushButton { background-color: #9c27b0; color: white; font-weight: bold; font-size: 13px; }")
+        self.speak_to_cam_btn.clicked.connect(self._speak_to_camera)
+        btn_row1.addWidget(self.speak_to_cam_btn)
+        ag_layout.addLayout(btn_row1)
+
+        btn_row2 = QHBoxLayout()
+        self.stop_voice_btn = QPushButton("⏹ Stop")
+        self.stop_voice_btn.setMinimumHeight(35)
+        self.stop_voice_btn.clicked.connect(self._stop_voice)
+        btn_row2.addWidget(self.stop_voice_btn)
+        btn_row2.addStretch()
+        ag_layout.addLayout(btn_row2)
+
+        layout.addWidget(action_group)
+
+        # Voice log
+        log_group = QGroupBox("📋 Voice Log")
+        lg_layout = QVBoxLayout(log_group)
+        self.voice_log = QPlainTextEdit()
+        self.voice_log.setReadOnly(True)
+        self.voice_log.setMaximumHeight(150)
+        self.voice_log.setStyleSheet("background-color: #1a1a2e; color: #8892b0; font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        lg_layout.addWidget(self.voice_log)
+        layout.addWidget(log_group)
+
+        layout.addStretch()
+
+    def _browse_voice_ref(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Voice Reference", "", "Audio (*.wav *.mp3 *.ogg)")
+        if path:
+            self.voice_ref_path.setText(path)
+
+    def _get_voice_profile(self):
+        """Build VoiceProfile from GUI settings"""
+        if not VOICE_AVAILABLE:
+            return None
+        gender = VoiceGender.FEMALE if self.voice_gender_combo.currentIndex() == 1 else VoiceGender.MALE
+        accent_map = {0: "us", 1: "gb", 2: "au"}
+        accent = accent_map.get(self.voice_accent_combo.currentIndex(), "us")
+        speed = self.voice_speed_spin.value() / 100.0
+        ref = self.voice_ref_path.text().strip() or None
+        return VoiceProfile(gender=gender, accent=accent, speed=speed, reference_audio=ref)
+
+    def _voice_log(self, msg):
+        self.voice_log.appendPlainText(f"[{__import__('datetime').datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+    def _test_speech(self):
+        """Generate and play speech audio only (no video)"""
+        if not VOICE_AVAILABLE:
+            QMessageBox.warning(self, "Voice", "Voice engine not available")
+            return
+        text = self.speech_text.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "Voice", "Enter text to speak")
+            return
+        self._voice_log(f"Generating speech: '{text[:50]}...'")
+        try:
+            engine = KYCVoiceEngine()
+            engine.on_log = lambda msg, lvl: self._voice_log(msg)
+            voice = self._get_voice_profile()
+            result = engine.generate_speech(text, voice, "/tmp/titan_test_speech.wav")
+            if result:
+                self._voice_log(f"✓ Speech generated: {result}")
+                import subprocess
+                subprocess.Popen(["paplay", result] if __import__('shutil').which("paplay") else ["aplay", result])
+                self._voice_log("Playing audio...")
+            else:
+                self._voice_log("✗ Speech generation failed")
+        except Exception as e:
+            self._voice_log(f"✗ Error: {e}")
+
+    def _speak_to_camera(self):
+        """Full pipeline: generate speech + talking video → stream to camera"""
+        if not VOICE_AVAILABLE:
+            QMessageBox.warning(self, "Voice", "Voice engine not available")
+            return
+        text = self.speech_text.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "Voice", "Enter text to speak")
+            return
+        if not self.source_image_path:
+            QMessageBox.warning(self, "Voice", "Load a face image first (Camera tab)")
+            return
+
+        self._voice_log(f"Starting speech+video: '{text[:50]}...'")
+        self.speak_to_cam_btn.setEnabled(False)
+        self.speak_to_cam_btn.setText("⏳ Generating...")
+
+        try:
+            engine = KYCVoiceEngine()
+            engine.on_log = lambda msg, lvl: self._voice_log(msg)
+            voice = self._get_voice_profile()
+
+            config = SpeechVideoConfig(
+                text=text,
+                face_image=self.source_image_path,
+                voice=voice,
+                camera_device=self.controller.config.device_path,
+            )
+
+            # Run in thread to avoid blocking GUI
+            import threading
+            def run():
+                try:
+                    ok = engine.speak_to_camera(config)
+                    self._voice_log("✓ Speech+video complete" if ok else "✗ Speech+video failed")
+                except Exception as e:
+                    self._voice_log(f"✗ Error: {e}")
+                finally:
+                    self.speak_to_cam_btn.setEnabled(True)
+                    self.speak_to_cam_btn.setText("🎬 Speak to Camera (Video + Audio)")
+
+            t = threading.Thread(target=run, daemon=True)
+            t.start()
+
+        except Exception as e:
+            self._voice_log(f"✗ Error: {e}")
+            self.speak_to_cam_btn.setEnabled(True)
+            self.speak_to_cam_btn.setText("🎬 Speak to Camera (Video + Audio)")
+
+    def _stop_voice(self):
+        """Stop any active voice streaming"""
+        if VOICE_AVAILABLE:
+            try:
+                engine = KYCVoiceEngine()
+                engine.stop()
+                self._voice_log("Stopped")
+            except Exception:
+                pass
+
     def closeEvent(self, event):
         """Clean up on close"""
         self.stop_stream()

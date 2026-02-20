@@ -70,6 +70,8 @@ class LivenessChallenge(Enum):
     TILT_HEAD = "tilt_head"
     MOVE_CLOSER = "move_closer"
     MOVE_AWAY = "move_away"
+    SPEAK_PHRASE = "speak_phrase"       # "Say: My name is X"
+    RECORD_VIDEO = "record_video"       # "Record a video saying X"
 
 
 class InjectionMode(Enum):
@@ -130,6 +132,11 @@ class KYCSessionConfig:
     expression_intensity: float = 1.0
     blink_frequency: float = 0.3
     micro_movement: float = 0.15
+    # Voice params (for speak/record challenges)
+    voice_gender: str = "male"          # male or female
+    voice_accent: str = "us"            # us, gb, au
+    voice_speed: float = 1.0            # 0.5-2.0
+    voice_reference_audio: Optional[str] = None  # For voice cloning
     # Ambient camera noise (realism)
     add_noise: bool = True              # Slight camera noise for realism
     noise_level: float = 0.02
@@ -483,8 +490,10 @@ class KYCEnhancedController:
             LivenessChallenge.OPEN_MOUTH: "smile",        # Use smile as fallback
             LivenessChallenge.RAISE_EYEBROWS: "look_up",  # Use look_up as fallback
             LivenessChallenge.TILT_HEAD: "head_left",      # Use head_left as fallback
-            LivenessChallenge.MOVE_CLOSER: "neutral",      # Zoom handled differently
-            LivenessChallenge.MOVE_AWAY: "neutral",        # Zoom handled differently
+            LivenessChallenge.MOVE_CLOSER: "move_closer",
+            LivenessChallenge.MOVE_AWAY: "move_away",
+            LivenessChallenge.SPEAK_PHRASE: "speak",
+            LivenessChallenge.RECORD_VIDEO: "speak",
         }
         
         motion_name = challenge_motion_map.get(challenge, "neutral")
@@ -497,6 +506,17 @@ class KYCEnhancedController:
         if not motion_path.exists():
             self._log(f"Motion asset not found for {challenge.value}, using neutral", "warn")
             return self._continue_neutral_feed()
+        
+        # Handle voice challenges separately
+        if challenge in (LivenessChallenge.SPEAK_PHRASE, LivenessChallenge.RECORD_VIDEO):
+            self._log("Voice challenge — use speak_to_camera() from KYCVoiceEngine")
+            return True  # Handled by voice engine, not motion reenactment
+        
+        # Handle zoom challenges
+        if challenge == LivenessChallenge.MOVE_CLOSER:
+            return self._zoom_face(zoom_in=True)
+        elif challenge == LivenessChallenge.MOVE_AWAY:
+            return self._zoom_face(zoom_in=False)
         
         # Switch to challenge motion, then return to neutral
         self._stop_current_stream()
@@ -655,6 +675,120 @@ class KYCEnhancedController:
             except Exception as e:
                 self._log(f"Face feed failed: {e}", "error")
                 return False
+    
+    def _zoom_face(self, zoom_in: bool = True) -> bool:
+        """
+        Simulate moving closer/away by zooming the face feed.
+        zoom_in=True: crop center and scale up (face appears larger)
+        zoom_in=False: scale down and pad (face appears smaller)
+        """
+        if not self.session_config:
+            return False
+        
+        self._stop_current_stream()
+        cfg = self.session_config
+        face = cfg.face
+        w, h = cfg.resolution
+        
+        source = face.neutral_video_path or face.source_image_path
+        is_image = source.endswith(('.jpg', '.jpeg', '.png', '.bmp'))
+        
+        try:
+            if zoom_in:
+                # Crop center 70% and scale up (simulates moving closer)
+                crop_w, crop_h = int(w * 0.7), int(h * 0.7)
+                offset_x, offset_y = int(w * 0.15), int(h * 0.15)
+                vf = f"crop={crop_w}:{crop_h}:{offset_x}:{offset_y},scale={w}:{h}"
+            else:
+                # Scale down to 70% and pad with black (simulates moving away)
+                small_w, small_h = int(w * 0.7), int(h * 0.7)
+                vf = f"scale={small_w}:{small_h},pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:black"
+            
+            if cfg.add_noise:
+                vf += f",noise=alls={int(cfg.noise_level * 100)}:allf=t"
+            
+            input_args = ["-loop", "1", "-re"] if is_image else ["-re", "-stream_loop", "-1"]
+            
+            cmd = [
+                "ffmpeg", "-y",
+                *input_args,
+                "-i", source,
+                "-t", "4",
+                "-vf", vf,
+                "-f", "v4l2",
+                "-pix_fmt", "yuyv422",
+                "-r", str(cfg.fps),
+                cfg.camera_device,
+            ]
+            
+            self.ffmpeg_process = subprocess.Popen(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+            )
+            
+            direction = "closer" if zoom_in else "away"
+            self._log(f"Zoom {direction} feed started")
+            return True
+            
+        except Exception as e:
+            self._log(f"Zoom failed: {e}", "error")
+            return False
+    
+    def speak_challenge(self, text: str, face_image: Optional[str] = None) -> bool:
+        """
+        Handle 'say X' or 'record video saying X' challenges.
+        Uses KYCVoiceEngine to generate speech + talking video.
+        
+        Args:
+            text: The phrase to speak (e.g., "My name is John Davis")
+            face_image: Face photo (uses session face if not provided)
+        """
+        if not self.session_config:
+            self._log("No session configured", "error")
+            return False
+        
+        if not face_image:
+            face_image = self.session_config.face.source_image_path
+        
+        try:
+            from kyc_voice_engine import KYCVoiceEngine, SpeechVideoConfig, VoiceProfile, VoiceGender
+            
+            engine = KYCVoiceEngine()
+            if not engine.is_available:
+                self._log("Voice engine not available — install espeak-ng or piper", "error")
+                return False
+            
+            cfg = self.session_config
+            gender = VoiceGender.FEMALE if cfg.voice_gender == "female" else VoiceGender.MALE
+            
+            voice = VoiceProfile(
+                gender=gender,
+                accent=cfg.voice_accent,
+                speed=cfg.voice_speed,
+                reference_audio=cfg.voice_reference_audio,
+            )
+            
+            speech_config = SpeechVideoConfig(
+                text=text,
+                face_image=face_image,
+                voice=voice,
+                output_resolution=cfg.resolution,
+                output_fps=cfg.fps,
+                camera_device=cfg.camera_device,
+                add_noise=cfg.add_noise,
+                noise_level=cfg.noise_level,
+            )
+            
+            self._stop_current_stream()
+            self._log(f"Speaking: '{text[:50]}...'")
+            
+            return engine.speak_to_camera(speech_config)
+            
+        except ImportError:
+            self._log("kyc_voice_engine not available", "error")
+            return False
+        except Exception as e:
+            self._log(f"Voice challenge failed: {e}", "error")
+            return False
     
     def _continue_neutral_feed(self) -> bool:
         """Return to neutral idle after a challenge response"""
