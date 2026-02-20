@@ -301,58 +301,134 @@ class GenesisApp(QMainWindow):
         self.on_target_changed(0)
     
     def apply_dark_theme(self):
-        """Apply dark theme to the application"""
+        """Apply Dark Cyberpunk theme — matches Unified Operation Center"""
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(10, 14, 23))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(200, 210, 220))
+        palette.setColor(QPalette.ColorRole.Base, QColor(14, 20, 32))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(18, 26, 40))
+        palette.setColor(QPalette.ColorRole.Text, QColor(200, 210, 220))
+        palette.setColor(QPalette.ColorRole.Button, QColor(18, 26, 40))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(200, 210, 220))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(255, 107, 53))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(10, 14, 23))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(14, 20, 32))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(200, 210, 220))
+        self.setPalette(palette)
+
         self.setStyleSheet("""
-            QMainWindow, QWidget {
-                background-color: #1e1e1e;
-                color: #e0e0e0;
+            QMainWindow {
+                background-color: #0a0e17;
             }
             QGroupBox {
                 font-weight: bold;
-                border: 1px solid #333;
+                font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+                color: #ff6b35;
+                border: 1px solid rgba(255, 107, 53, 0.3);
                 border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 10px;
+                margin-top: 12px;
+                padding-top: 14px;
+                background-color: rgba(14, 20, 32, 0.85);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
+                left: 12px;
+                padding: 0 8px;
+                color: #ff6b35;
+            }
+            QLabel {
+                color: #c8d2dc;
             }
             QLineEdit, QComboBox, QSpinBox {
-                background-color: #2d2d2d;
-                border: 1px solid #444;
-                border-radius: 4px;
-                padding: 5px;
-                color: #e0e0e0;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                background-color: rgba(18, 26, 40, 0.9);
+                border: 1px solid rgba(255, 107, 53, 0.2);
+                border-radius: 6px;
+                padding: 6px 8px;
+                color: #e0e6ed;
+                selection-background-color: #ff6b35;
+                selection-color: #0a0e17;
             }
             QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
-                border-color: #ff6b35;
+                border: 1px solid #ff6b35;
+                background-color: rgba(255, 107, 53, 0.05);
             }
             QComboBox::drop-down {
                 border: none;
+                background: transparent;
             }
-            QComboBox::down-arrow {
-                image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 5px solid #888;
-                margin-right: 10px;
+            QComboBox QAbstractItemView {
+                background-color: #0e1420;
+                border: 1px solid #ff6b35;
+                color: #e0e6ed;
+                selection-background-color: #ff6b35;
+                selection-color: #0a0e17;
+            }
+            QPushButton {
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                background-color: rgba(255, 107, 53, 0.1);
+                border: 1px solid rgba(255, 107, 53, 0.3);
+                border-radius: 6px;
+                padding: 8px 16px;
+                color: #ff6b35;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 107, 53, 0.2);
+                border: 1px solid #ff6b35;
+            }
+            QPushButton:pressed {
+                background-color: rgba(255, 107, 53, 0.3);
+            }
+            QPushButton:disabled {
+                background-color: rgba(30, 40, 55, 0.5);
+                border: 1px solid rgba(100, 110, 120, 0.2);
+                color: #556;
             }
             QCheckBox {
+                color: #c8d2dc;
                 spacing: 8px;
             }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
+            QCheckBox::indicator:checked {
+                background-color: #ff6b35;
+                border: 1px solid #ff6b35;
+                border-radius: 3px;
             }
             QProgressBar {
-                background-color: #333;
+                border: 1px solid rgba(255, 107, 53, 0.3);
                 border-radius: 4px;
+                background-color: rgba(14, 20, 32, 0.8);
+                text-align: center;
+                color: #ff6b35;
             }
             QProgressBar::chunk {
-                background-color: #ff6b35;
+                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #ff6b35, stop:1 #ff9800);
+                border-radius: 3px;
+            }
+            QScrollBar:vertical {
+                background: #0a0e17;
+                width: 8px;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(255, 107, 53, 0.3);
                 border-radius: 4px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(255, 107, 53, 0.5);
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QToolTip {
+                background-color: #0e1420;
+                color: #ff6b35;
+                border: 1px solid #ff6b35;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
             }
         """)
     
@@ -484,8 +560,17 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     
+    splash = None
+    try:
+        from titan_splash import show_titan_splash
+        splash = show_titan_splash(app, "GENESIS ENGINE", "#ff6b35")
+    except Exception:
+        pass
+    
     window = GenesisApp()
     window.show()
+    if splash:
+        splash.finish(window)
     
     sys.exit(app.exec())
 

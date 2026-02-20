@@ -161,7 +161,7 @@ class CardValidationWorker(QThread):
             
             # Create card asset
             card = CardAsset(
-                pan=self.card_data["pan"],
+                number=self.card_data["pan"],
                 exp_month=self.card_data["exp_month"],
                 exp_year=self.card_data["exp_year"],
                 cvv=self.card_data["cvv"],
@@ -260,6 +260,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.init_ui()
         self.apply_dark_theme()
         self.load_targets()
+        self._start_status_bar_timer()
     
     def init_ui(self):
         self.setWindowTitle("Titan OS — Operation Center")
@@ -3028,13 +3029,128 @@ class UnifiedOperationCenter(QMainWindow):
             self.svc_result_text.setPlainText(f"Error: {e}")
 
 
+    def _start_status_bar_timer(self):
+        """Add a live status bar with clock and system info"""
+        self._statusbar = self.statusBar()
+        self._statusbar.setStyleSheet(
+            "QStatusBar { background: #0a0e17; color: #556; border-top: 1px solid rgba(0,212,255,0.15); font-family: 'JetBrains Mono', monospace; font-size: 11px; }"
+            "QStatusBar::item { border: none; }"
+        )
+        self._sb_clock = QLabel()
+        self._sb_clock.setStyleSheet("color: #00d4ff; font-family: 'JetBrains Mono', monospace; padding: 0 12px;")
+        self._sb_version = QLabel("TITAN V7.0.3 SINGULARITY")
+        self._sb_version.setStyleSheet("color: #334; font-family: 'JetBrains Mono', monospace;")
+        self._sb_mode = QLabel("MODE: KINETIC")
+        self._sb_mode.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; padding: 0 12px;")
+        self._statusbar.addWidget(self._sb_version)
+        self._statusbar.addWidget(self._sb_mode)
+        self._statusbar.addPermanentWidget(self._sb_clock)
+        self._sb_timer = QTimer(self)
+        self._sb_timer.timeout.connect(self._update_status_bar)
+        self._sb_timer.start(1000)
+        self._update_status_bar()
+
+    def _update_status_bar(self):
+        from datetime import datetime
+        now = datetime.now()
+        self._sb_clock.setText(now.strftime("⏱ %H:%M:%S  |  %Y-%m-%d"))
+
+
+def show_splash(app):
+    """Show branded splash screen while app loads."""
+    try:
+        from PyQt6.QtWidgets import QSplashScreen
+        from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QLinearGradient
+        from PyQt6.QtCore import Qt
+
+        # Create splash pixmap programmatically (no file dependency)
+        splash_pix = QPixmap(600, 380)
+        painter = QPainter(splash_pix)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Background gradient
+        grad = QLinearGradient(0, 0, 600, 380)
+        grad.setColorAt(0, QColor(10, 14, 23))
+        grad.setColorAt(1, QColor(13, 21, 37))
+        painter.fillRect(0, 0, 600, 380, grad)
+
+        # Hex border
+        painter.setPen(QColor(0, 212, 255, 40))
+        painter.drawRect(2, 2, 596, 376)
+        painter.setPen(QColor(0, 212, 255, 15))
+        painter.drawRect(8, 8, 584, 364)
+
+        # Corner accents
+        painter.setPen(QColor(0, 212, 255, 80))
+        for cx, cy, dx, dy in [(0, 0, 1, 1), (599, 0, -1, 1), (0, 379, 1, -1), (599, 379, -1, -1)]:
+            painter.drawLine(cx, cy, cx + dx * 50, cy)
+            painter.drawLine(cx, cy, cx, cy + dy * 50)
+
+        # Title
+        painter.setPen(QColor(0, 212, 255))
+        painter.setFont(QFont("JetBrains Mono", 28, QFont.Weight.Bold))
+        painter.drawText(0, 80, 600, 50, Qt.AlignmentFlag.AlignCenter, "TITAN")
+
+        painter.setFont(QFont("JetBrains Mono", 11))
+        painter.setPen(QColor(0, 212, 255, 150))
+        painter.drawText(0, 130, 600, 30, Qt.AlignmentFlag.AlignCenter, "V7.0.3  SINGULARITY")
+
+        # Subtitle
+        painter.setFont(QFont("JetBrains Mono", 9))
+        painter.setPen(QColor(100, 120, 140))
+        painter.drawText(0, 170, 600, 25, Qt.AlignmentFlag.AlignCenter, "UNIFIED OPERATION CENTER")
+
+        # Loading bar background
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(0, 50, 70, 100))
+        painter.drawRoundedRect(150, 260, 300, 6, 3, 3)
+
+        # Loading bar fill
+        painter.setBrush(QColor(0, 212, 255, 200))
+        painter.drawRoundedRect(150, 260, 180, 6, 3, 3)
+
+        # Status text
+        painter.setPen(QColor(60, 80, 100))
+        painter.setFont(QFont("JetBrains Mono", 8))
+        painter.drawText(0, 280, 600, 20, Qt.AlignmentFlag.AlignCenter, "Initializing shields...")
+
+        # Orange accent dot
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(255, 107, 53))
+        painter.drawEllipse(293, 60, 14, 14)
+
+        # Version footer
+        painter.setPen(QColor(40, 55, 75))
+        painter.setFont(QFont("JetBrains Mono", 7))
+        painter.drawText(0, 340, 600, 20, Qt.AlignmentFlag.AlignCenter, "AUTHORITY: Dva.12  |  CODENAME: SINGULARITY  |  BUILD: 7.0.3-FINAL")
+
+        # Scan lines
+        painter.setPen(QColor(0, 0, 0, 8))
+        for y in range(0, 380, 3):
+            painter.drawLine(0, y, 600, y)
+
+        painter.end()
+
+        splash = QSplashScreen(splash_pix)
+        splash.show()
+        app.processEvents()
+        return splash
+    except Exception:
+        return None
+
+
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    
+
+    splash = show_splash(app)
+
     window = UnifiedOperationCenter()
     window.show()
-    
+
+    if splash:
+        splash.finish(window)
+
     sys.exit(app.exec())
 
 

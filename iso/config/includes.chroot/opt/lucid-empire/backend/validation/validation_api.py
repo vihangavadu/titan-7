@@ -197,7 +197,7 @@ async def get_validation_profiles():
     try:
         # Get profiles from main API
         import requests
-        response = requests.get("http://localhost:8000/api/aged-profiles", timeout=5)
+        response = requests.get("http://localhost:8000/api/profiles", timeout=5)
         
         if response.status_code == 200:
             profiles = response.json().get("profiles", [])

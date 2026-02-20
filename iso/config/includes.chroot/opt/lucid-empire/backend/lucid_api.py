@@ -5,8 +5,9 @@
 import sys
 import logging
 from typing import Dict, Optional
-from backend.core import ProfileFactory, ProfileStore, CoreOrchestrator
-from backend.modules import CommerceInjector, BiometricMimicry, HumanizationEngine
+from backend.core import ProfileFactory, ProfileStore, Cortex
+from backend.modules import HumanizationEngine
+from backend.modules.commerce_injector import inject_trust_anchors, inject_commerce_vector, inject_commerce_signals
 
 # V7.0: Bridge to Titan core
 sys.path.insert(0, "/opt/titan/core")
@@ -30,14 +31,9 @@ class LucidAPI:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.profile_store = ProfileStore()
-        self.orchestrator = CoreOrchestrator()
-        self.setup_modules()
-    
-    def setup_modules(self) -> None:
-        """Register operational modules"""
-        self.orchestrator.register_module('commerce', CommerceInjector())
-        self.orchestrator.register_module('biometric', BiometricMimicry())
-        self.orchestrator.register_module('humanizer', HumanizationEngine())
+        self.cortex = Cortex()
+        self.humanizer = HumanizationEngine()
+        self._modules_ready = True
     
     def create_profile(self, seed: Dict) -> Dict:
         """Create new profile"""
@@ -87,5 +83,6 @@ class LucidAPI:
         return {
             "titan_v7_available": TITAN_V7_AVAILABLE,
             "profile_count": len(self.profile_store.get_all()),
-            "modules_loaded": list(self.orchestrator.modules.keys()) if hasattr(self.orchestrator, 'modules') else [],
+            "cortex_running": self.cortex.running,
+            "modules_ready": self._modules_ready,
         }

@@ -426,86 +426,168 @@ class KYCApp(QMainWindow):
         layout.addWidget(footer)
     
     def apply_dark_theme(self):
-        """Apply dark theme"""
+        """Apply Dark Cyberpunk theme — matches Unified Operation Center"""
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(10, 14, 23))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(200, 210, 220))
+        palette.setColor(QPalette.ColorRole.Base, QColor(14, 20, 32))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(18, 26, 40))
+        palette.setColor(QPalette.ColorRole.Text, QColor(200, 210, 220))
+        palette.setColor(QPalette.ColorRole.Button, QColor(18, 26, 40))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(200, 210, 220))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(156, 39, 176))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(14, 20, 32))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(200, 210, 220))
+        self.setPalette(palette)
+
         self.setStyleSheet("""
-            QMainWindow, QWidget {
-                background-color: #1e1e1e;
-                color: #e0e0e0;
+            QMainWindow {
+                background-color: #0a0e17;
             }
             QGroupBox {
                 font-weight: bold;
-                border: 1px solid #333;
+                font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+                color: #ce93d8;
+                border: 1px solid rgba(156, 39, 176, 0.3);
                 border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 10px;
+                margin-top: 12px;
+                padding-top: 14px;
+                background-color: rgba(14, 20, 32, 0.85);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
+                left: 12px;
+                padding: 0 8px;
+                color: #ce93d8;
+            }
+            QLabel {
+                color: #c8d2dc;
             }
             QComboBox {
-                background-color: #2d2d2d;
-                border: 1px solid #444;
-                border-radius: 4px;
-                padding: 5px;
-                color: #e0e0e0;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                background-color: rgba(18, 26, 40, 0.9);
+                border: 1px solid rgba(156, 39, 176, 0.2);
+                border-radius: 6px;
+                padding: 6px 8px;
+                color: #e0e6ed;
+                selection-background-color: #9c27b0;
+                selection-color: #ffffff;
             }
             QComboBox:focus {
-                border-color: #9c27b0;
+                border: 1px solid #9c27b0;
+                background-color: rgba(156, 39, 176, 0.05);
             }
             QComboBox::drop-down {
                 border: none;
+                background: transparent;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #0e1420;
+                border: 1px solid #9c27b0;
+                color: #e0e6ed;
+                selection-background-color: #9c27b0;
+                selection-color: #ffffff;
             }
             QSlider::groove:horizontal {
                 height: 6px;
-                background: #333;
+                background: rgba(14, 20, 32, 0.8);
+                border: 1px solid rgba(156, 39, 176, 0.2);
                 border-radius: 3px;
             }
             QSlider::handle:horizontal {
-                background: #9c27b0;
-                width: 16px;
-                height: 16px;
-                margin: -5px 0;
-                border-radius: 8px;
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.5,
+                    fx:0.5, fy:0.3, stop:0 #e040fb, stop:1 #9c27b0);
+                width: 18px;
+                height: 18px;
+                margin: -6px 0;
+                border-radius: 9px;
+                border: 1px solid rgba(156, 39, 176, 0.6);
             }
             QSlider::handle:horizontal:hover {
-                background: #ba68c8;
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.5,
+                    fx:0.5, fy:0.3, stop:0 #ea80fc, stop:1 #ba68c8);
+                border: 1px solid #ce93d8;
+            }
+            QSlider::sub-page:horizontal {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #9c27b0, stop:1 #e040fb);
+                border-radius: 3px;
             }
             QCheckBox {
+                color: #c8d2dc;
                 spacing: 8px;
             }
             QCheckBox::indicator {
                 width: 18px;
                 height: 18px;
                 border-radius: 4px;
-                border: 1px solid #444;
-                background: #2d2d2d;
+                border: 1px solid rgba(156, 39, 176, 0.3);
+                background: rgba(18, 26, 40, 0.9);
             }
             QCheckBox::indicator:checked {
                 background: #9c27b0;
                 border-color: #9c27b0;
             }
             QListWidget {
-                background-color: #252525;
-                border: 1px solid #333;
-                border-radius: 4px;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                background-color: rgba(14, 20, 32, 0.9);
+                border: 1px solid rgba(156, 39, 176, 0.2);
+                border-radius: 6px;
+                color: #e0e6ed;
             }
             QListWidget::item {
-                padding: 5px;
+                padding: 6px;
             }
             QListWidget::item:selected {
-                background-color: #9c27b0;
+                background-color: rgba(156, 39, 176, 0.3);
+                color: #ffffff;
             }
             QPushButton {
-                background-color: #444;
-                color: white;
-                border: none;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
+                background-color: rgba(156, 39, 176, 0.1);
+                border: 1px solid rgba(156, 39, 176, 0.3);
                 border-radius: 6px;
-                padding: 8px;
+                padding: 8px 16px;
+                color: #ce93d8;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #555;
+                background-color: rgba(156, 39, 176, 0.2);
+                border: 1px solid #9c27b0;
+                color: #e1bee7;
+            }
+            QPushButton:pressed {
+                background-color: rgba(156, 39, 176, 0.35);
+            }
+            QPushButton:disabled {
+                background-color: rgba(30, 40, 55, 0.5);
+                border: 1px solid rgba(100, 110, 120, 0.2);
+                color: #556;
+            }
+            QScrollBar:vertical {
+                background: #0a0e17;
+                width: 8px;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(156, 39, 176, 0.3);
+                border-radius: 4px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(156, 39, 176, 0.5);
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QToolTip {
+                background-color: #0e1420;
+                color: #ce93d8;
+                border: 1px solid #9c27b0;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-family: 'JetBrains Mono', 'Consolas', monospace;
             }
         """)
     
@@ -718,8 +800,17 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     
+    splash = None
+    try:
+        from titan_splash import show_titan_splash
+        splash = show_titan_splash(app, "KYC BYPASS MODULE", "#9c27b0")
+    except Exception:
+        pass
+    
     window = KYCApp()
     window.show()
+    if splash:
+        splash.finish(window)
     
     sys.exit(app.exec())
 

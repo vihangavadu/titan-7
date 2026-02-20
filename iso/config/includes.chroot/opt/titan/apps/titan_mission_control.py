@@ -15,13 +15,21 @@ if not os.path.exists(ENV_PATH):
     ENV_PATH = ".env" # Fallback for local dev
 load_dotenv(ENV_PATH)
 
-# TITAN THEME PALETTE
+# TITAN CYBERPUNK THEME PALETTE
 COLORS = {
-    "bg": "#0f0f0f",
-    "fg": "#00ff41",  # Matrix Green
-    "accent": "#003b00",
-    "alert": "#ff3333",
-    "panel": "#1a1a1a"
+    "bg": "#0a0e17",         # Deep midnight
+    "fg": "#00d4ff",         # Neon cyan
+    "fg_dim": "#556677",     # Muted text
+    "accent": "#0e1420",     # Panel base
+    "accent_hover": "#121a28",
+    "green": "#00ff88",      # Success green
+    "orange": "#ff6b35",     # Genesis orange
+    "alert": "#ff4444",      # Error red
+    "warn": "#ffaa00",       # Warning amber
+    "panel": "#0e1420",      # Panel background
+    "border": "#1a2640",     # Border color
+    "highlight": "#00d4ff",  # Selection highlight
+    "text": "#c8d2dc",       # Primary text
 }
 
 class TitanMissionControl:
@@ -31,14 +39,17 @@ class TitanMissionControl:
         self.root.geometry("1024x768")
         self.root.configure(bg=COLORS["bg"])
         
-        # Style Configuration
+        # Style Configuration — Cyberpunk Theme
         self.style = ttk.Style()
         self.style.theme_use('clam')
         self.style.configure("TFrame", background=COLORS["bg"])
-        self.style.configure("TLabel", background=COLORS["bg"], foreground=COLORS["fg"], font=("Consolas", 10))
-        self.style.configure("TButton", background=COLORS["panel"], foreground=COLORS["fg"], borderwidth=1, font=("Consolas", 10, "bold"))
-        self.style.map("TButton", background=[("active", COLORS["accent"])])
-        self.style.configure("Header.TLabel", font=("Consolas", 16, "bold"), foreground="#ffffff")
+        self.style.configure("TLabel", background=COLORS["bg"], foreground=COLORS["text"], font=("Consolas", 10))
+        self.style.configure("TButton", background=COLORS["panel"], foreground=COLORS["fg"], borderwidth=1, font=("Consolas", 10, "bold"), relief="flat")
+        self.style.map("TButton", background=[("active", COLORS["accent_hover"]), ("!active", COLORS["panel"])], foreground=[("active", COLORS["highlight"])])
+        self.style.configure("Header.TLabel", font=("Consolas", 18, "bold"), foreground=COLORS["fg"], background=COLORS["bg"])
+        self.style.configure("TLabelframe", background=COLORS["bg"], foreground=COLORS["fg"], borderwidth=1, relief="solid")
+        self.style.configure("TLabelframe.Label", background=COLORS["bg"], foreground=COLORS["fg"], font=("Consolas", 11, "bold"))
+        self.style.configure("TSeparator", background=COLORS["border"])
         
         self.setup_ui()
         self.start_monitoring()
@@ -87,7 +98,7 @@ class TitanMissionControl:
         log_frame = ttk.LabelFrame(right_panel, text=" [ SYSTEM LOGS ] ", padding="10")
         log_frame.pack(fill="both", expand=True)
         
-        self.console = scrolledtext.ScrolledText(log_frame, bg="black", fg=COLORS["fg"], font=("Consolas", 9), insertbackground="white")
+        self.console = scrolledtext.ScrolledText(log_frame, bg=COLORS["panel"], fg=COLORS["green"], font=("Consolas", 9), insertbackground=COLORS["fg"], relief="flat", borderwidth=0, selectbackground=COLORS["fg"], selectforeground=COLORS["bg"])
         self.console.pack(fill="both", expand=True)
         self.log(">>> TITAN OS GUI INITIALIZED.")
         self.log(">>> WAITING FOR OPERATOR INPUT.")
@@ -118,7 +129,7 @@ class TitanMissionControl:
         for i, (env_key, display_name) in enumerate(apis):
             key_val = os.getenv(env_key)
             status = "CONNECTED" if key_val and not key_val.startswith("REPLACE") else "MISSING"
-            color = COLORS["fg"] if status == "CONNECTED" else COLORS["alert"]
+            color = COLORS["green"] if status == "CONNECTED" else COLORS["alert"]
             
             ttk.Label(self.api_list_frame, text=f"{display_name.ljust(20)}:").grid(row=i, column=0, sticky="w")
             ttk.Label(self.api_list_frame, text=status, foreground=color).grid(row=i, column=1, sticky="w", padx=10)
@@ -147,7 +158,7 @@ class TitanMissionControl:
     def start_monitoring(self):
         def monitor():
             while True:
-                self.lbl_status.config(text="SYSTEM STATUS: SECURE", foreground=COLORS["fg"])
+                self.lbl_status.config(text="SYSTEM STATUS: SECURE", foreground=COLORS["green"])
                 time.sleep(5)
         threading.Thread(target=monitor, daemon=True).start()
 

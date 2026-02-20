@@ -68,6 +68,7 @@ typing_extensions>=4.5.0
 python-dateutil>=2.8.2
 humanize>=4.8.0
 pyyaml>=6.0
+python-dotenv>=1.0.0
 
 # Image Processing (for canvas noise)
 Pillow>=10.0.0

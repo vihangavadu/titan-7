@@ -1,0 +1,66 @@
+# TITAN V7.0.3 SINGULARITY — GRUB2 Theme
+# Install: cp -r /opt/titan/branding/grub /boot/grub/themes/titan
+# Enable: GRUB_THEME="/boot/grub/themes/titan/theme.txt" in /etc/default/grub
+
+title-text: ""
+desktop-image: "titan_grub_bg.png"
+desktop-color: "#0a0e17"
+terminal-font: "JetBrains Mono Regular 14"
+terminal-left: "10%"
+terminal-top: "20%"
+terminal-width: "80%"
+terminal-height: "60%"
+
++ boot_menu {
+    left = 25%
+    top = 30%
+    width = 50%
+    height = 50%
+    item_font = "JetBrains Mono Regular 16"
+    item_color = "#8899aa"
+    selected_item_font = "JetBrains Mono Bold 16"
+    selected_item_color = "#00d4ff"
+    item_height = 36
+    item_padding = 8
+    item_spacing = 4
+    icon_width = 0
+    icon_height = 0
+    item_icon_space = 0
+    selected_item_pixmap_style = "select_*.png"
+    scrollbar = true
+    scrollbar_width = 4
+    scrollbar_thumb = "scrollbar_thumb_*.png"
+}
+
++ label {
+    left = 50%-150
+    top = 12%
+    width = 300
+    height = 40
+    text = "TITAN V7.0.3 SINGULARITY"
+    font = "JetBrains Mono Bold 18"
+    color = "#00d4ff"
+    align = "center"
+}
+
++ label {
+    left = 50%-100
+    top = 17%
+    width = 200
+    height = 24
+    text = "SELECT BOOT OPTION"
+    font = "JetBrains Mono Regular 11"
+    color = "#556677"
+    align = "center"
+}
+
++ label {
+    left = 50%-200
+    top = 90%
+    width = 400
+    height = 20
+    text = "Use ↑↓ to select, Enter to boot"
+    font = "JetBrains Mono Regular 10"
+    color = "#334455"
+    align = "center"
+}
