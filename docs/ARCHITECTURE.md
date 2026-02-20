@@ -494,6 +494,47 @@ from .integration_bridge import TitanIntegrationBridge
 
 ---
 
-*TITAN V7.0 SINGULARITY - Architecture Documentation*
+## 9. V7.0.3 Service Orchestration
+
+### Background Services
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                   TITAN SERVICE MANAGER                              │
+│                                                                     │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐           │
+│  │  Transaction  │  │   Discovery   │  │  Operational  │           │
+│  │   Monitor     │  │   Scheduler   │  │ Feedback Loop │           │
+│  │               │  │               │  │               │           │
+│  │ - TX capture  │  │ - Daily intel │  │ - Success/fail│           │
+│  │ - Decline log │  │ - BIN refresh │  │ - Adjustments │           │
+│  └───────────────┘  └───────────────┘  └───────────────┘           │
+│                                                                     │
+│  ┌───────────────┐  ┌───────────────┐                              │
+│  │   Memory      │  │  Bug Patch    │                              │
+│  │  Pressure     │  │   Bridge      │                              │
+│  │   Manager     │  │               │                              │
+│  │               │  │ - SQLite mon  │                              │
+│  │ - 4-zone RAM  │  │ - IDE dispatch│                              │
+│  │ - Throttle    │  │ - Rollback    │                              │
+│  └───────────────┘  └───────────────┘                              │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Memory Pressure Zones (GAP-8 Fix)
+
+| Available RAM | Zone | Action |
+|--------------|------|--------|
+| > 2,500 MB | GREEN | All services normal |
+| 800–2,500 MB | YELLOW | Throttle non-critical |
+| 400–800 MB | RED | Suspend non-critical |
+| < 400 MB | CRITICAL | Emergency — browser + Ghost Motor only |
+
+---
+
+> **Full Technical Reference:** See [`docs/TITAN_OS_TECHNICAL_REPORT.md`](TITAN_OS_TECHNICAL_REPORT.md) for complete 25-section technical report.
+
+*TITAN V7.0.3 SINGULARITY - Architecture Documentation*
 *Authority: Dva.12 | System Design Reference*
 

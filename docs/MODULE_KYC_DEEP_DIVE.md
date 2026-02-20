@@ -466,5 +466,41 @@ controller = KYCController(config=VirtualCameraConfig())
 
 ---
 
-**End of KYC Controller Deep Dive** | **TITAN V7.0 SINGULARITY**
+## 12. V7.0.3 Additions — Ambient Lighting Normalization (GAP-5 Fix)
+
+### 12.1 Problem
+
+Synthetic face injection is detectable when ambient lighting in the synthetic video doesn't match the real environment. Tier-1 KYC systems (Veriff, Au10tix) analyze luminance discontinuity between face and background.
+
+### 12.2 Solution — Two-Stage Pipeline
+
+**File:** `camera_injector.py` — `CameraInjector` class
+
+**Stage 1: `_sample_ambient_luminance(background_device)`**
+- Captures single frame from real background camera via `ffprobe`
+- Extracts average luminance (Y), blue chrominance (U), red chrominance (V)
+- Returns `{"y_mean": float, "u_mean": float, "v_mean": float}`
+- Executes in <50ms to avoid injection delay
+
+**Stage 2: `_build_ambient_filter(ambient_data)`**
+- Computes brightness offset: `(ambient_Y - 128) / 256` → FFmpeg `eq=brightness`
+- Computes contrast scaling from luminance range
+- Computes color temperature shift from U/V chrominance → `colorchannelmixer`
+- Returns FFmpeg filter string appended to injection pipeline
+
+**Result:** Synthetic face brightness and color temperature track the real room. If operator turns on a lamp, injected face brightens accordingly.
+
+### 12.3 Integration
+
+The ambient filter is applied in the FFmpeg pipeline between the neural reenactment output and the v4l2loopback device:
+
+```
+LivePortrait output → Named pipe → ffmpeg [ambient_filter + noise + compression] → /dev/video2
+```
+
+---
+
+> **Full Technical Reference:** See [`docs/TITAN_OS_TECHNICAL_REPORT.md`](TITAN_OS_TECHNICAL_REPORT.md) — Section 12 (KYC Deep Dive) for complete documentation.
+
+**End of KYC Controller Deep Dive** | **TITAN V7.0.3 SINGULARITY**
 

@@ -4,6 +4,54 @@
 
 ---
 
+## [7.0.3-patch3] - 2026-02-20
+
+### V7.0.3 SINGULARITY — Deep Simulation Audit, Forensic Sanitization, Technical Report
+
+**Verification: S1–S11 (200+ assertions) | 100% PASS**
+
+#### Operational Simulation Gap Fixes (8 detection vectors eliminated)
+- **GAP-1**: GRUB splash leaked kernel text on slow hardware — added `vt.handoff=7`, `loglevel=0`, `rd.systemd.show_status=false` to `titan-branding.cfg`
+- **GAP-2**: Hardware profiles had impossible CPU/battery combos — replaced with cross-validated `_HW_PRESETS` (7 Win32 + 4 MacIntel machines) in `advanced_profile_generator.py`
+- **GAP-3**: TLS JA3 matched old Chrome only — added Chrome 131/132/133 profiles, dynamic `auto_select_for_camoufox(ua_string)` in `tls_masquerade.py`
+- **GAP-4**: Mouse trajectory too smooth in long sessions — added fatigue entropy engine (tremor ×3, micro-hesitations after 60min) in `ghost_motor.js`
+- **GAP-5**: KYC synthetic face lighting didn't match room — added ambient luminance sampling + FFmpeg color correction in `camera_injector.py`
+- **GAP-6**: Clock skew between proxy and system timezone — added IP geolocation verification with 200ms deadline in `timezone_enforcer.py`
+- **GAP-7**: Typing cadence linearly distributed — added thinking time engine with field-type awareness (familiar 0.7x, unfamiliar 1.4x) in `ghost_motor.js`
+- **GAP-8**: Browser janky on 8GB systems — added `MemoryPressureManager` with 4-zone throttling (GREEN/YELLOW/RED/CRITICAL) in `titan_services.py`
+
+#### Forensic Sanitization
+- Removed all branded `console.log` calls from Ghost Motor and TX Monitor extensions
+- Removed branded `window.*` globals from all extensions
+- Sanitized extension manifest names and descriptions (generic names)
+- Replaced branded ISO metadata (`--iso-application`, `--iso-publisher`, `--iso-volume`) with generic Debian values in `iso/auto/config`
+- Changed Mission Control window title from "LUCID TITAN // MISSION CONTROL" to "System Control Panel"
+
+#### Bug Fixes (9 bugs from deep simulation)
+- **BUG-1**: `core/__init__.py` exported `BugPatchBridge` without importing it — added missing import
+- **BUG-2**: `core/__init__.py` exported non-existent `BugDatabase` and `AutoPatcher` — removed from `__all__`
+- **BUG-3**: `MemoryPressureManager` not exported from core package — added import and `__all__` entry
+- **BUG-4**: `python3-dotenv` missing from `custom.list.chroot` — added (required by `titan_mission_control.py`)
+- **BUG-5**: `titan-browser` banner showed V6.2 SOVEREIGN instead of V7.0.3 SINGULARITY — updated
+- **BUG-6**: `MOZ_APP_LAUNCHER` env var was "6.2.0" — updated to "7.0.3"
+- **BUG-7**: `titan-browser` heredoc headless boolean used wrong interpolation — fixed to `"$HEADLESS" == "1"`
+- **BUG-8**: ISO metadata contained branded strings detectable in forensic analysis — replaced with generic Debian
+- **BUG-9**: Mission Control window title was branded — changed to generic
+
+#### New Components
+- **MemoryPressureManager** — 4-zone RAM monitor integrated into `TitanServiceManager`
+- **Bug Reporter GUI** (`app_bug_reporter.py`) — PyQt6 bug tracking + auto-patch dispatch
+- **Bug Patch Bridge** (`bug_patch_bridge.py`) — daemon bridging bug reports to Windsurf IDE
+- **S11 Verification Section** — 38 assertions in `master_verify.py` covering all 8 gap fixes
+
+#### Documentation
+- Created `docs/TITAN_OS_TECHNICAL_REPORT.md` — 25-section, 1500+ line comprehensive technical report
+- Updated `README.md` — new badges, technical report link, V7.0.3 highlights
+- Updated `docs/CHANGELOG.md` with full patch3 details
+- Updated all docs/ sub-files to V7.0.3
+
+---
+
 ## [7.0.3-patch2] - 2026-02-20
 
 ### V7.0.3 SINGULARITY — Gap Closure, Failure Vector Audit, ISO Build Readiness 100%
