@@ -42,9 +42,9 @@ lb config noauto \
     --apt-indices false \
     --apt-recommends false \
     --memtest memtest86+ \
-    --iso-application "LUCID EMPIRE TITAN V7.0 SINGULARITY" \
-    --iso-publisher "Dva.12" \
-    --iso-volume "TITAN-V70-SINGULARITY" \
+    --iso-application "Debian GNU/Linux 12 Live" \
+    --iso-publisher "Debian Live Project" \
+    --iso-volume "debian-live-12-amd64" \
     --firmware-chroot true \
     --cache true \
     --cache-packages true \

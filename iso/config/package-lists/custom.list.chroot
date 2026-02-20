@@ -109,6 +109,9 @@ p7zip-full
 python3-pyqt6
 # python3-pyqt6.qtwebengine  # may not exist in bookworm, install via pip if needed
 
+# --- Dotenv (TITAN Mission Control config loading) ---
+python3-dotenv
+
 # --- Database & Storage (Firefox Profile Injection) ---
 # Required for LSNG storage manipulation
 libsnappy-dev

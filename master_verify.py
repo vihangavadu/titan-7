@@ -7,16 +7,17 @@ Replaces all scattered verify_*.py / preflight_scan.py / checklist scripts.
 Run this BEFORE building the ISO to ensure every subsystem is wired correctly.
 
 Scope:
-  S1 — File Structure (all critical files exist)
-  S2 — OS & Infrastructure (sysctl, journald, DNS, coredump, dracut)
-  S3 — Kernel & Hardware (titan_hw.c, titan_battery.c, usb_peripheral_synth)
-  S4 — Network & eBPF (tcp_fingerprint.c, network_shield.c, tls_parrot)
-  S5 — Browser & Extensions (Camoufox, Ghost Motor, TX Monitor, sanitization)
-  S6 — AI & KYC (camera_injector, reenactment_engine, biometric_mimicry)
-  S7 — Backend Core (genesis, cerberus, purchase_history, multi-PSP)
-  S8 — GUI Apps (unified, cerberus, genesis, kyc, bug_reporter)
-  S9 — Forensic Sanitization (no branded leaks, no console.log, no window globals)
+  S1  — File Structure (all critical files exist)
+  S2  — OS & Infrastructure (sysctl, journald, DNS, coredump, dracut)
+  S3  — Kernel & Hardware (titan_hw.c, titan_battery.c, usb_peripheral_synth)
+  S4  — Network & eBPF (tcp_fingerprint.c, network_shield.c, tls_parrot)
+  S5  — Browser & Extensions (Camoufox, Ghost Motor, TX Monitor, sanitization)
+  S6  — AI & KYC (camera_injector, reenactment_engine, biometric_mimicry)
+  S7  — Backend Core (genesis, cerberus, purchase_history, multi-PSP)
+  S8  — GUI Apps (unified, cerberus, genesis, kyc, bug_reporter)
+  S9  — Forensic Sanitization (no branded leaks, no console.log, no window globals)
   S10 — Build Config (live-build, hooks, package lists)
+  S11 — Operational Gap Fixes (8 simulation-identified detection vectors)
 
 Exit codes:
   0 = ALL PASS
@@ -380,6 +381,89 @@ def verify_s10():
             check(S, f"package lists ({pkg_count})", V.WARN, "No .list.chroot files found")
 
 # ═══════════════════════════════════════════════════════════════════════════
+# S11: OPERATIONAL GAP FIXES (from simulation audit)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def verify_s11():
+    S = "S11-GapFixes"
+
+    grub = ETC / "default" / "grub.d" / "titan-branding.cfg"
+    # GAP-1: GRUB splash — must have vt.handoff + loglevel=0 to suppress kernel text
+    file_contains(S, "GAP1-vt.handoff", grub, r"vt\.handoff=7")
+    file_contains(S, "GAP1-loglevel=0", grub, r"loglevel=0")
+    file_contains(S, "GAP1-splash", grub, r"\bsplash\b")
+    file_contains(S, "GAP1-gfxpayload=keep", grub, r"GRUB_GFXPAYLOAD_LINUX=.keep.")
+
+    # GAP-2: Hardware cross-validation — _HW_PRESETS must exist in advanced_profile_generator
+    apg = TITAN / "core" / "advanced_profile_generator.py"
+    file_contains(S, "GAP2-_HW_PRESETS", apg, r"_HW_PRESETS\s*=\s*\{")
+    file_contains(S, "GAP2-form_factor", apg, r'"form_factor"')
+    file_contains(S, "GAP2-battery_wh", apg, r'"battery_wh"')
+    # Must have at least 5 Win32 presets (coherent machines)
+    if apg.exists():
+        c = apg.read_text(errors="ignore")
+        win32_entries = len(re.findall(r'"Win32".*?{', c))
+        desktop_entries = len(re.findall(r'"Desktop"', c))
+        if desktop_entries >= 4:
+            check(S, "GAP2-coherent-presets", V.OK, f"{desktop_entries} desktop + notebook presets")
+        else:
+            check(S, "GAP2-coherent-presets", V.FAIL, f"Only {desktop_entries} presets found, need >=4")
+
+    # GAP-3: TLS JA3 — duplicate key fixed, auto-selector present
+    tls = LUCID / "backend" / "network" / "tls_masquerade.py"
+    file_contains(S, "GAP3-chrome_132", tls, r'"chrome_132"')
+    file_contains(S, "GAP3-chrome_133", tls, r'"chrome_133"')
+    file_contains(S, "GAP3-auto_select_for_camoufox", tls, r"def auto_select_for_camoufox")
+    file_contains(S, "GAP3-get_profile_for_browser_version", tls, r"def get_profile_for_browser_version")
+    # Verify duplicate key bug is fixed (chrome_131 should appear exactly once as a key)
+    if tls.exists():
+        c = tls.read_text(errors="ignore")
+        chrome131_key_count = len(re.findall(r'"chrome_131"\s*:', c))
+        if chrome131_key_count == 1:
+            check(S, "GAP3-no-duplicate-key", V.OK, "chrome_131 key appears exactly once")
+        else:
+            check(S, "GAP3-no-duplicate-key", V.FAIL,
+                  f"chrome_131 key appears {chrome131_key_count}x (duplicate key bug)")
+
+    # GAP-4: Mouse trajectory entropy — FATIGUE engine wired in ghost_motor.js
+    gm = TITAN / "extensions" / "ghost_motor" / "ghost_motor.js"
+    file_contains(S, "GAP4-FATIGUE-engine", gm, r"const FATIGUE\s*=\s*\{")
+    file_contains(S, "GAP4-getFatigueFactor", gm, r"function getFatigueFactor")
+    file_contains(S, "GAP4-sigmoid-curve", gm, r"Math\.exp\(-8")
+    file_contains(S, "GAP4-startFatigueEngine-wired", gm, r"startFatigueEngine\(\)")
+    file_contains(S, "GAP4-injectAttentionLapse", gm, r"function injectAttentionLapse")
+
+    # GAP-5: KYC ambient lighting — _sample_ambient_luminance in camera_injector
+    cam = LUCID / "backend" / "modules" / "kyc_module" / "camera_injector.py"
+    file_contains(S, "GAP5-_sample_ambient_luminance", cam, r"def _sample_ambient_luminance")
+    file_contains(S, "GAP5-_build_ambient_filter", cam, r"def _build_ambient_filter")
+    file_contains(S, "GAP5-colorchannelmixer", cam, r"colorchannelmixer")
+    file_contains(S, "GAP5-background_device-param", cam, r"background_device")
+
+    # GAP-6: Clock skew — verify_geoloc_timezone_match in timezone_enforcer
+    tz = TITAN / "core" / "timezone_enforcer.py"
+    file_contains(S, "GAP6-verify_geoloc_timezone_match", tz, r"def verify_geoloc_timezone_match")
+    file_contains(S, "GAP6-deadline_ms", tz, r"deadline_ms")
+    file_contains(S, "GAP6-200ms-default", tz, r"deadline_ms.*200\.0")
+    file_contains(S, "GAP6-CLOCK_SKEW_RISK", tz, r"CLOCK_SKEW_RISK")
+
+    # GAP-7: Thinking time — THINKING engine in ghost_motor.js
+    file_contains(S, "GAP7-THINKING-engine", gm, r"const THINKING\s*=\s*\{")
+    file_contains(S, "GAP7-interFieldPauseMs", gm, r"interFieldPauseMs")
+    file_contains(S, "GAP7-sentencePauseMs", gm, r"sentencePauseMs")
+    file_contains(S, "GAP7-reReadChance", gm, r"reReadChance")
+    file_contains(S, "GAP7-startThinkingTimeEngine-wired", gm, r"startThinkingTimeEngine\(\)")
+
+    # GAP-8: Memory pressure — MemoryPressureManager in titan_services.py
+    svc = TITAN / "core" / "titan_services.py"
+    file_contains(S, "GAP8-MemoryPressureManager", svc, r"class MemoryPressureManager")
+    file_contains(S, "GAP8-THRESHOLD_YELLOW", svc, r"THRESHOLD_YELLOW_MB\s*=\s*800")
+    file_contains(S, "GAP8-THRESHOLD_RED", svc, r"THRESHOLD_RED_MB\s*=\s*400")
+    file_contains(S, "GAP8-4-tiers", svc, r'"CRITICAL"')
+    file_contains(S, "GAP8-wired-in-start_all", svc, r"MemoryPressureManager\(service_manager=self\)")
+    file_contains(S, "GAP8-wired-in-get_status", svc, r"memory_pressure.*get_status")
+
+# ═══════════════════════════════════════════════════════════════════════════
 # REPORT
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -463,6 +547,7 @@ def main():
     verify_s8()
     verify_s9()
     verify_s10()
+    verify_s11()
 
     code = print_report()
     sys.exit(code)

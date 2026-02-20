@@ -133,8 +133,10 @@ from .transaction_monitor import (
 )
 from .titan_services import (
     TitanServiceManager, DailyDiscoveryScheduler, OperationalFeedbackLoop,
+    MemoryPressureManager,
     get_service_manager, start_all_services, stop_all_services, get_services_status,
 )
+from .bug_patch_bridge import BugPatchBridge
 
 __all__ = [
     # Trinity Apps Core
@@ -265,5 +267,7 @@ __all__ = [
     # V7.0 Cross-Device Sync (Waydroid)
     'WaydroidSyncEngine', 'SyncConfig', 'MobilePersona', 'start_cross_device_sync',
     # V7.0.3 Bug Reporter + Auto-Patcher Bridge
-    'BugPatchBridge', 'BugDatabase', 'AutoPatcher',
+    'BugPatchBridge',
+    # V7.0.3 Memory Pressure Manager
+    'MemoryPressureManager',
 ]

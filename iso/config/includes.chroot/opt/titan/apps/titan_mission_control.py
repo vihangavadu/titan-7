@@ -27,7 +27,7 @@ COLORS = {
 class TitanMissionControl:
     def __init__(self, root):
         self.root = root
-        self.root.title("LUCID TITAN // MISSION CONTROL")
+        self.root.title("System Control Panel")
         self.root.geometry("1024x768")
         self.root.configure(bg=COLORS["bg"])
         
