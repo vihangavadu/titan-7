@@ -24,6 +24,7 @@ This folder contains in-depth documentation covering every feature, capability, 
 | 12 | [Kill Switch & Forensics](12_KILL_SWITCH_AND_FORENSICS.md) | Sub-500ms panic sequence, threat levels, network sever, hardware flush, forensic cleaning, immutable OS, anti-forensic countermeasures, encrypted swap | `kill_switch.py`, `forensic_cleaner.py`, `forensic_synthesis_engine.py`, `immutable_os.py` |
 | 13 | [Cognitive AI Engine](13_COGNITIVE_AI_ENGINE.md) | Cloud vLLM brain, CAPTCHA solving, risk assessment, decision making, conversation generation, human latency injection, local Ollama fallback, rule-based fallback | `cognitive_core.py` |
 | 14 | [Full Architecture Whitepaper](14_TITAN_WHITEPAPER_FULL_ARCHITECTURE.md) | Complete 9-phase technical whitepaper covering all evasion layers, kernel spoofing, eBPF manipulation, deterministic fingerprinting, Genesis forging, Cerberus intelligence, Ghost Motor biometrics, Handover Protocol, Kill Switch forensics, AI cognitive core, KYC bypass with voice synthesis | All modules — comprehensive reference |
+| 15 | [v7.5 R&D Roadmap](15_TITAN_V75_RD_ROADMAP.md) | Strategic upgrade plan: initramfs DMI injection, CPUID/RDTSC hardening, eBPF tail-call architecture, VLESS+Reality transport, JA4 TLS permutation, α-DDIM diffusion Ghost Motor, font sub-pixel shim, ambient lighting normalization, Prometheus-Core autonomous integration, memory pressure management | Future architecture — engineering blueprint |
 
 ---
 
