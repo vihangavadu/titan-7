@@ -699,14 +699,14 @@ lb config \
     --initramfs live-boot \
     --initsystem systemd \
     --bootloaders grub-efi \
-    --bootappend-live "boot=live components quiet splash toram persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0" \
+    --bootappend-live "boot=live components quiet splash toram persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0 plymouth.enable=1" \
     --chroot-filesystem squashfs \
     --binary-images iso-hybrid \
     --apt-indices false \
     --memtest memtest86+ \
-    --iso-application "LUCID EMPIRE TITAN V7.0 SINGULARITY" \
+    --iso-application "Titan OS V7.0.3 Singularity" \
     --iso-publisher "Dva.12" \
-    --iso-volume "TITAN-V70-SINGULARITY"
+    --iso-volume "TITAN-V703-SINGULARITY"
 
 log "lb config complete."
 log "Starting ISO build — this takes 30-90 minutes..."
@@ -737,7 +737,7 @@ if [ "$LB_EXIT" -ne 0 ]; then
             HYBRID_ARG="-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin"
         fi
         xorriso -as mkisofs \
-            -r -V "TITAN-V70-SINGULARITY" \
+            -r -V "TITAN-V703-SINGULARITY" \
             -iso-level 3 \
             -o "$ISO_DIR/${ISO_NAME}.iso" \
             -J -joliet-long \
