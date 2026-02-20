@@ -122,6 +122,7 @@ class PurchaseHistoryConfig:
 # ═══════════════════════════════════════════════════════════════════════════
 
 MERCHANT_TEMPLATES = {
+    # ── Major Retailers (diverse PSPs) ────────────────────────────────
     "amazon.com": {
         "name": "Amazon.com",
         "order_prefix": "114",
@@ -135,12 +136,10 @@ MERCHANT_TEMPLATES = {
             {"name": "Sony WH-1000XM5", "price": 278.00, "category": "Electronics"},
             {"name": "Hydro Flask 32oz", "price": 44.95, "category": "Kitchen"},
             {"name": "Anker PowerCore 10000", "price": 25.99, "category": "Electronics"},
-            {"name": "Apple AirTag 4-Pack", "price": 79.00, "category": "Electronics"},
-            {"name": "Samsung T7 1TB SSD", "price": 89.99, "category": "Electronics"},
         ],
-        "processor": "stripe",
+        "processor": "amazon_pay",
         "cookie_names": ["session-id", "ubid-main", "session-token", "csm-hit", "i18n-prefs"],
-        "localStorage_keys": ["csm-hit", "session-id-time", "a-]ogb-guid"],
+        "localStorage_keys": ["csm-hit", "session-id-time"],
     },
     "walmart.com": {
         "name": "Walmart",
@@ -153,7 +152,7 @@ MERCHANT_TEMPLATES = {
             {"name": "Ozark Trail Tumbler 20oz", "price": 7.97, "category": "Kitchen"},
             {"name": "Equate Vitamin D3 5000IU", "price": 6.48, "category": "Health"},
         ],
-        "processor": "internal",
+        "processor": "worldpay",
         "cookie_names": ["auth", "cart-item-count", "CRT", "type", "vtc"],
         "localStorage_keys": ["cart-active", "search-history", "user-pref"],
     },
@@ -168,7 +167,7 @@ MERCHANT_TEMPLATES = {
             {"name": "Insignia USB-C Wall Charger", "price": 19.99, "category": "Chargers"},
             {"name": "JBL Flip 6 Speaker", "price": 99.99, "category": "Audio"},
         ],
-        "processor": "internal",
+        "processor": "cybersource",
         "cookie_names": ["UID", "SID", "CTX", "ltc", "vt"],
         "localStorage_keys": ["bby-locale", "bby-acct-cache", "bby-cart-count"],
     },
@@ -187,6 +186,7 @@ MERCHANT_TEMPLATES = {
         "cookie_names": ["visitorId", "TealeafAkaSid", "sapphire", "fiatsCookie"],
         "localStorage_keys": ["tgt-visitor", "tgt-cart", "tgt-search-history"],
     },
+    # ── Tech & Electronics ────────────────────────────────────────────
     "newegg.com": {
         "name": "Newegg",
         "order_prefix": "NE",
@@ -196,12 +196,104 @@ MERCHANT_TEMPLATES = {
             {"name": "ASUS TUF Gaming B650", "price": 179.99, "category": "Motherboards"},
             {"name": "Samsung 990 Pro 2TB NVMe", "price": 149.99, "category": "Storage"},
             {"name": "be quiet! Pure Power 12 750W", "price": 99.90, "category": "PSU"},
-            {"name": "Arctic Freezer 34 eSports", "price": 29.99, "category": "Cooling"},
         ],
         "processor": "adyen",
         "cookie_names": ["NV%5FNEWEGG", "NV%5FCONFIGURATION", "NV%5FCUSTOMER"],
         "localStorage_keys": ["ne-cart", "ne-session", "ne-recommendations"],
     },
+    "ebay.com": {
+        "name": "eBay",
+        "order_prefix": "EB",
+        "order_format": "{prefix}-{seg1}-{seg2}",
+        "items_pool": [
+            {"name": "Refurbished iPhone 14 Pro", "price": 649.00, "category": "Phones"},
+            {"name": "Vintage Levi's 501 Jeans", "price": 45.00, "category": "Clothing"},
+            {"name": "Arduino Starter Kit", "price": 34.99, "category": "Electronics"},
+            {"name": "Pokemon TCG Booster Box", "price": 89.99, "category": "Collectibles"},
+        ],
+        "processor": "paypal",
+        "cookie_names": ["ebay", "dp1", "nonsession", "s", "ak_bmsc"],
+        "localStorage_keys": ["ebay-cart", "ebay-recently-viewed"],
+    },
+    # ── Shopify Stores (Shopify Payments) ─────────────────────────────
+    "fashionnova.com": {
+        "name": "Fashion Nova",
+        "order_prefix": "FN",
+        "order_format": "{prefix}{seg1}",
+        "items_pool": [
+            {"name": "Classic High Waist Skinny Jeans", "price": 24.99, "category": "Clothing"},
+            {"name": "Oversized Graphic Tee", "price": 16.99, "category": "Clothing"},
+            {"name": "Chunky Platform Sneakers", "price": 39.99, "category": "Shoes"},
+        ],
+        "processor": "shopify_payments",
+        "cookie_names": ["_shopify_sa_t", "_shopify_y", "cart_ts", "cart_sig"],
+        "localStorage_keys": ["shopify-cart", "shopify-checkout-token"],
+    },
+    "gymshark.com": {
+        "name": "Gymshark",
+        "order_prefix": "GS",
+        "order_format": "{prefix}-{seg1}",
+        "items_pool": [
+            {"name": "Vital Seamless Leggings", "price": 54.00, "category": "Activewear"},
+            {"name": "Crest Hoodie", "price": 48.00, "category": "Activewear"},
+            {"name": "Speed Shorts", "price": 30.00, "category": "Activewear"},
+        ],
+        "processor": "shopify_payments",
+        "cookie_names": ["_shopify_sa_t", "_shopify_y", "cart_ts"],
+        "localStorage_keys": ["shopify-cart", "shopify-checkout-token"],
+    },
+    # ── Subscription / Digital Services ───────────────────────────────
+    "spotify.com": {
+        "name": "Spotify",
+        "order_prefix": "SP",
+        "order_format": "{prefix}{seg1}",
+        "items_pool": [
+            {"name": "Spotify Premium Individual (Monthly)", "price": 11.99, "category": "Subscription"},
+            {"name": "Spotify Premium Family (Monthly)", "price": 17.99, "category": "Subscription"},
+        ],
+        "processor": "braintree",
+        "cookie_names": ["sp_t", "sp_dc", "sp_key"],
+        "localStorage_keys": ["spotify-prefs", "spotify-playback"],
+    },
+    "netflix.com": {
+        "name": "Netflix",
+        "order_prefix": "NF",
+        "order_format": "{prefix}{seg1}",
+        "items_pool": [
+            {"name": "Netflix Standard (Monthly)", "price": 15.49, "category": "Subscription"},
+            {"name": "Netflix Premium (Monthly)", "price": 22.99, "category": "Subscription"},
+        ],
+        "processor": "braintree",
+        "cookie_names": ["NetflixId", "SecureNetflixId", "memclid"],
+        "localStorage_keys": ["netflix-prefs", "netflix-profiles"],
+    },
+    # ── Food & Delivery (Square, Stripe, Braintree) ───────────────────
+    "doordash.com": {
+        "name": "DoorDash",
+        "order_prefix": "DD",
+        "order_format": "{prefix}{seg1}",
+        "items_pool": [
+            {"name": "Chipotle Burrito Bowl Delivery", "price": 18.50, "category": "Food"},
+            {"name": "McDonald's Family Meal Delivery", "price": 32.00, "category": "Food"},
+            {"name": "Thai Basil Fried Rice Delivery", "price": 16.99, "category": "Food"},
+        ],
+        "processor": "stripe",
+        "cookie_names": ["dd_session", "dd_user", "dd_cart"],
+        "localStorage_keys": ["dd-address", "dd-recent-orders"],
+    },
+    "ubereats.com": {
+        "name": "Uber Eats",
+        "order_prefix": "UE",
+        "order_format": "{prefix}-{seg1}",
+        "items_pool": [
+            {"name": "Sushi Platter Delivery", "price": 28.00, "category": "Food"},
+            {"name": "Pizza Large + Sides Delivery", "price": 24.50, "category": "Food"},
+        ],
+        "processor": "braintree",
+        "cookie_names": ["ue_session", "ue_sid", "ue_lat"],
+        "localStorage_keys": ["uber-eats-address", "uber-eats-cart"],
+    },
+    # ── Gaming & Digital (Adyen, PayPal, Internal) ────────────────────
     "steampowered.com": {
         "name": "Steam",
         "order_prefix": "ST",
@@ -211,9 +303,8 @@ MERCHANT_TEMPLATES = {
             {"name": "Baldur's Gate 3", "price": 59.99, "category": "Games"},
             {"name": "Cyberpunk 2077", "price": 29.99, "category": "Games"},
             {"name": "Hades II (Early Access)", "price": 29.99, "category": "Games"},
-            {"name": "Steam Deck 512GB", "price": 449.00, "category": "Hardware"},
         ],
-        "processor": "internal",
+        "processor": "paypal",
         "cookie_names": ["steamLoginSecure", "sessionid", "steamMachineAuth"],
         "localStorage_keys": ["steam-cart", "steam-library-cache"],
     },
@@ -223,9 +314,7 @@ MERCHANT_TEMPLATES = {
         "order_format": "{prefix}-{seg1}-{seg2}",
         "items_pool": [
             {"name": "Xbox Game Pass Ultimate 1mo", "price": 12.99, "category": "Subscriptions"},
-            {"name": "PlayStation Plus Essential 3mo", "price": 18.99, "category": "Subscriptions"},
             {"name": "Nintendo eShop $50", "price": 42.99, "category": "Gift Cards"},
-            {"name": "Steam Wallet $20", "price": 17.99, "category": "Gift Cards"},
             {"name": "Spotify Premium 6mo", "price": 49.99, "category": "Subscriptions"},
         ],
         "processor": "checkout_com",
@@ -239,13 +328,107 @@ MERCHANT_TEMPLATES = {
         "items_pool": [
             {"name": "Windows 11 Pro Key", "price": 24.99, "category": "Software"},
             {"name": "Microsoft Office 2021 Key", "price": 34.99, "category": "Software"},
-            {"name": "FIFA 25 PC Key", "price": 39.99, "category": "Games"},
             {"name": "Valorant Points 1000", "price": 9.99, "category": "In-Game"},
-            {"name": "Roblox Gift Card $25", "price": 22.49, "category": "Gift Cards"},
         ],
         "processor": "adyen",
         "cookie_names": ["g2a_session", "g2a_cart", "g2a_user"],
         "localStorage_keys": ["g2a-user-pref", "g2a-cart-cache", "g2a-search"],
+    },
+    # ── Fashion & Lifestyle (Klarna, Afterpay, Stripe) ────────────────
+    "nike.com": {
+        "name": "Nike",
+        "order_prefix": "NK",
+        "order_format": "{prefix}{seg1}{seg2}",
+        "items_pool": [
+            {"name": "Air Max 90", "price": 130.00, "category": "Shoes"},
+            {"name": "Dri-FIT Running Shirt", "price": 35.00, "category": "Clothing"},
+            {"name": "Nike Sportswear Club Fleece Hoodie", "price": 60.00, "category": "Clothing"},
+        ],
+        "processor": "adyen",
+        "cookie_names": ["NIKE_COMMERCE_COUNTRY", "anonymousId", "guidS", "visitData"],
+        "localStorage_keys": ["nike-cart", "nike-locale", "nike-member"],
+    },
+    "zara.com": {
+        "name": "Zara",
+        "order_prefix": "ZR",
+        "order_format": "{prefix}-{seg1}-{seg2}",
+        "items_pool": [
+            {"name": "Oversized Linen Blazer", "price": 89.90, "category": "Clothing"},
+            {"name": "Leather Effect Bag", "price": 45.90, "category": "Accessories"},
+            {"name": "Wide Leg Trousers", "price": 49.90, "category": "Clothing"},
+        ],
+        "processor": "adyen",
+        "cookie_names": ["zara_session", "zara_cart", "zara_locale"],
+        "localStorage_keys": ["zara-cart", "zara-wishlist"],
+    },
+    "shein.com": {
+        "name": "SHEIN",
+        "order_prefix": "SH",
+        "order_format": "{prefix}{seg1}",
+        "items_pool": [
+            {"name": "Floral Print Midi Dress", "price": 18.49, "category": "Clothing"},
+            {"name": "Casual Crossbody Bag", "price": 8.99, "category": "Accessories"},
+            {"name": "Chunky Sneakers", "price": 32.00, "category": "Shoes"},
+        ],
+        "processor": "paypal",
+        "cookie_names": ["shein_session", "shein_cart", "shein_user"],
+        "localStorage_keys": ["shein-cart", "shein-wishlist", "shein-locale"],
+    },
+    # ── Home & Lifestyle (various PSPs) ───────────────────────────────
+    "etsy.com": {
+        "name": "Etsy",
+        "order_prefix": "ET",
+        "order_format": "{prefix}-{seg1}",
+        "items_pool": [
+            {"name": "Custom Name Necklace", "price": 28.00, "category": "Jewelry"},
+            {"name": "Handmade Ceramic Mug", "price": 22.00, "category": "Home"},
+            {"name": "Personalized Leather Wallet", "price": 45.00, "category": "Accessories"},
+        ],
+        "processor": "paypal",
+        "cookie_names": ["uaid", "user_prefs", "fve"],
+        "localStorage_keys": ["etsy-cart", "etsy-favorites"],
+    },
+    "wayfair.com": {
+        "name": "Wayfair",
+        "order_prefix": "WF",
+        "order_format": "{prefix}{seg1}",
+        "items_pool": [
+            {"name": "Tufted Accent Chair", "price": 189.99, "category": "Furniture"},
+            {"name": "Area Rug 5x7", "price": 79.99, "category": "Home"},
+            {"name": "Floating Wall Shelves Set", "price": 34.99, "category": "Home"},
+        ],
+        "processor": "stripe",
+        "cookie_names": ["wf_session", "wf_cart", "wf_user"],
+        "localStorage_keys": ["wayfair-cart", "wayfair-recent"],
+    },
+    # ── Buy Now Pay Later (Klarna, Afterpay) ──────────────────────────
+    "asos.com": {
+        "name": "ASOS",
+        "order_prefix": "AS",
+        "order_format": "{prefix}{seg1}{seg2}",
+        "items_pool": [
+            {"name": "ASOS DESIGN Oversized T-Shirt", "price": 16.00, "category": "Clothing"},
+            {"name": "Nike Air Force 1 '07", "price": 110.00, "category": "Shoes"},
+            {"name": "ASOS DESIGN Skinny Chinos", "price": 32.00, "category": "Clothing"},
+        ],
+        "processor": "klarna",
+        "cookie_names": ["asos_session", "asos_cart", "asos_country"],
+        "localStorage_keys": ["asos-bag", "asos-savedItems", "asos-locale"],
+    },
+    # ── Grocery & Convenience ─────────────────────────────────────────
+    "instacart.com": {
+        "name": "Instacart",
+        "order_prefix": "IC",
+        "order_format": "{prefix}-{seg1}",
+        "items_pool": [
+            {"name": "Organic Bananas (bunch)", "price": 2.49, "category": "Grocery"},
+            {"name": "Whole Milk 1 Gallon", "price": 4.99, "category": "Grocery"},
+            {"name": "Rotisserie Chicken", "price": 8.99, "category": "Grocery"},
+            {"name": "Mixed Greens Salad Kit", "price": 4.49, "category": "Grocery"},
+        ],
+        "processor": "square",
+        "cookie_names": ["ic_session", "ic_cart", "ic_zip"],
+        "localStorage_keys": ["ic-address", "ic-recent-stores"],
     },
 }
 
@@ -256,9 +439,23 @@ EMAIL_SUBJECTS = {
     "bestbuy.com": "Best Buy Order Confirmation #{order_id}",
     "target.com": "Your Target order #{order_id} is {status}",
     "newegg.com": "Newegg Order #{order_id} Confirmation",
+    "ebay.com": "eBay: Order #{order_id} confirmed",
     "steampowered.com": "Thank you for your Steam purchase!",
     "eneba.com": "Your Eneba order #{order_id} - Digital delivery",
     "g2a.com": "G2A Order #{order_id} - Product delivered",
+    "fashionnova.com": "Fashion Nova Order #{order_id} Confirmed!",
+    "gymshark.com": "Gymshark: Your order #{order_id} is confirmed",
+    "spotify.com": "Spotify receipt - Payment confirmed",
+    "netflix.com": "Netflix - Payment receipt",
+    "doordash.com": "DoorDash: Order #{order_id} confirmed",
+    "ubereats.com": "Uber Eats: Your order #{order_id} is on its way",
+    "nike.com": "Nike Order #{order_id} Confirmation",
+    "zara.com": "ZARA - Order Confirmation #{order_id}",
+    "shein.com": "SHEIN Order #{order_id} - Confirmed",
+    "etsy.com": "Receipt from Etsy: Order #{order_id}",
+    "wayfair.com": "Wayfair Order #{order_id} Confirmed",
+    "asos.com": "ASOS: Order #{order_id} confirmed",
+    "instacart.com": "Instacart: Your delivery order #{order_id}",
 }
 
 
@@ -569,31 +766,15 @@ class PurchaseHistoryEngine:
                 next_id += 1
                 cookie_count += 1
             
-            # Payment processor cookies based on merchant
+            # Payment processor cookies based on merchant — multi-PSP realistic injection
             processor = template.get("processor", "stripe")
-            if processor == "stripe":
-                for cname, cval in [
-                    ("__stripe_mid", self._generate_stripe_mid(config, creation)),
-                    ("__stripe_sid", secrets.token_hex(24)),
-                ]:
-                    cursor.execute("""
-                        INSERT INTO moz_cookies 
-                        (id, name, value, host, expiry, lastAccessed, creationTime, isSecure, isHttpOnly)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (next_id, cname, cval, ".stripe.com",
-                          int((base_time + timedelta(days=365)).timestamp()),
-                          int(base_time.timestamp() * 1000000),
-                          int(creation.timestamp() * 1000000), 1, 0))
-                    next_id += 1
-                    cookie_count += 1
-            
-            elif processor == "adyen":
+            psp_cookies = self._get_psp_cookies(processor, config, creation)
+            for cname, cval, chost in psp_cookies:
                 cursor.execute("""
                     INSERT INTO moz_cookies 
                     (id, name, value, host, expiry, lastAccessed, creationTime, isSecure, isHttpOnly)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (next_id, "adyen-device-fingerprint", secrets.token_hex(32),
-                      f".{domain}",
+                """, (next_id, cname, cval, chost,
                       int((base_time + timedelta(days=365)).timestamp()),
                       int(base_time.timestamp() * 1000000),
                       int(creation.timestamp() * 1000000), 1, 0))
@@ -730,33 +911,83 @@ class PurchaseHistoryEngine:
             with open(tokens_file, "r") as f:
                 existing = json.load(f)
         
-        # Merge with purchase-specific tokens
-        tokens = {
-            **existing,
-            "stripe": {
+        # Collect which PSPs this profile actually used from merchant history
+        used_psps = set()
+        for domain in MERCHANT_TEMPLATES:
+            used_psps.add(MERCHANT_TEMPLATES[domain].get("processor", "stripe"))
+        
+        # Generate trust tokens for every PSP the profile has interacted with
+        tokens = {**existing}
+        card_fp = hashlib.sha256(
+            f"{config.cardholder.card_last_four}:{config.cardholder.full_name}".encode()
+        ).hexdigest()[:24]
+        
+        if "stripe" in used_psps:
+            tokens["stripe"] = {
                 "__stripe_mid": self._generate_stripe_mid(config, first_purchase),
-                "__stripe_sid": secrets.token_hex(24),
+                "__stripe_sid": self._generate_stripe_sid(),
                 "created_at": first_purchase.isoformat(),
                 "age_days": config.profile_age_days,
-                "card_fingerprint": hashlib.sha256(
-                    f"{config.cardholder.card_last_four}:{config.cardholder.full_name}".encode()
-                ).hexdigest()[:24],
-            },
-            "paypal": {
+                "card_fingerprint": card_fp,
+            }
+        if "paypal" in used_psps:
+            tokens["paypal"] = {
                 "TLTSID": secrets.token_hex(32),
                 "ts": secrets.token_hex(16),
+                "x-pp-s": secrets.token_hex(32),
                 "created_at": first_purchase.isoformat(),
-            },
-            "adyen": {
+            }
+        if "adyen" in used_psps:
+            tokens["adyen"] = {
                 "_RP_UID": secrets.token_hex(24),
                 "adyen-device-fingerprint": secrets.token_hex(32),
                 "created_at": first_purchase.isoformat(),
-            },
-            "checkout_com": {
-                "cko-session-id": secrets.token_hex(32),
+            }
+        if "braintree" in used_psps:
+            tokens["braintree"] = {
+                "device_id": self._generate_uuid_v4(),
+                "correlation_id": self._generate_uuid_v4(),
                 "created_at": first_purchase.isoformat(),
-            },
-        }
+            }
+        if "shopify_payments" in used_psps:
+            tokens["shopify"] = {
+                "_shopify_y": secrets.token_hex(32),
+                "_shopify_sa_t": secrets.token_hex(32),
+                "created_at": first_purchase.isoformat(),
+            }
+        if "klarna" in used_psps:
+            tokens["klarna"] = {
+                "client_id": self._generate_uuid_v4(),
+                "session": secrets.token_hex(32),
+                "created_at": first_purchase.isoformat(),
+            }
+        if "square" in used_psps:
+            tokens["square"] = {
+                "device_id": self._generate_uuid_v4(),
+                "created_at": first_purchase.isoformat(),
+            }
+        if "worldpay" in used_psps:
+            tokens["worldpay"] = {
+                "device_id": secrets.token_hex(32),
+                "session_id": self._generate_uuid_v4(),
+                "created_at": first_purchase.isoformat(),
+            }
+        if "cybersource" in used_psps:
+            tokens["cybersource"] = {
+                "dfp": secrets.token_hex(32),
+                "created_at": first_purchase.isoformat(),
+            }
+        if "checkout_com" in used_psps:
+            tokens["checkout_com"] = {
+                "cko-session-id": self._generate_uuid_v4(),
+                "cko-device-id": secrets.token_hex(32),
+                "created_at": first_purchase.isoformat(),
+            }
+        if "amazon_pay" in used_psps:
+            tokens["amazon_pay"] = {
+                "at-main": secrets.token_hex(40),
+                "created_at": first_purchase.isoformat(),
+            }
         
         with open(tokens_file, "w") as f:
             json.dump(tokens, f, indent=2)
@@ -974,16 +1205,104 @@ class PurchaseHistoryEngine:
         with open(meta_file, "w") as f:
             json.dump(metadata, f, indent=2)
     
+    # ─── MULTI-PSP COOKIE GENERATOR ──────────────────────────────────
+    
+    def _get_psp_cookies(self, processor: str, config: PurchaseHistoryConfig,
+                          creation: datetime) -> List[tuple]:
+        """Generate PSP-specific cookies as (name, value, host) tuples.
+        
+        Real users interact with 10+ different PSPs across their purchase
+        history. Each PSP sets distinct tracking/device cookies.
+        """
+        cookies = []
+        
+        if processor == "stripe":
+            cookies.append(("__stripe_mid", self._generate_stripe_mid(config, creation), ".stripe.com"))
+            cookies.append(("__stripe_sid", self._generate_stripe_sid(), ".stripe.com"))
+        
+        elif processor == "paypal":
+            cookies.append(("TLTSID", secrets.token_hex(32), ".paypal.com"))
+            cookies.append(("ts", secrets.token_hex(16), ".paypal.com"))
+            cookies.append(("tsrce", f"devmemoryauthsvc{secrets.token_hex(4)}", ".paypal.com"))
+            cookies.append(("x-pp-s", secrets.token_hex(32), ".paypal.com"))
+        
+        elif processor == "adyen":
+            cookies.append(("adyen-device-fingerprint", secrets.token_hex(32), ".adyen.com"))
+            cookies.append(("_RP_UID", secrets.token_hex(24), ".adyen.com"))
+        
+        elif processor == "braintree":
+            bt_id = self._generate_uuid_v4()
+            cookies.append(("_braintree_device_id", bt_id, ".braintreegateway.com"))
+            cookies.append(("_bt_devicedata", json.dumps({"correlation_id": bt_id}), ".braintreegateway.com"))
+        
+        elif processor == "shopify_payments":
+            cookies.append(("_shopify_sa_t", secrets.token_hex(32), ".shopify.com"))
+            cookies.append(("_shopify_y", secrets.token_hex(32), ".shopify.com"))
+            cookies.append(("_shopify_s", secrets.token_hex(32), ".shopify.com"))
+        
+        elif processor == "klarna":
+            cookies.append(("klarna_client_id", self._generate_uuid_v4(), ".klarna.com"))
+            cookies.append(("klarna_session", secrets.token_hex(32), ".klarna.com"))
+        
+        elif processor == "square":
+            cookies.append(("_sq_device_id", self._generate_uuid_v4(), ".squareup.com"))
+            cookies.append(("_sq_session", secrets.token_hex(32), ".squareup.com"))
+        
+        elif processor == "worldpay":
+            cookies.append(("_wp_device", secrets.token_hex(32), ".worldpay.com"))
+            cookies.append(("_wp_session_id", self._generate_uuid_v4(), ".worldpay.com"))
+        
+        elif processor == "cybersource":
+            cookies.append(("_cs_dfp", secrets.token_hex(32), ".cybersource.com"))
+            cookies.append(("_cs_s", secrets.token_hex(24), ".cybersource.com"))
+        
+        elif processor == "amazon_pay":
+            cookies.append(("at-main", secrets.token_hex(40), ".amazon.com"))
+            cookies.append(("sess-at-main", f'"{secrets.token_hex(32)}"', ".amazon.com"))
+            cookies.append(("sst-main", secrets.token_hex(40), ".amazon.com"))
+        
+        elif processor == "checkout_com":
+            cookies.append(("cko-session-id", self._generate_uuid_v4(), ".checkout.com"))
+            cookies.append(("cko-device-id", secrets.token_hex(32), ".checkout.com"))
+        
+        return cookies
+    
     # ─── HELPERS ──────────────────────────────────────────────────────
+    
+    @staticmethod
+    def _generate_uuid_v4() -> str:
+        """Generate a standard UUID v4."""
+        b = bytearray(secrets.token_bytes(16))
+        b[6] = (b[6] & 0x0F) | 0x40
+        b[8] = (b[8] & 0x3F) | 0x80
+        h = bytes(b).hex()
+        return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
     
     def _generate_stripe_mid(self, config: PurchaseHistoryConfig,
                               creation_time: datetime) -> str:
-        device_hash = hashlib.sha256(
-            f"{config.cardholder.full_name}:{config.cardholder.card_last_four}".encode()
-        ).hexdigest()[:16]
-        ts = int(creation_time.timestamp())
-        rand = secrets.token_hex(8)
-        return f"{device_hash}.{ts}.{rand}"
+        """Generate __stripe_mid as UUID v4 (real Stripe format).
+        
+        V7.0.3 PATCH: Real __stripe_mid is a standard UUID v4:
+        xxxxxxxx-xxxx-4xxx-Nxxx-xxxxxxxxxxxx
+        Old format (hash.timestamp.random) was flagged by Stripe Radar.
+        """
+        seed = hashlib.sha256(
+            f"{config.cardholder.full_name}:{config.cardholder.card_last_four}:{int(creation_time.timestamp())}".encode()
+        ).digest()
+        b = bytearray(seed[:16])
+        b[6] = (b[6] & 0x0F) | 0x40  # version 4
+        b[8] = (b[8] & 0x3F) | 0x80  # variant 1
+        h = bytes(b).hex()
+        return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+    
+    @staticmethod
+    def _generate_stripe_sid() -> str:
+        """Generate __stripe_sid as UUID v4 (real Stripe format)."""
+        b = bytearray(secrets.token_bytes(16))
+        b[6] = (b[6] & 0x0F) | 0x40
+        b[8] = (b[8] & 0x3F) | 0x80
+        h = bytes(b).hex()
+        return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

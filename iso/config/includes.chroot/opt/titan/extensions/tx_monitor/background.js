@@ -101,10 +101,10 @@ setInterval(() => {
         .then(r => r.json())
         .then(data => {
             if (data.status === 'alive') {
-                console.log('[TX Monitor] Backend alive');
+                // heartbeat ok
             }
         })
         .catch(() => {
-            console.log('[TX Monitor] Backend not running');
+            // backend offline
         });
 }, 60000);

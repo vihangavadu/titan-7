@@ -533,13 +533,25 @@ class AdvancedProfileGenerator:
                 ))
                 cookie_count += 1
         
-        # Commerce cookies (Stripe, PayPal, etc.)
-        commerce_cookies = [
+        # Commerce cookies — diverse PSPs like a real user (not just Stripe)
+        _uuid4 = self._generate_stripe_sid  # reuse UUID v4 generator
+        all_psp_cookies = [
             (".stripe.com", "__stripe_mid", self._generate_stripe_mid(config)),
-            (".stripe.com", "__stripe_sid", secrets.token_hex(24)),
+            (".stripe.com", "__stripe_sid", _uuid4()),
             (".paypal.com", "TLTSID", secrets.token_hex(32)),
             (".paypal.com", "ts", secrets.token_hex(16)),
+            (".paypal.com", "x-pp-s", secrets.token_hex(32)),
+            (".adyen.com", "adyen-device-fingerprint", secrets.token_hex(32)),
+            (".braintreegateway.com", "_braintree_device_id", _uuid4()),
+            (".shopify.com", "_shopify_y", secrets.token_hex(32)),
+            (".shopify.com", "_shopify_sa_t", secrets.token_hex(32)),
+            (".klarna.com", "klarna_client_id", _uuid4()),
+            (".squareup.com", "_sq_device_id", _uuid4()),
+            (".amazon.com", "at-main", secrets.token_hex(40)),
         ]
+        # A real user doesn't use ALL PSPs — randomly select 5-8 for this profile
+        num_psp_cookies = random.randint(5, min(8, len(all_psp_cookies)))
+        commerce_cookies = random.sample(all_psp_cookies, num_psp_cookies)
         
         for domain, name, value in commerce_cookies:
             cursor.execute("""
@@ -707,7 +719,7 @@ class AdvancedProfileGenerator:
             },
             "stripe.com": {
                 "__stripe_mid": self._generate_stripe_mid(config),
-                "__stripe_sid": secrets.token_hex(24),
+                "__stripe_sid": self._generate_stripe_sid(),
                 "cid": secrets.token_hex(16),
                 "machine_identifier": secrets.token_hex(16),
             },
@@ -915,7 +927,7 @@ class AdvancedProfileGenerator:
         tokens = {
             "stripe": {
                 "__stripe_mid": self._generate_stripe_mid(config),
-                "__stripe_sid": secrets.token_hex(24),
+                "__stripe_sid": self._generate_stripe_sid(),
                 "created_at": creation_time.isoformat(),
                 "age_days": config.profile_age_days,
             },
@@ -995,32 +1007,71 @@ class AdvancedProfileGenerator:
             conn.commit()
             conn.close()
     
+    # Cross-validated hardware presets — each entry is a COHERENT real-world machine.
+    # CPU tier, RAM, battery capacity, and form factor are all internally consistent.
+    # Prevents antifraud HW fingerprint analysis from flagging "impossible" combos.
+    _HW_PRESETS = {
+        "Win32": [
+            # Mid-range desktop
+            {"cpu": "12th Gen Intel Core i5-12400", "cores": "6", "memory": "16GB",
+             "vendor": "Dell Inc.", "product": "XPS 8950", "battery_wh": None,
+             "form_factor": "Desktop", "device_description": "Dell XPS Desktop"},
+            # High-end desktop
+            {"cpu": "13th Gen Intel Core i7-13700K", "cores": "16", "memory": "32GB",
+             "vendor": "ASUSTeK Computer Inc.", "product": "ROG Strix G15CF", "battery_wh": None,
+             "form_factor": "Desktop", "device_description": "ASUS ROG Desktop"},
+            # Mid-range gaming desktop
+            {"cpu": "AMD Ryzen 7 5800X", "cores": "8", "memory": "32GB",
+             "vendor": "Micro-Star International Co., Ltd.", "product": "MS-7C91", "battery_wh": None,
+             "form_factor": "Desktop", "device_description": "MSI Gaming Desktop"},
+            # Budget office desktop
+            {"cpu": "12th Gen Intel Core i3-12100", "cores": "4", "memory": "8GB",
+             "vendor": "Lenovo", "product": "ThinkCentre M70s Gen 3", "battery_wh": None,
+             "form_factor": "Desktop", "device_description": "Lenovo ThinkCentre"},
+            # Mid-range laptop
+            {"cpu": "12th Gen Intel Core i7-12700H", "cores": "14", "memory": "16GB",
+             "vendor": "HP", "product": "HP ENVY x360 15-ew0xxx", "battery_wh": 51.0,
+             "form_factor": "Notebook", "device_description": "HP ENVY Laptop"},
+            # Gaming laptop
+            {"cpu": "13th Gen Intel Core i9-13900HX", "cores": "24", "memory": "32GB",
+             "vendor": "ASUSTeK Computer Inc.", "product": "ROG Strix SCAR 17", "battery_wh": 90.0,
+             "form_factor": "Notebook", "device_description": "ASUS ROG Laptop"},
+            # Budget laptop
+            {"cpu": "AMD Ryzen 5 5500U", "cores": "6", "memory": "8GB",
+             "vendor": "Lenovo", "product": "IdeaPad 5 15ALC05", "battery_wh": 56.5,
+             "form_factor": "Notebook", "device_description": "Lenovo IdeaPad Laptop"},
+        ],
+        "MacIntel": [
+            # MacBook Pro M2 Pro — coherent: 10-core, 16GB unified, 70Wh
+            {"cpu": "Apple M2 Pro", "cores": "10", "memory": "16GB",
+             "vendor": "Apple Inc.", "product": "MacBookPro18,3", "battery_wh": 69.6,
+             "form_factor": "Notebook", "device_description": "MacBook Pro 14-inch"},
+            # MacBook Pro M2 Max — coherent: 12-core, 32GB, 100Wh
+            {"cpu": "Apple M2 Max", "cores": "12", "memory": "32GB",
+             "vendor": "Apple Inc.", "product": "MacBookPro18,4", "battery_wh": 99.6,
+             "form_factor": "Notebook", "device_description": "MacBook Pro 16-inch"},
+            # MacBook Air M2 — coherent: 8-core, 8GB, 52Wh
+            {"cpu": "Apple M2", "cores": "8", "memory": "8GB",
+             "vendor": "Apple Inc.", "product": "Mac14,2", "battery_wh": 52.6,
+             "form_factor": "Notebook", "device_description": "MacBook Air 13-inch"},
+            # Mac mini M2 — no battery (desktop)
+            {"cpu": "Apple M2", "cores": "8", "memory": "16GB",
+             "vendor": "Apple Inc.", "product": "Mac14,3", "battery_wh": None,
+             "form_factor": "Desktop", "device_description": "Mac mini"},
+        ],
+    }
+
     def _generate_hardware_profile(self, profile_path: Path, config: AdvancedProfileConfig):
-        """Generate hardware fingerprint configuration"""
+        """Generate hardware fingerprint configuration using cross-validated presets.
+        
+        Each preset is a real-world coherent machine — CPU tier, RAM, battery capacity,
+        and form factor are all internally consistent to defeat HW fingerprint analysis.
+        """
         hw_file = profile_path / "hardware_profile.json"
-        
-        # Hardware profiles keyed by platform — no hardcoded single device
-        hw_templates = {
-            "Win32": {
-                "cpu": random.choice(["13th Gen Intel Core i7-13700K", "12th Gen Intel Core i7-12700H", "AMD Ryzen 7 5800X"]),
-                "cores": random.choice(["8", "12", "16"]),
-                "memory": random.choice(["16GB", "32GB"]),
-                "vendor": random.choice(["Dell Inc.", "ASUSTeK Computer Inc.", "Lenovo", "HP"]),
-                "product": random.choice(["XPS 8960", "ROG Strix G16", "ThinkCentre M920", "OMEN 30L"]),
-                "device_description": "Windows Desktop (Kernel-Masked)",
-            },
-            "MacIntel": {
-                "cpu": random.choice(["Apple M2 Pro", "Apple M1 Max", "Intel Core i9-9980HK"]),
-                "cores": random.choice(["10", "12", "8"]),
-                "memory": random.choice(["16GB", "18GB", "32GB"]),
-                "vendor": "Apple Inc.",
-                "product": random.choice(["MacBookPro18,1", "MacBookPro17,1", "Macmini9,1"]),
-                "device_description": "MacBook Pro",
-            },
-        }
-        
-        template = hw_templates.get(config.platform, hw_templates["Win32"])
-        
+
+        presets = self._HW_PRESETS.get(config.platform, self._HW_PRESETS["Win32"])
+        template = random.choice(presets)
+
         hw_config = {
             "cpu": template["cpu"],
             "cores": template["cores"],
@@ -1032,12 +1083,14 @@ class AdvancedProfileGenerator:
             "platform": config.platform,
             "vendor": template["vendor"],
             "product": template["product"],
+            "form_factor": template["form_factor"],
+            "battery_wh": template["battery_wh"],
             "device_description": template["device_description"],
             "user_agent": config.user_agent,
             "uuid": secrets.token_hex(16),
             "board_serial": secrets.token_hex(8).upper(),
         }
-        
+
         with open(hw_file, "w") as f:
             json.dump(hw_config, f, indent=2)
     
@@ -1139,12 +1192,29 @@ class AdvancedProfileGenerator:
             logger.warning(f"Form autofill not available: {e}")
     
     def _generate_stripe_mid(self, config: AdvancedProfileConfig) -> str:
-        """Generate pre-aged Stripe merchant device ID"""
+        """Generate pre-aged Stripe __stripe_mid as UUID v4 (real format).
+        
+        V7.0.3 PATCH: Real __stripe_mid is a standard UUID v4.
+        Old format (hash.timestamp.random) was flagged by Stripe Radar.
+        """
         creation_time = datetime.now() - timedelta(days=config.profile_age_days + 30)
-        device_hash = hashlib.sha256(config.profile_uuid.encode()).hexdigest()[:16]
-        timestamp = int(creation_time.timestamp())
-        random_part = secrets.token_hex(8)
-        return f"{device_hash}.{timestamp}.{random_part}"
+        seed = hashlib.sha256(
+            f"{config.profile_uuid}:{int(creation_time.timestamp())}".encode()
+        ).digest()
+        b = bytearray(seed[:16])
+        b[6] = (b[6] & 0x0F) | 0x40  # version 4
+        b[8] = (b[8] & 0x3F) | 0x80  # variant 1
+        h = bytes(b).hex()
+        return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+    
+    @staticmethod
+    def _generate_stripe_sid() -> str:
+        """Generate __stripe_sid as UUID v4 (real Stripe format)."""
+        b = bytearray(secrets.token_bytes(16))
+        b[6] = (b[6] & 0x0F) | 0x40
+        b[8] = (b[8] & 0x3F) | 0x80
+        h = bytes(b).hex()
+        return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
     
     def _generate_title(self, domain: str, path: str) -> str:
         """Generate realistic page title"""

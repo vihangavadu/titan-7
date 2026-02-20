@@ -598,21 +598,59 @@ class GenesisEngine:
         return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
     
     def _generate_local_storage(self, config: ProfileConfig) -> Dict[str, Dict]:
-        """Generate localStorage entries for trust signals"""
+        """Generate localStorage entries for trust signals across multiple PSPs.
+        
+        A real user accumulates trust tokens from Google, Facebook, Stripe,
+        PayPal, Adyen, Braintree, Shopify, Klarna, Amazon, and more.
+        """
         storage = {}
+        age_ts = datetime.now() - timedelta(days=config.age_days)
         
         # Google Analytics client ID (aged)
-        ga_timestamp = datetime.now() - timedelta(days=config.age_days)
         storage["google.com"] = {
-            "_ga": f"GA1.2.{random.randint(1000000000, 9999999999)}.{int(ga_timestamp.timestamp())}",
+            "_ga": f"GA1.2.{random.randint(1000000000, 9999999999)}.{int(age_ts.timestamp())}",
             "_gid": f"GA1.2.{random.randint(1000000000, 9999999999)}.{int(datetime.now().timestamp())}"
         }
         
         # Facebook pixel
-        fb_timestamp = datetime.now() - timedelta(days=config.age_days)
         storage["facebook.com"] = {
-            "_fbp": f"fb.1.{int(fb_timestamp.timestamp() * 1000)}.{random.randint(1000000000, 9999999999)}"
+            "_fbp": f"fb.1.{int(age_ts.timestamp() * 1000)}.{random.randint(1000000000, 9999999999)}"
         }
+        
+        # Multi-PSP trust tokens — randomly include 4-7 of these per profile
+        psp_entries = [
+            ("stripe.com", {
+                "__stripe_mid": self._generate_stripe_mid(config, age_ts),
+                "cid": secrets.token_hex(16),
+                "machine_identifier": secrets.token_hex(16),
+            }),
+            ("paypal.com", {
+                "TLTSID": secrets.token_hex(32),
+                "ts_c": str(int(age_ts.timestamp())),
+            }),
+            ("adyen.com", {
+                "adyen-checkout-device-fp": secrets.token_hex(32),
+            }),
+            ("braintreegateway.com", {
+                "_bt_device_id": secrets.token_hex(16),
+            }),
+            ("shopify.com", {
+                "checkout_token": secrets.token_hex(32),
+                "cart_currency": "USD",
+            }),
+            ("klarna.com", {
+                "klarna_client_id": secrets.token_hex(16),
+            }),
+            ("amazon.com", {
+                "csm-hit": f"tb:{secrets.token_hex(12)}+s-{secrets.token_hex(8)}|{int(age_ts.timestamp() * 1000)}",
+            }),
+            ("squareup.com", {
+                "_sq_device": secrets.token_hex(24),
+            }),
+        ]
+        num_psps = random.randint(4, min(7, len(psp_entries)))
+        for domain, entries in random.sample(psp_entries, num_psps):
+            storage[domain] = entries
         
         # Merge target preset localStorage if available
         if hasattr(config, 'target') and hasattr(config.target, 'localstorage'):

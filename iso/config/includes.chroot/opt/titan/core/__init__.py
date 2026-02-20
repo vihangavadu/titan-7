@@ -264,4 +264,6 @@ __all__ = [
     'CockpitClient', 'CockpitDaemon', 'CommandAction',
     # V7.0 Cross-Device Sync (Waydroid)
     'WaydroidSyncEngine', 'SyncConfig', 'MobilePersona', 'start_cross_device_sync',
+    # V7.0.3 Bug Reporter + Auto-Patcher Bridge
+    'BugPatchBridge', 'BugDatabase', 'AutoPatcher',
 ]

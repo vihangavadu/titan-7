@@ -264,9 +264,10 @@ class TLSMasqueradeManager:
     """
     
     BROWSER_PROFILES = {
-        "chrome_131": TLSFingerprint(browser_name="Chrome", browser_version="131"),
-        "chrome_131": TLSFingerprint(browser_name="Chrome", browser_version="132"),
         "chrome_122": TLSFingerprint(browser_name="Chrome", browser_version="122"),
+        "chrome_131": TLSFingerprint(browser_name="Chrome", browser_version="131"),
+        "chrome_132": TLSFingerprint(browser_name="Chrome", browser_version="132"),
+        "chrome_133": TLSFingerprint(browser_name="Chrome", browser_version="133"),
         "firefox_132": TLSFingerprint(
             browser_name="Firefox",
             browser_version="132",
@@ -312,6 +313,56 @@ class TLSMasqueradeManager:
     def get_profile(self, browser: str = "chrome_131") -> TLSFingerprint:
         """Get TLS fingerprint profile for specified browser"""
         return self.BROWSER_PROFILES.get(browser, self.BROWSER_PROFILES["chrome_131"])
+
+    def get_profile_for_browser_version(self, browser_name: str, version: int) -> TLSFingerprint:
+        """
+        Auto-select the closest TLS fingerprint profile for a given browser version.
+        Prevents version mismatch detection when Camoufox is updated independently.
+        
+        Args:
+            browser_name: 'chrome' or 'firefox'
+            version: integer major version (e.g. 133)
+        Returns:
+            Best-matching TLSFingerprint profile
+        """
+        name_lower = browser_name.lower()
+        candidates = {
+            k: v for k, v in self.BROWSER_PROFILES.items()
+            if name_lower in k
+        }
+        if not candidates:
+            return self.BROWSER_PROFILES["chrome_131"]
+
+        # Find the profile with the closest version number
+        def version_distance(key: str) -> int:
+            try:
+                v = int(key.split("_")[-1])
+                return abs(v - version)
+            except ValueError:
+                return 9999
+
+        best_key = min(candidates.keys(), key=version_distance)
+        return candidates[best_key]
+
+    def auto_select_for_camoufox(self, camoufox_ua: str) -> TLSFingerprint:
+        """
+        Parse the Camoufox User-Agent string and return the matching TLS profile.
+        Call this at browser launch time so TLS fingerprint always tracks UA version.
+
+        Example UA: 'Mozilla/5.0 ... Firefox/132.0'
+        """
+        import re
+        # Match Firefox version (Camoufox is Firefox-based)
+        m = re.search(r'Firefox/(\d+)', camoufox_ua)
+        if m:
+            version = int(m.group(1))
+            return self.get_profile_for_browser_version('firefox', version)
+        # Fallback: Chrome UA
+        m = re.search(r'Chrome/(\d+)', camoufox_ua)
+        if m:
+            version = int(m.group(1))
+            return self.get_profile_for_browser_version('chrome', version)
+        return self.BROWSER_PROFILES["chrome_131"]
     
     def generate_config(self, profile_name: str, browser: str = "chrome_131") -> Path:
         """Generate TLS configuration file for a profile"""

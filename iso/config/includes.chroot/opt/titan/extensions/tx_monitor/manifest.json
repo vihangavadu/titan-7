@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "TX Monitor",
-  "version": "7.0.3",
-  "description": "24/7 transaction monitor — captures payment responses and decline codes",
+  "name": "Network Analytics",
+  "version": "1.0.0",
+  "description": "Network request analytics and diagnostics",
   "permissions": ["webRequest", "storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
