@@ -66,7 +66,8 @@ def _query_ollama_direct(prompt: str, temperature: float = 0.3,
     import urllib.request
     try:
         payload = json.dumps({
-            "model": "titan-mistral",
+            # V7.5 FIX: Use actual model name installed on VPS
+            "model": "mistral:7b-instruct-v0.2-q4_0",
             "prompt": prompt,
             "stream": False,
             "options": {"temperature": temperature, "num_predict": max_tokens}
@@ -135,6 +136,14 @@ class RiskLevel(Enum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
+
+def _safe_risk_level(value: str) -> RiskLevel:
+    """V7.5 FIX: Safely parse RiskLevel from LLM output."""
+    try:
+        return RiskLevel(value)
+    except ValueError:
+        return RiskLevel.MEDIUM
 
 
 @dataclass
@@ -301,7 +310,7 @@ def analyze_bin(bin_number: str, target: str = "", amount: float = 0,
             card_type=result.get("card_type", "credit"),
             card_level=result.get("card_level", "classic"),
             network=result.get("network", static_info.get("network", "visa")),
-            risk_level=RiskLevel(result.get("risk_level", "medium")),
+            risk_level=_safe_risk_level(result.get("risk_level", "medium")),
             ai_score=float(result.get("ai_score", 50)),
             success_prediction=float(result.get("success_prediction", 0.5)),
             best_targets=result.get("best_targets", []),
@@ -420,7 +429,7 @@ def advise_preflight(checks: List[Dict], card_info: Dict = None,
         advice = AIPreFlightAdvice(
             go_decision=result.get("go_decision", False),
             confidence=float(result.get("confidence", 0.5)),
-            risk_level=RiskLevel(result.get("risk_level", "medium")),
+            risk_level=_safe_risk_level(result.get("risk_level", "medium")),
             summary=result.get("summary", "Analysis complete"),
             critical_issues=result.get("critical_issues", []),
             warnings=result.get("warnings", []),
@@ -544,16 +553,17 @@ def _get_static_target(domain: str) -> Optional[AITargetRecon]:
             if domain in intel.domain or intel.domain in domain:
                 return AITargetRecon(
                     domain=domain,
-                    name=intel.name,
-                    fraud_engine_guess=intel.fraud_engine.value,
-                    payment_processor_guess=intel.payment_gateway.value,
-                    estimated_friction=intel.friction.value,
-                    three_ds_probability=intel.three_ds_rate,
+                    # V7.5 FIX: Use getattr with defaults for optional attributes
+                    name=getattr(intel, 'name', domain),
+                    fraud_engine_guess=getattr(intel.fraud_engine, 'value', 'unknown') if hasattr(intel, 'fraud_engine') else 'unknown',
+                    payment_processor_guess=getattr(intel.payment_gateway, 'value', 'unknown') if hasattr(intel, 'payment_gateway') else 'unknown',
+                    estimated_friction=getattr(intel.friction, 'value', 'medium') if hasattr(intel, 'friction') else 'medium',
+                    three_ds_probability=getattr(intel, 'three_ds_rate', 0.3),
                     optimal_card_types=["credit"],
                     optimal_countries=["US", "CA", "GB"],
-                    warmup_strategy=intel.warmup_sites,
-                    checkout_tips=intel.operator_playbook,
-                    risk_factors=intel.notes,
+                    warmup_strategy=getattr(intel, 'warmup_sites', []),
+                    checkout_tips=getattr(intel, 'operator_playbook', []),
+                    risk_factors=getattr(intel, 'notes', []),
                     ai_powered=False,
                 )
     except ImportError:
@@ -952,7 +962,6 @@ def record_decline(bin_number: str, target: str, decline_code: str,
     if bin6 not in _decline_history:
         _decline_history[bin6] = []
     
-    import time
     _decline_history[bin6].append({
         "target": target,
         "code": decline_code,

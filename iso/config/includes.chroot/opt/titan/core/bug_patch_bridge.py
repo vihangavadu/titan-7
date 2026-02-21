@@ -27,7 +27,7 @@ import shutil
 import importlib
 import threading
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List
 from dataclasses import dataclass
 import logging
@@ -71,7 +71,7 @@ class BugPatchBridge:
     def __init__(self):
         self.db_path = DB_PATH
         self.running = False
-        self._last_check = datetime.utcnow()
+        self._last_check = datetime.now(timezone.utc)
 
     def start(self):
         """Start the background watcher loop."""
@@ -88,7 +88,11 @@ class BugPatchBridge:
     def stop(self):
         self.running = False
 
-    def _get_db(self) -> sqlite3.Connection:
+    def _get_db(self) -> Optional[sqlite3.Connection]:
+        # V7.5 FIX: Check DB exists before connecting
+        if not self.db_path.exists():
+            logger.debug(f"Bug reports DB not found at {self.db_path}")
+            return None
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         return conn
@@ -96,6 +100,8 @@ class BugPatchBridge:
     def _check_new_reports(self):
         """Check for new critical/high reports that need auto-action."""
         conn = self._get_db()
+        if not conn:
+            return
         rows = conn.execute(
             "SELECT * FROM bug_reports WHERE patch_status='pending' "
             "AND severity IN ('critical','high') "
@@ -108,7 +114,7 @@ class BugPatchBridge:
             report = dict(row)
             self._process_report(report)
 
-        self._last_check = datetime.utcnow()
+        self._last_check = datetime.now(timezone.utc)
 
     def _process_report(self, report: dict):
         """Process a single bug report."""
@@ -132,7 +138,7 @@ class BugPatchBridge:
         """Create a patch task file for Windsurf Cascade."""
         os.makedirs(str(PATCHES_DIR), exist_ok=True)
         task_id = hashlib.sha256(
-            f"{report['id']}:{datetime.utcnow().isoformat()}".encode()
+            f"{report['id']}:{datetime.now(timezone.utc).isoformat()}".encode()
         ).hexdigest()[:12]
 
         brief = PATCHES_DIR / f"task_{task_id}.md"
@@ -186,12 +192,14 @@ class BugPatchBridge:
                     archive = PATCHES_DIR / "archive"
                     os.makedirs(str(archive), exist_ok=True)
                     task_file.rename(archive / task_file.name)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to process completed patch {task_file.name}: {e}")
 
     def _update_status(self, report_id: int, status: str, diff: str = ""):
         conn = self._get_db()
-        now = datetime.utcnow().isoformat() + "Z"
+        if not conn:
+            return
+        now = datetime.now(timezone.utc).isoformat()
         conn.execute(
             "UPDATE bug_reports SET patch_status=?, patch_diff=?, patch_applied_at=?, updated_at=? WHERE id=?",
             (status, diff, now if status == "patched" else "", now, report_id)

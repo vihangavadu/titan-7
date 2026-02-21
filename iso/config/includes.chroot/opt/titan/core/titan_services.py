@@ -21,7 +21,7 @@ import time
 import logging
 import threading
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 # Load titan.env config
@@ -76,7 +76,7 @@ class DailyDiscoveryScheduler:
             logger.warning(f"Could not save scheduler state: {e}")
     
     def _should_run_now(self) -> bool:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if self._last_run:
             try:
                 last = datetime.fromisoformat(self._last_run.replace("Z", ""))
@@ -94,7 +94,7 @@ class DailyDiscoveryScheduler:
             td = TargetDiscovery()
             result = td.auto_discover_new(max_sites=50, engine="google")
             
-            self._last_run = datetime.utcnow().isoformat() + "Z"
+            self._last_run = datetime.now(timezone.utc).isoformat()
             self._last_result = {
                 "timestamp": self._last_run,
                 "total_searched": result.get("total_searched", 0),
@@ -130,7 +130,7 @@ class DailyDiscoveryScheduler:
     
     def _scheduler_loop(self):
         while self._running:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             if now.hour == self.run_hour and self._should_run_now():
                 self.run_discovery()
             time.sleep(300)  # Check every 5 minutes
@@ -198,7 +198,7 @@ class OperationalFeedbackLoop:
                         "success_rate": rate,
                         "total_tx": total,
                         "approved": data.get("approved", 0),
-                        "updated": datetime.utcnow().isoformat() + "Z",
+                        "updated": datetime.now(timezone.utc).isoformat(),
                     }
                     updated_sites += 1
             
@@ -211,11 +211,11 @@ class OperationalFeedbackLoop:
                         "success_rate": rate,
                         "total_tx": total,
                         "approved": data.get("approved", 0),
-                        "updated": datetime.utcnow().isoformat() + "Z",
+                        "updated": datetime.now(timezone.utc).isoformat(),
                     }
                     updated_bins += 1
             
-            self._feedback_data["last_update"] = datetime.utcnow().isoformat() + "Z"
+            self._feedback_data["last_update"] = datetime.now(timezone.utc).isoformat()
             self._save_state()
             
             return {

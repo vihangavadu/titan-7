@@ -29,7 +29,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger("TITAN-LLM")
 
@@ -39,7 +39,7 @@ logger = logging.getLogger("TITAN-LLM")
 
 _CONFIG_PATH = Path("/opt/titan/config/llm_config.json")
 _CONFIG: Dict = {}
-_PROVIDER_STATUS: Dict[str, Optional[bool]] = {}  # cached availability checks
+_PROVIDER_STATUS: Dict[str, Any] = {}  # cached availability checks: key -> (timestamp, bool)
 
 
 def _load_config() -> Dict:
@@ -65,13 +65,14 @@ def _load_config() -> Dict:
                 "enabled": True,
                 "api_key": "",
                 "base_url": os.environ.get("OLLAMA_API", "http://127.0.0.1:11434"),
-                "default_model": os.environ.get("OLLAMA_MODEL", "llama3.1"),
+                # V7.5 FIX: Use correct default model installed on VPS
+                "default_model": os.environ.get("OLLAMA_MODEL", "mistral:7b-instruct-v0.2-q4_0"),
                 "max_retries": 1,
                 "timeout": 180,
             }
         },
         "task_routing": {
-            "default": [{"provider": "ollama", "model": "llama3.1"}]
+            "default": [{"provider": "ollama", "model": "mistral:7b-instruct-v0.2-q4_0"}]
         },
         "cache": {
             "enabled": True,
@@ -296,7 +297,11 @@ def _cache_valid(path: Path) -> bool:
     try:
         data = json.loads(path.read_text())
         cached_at = datetime.fromisoformat(data.get("_cached_at", "2000-01-01"))
-        return datetime.utcnow() - cached_at < timedelta(hours=_cache_ttl())
+        # V7.5 FIX: Use timezone-aware datetime
+        now = datetime.now(timezone.utc)
+        if cached_at.tzinfo is None:
+            cached_at = cached_at.replace(tzinfo=timezone.utc)
+        return now - cached_at < timedelta(hours=_cache_ttl())
     except Exception:
         return False
 
@@ -315,7 +320,7 @@ def _write_cache(path: Path, result: Any, key: str, provider: str = "", model: s
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         data = {
-            "_cached_at": datetime.utcnow().isoformat(),
+            "_cached_at": datetime.now(timezone.utc).isoformat(),
             "_key": key,
             "_provider": provider,
             "_model": model,
@@ -587,7 +592,7 @@ def query_llm_json(prompt: str, task_type: str = "default",
 
 # Legacy globals for backward compat
 OLLAMA_API = os.environ.get("OLLAMA_API", "http://127.0.0.1:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mistral:7b-instruct-v0.2-q4_0")
 CACHE_DIR = _cache_dir()
 CACHE_TTL_HOURS = _cache_ttl()
 

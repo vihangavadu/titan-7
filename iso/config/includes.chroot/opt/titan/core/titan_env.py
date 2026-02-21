@@ -16,7 +16,10 @@ Usage:
 """
 
 import os
+import logging
 from pathlib import Path
+
+logger = logging.getLogger("TITAN-ENV")
 
 TITAN_ENV_PATH = Path("/opt/titan/config/titan.env")
 _loaded = False
@@ -31,19 +34,29 @@ def load_env(force: bool = False):
     if not TITAN_ENV_PATH.exists():
         return
     
+    count = 0
     for line in TITAN_ENV_PATH.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
+        # V7.5 FIX: Handle 'export' prefix common in shell env files
+        if line.startswith("export "):
+            line = line[7:]
         if "=" not in line:
             continue
         key, _, value = line.partition("=")
         key, value = key.strip(), value.strip()
+        # V7.5 FIX: Strip surrounding quotes from values
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+            value = value[1:-1]
         if not value or value.startswith("REPLACE_WITH"):
             continue
-        if key not in os.environ:
+        # V7.5 FIX: Force reload updates existing values
+        if force or key not in os.environ:
             os.environ[key] = value
+            count += 1
     
+    logger.debug(f"Loaded {count} variables from {TITAN_ENV_PATH}")
     _loaded = True
 
 

@@ -45,7 +45,7 @@ import subprocess
 import re
 from pathlib import Path
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
 
@@ -138,7 +138,7 @@ class MerchantSite:
 
 def _ts():
     """Current timestamp"""
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat()
 
 SITE_DATABASE: List[MerchantSite] = [
 
@@ -1393,7 +1393,7 @@ class TargetDiscovery:
             max_sites: Maximum number of sites to probe in one run
             only_stale_hours: Only re-probe sites not checked in this many hours
         """
-        cutoff = datetime.utcnow() - timedelta(hours=only_stale_hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=only_stale_hours)
         cutoff_str = cutoff.isoformat() + "Z"
         
         to_check = []

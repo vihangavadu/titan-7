@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 import uuid
@@ -206,7 +206,7 @@ class TestEnvironment:
         
         results = {
             "profile_id": profile_data.get("profile_id", str(uuid.uuid4())),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_passed": True,
             "overall_risk_score": 0.0,
             "detection_results": {},

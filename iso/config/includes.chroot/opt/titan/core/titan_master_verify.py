@@ -52,7 +52,8 @@ SYSFS_DMI = Path("/sys/class/dmi/id")
 BPF_PIN_PATH = Path("/sys/fs/bpf/titan_network_shield")
 
 # Browser paths
-CAMOUFOX_PREFS = LEGACY_ROOT / "camoufox" / "settings" / "defaults" / "pref" / "local-settings.js"
+# V7.5 FIX: Use correct Camoufox install path on Titan OS
+CAMOUFOX_PREFS = Path("/opt/camoufox/defaults/pref/local-settings.js")
 FONT_CONFIG = Path("/etc/fonts/local.conf")
 
 # Thresholds
@@ -406,7 +407,8 @@ def check_layer_2(report: MasterVerifyReport, profile_path: Optional[Path] = Non
         if pref_path and pref_path.exists():
             try:
                 content = pref_path.read_text()
-                if "titan.audio.seed" in content or "privacy.resistFingerprinting" in content:
+                # V7.5 FIX: Correct pref name from audio_hardener.py
+                if "titan.audio.noise_injection" in content or "privacy.resistFingerprinting" in content:
                     audio_hardened = True
                     break
             except Exception:
@@ -777,7 +779,7 @@ def countdown():
 def save_report(report: MasterVerifyReport, profile_path: Optional[Path] = None):
     """Save verification report to state directory"""
     report_data = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "passed": report.passed,
         "duration_ms": report.duration_ms,
         "checks": [
@@ -800,16 +802,16 @@ def save_report(report: MasterVerifyReport, profile_path: Optional[Path] = None)
     try:
         with open(state_file, "w") as f:
             json.dump(report_data, f, indent=2)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("TITAN-MVP").warning(f"Failed to save report to state: {e}")
     
     # Also save to profile if available
     if profile_path and profile_path.exists():
         try:
             with open(profile_path / "preflight_report.json", "w") as f:
                 json.dump(report_data, f, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger("TITAN-MVP").warning(f"Failed to save report to profile: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

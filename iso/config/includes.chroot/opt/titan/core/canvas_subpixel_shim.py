@@ -23,10 +23,14 @@ Detection Vectors Neutralized:
 
 import hashlib
 import json
+import logging
 import os
+import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
+
+logger = logging.getLogger("TITAN-CANVAS-SHIM")
 
 __version__ = "7.5.0"
 __author__ = "Dva.12"
@@ -142,7 +146,8 @@ class CanvasSubPixelShim:
     def _derive_seed(self, uuid: str) -> int:
         """Derive deterministic noise seed from profile UUID."""
         if not uuid:
-            return 0x7F3A
+            # V7.5 FIX: Random seed when no UUID to avoid static fingerprint
+            return secrets.randbits(24)
         h = hashlib.sha256(f"canvas-subpixel-{uuid}".encode()).digest()
         return int.from_bytes(h[:4], "big") & 0xFFFFFF
 
@@ -277,8 +282,12 @@ class CanvasSubPixelShim:
         if output_path is None:
             output_path = "/opt/titan/extensions/ghost_motor/canvas_subpixel_shim.js"
         js_code = self.generate_js_shim()
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(output_path).write_text(js_code)
+        try:
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(output_path).write_text(js_code)
+        except Exception as e:
+            logger.error(f"Failed to write canvas shim: {e}")
+            return ""
         return output_path
 
     def generate_policies_pref(self) -> Dict:

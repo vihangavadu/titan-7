@@ -34,7 +34,7 @@ import sqlite3
 import logging
 import threading
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -358,7 +358,7 @@ class TransactionDB:
                  user_agent, notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                tx.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+                tx.get("timestamp", datetime.now(timezone.utc).isoformat()),
                 tx.get("domain", "unknown"),
                 tx.get("url", ""),
                 tx.get("amount"),
@@ -392,7 +392,7 @@ class TransactionDB:
             return [dict(row) for row in cursor.fetchall()]
     
     def get_stats(self, hours: int = 24) -> Dict:
-        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat() + "Z"
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
         with self._lock:
             total = self.conn.execute(
                 "SELECT COUNT(*) FROM transactions WHERE timestamp > ?", (cutoff,)
@@ -465,7 +465,7 @@ class TxMonitorHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._respond(400, {"error": str(e)})
         elif self.path == "/api/heartbeat":
-            self._respond(200, {"status": "alive", "timestamp": datetime.utcnow().isoformat()})
+            self._respond(200, {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()})
         else:
             self._respond(404, {"error": "not found"})
     
@@ -581,7 +581,7 @@ class TransactionMonitor:
         
         # Build transaction record
         tx = {
-            "timestamp": data.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            "timestamp": data.get("timestamp", datetime.now(timezone.utc).isoformat()),
             "domain": data.get("domain", "unknown"),
             "url": data.get("url", ""),
             "amount": data.get("amount"),
@@ -637,12 +637,12 @@ class TransactionMonitor:
     
     def get_history(self, last_hours: int = 24, limit: int = 100) -> List[Dict]:
         """Get recent transaction history"""
-        cutoff = (datetime.utcnow() - timedelta(hours=last_hours)).isoformat() + "Z"
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=last_hours)).isoformat()
         return self.db.query("timestamp > ?", (cutoff,), limit)
     
     def get_declines(self, last_hours: int = 24, limit: int = 50) -> List[Dict]:
         """Get recent declined transactions"""
-        cutoff = (datetime.utcnow() - timedelta(hours=last_hours)).isoformat() + "Z"
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=last_hours)).isoformat()
         return self.db.query("timestamp > ? AND status = 'declined'", (cutoff,), limit)
     
     def get_stats(self, hours: int = 24) -> Dict:

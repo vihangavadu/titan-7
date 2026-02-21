@@ -11,7 +11,7 @@ Generates comprehensive failure analysis reports with:
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -196,7 +196,7 @@ class TestReport:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_name = f"titan_test_report_{timestamp}"
         
         saved_files = []
@@ -385,7 +385,7 @@ class ReportGenerator:
         
         return TestReport(
             title="TITAN V7.0 Test Environment Report",
-            generated_at=datetime.utcnow().isoformat(),
+            generated_at=datetime.now(timezone.utc).isoformat(),
             summary={
                 "total_tests": test_summary.total_tests,
                 "passed": test_summary.passed,

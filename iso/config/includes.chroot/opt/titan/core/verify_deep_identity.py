@@ -34,7 +34,8 @@ LEGACY_ROOT = Path("/opt/lucid-empire")
 PROFILES_DIR = TITAN_ROOT / "profiles"
 STATE_DIR = TITAN_ROOT / "state"
 
-CAMOUFOX_PREFS = LEGACY_ROOT / "camoufox" / "settings" / "defaults" / "pref" / "local-settings.js"
+# V7.5 FIX: Use correct Camoufox install path on Titan OS
+CAMOUFOX_PREFS = Path("/opt/camoufox/defaults/pref/local-settings.js")
 
 # Fonts that MUST NOT be visible when spoofing Windows/macOS
 LINUX_LEAK_FONTS = [
@@ -45,6 +46,9 @@ LINUX_LEAK_FONTS = [
     "Droid Sans", "Droid Serif",
     "FreeSans", "FreeSerif", "FreeMono",
     "Nimbus Sans", "Nimbus Roman",
+    # V7.5 FIX: Additional common Debian 12 fonts (synced with font_sanitizer.py)
+    "Source Code Pro", "Hack", "Cantarell Light",
+    "Noto Sans Mono", "Noto Sans Display",
 ]
 
 # Fonts that MUST be present per target OS
@@ -124,6 +128,8 @@ def verify_font_hygiene(target_os: str = "windows_11") -> bool:
             missing.append(font)
     
     if missing:
+        # V7.5 FIX: Missing required fonts should also fail the check
+        clean = False
         fail(f"Missing {len(missing)} required {target_os} fonts")
         for f_name in missing:
             print(f"        {C.RED}✗{C.END} {f_name}")
@@ -145,7 +151,7 @@ def verify_font_hygiene(target_os: str = "windows_11") -> bool:
     # Check font metric overrides
     # (These would be in the profile directory)
     
-    return clean and not leaks
+    return clean
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -181,8 +187,8 @@ def verify_audio_hardening(profile_path: Optional[Path] = None) -> bool:
                     prefs_checked = True
                 else:
                     warn("audio_config.json exists but hardening disabled")
-            except Exception:
-                warn("audio_config.json unreadable")
+            except Exception as e:
+                warn(f"audio_config.json unreadable: {e}")
     
     for label, path in prefs_to_scan:
         try:

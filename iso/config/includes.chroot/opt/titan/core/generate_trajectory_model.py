@@ -35,7 +35,7 @@ import random
 import hashlib
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -88,7 +88,7 @@ class WarmupTrajectoryPlan:
     total_duration_ms: float
     num_interactions: int
     interaction_sequence: List[InteractionType]
-    generated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
     def to_ghost_motor_config(self) -> Dict[str, Any]:
         """Export as Ghost Motor extension configuration"""
@@ -113,13 +113,18 @@ class WarmupTrajectoryPlan:
             "interaction_sequence": [i.value for i in self.interaction_sequence],
         }
     
-    def write_to_profile(self, profile_path: str) -> Path:
+    def write_to_profile(self, profile_path: str) -> Optional[Path]:
         """Write trajectory plan to profile directory"""
         out = Path(profile_path) / "warmup_trajectory.json"
-        with open(out, "w") as f:
-            json.dump(self.to_ghost_motor_config(), f, indent=2)
-        logger.info(f"[PHASE 2.2] Trajectory plan written: {len(self.trajectories)} segments, {self.total_duration_ms:.0f}ms")
-        return out
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with open(out, "w") as f:
+                json.dump(self.to_ghost_motor_config(), f, indent=2)
+            logger.info(f"[PHASE 2.2] Trajectory plan written: {len(self.trajectories)} segments, {self.total_duration_ms:.0f}ms")
+            return out
+        except Exception as e:
+            logger.error(f"[PHASE 2.2] Failed to write trajectory plan: {e}")
+            return None
 
 
 class TrajectoryPlanner:
@@ -210,7 +215,7 @@ class TrajectoryPlanner:
     
     def __init__(self, seed: Optional[int] = None):
         self.rng = random.Random(seed or int.from_bytes(hashlib.sha256(
-            datetime.now().isoformat().encode()
+            datetime.now(timezone.utc).isoformat().encode()
         ).digest()[:4], 'big'))
     
     def _fitts_time(self, distance: float, target_width: float) -> float:
@@ -292,10 +297,13 @@ class TrajectoryPlanner:
         if self.rng.random() < self.SUB_MOVEMENT_PROB and len(points) > 10:
             correction_start = len(points) - self.rng.randint(3, 8)
             correction_start = max(0, correction_start)
+            correction_range = len(points) - correction_start
             
-            # Small corrective movement toward final target
-            for j in range(correction_start, len(points)):
-                correction_tau = (j - correction_start) / (len(points) - correction_start)
+            # V7.5 FIX: Guard against division by zero
+            if correction_range > 0:
+              # Small corrective movement toward final target
+              for j in range(correction_start, len(points)):
+                correction_tau = (j - correction_start) / correction_range
                 correction_s = 10 * correction_tau**3 - 15 * correction_tau**4 + 6 * correction_tau**5
                 points[j].x += (xf - points[j].x) * correction_s * 0.3
                 points[j].y += (yf - points[j].y) * correction_s * 0.3

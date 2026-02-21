@@ -314,19 +314,25 @@ class TimezoneEnforcer:
     def _verify(self) -> Tuple[bool, str]:
         """Step 5: Verify system timezone matches target"""
         try:
-            result = subprocess.check_output(
+            abbrev = subprocess.check_output(
                 "date +%Z", shell=True, timeout=3
             ).decode().strip()
             
-            # Also check full timezone name
-            tz_link = os.readlink("/etc/localtime") if os.path.islink("/etc/localtime") else ""
+            # V7.5 FIX: Check IANA name via /etc/localtime symlink, not just abbreviation
+            tz_link = ""
+            if os.path.islink("/etc/localtime"):
+                tz_link = os.readlink("/etc/localtime").replace("/usr/share/zoneinfo/", "")
+            
+            # Verify IANA name matches target if available
+            if tz_link and tz_link != self.config.target_timezone:
+                return False, f"IANA mismatch: {tz_link} != {self.config.target_timezone}"
             
             # Verify the abbreviation isn't UTC when we expect otherwise
-            if self.config.target_timezone != "UTC" and result == "UTC":
+            if self.config.target_timezone != "UTC" and abbrev == "UTC":
                 return False, f"Still UTC (expected {self.config.target_timezone})"
             
-            logger.info(f"[PHASE 3.3] Verified: {result} ({tz_link})")
-            return True, result
+            logger.info(f"[PHASE 3.3] Verified: {abbrev} ({tz_link})")
+            return True, abbrev
             
         except Exception as e:
             return False, str(e)
@@ -337,11 +343,17 @@ class TimezoneEnforcer:
         
         # Determine locale from timezone
         tz_to_locale = {
+            "America/Sao_Paulo": "pt_BR.UTF-8",
+            "America/Mexico_City": "es_MX.UTF-8",
             "America/": "en_US.UTF-8",
             "Europe/London": "en_GB.UTF-8",
+            "Europe/Paris": "fr_FR.UTF-8",
+            "Europe/Berlin": "de_DE.UTF-8",
+            "Europe/Amsterdam": "nl_NL.UTF-8",
             "Europe/": "en_GB.UTF-8",
             "Australia/": "en_AU.UTF-8",
             "Asia/Tokyo": "ja_JP.UTF-8",
+            "Asia/Seoul": "ko_KR.UTF-8",
         }
         
         locale = "en_US.UTF-8"
@@ -355,7 +367,7 @@ class TimezoneEnforcer:
             "LANG": locale,
             "LC_ALL": locale,
             "TITAN_TIMEZONE": tz,
-            "TITAN_TIMEZONE_SET": datetime.now().isoformat(),
+            "TITAN_TIMEZONE_SET": datetime.now(timezone.utc).isoformat(),
         }
         
         # Set in current process
@@ -373,11 +385,11 @@ class TimezoneEnforcer:
                     "city": self.config.target_city,
                     "state": self.config.target_state,
                     "country": self.config.target_country,
-                    "set_at": datetime.now().isoformat(),
+                    "set_at": datetime.now(timezone.utc).isoformat(),
                     "env": env_vars,
                 }, f, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[PHASE 3.3] Failed to write timezone state: {e}")
         
         logger.info(f"[PHASE 3.3] Environment set: TZ={tz}, LANG={locale}")
         return env_vars

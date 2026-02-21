@@ -29,7 +29,7 @@ import threading
 import shutil
 import traceback
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List, Any, Tuple
 from dataclasses import dataclass, field, asdict
 from enum import Enum
@@ -191,7 +191,7 @@ class BugDatabase:
         self.conn.commit()
 
     def insert_report(self, report: BugReport) -> int:
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
         report.created_at = now
         report.updated_at = now
         report.system_info = self._collect_system_info()
@@ -232,7 +232,7 @@ class BugDatabase:
         return dict(row) if row else None
 
     def update_patch_status(self, report_id: int, status: str, diff: str = ""):
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
             "UPDATE bug_reports SET patch_status=?, patch_diff=?, patch_applied_at=?, updated_at=? WHERE id=?",
             (status, diff, now if status == "patched" else "", now, report_id)
@@ -240,7 +240,7 @@ class BugDatabase:
         self.conn.commit()
 
     def insert_patch(self, bug_id: int, file_path: str, original: str, patched: str, diff: str):
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
             "INSERT INTO patches (bug_id, file_path, original_content, patched_content, diff, created_at) VALUES (?,?,?,?,?,?)",
             (bug_id, file_path, original, patched, diff, now)
@@ -252,7 +252,7 @@ class BugDatabase:
             "SELECT id, count FROM decline_patterns WHERE psp=? AND decline_code=? AND target_domain=?",
             (psp, code, domain)
         ).fetchone()
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat()
         if existing:
             self.conn.execute(
                 "UPDATE decline_patterns SET count=count+1, last_seen=? WHERE id=?",
@@ -336,7 +336,7 @@ class WindsurfBridge:
         """Create a patch task file that Windsurf Cascade can process."""
         os.makedirs(str(PATCHES_DIR), exist_ok=True)
         task_id = hashlib.sha256(
-            f"{report['id']}:{report['title']}:{datetime.utcnow().isoformat()}".encode()
+            f"{report['id']}:{report['title']}:{datetime.now(timezone.utc).isoformat()}".encode()
         ).hexdigest()[:12]
 
         task = {
@@ -351,7 +351,7 @@ class WindsurfBridge:
             "target_domain": report.get("target_domain", ""),
             "decline_code": report.get("decline_code", ""),
             "error_log": report.get("error_log", ""),
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "status": "open",
             "instructions": self._generate_patch_instructions(report),
         }
@@ -1472,7 +1472,7 @@ class BugReporterWindow(QMainWindow):
                 event = json.loads(line.strip())
                 existing = self.db.conn.execute(
                     "SELECT id FROM bug_reports WHERE title LIKE ? AND created_at > ?",
-                    (f"%{event.get('reason', '')}%", (datetime.utcnow() - timedelta(hours=24)).isoformat())
+                    (f"%{event.get('reason', '')}%", (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat())
                 ).fetchone()
                 if not existing:
                     report = BugReport(

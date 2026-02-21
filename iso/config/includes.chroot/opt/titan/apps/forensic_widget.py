@@ -7,7 +7,7 @@ import sys
 import json
 import time
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 try:
@@ -50,7 +50,7 @@ class ForensicAnalysisThread(QThread):
             self.analysis_complete.emit({
                 "system_state": system_state,
                 "analysis": analysis,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
         except Exception as e:
             print(f"Forensic analysis error: {e}")

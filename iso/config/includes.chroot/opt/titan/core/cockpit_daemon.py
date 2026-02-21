@@ -258,7 +258,8 @@ class CockpitDaemon:
             "uptime": time.time(),
             "kernel_module_loaded": os.path.exists("/sys/module/titan_hw"),
             "ebpf_active": os.path.exists("/sys/fs/bpf/titan_xdp"),
-            "overlay_active": "overlay" in open("/proc/mounts").read() if os.path.exists("/proc/mounts") else False,
+            # V7.5 FIX: Use context manager to avoid file handle leak
+            "overlay_active": "overlay" in Path("/proc/mounts").read_text() if os.path.exists("/proc/mounts") else False,
         }
         return CommandResult(success=True, action="get_status", data=status)
 

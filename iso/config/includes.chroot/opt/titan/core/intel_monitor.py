@@ -40,7 +40,7 @@ import re
 import shutil
 from pathlib import Path
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
 
@@ -614,7 +614,7 @@ class SessionManager:
         if session.expires_at:
             try:
                 expires = datetime.fromisoformat(session.expires_at.rstrip("Z"))
-                if datetime.utcnow() > expires:
+                if datetime.now(timezone.utc) > expires.replace(tzinfo=timezone.utc) if expires.tzinfo is None else expires:
                     return False
             except (ValueError, TypeError):
                 pass
@@ -811,7 +811,7 @@ class FeedFetcher:
                 author=author.group(1).strip() if author else "Unknown",
                 content=content_text,
                 url=link_text,
-                timestamp=pub_date.group(1).strip() if pub_date else datetime.utcnow().isoformat(),
+                timestamp=pub_date.group(1).strip() if pub_date else datetime.now(timezone.utc).isoformat(),
                 category="news",
                 priority=priority,
                 tags=tags,
@@ -875,8 +875,8 @@ class IntelMonitor:
                     IntelPost(**post) for post in data.get("posts", [])
                     if isinstance(post, dict)
                 ]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not load feed cache {cache_file.name}: {e}")
     
     def _save_feed_cache(self, source_id: str, posts: List[IntelPost]):
         """Save feed cache to disk"""
@@ -885,7 +885,7 @@ class IntelMonitor:
             path = self.FEED_CACHE / f"{source_id}.json"
             data = {
                 "source_id": source_id,
-                "fetched_at": datetime.utcnow().isoformat() + "Z",
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
                 "posts": [
                     {
                         "post_id": p.post_id, "source_id": p.source_id,
@@ -988,9 +988,9 @@ class IntelMonitor:
         if reply_templates:
             session.reply_templates = reply_templates
         
-        session.login_timestamp = datetime.utcnow().isoformat() + "Z"
+        session.login_timestamp = datetime.now(timezone.utc).isoformat()
         # Default expiry: 24 hours
-        session.expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat() + "Z"
+        session.expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
         
         self.session_mgr.save_session(session)
         
@@ -1062,7 +1062,7 @@ class IntelMonitor:
             self._feed_cache[source_id] = cached
             self._save_feed_cache(source_id, cached)
             
-            source.last_fetch = datetime.utcnow().isoformat() + "Z"
+            source.last_fetch = datetime.now(timezone.utc).isoformat()
         
         return [self._post_to_dict(p) for p in posts]
     
@@ -1149,7 +1149,7 @@ class IntelMonitor:
                     author="Unknown",
                     content="[Content requires engagement — click to view and engage]" if requires_engagement else "",
                     url=link,
-                    timestamp=datetime.utcnow().isoformat() + "Z",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     category="thread",
                     priority=priority,
                     tags=tags,

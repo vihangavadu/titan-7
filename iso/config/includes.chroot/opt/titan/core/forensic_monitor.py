@@ -10,7 +10,7 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 
 logger = logging.getLogger("TITAN-FORENSIC-MONITOR")
@@ -36,7 +36,7 @@ class ForensicMonitor:
     def scan_system_state(self) -> Dict[str, Any]:
         """Collect comprehensive system state for forensic analysis."""
         state = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "hostname": self._get_hostname(),
             "kernel": self._get_kernel_info(),
             "processes": self._get_process_list(),
@@ -55,8 +55,8 @@ class ForensicMonitor:
     def _get_hostname(self) -> str:
         """Get system hostname."""
         try:
-            return subprocess.check_output(["hostname"], text=True).strip()
-        except:
+            return subprocess.check_output(["hostname"], text=True, timeout=5).strip()
+        except Exception:
             return "unknown"
     
     def _get_kernel_info(self) -> Dict[str, str]:
@@ -64,9 +64,9 @@ class ForensicMonitor:
         info = {}
         try:
             # Kernel version
-            info["kernel"] = subprocess.check_output(["uname", "-r"], text=True).strip()
-            info["system"] = subprocess.check_output(["uname", "-s"], text=True).strip()
-            info["arch"] = subprocess.check_output(["uname", "-m"], text=True).strip()
+            info["kernel"] = subprocess.check_output(["uname", "-r"], text=True, timeout=5).strip()
+            info["system"] = subprocess.check_output(["uname", "-s"], text=True, timeout=5).strip()
+            info["arch"] = subprocess.check_output(["uname", "-m"], text=True, timeout=5).strip()
             
             # DMI info (hardware identifiers)
             if Path("/sys/class/dmi/id/product_name").exists():
@@ -84,7 +84,7 @@ class ForensicMonitor:
             # Get process list with ps
             output = subprocess.check_output([
                 "ps", "aux", "--sort=-%cpu", "--no-headers"
-            ], text=True)
+            ], text=True, timeout=10)
             
             for line in output.strip().split('\n')[:50]:  # Top 50 processes
                 parts = line.split(None, 10)
@@ -117,18 +117,18 @@ class ForensicMonitor:
             try:
                 output = subprocess.check_output([
                     "netstat", "-tn", "--established"
-                ], text=True, stderr=subprocess.DEVNULL)
+                ], text=True, stderr=subprocess.DEVNULL, timeout=10)
                 for line in output.strip().split('\n')[2:]:
                     if line.strip():
                         network["connections"].append(line.split()[:5])
-            except:
+            except Exception:
                 pass
             
             # Routing table
             try:
-                output = subprocess.check_output(["ip", "route"], text=True)
+                output = subprocess.check_output(["ip", "route"], text=True, timeout=5)
                 network["routes"] = output.strip().split('\n')[:10]
-            except:
+            except Exception:
                 pass
                 
         except Exception as e:
@@ -162,7 +162,7 @@ class ForensicMonitor:
                     else:
                         if Path(path).exists():
                             self._scan_directory(path, artifacts)
-                except:
+                except Exception:
                     pass
             
             # Check for Titan-specific files
@@ -211,7 +211,7 @@ class ForensicMonitor:
                             "path": str(item),
                             "size_mb": stat.st_size // (1024 * 1024)
                         })
-                except:
+                except Exception:
                     continue
         except Exception as e:
             logger.debug(f"Failed to scan directory {path}: {e}")
@@ -257,7 +257,7 @@ class ForensicMonitor:
                     # Get last 50 lines
                     output = subprocess.check_output([
                         "tail", "-50", log_file
-                    ], text=True, stderr=subprocess.DEVNULL)
+                    ], text=True, stderr=subprocess.DEVNULL, timeout=10)
                     
                     # Filter for suspicious keywords
                     suspicious_keywords = [
@@ -268,7 +268,7 @@ class ForensicMonitor:
                     for line in output.strip().split('\n'):
                         if any(keyword in line.lower() for keyword in suspicious_keywords):
                             logs[log_type].append(line.strip())
-            except:
+            except Exception:
                 pass
         
         return logs
@@ -308,7 +308,7 @@ class ForensicMonitor:
                     services[service] = result.stdout.strip()
                 else:
                     services[service] = "inactive"
-            except:
+            except Exception:
                 # Fallback to service command
                 try:
                     result = subprocess.run([
@@ -318,7 +318,7 @@ class ForensicMonitor:
                         services[service] = "active"
                     else:
                         services[service] = "inactive"
-                except:
+                except Exception:
                     services[service] = "unknown"
         
         return services
@@ -341,18 +341,18 @@ class ForensicMonitor:
             try:
                 output = subprocess.check_output([
                     "df", "-h", "--output=source,size,used,target"
-                ], text=True)
+                ], text=True, timeout=10)
                 hardware["disks"] = output.strip().split('\n')[1:]  # Skip header
-            except:
+            except Exception:
                 pass
             
             # USB devices
             try:
                 output = subprocess.check_output([
                     "lsusb"
-                ], text=True, stderr=subprocess.DEVNULL)
+                ], text=True, stderr=subprocess.DEVNULL, timeout=10)
                 hardware["usb_devices"] = output.strip().split('\n')
-            except:
+            except Exception:
                 hardware["usb_devices"] = []
                 
         except Exception as e:
@@ -375,7 +375,7 @@ class ForensicMonitor:
                                 "size": item.stat().st_size,
                                 "mtime": item.stat().st_mtime
                             })
-            except:
+            except Exception:
                 pass
         
         return temp_files[:100]  # Limit to 100 most recent
@@ -397,7 +397,7 @@ class ForensicMonitor:
                 for path in glob(path_pattern):
                     if Path(path).exists():
                         self._scan_browser_directory(path, artifacts)
-            except:
+            except Exception:
                 pass
         
         return artifacts
@@ -417,7 +417,7 @@ class ForensicMonitor:
                         artifacts["history"].append(str(item))
                     elif "cache" in name:
                         artifacts["cache"].append(str(item))
-        except:
+        except Exception:
             pass
     
     def _scan_titan_modules(self) -> Dict[str, Any]:
