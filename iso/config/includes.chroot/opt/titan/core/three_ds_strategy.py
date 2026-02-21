@@ -1885,6 +1885,149 @@ NON_VBV_BINS: Dict[str, List[NonVBVBin]] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# DYNAMIC EXPANSION VIA OLLAMA — Expands NON_VBV_BINS at runtime
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _expand_bin_database():
+    """Expand NON_VBV_BINS with Ollama-generated entries (cached, background)."""
+    try:
+        from dynamic_data import generate_bins_for_country, is_ollama_available
+        if not is_ollama_available():
+            return
+        
+        country_names = {
+            "US": "United States", "CA": "Canada", "GB": "United Kingdom",
+            "FR": "France", "DE": "Germany", "NL": "Netherlands",
+            "AU": "Australia", "IT": "Italy", "ES": "Spain",
+            "JP": "Japan", "BR": "Brazil", "MX": "Mexico",
+            "KR": "South Korea", "SG": "Singapore", "AE": "UAE",
+            "IN": "India", "TR": "Turkey", "TH": "Thailand",
+            "CO": "Colombia", "AR": "Argentina", "ZA": "South Africa",
+            "PL": "Poland", "SE": "Sweden", "IE": "Ireland",
+            "PT": "Portugal", "MY": "Malaysia", "PH": "Philippines",
+            "CL": "Chile",
+        }
+        
+        total_added = 0
+        for country_code, bins in NON_VBV_BINS.items():
+            if country_code == "US_EXT":
+                continue
+            country_name = country_names.get(country_code, country_code)
+            seed_dicts = []
+            for b in bins[:3]:
+                seed_dicts.append({
+                    "bin": b.bin_prefix, "bank": b.bank, "country": b.country,
+                    "network": b.network, "card_type": b.card_type,
+                    "card_level": b.card_level, "vbv_status": b.vbv_status,
+                    "three_ds_rate": b.three_ds_rate, "avs_enforced": b.avs_enforced,
+                    "notes": b.notes, "recommended_targets": b.recommended_targets,
+                })
+            
+            new_bins = generate_bins_for_country(country_code, country_name, seed_dicts, count=10)
+            existing_prefixes = {b.bin_prefix for b in bins}
+            for nb in new_bins:
+                prefix = nb.get("bin", "")
+                if prefix and prefix not in existing_prefixes:
+                    try:
+                        entry = NonVBVBin(
+                            bin_prefix=prefix,
+                            bank=nb.get("bank", "Unknown"),
+                            country=country_code,
+                            network=nb.get("network", "visa"),
+                            card_type=nb.get("card_type", "credit"),
+                            card_level=nb.get("card_level", "classic"),
+                            vbv_status=nb.get("vbv_status", "low_vbv"),
+                            three_ds_rate=float(nb.get("three_ds_rate", 0.20)),
+                            avs_enforced=nb.get("avs_enforced", False),
+                            notes=f"[Ollama] {nb.get('notes', '')}",
+                            recommended_targets=nb.get("recommended_targets", ["g2a.com"]),
+                        )
+                        bins.append(entry)
+                        existing_prefixes.add(prefix)
+                        total_added += 1
+                    except Exception:
+                        continue
+        
+        if total_added:
+            logger.info(f"Ollama expanded NON_VBV_BINS: +{total_added} BINs")
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"Dynamic BIN expansion failed: {e}")
+
+
+def _expand_country_profiles():
+    """Expand COUNTRY_PROFILES with Ollama-generated entries for new countries."""
+    try:
+        from dynamic_data import generate_country_profiles, is_ollama_available
+        if not is_ollama_available():
+            return
+        
+        # Countries we have BINs for but no profile
+        bin_countries = set(NON_VBV_BINS.keys()) - {"US_EXT"}
+        profile_countries = set(COUNTRY_PROFILES.keys())
+        missing = bin_countries - profile_countries
+        
+        if not missing:
+            return
+        
+        seed_dicts = []
+        for code in list(profile_countries)[:3]:
+            p = COUNTRY_PROFILES[code]
+            seed_dicts.append({
+                "code": p.code, "name": p.name, "difficulty": p.difficulty,
+                "psd2_enforced": p.psd2_enforced, "three_ds_base_rate": p.three_ds_base_rate,
+                "avs_common": p.avs_common, "best_card_types": p.best_card_types,
+                "best_networks": p.best_networks, "notes": p.notes,
+                "recommended_targets": p.recommended_targets,
+            })
+        
+        new_profiles = generate_country_profiles(list(missing), seed_dicts)
+        added = 0
+        for prof in new_profiles:
+            code = prof.get("code", "").upper()
+            if code and code not in COUNTRY_PROFILES:
+                try:
+                    COUNTRY_PROFILES[code] = CountryProfile(
+                        code=code,
+                        name=prof.get("name", code),
+                        difficulty=prof.get("difficulty", "moderate"),
+                        psd2_enforced=prof.get("psd2_enforced", False),
+                        three_ds_base_rate=float(prof.get("three_ds_base_rate", 0.30)),
+                        avs_common=prof.get("avs_common", False),
+                        best_card_types=prof.get("best_card_types", ["credit"]),
+                        best_networks=prof.get("best_networks", ["visa", "mastercard"]),
+                        notes=f"[Ollama] {prof.get('notes', '')}",
+                        recommended_targets=prof.get("recommended_targets", ["g2a.com"]),
+                    )
+                    added += 1
+                except Exception:
+                    continue
+        
+        if added:
+            logger.info(f"Ollama expanded COUNTRY_PROFILES: +{added} countries")
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"Dynamic country profile expansion failed: {e}")
+
+
+# Run BIN + country expansion in background at import time
+def _background_expand_3ds():
+    import threading
+    def _worker():
+        _expand_bin_database()
+        _expand_country_profiles()
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+try:
+    _background_expand_3ds()
+except Exception:
+    pass
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # COUNTRY DIFFICULTY RANKING
 # ═══════════════════════════════════════════════════════════════════════════
 
