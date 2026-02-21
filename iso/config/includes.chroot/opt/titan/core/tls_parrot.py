@@ -44,12 +44,17 @@ __author__ = "Dva.12"
 
 class ParrotTarget(Enum):
     """Supported browser TLS fingerprint targets."""
+    CHROME_133_WIN11 = "chrome_133_win11"
+    CHROME_132_WIN11 = "chrome_132_win11"
     CHROME_131_WIN11 = "chrome_131_win11"
     CHROME_128_WIN11 = "chrome_128_win11"
     CHROME_131_MACOS = "chrome_131_macos"
+    FIREFOX_134_WIN11 = "firefox_134_win11"
     FIREFOX_132_WIN11 = "firefox_132_win11"
     FIREFOX_128_WIN11 = "firefox_128_win11"
+    EDGE_133_WIN11 = "edge_133_win11"
     EDGE_131_WIN11 = "edge_131_win11"
+    SAFARI_18_MACOS = "safari_18_macos"
     SAFARI_17_MACOS = "safari_17_macos"
     SAFARI_17_IOS = "safari_17_ios"
 
@@ -269,6 +274,111 @@ TEMPLATES[ParrotTarget.FIREFOX_128_WIN11] = TLSTemplate(
     padding_target=0,
     delegated_credentials_enabled=True,
 )
+# Chrome 132/133 — same cipher suite as 131, minor extension changes
+TEMPLATES[ParrotTarget.CHROME_132_WIN11] = TLSTemplate(
+    target=ParrotTarget.CHROME_132_WIN11,
+    ja3_hash="cd08e31494f9531f560d64c695473da9",
+    ja4_hash="t13d1517h2_8daaf6152771_b0da82dd1658",
+    tls_version=0x0303,
+    cipher_suites=TEMPLATES[ParrotTarget.CHROME_131_WIN11].cipher_suites.copy(),
+    extensions=[0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 27, 17513, 21, 41],
+    supported_groups=[0x001D, 0x0017, 0x0018, 0x0019, 0x0100, 0x0101],
+    ec_point_formats=[0],
+    sig_algorithms=TEMPLATES[ParrotTarget.CHROME_131_WIN11].sig_algorithms.copy(),
+    alpn_protocols=["h2", "http/1.1"],
+    key_share_groups=[0x001D, 0x0017],
+    psk_key_exchange_modes=[1],
+    supported_versions=[0x0304, 0x0303],
+    compress_certificate_algos=[2],
+    grease_enabled=True,
+    record_size_limit=16385,
+    padding_target=517,
+    encrypted_client_hello=True,
+)
+TEMPLATES[ParrotTarget.CHROME_133_WIN11] = TLSTemplate(
+    target=ParrotTarget.CHROME_133_WIN11,
+    ja3_hash="cd08e31494f9531f560d64c695473da9",
+    ja4_hash="t13d1518h2_8daaf6152771_b0da82dd1658",
+    tls_version=0x0303,
+    cipher_suites=TEMPLATES[ParrotTarget.CHROME_131_WIN11].cipher_suites.copy(),
+    extensions=[0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 27, 17513, 21, 41],
+    supported_groups=[0x001D, 0x0017, 0x0018, 0x0019, 0x0100, 0x0101],
+    ec_point_formats=[0],
+    sig_algorithms=TEMPLATES[ParrotTarget.CHROME_131_WIN11].sig_algorithms.copy(),
+    alpn_protocols=["h2", "http/1.1"],
+    key_share_groups=[0x001D, 0x0017],
+    psk_key_exchange_modes=[1],
+    supported_versions=[0x0304, 0x0303],
+    compress_certificate_algos=[2],
+    grease_enabled=True,
+    record_size_limit=16385,
+    padding_target=517,
+    encrypted_client_hello=True,
+)
+# Firefox 134 — same cipher suite as 132, ECH fully enabled
+TEMPLATES[ParrotTarget.FIREFOX_134_WIN11] = TLSTemplate(
+    target=ParrotTarget.FIREFOX_134_WIN11,
+    ja3_hash="579ccef312d18482fc42e2b822ca2430",
+    ja4_hash="t13d1516h2_9dc949149365_e7c285222651",
+    tls_version=0x0303,
+    cipher_suites=TEMPLATES[ParrotTarget.FIREFOX_132_WIN11].cipher_suites.copy(),
+    extensions=TEMPLATES[ParrotTarget.FIREFOX_132_WIN11].extensions.copy(),
+    supported_groups=TEMPLATES[ParrotTarget.FIREFOX_132_WIN11].supported_groups.copy(),
+    ec_point_formats=[0],
+    sig_algorithms=TEMPLATES[ParrotTarget.FIREFOX_132_WIN11].sig_algorithms.copy(),
+    alpn_protocols=["h2", "http/1.1"],
+    key_share_groups=[0x001D, 0x0017],
+    psk_key_exchange_modes=[1],
+    supported_versions=[0x0304, 0x0303],
+    compress_certificate_algos=[],
+    grease_enabled=False,
+    record_size_limit=16385,
+    padding_target=0,
+    delegated_credentials_enabled=True,
+    encrypted_client_hello=True,
+)
+# Edge 133 — mirrors Chrome 133 (same Chromium base)
+TEMPLATES[ParrotTarget.EDGE_133_WIN11] = TLSTemplate(
+    target=ParrotTarget.EDGE_133_WIN11,
+    ja3_hash="cd08e31494f9531f560d64c695473da9",
+    ja4_hash="t13d1518h2_8daaf6152771_b0da82dd1658",
+    tls_version=0x0303,
+    cipher_suites=TEMPLATES[ParrotTarget.CHROME_133_WIN11].cipher_suites.copy(),
+    extensions=TEMPLATES[ParrotTarget.CHROME_133_WIN11].extensions.copy(),
+    supported_groups=TEMPLATES[ParrotTarget.CHROME_133_WIN11].supported_groups.copy(),
+    ec_point_formats=[0],
+    sig_algorithms=TEMPLATES[ParrotTarget.CHROME_133_WIN11].sig_algorithms.copy(),
+    alpn_protocols=["h2", "http/1.1"],
+    key_share_groups=[0x001D, 0x0017],
+    psk_key_exchange_modes=[1],
+    supported_versions=[0x0304, 0x0303],
+    compress_certificate_algos=[2],
+    grease_enabled=True,
+    record_size_limit=16385,
+    padding_target=517,
+    encrypted_client_hello=True,
+)
+# Safari 18 macOS Sequoia — updated cipher ordering
+TEMPLATES[ParrotTarget.SAFARI_18_MACOS] = TLSTemplate(
+    target=ParrotTarget.SAFARI_18_MACOS,
+    ja3_hash="773906b0efdefa24a7f2b8eb6985bf37",
+    ja4_hash="t13d1516h2_a09f3c656075_3205bec25e5b",
+    tls_version=0x0303,
+    cipher_suites=TEMPLATES[ParrotTarget.SAFARI_17_MACOS].cipher_suites.copy(),
+    extensions=[0, 23, 65281, 10, 11, 16, 5, 13, 51, 45, 43, 27, 21],
+    supported_groups=[0x001D, 0x0017, 0x0018, 0x0019],
+    ec_point_formats=[0],
+    sig_algorithms=TEMPLATES[ParrotTarget.SAFARI_17_MACOS].sig_algorithms.copy(),
+    alpn_protocols=["h2", "http/1.1"],
+    key_share_groups=[0x001D, 0x0017],
+    psk_key_exchange_modes=[1],
+    supported_versions=[0x0304, 0x0303],
+    compress_certificate_algos=[],
+    grease_enabled=False,
+    record_size_limit=16384,
+    padding_target=0,
+    encrypted_client_hello=True,
+)
 TEMPLATES[ParrotTarget.SAFARI_17_IOS] = TLSTemplate(
     target=ParrotTarget.SAFARI_17_IOS,
     ja3_hash="773906b0efdefa24a7f2b8eb6985bf37",
@@ -410,17 +520,17 @@ class TLSParrotEngine:
         """
         ua_lower = browser_ua.lower()
         if "chrome" in ua_lower and "edg" in ua_lower:
-            return ParrotTarget.EDGE_131_WIN11
+            return ParrotTarget.EDGE_133_WIN11
         elif "chrome" in ua_lower:
-            return ParrotTarget.CHROME_131_WIN11
+            return ParrotTarget.CHROME_133_WIN11
         elif "firefox" in ua_lower:
-            return ParrotTarget.FIREFOX_132_WIN11
+            return ParrotTarget.FIREFOX_134_WIN11
         elif "safari" in ua_lower and "iphone" in ua_lower:
             return ParrotTarget.SAFARI_17_IOS
         elif "safari" in ua_lower:
-            return ParrotTarget.SAFARI_17_MACOS
+            return ParrotTarget.SAFARI_18_MACOS
         else:
-            return ParrotTarget.CHROME_131_WIN11
+            return ParrotTarget.CHROME_133_WIN11
 
     # ── v7.5 JA4 Permutation + Dynamic GREASE Shuffling ──────────────────────
 

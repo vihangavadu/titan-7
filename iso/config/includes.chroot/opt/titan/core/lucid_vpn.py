@@ -92,6 +92,11 @@ class VPNConfig:
     xray_public_key: str = ""
     xray_short_id: str = ""
     sni_target: str = "www.microsoft.com"
+    sni_rotation_pool: List[str] = field(default_factory=lambda: [
+        "www.microsoft.com", "www.apple.com", "www.amazon.com",
+        "learn.microsoft.com", "azure.microsoft.com",
+        "www.cloudflare.com", "www.google.com", "www.yahoo.com",
+    ])
     flow: str = "xtls-rprx-vision"
     
     # Tailscale

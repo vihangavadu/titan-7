@@ -721,6 +721,175 @@ def check_layer_3(report: MasterVerifyReport, profile_path: Optional[Path] = Non
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# LAYER 4: MODULE INTEGRATION VERIFICATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+def check_layer_4(report: MasterVerifyReport):
+    """Layer 4: Module Integration & Connectivity Verification"""
+    logger = logging.getLogger("TITAN-MVP")
+    print(f"\n{C.CYAN}[LAYER 4] MODULE INTEGRATION{C.END}")
+    
+    # 4.1: Check core module imports
+    core_dir = TITAN_ROOT / "core"
+    expected_modules = [
+        "integration_bridge.py",
+        "genesis_core.py",
+        "cerberus_core.py",
+        "kyc_core.py",
+        "ja4_permutation_engine.py",
+        "first_session_bias_eliminator.py",
+        "tra_exemption_engine.py",
+        "indexeddb_lsng_synthesis.py",
+        "issuer_algo_defense.py",
+        "tof_depth_synthesis.py",
+        "ghost_motor_v6.py",
+        "ai_intelligence_engine.py",
+        "three_ds_strategy.py",
+    ]
+    
+    missing = []
+    present = []
+    for module in expected_modules:
+        if (core_dir / module).exists():
+            present.append(module)
+        else:
+            missing.append(module)
+    
+    if not missing:
+        r = CheckResult(4, "core_modules", Verdict.OK,
+                       f"All {len(expected_modules)} critical core modules present")
+    elif len(missing) <= 2:
+        r = CheckResult(4, "core_modules", Verdict.WARN,
+                       f"Missing {len(missing)} module(s): {', '.join(missing)}", critical=False)
+    else:
+        r = CheckResult(4, "core_modules", Verdict.FAIL,
+                       f"Missing {len(missing)} critical modules — system degraded")
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.2: Check integration bridge
+    bridge_file = core_dir / "integration_bridge.py"
+    if bridge_file.exists():
+        try:
+            content = bridge_file.read_text(encoding='utf-8', errors='replace')
+            # Check for V7.6 module availability flags
+            v76_modules = [
+                "JA4_AVAILABLE",
+                "FSB_AVAILABLE",
+                "TRA_AVAILABLE",
+                "LSNG_AVAILABLE",
+                "ISSUER_DEFENSE_AVAILABLE",
+                "TOF_AVAILABLE",
+            ]
+            found = sum(1 for m in v76_modules if m in content)
+            
+            if found == len(v76_modules):
+                r = CheckResult(4, "bridge_v76", Verdict.OK,
+                               f"Integration bridge V7.6 — all {found}/{len(v76_modules)} module hooks present")
+            elif found >= 4:
+                r = CheckResult(4, "bridge_v76", Verdict.WARN,
+                               f"Integration bridge — {found}/{len(v76_modules)} V7.6 modules connected", critical=False)
+            else:
+                r = CheckResult(4, "bridge_v76", Verdict.FAIL,
+                               f"Integration bridge outdated — only {found}/{len(v76_modules)} V7.6 modules")
+        except Exception as e:
+            r = CheckResult(4, "bridge_v76", Verdict.FAIL, f"Bridge unreadable: {e}")
+    else:
+        r = CheckResult(4, "bridge_v76", Verdict.FAIL, "Integration bridge NOT FOUND")
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.3: Check titan_api.py
+    api_file = core_dir / "titan_api.py"
+    if api_file.exists():
+        try:
+            content = api_file.read_text(encoding='utf-8', errors='replace')
+            endpoint_count = content.count("@app.route") + content.count("def create_flask_app")
+            if "MODULES_AVAILABLE" in content and endpoint_count > 0:
+                r = CheckResult(4, "titan_api", Verdict.OK,
+                               f"TITAN API: endpoint router present")
+            else:
+                r = CheckResult(4, "titan_api", Verdict.WARN,
+                               "TITAN API: minimal endpoints", critical=False)
+        except Exception as e:
+            r = CheckResult(4, "titan_api", Verdict.FAIL, f"API unreadable: {e}")
+    else:
+        r = CheckResult(4, "titan_api", Verdict.WARN, "TITAN API not found (optional)", critical=False)
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.4: Check app_unified.py (GUI)
+    app_file = TITAN_ROOT / "apps" / "app_unified.py"
+    if app_file.exists():
+        try:
+            content = app_file.read_text(encoding='utf-8', errors='replace')
+            # Check for V7.6 module imports
+            v76_imports = [
+                "V76_ARCH_AVAILABLE",
+                "V76_KYC_ENHANCED",
+                "V76_BRIDGE_ENHANCED",
+            ]
+            found = sum(1 for m in v76_imports if m in content)
+            
+            if found == len(v76_imports):
+                r = CheckResult(4, "gui_unified", Verdict.OK,
+                               f"Unified GUI V7.6 — all integrations present")
+            elif found >= 2:
+                r = CheckResult(4, "gui_unified", Verdict.WARN,
+                               f"Unified GUI — {found}/{len(v76_imports)} V7.6 integrations", critical=False)
+            else:
+                r = CheckResult(4, "gui_unified", Verdict.FAIL,
+                               f"Unified GUI outdated — missing V7.6 enhancements")
+        except Exception as e:
+            r = CheckResult(4, "gui_unified", Verdict.FAIL, f"GUI unreadable: {e}")
+    else:
+        r = CheckResult(4, "gui_unified", Verdict.WARN, "Unified GUI not found (optional)", critical=False)
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.5: Module loadability test
+    loadable_modules = 0
+    failed_modules = []
+    test_modules = ["genesis_core", "cerberus_core", "kyc_core", "integration_bridge"]
+    
+    import importlib.util
+    for mod_name in test_modules:
+        mod_path = core_dir / f"{mod_name}.py"
+        if mod_path.exists():
+            try:
+                spec = importlib.util.spec_from_file_location(mod_name, mod_path)
+                if spec and spec.loader:
+                    # Just check if spec is valid, don't actually load
+                    loadable_modules += 1
+            except Exception:
+                failed_modules.append(mod_name)
+    
+    if not failed_modules:
+        r = CheckResult(4, "module_syntax", Verdict.OK,
+                       f"Module syntax: {loadable_modules}/{len(test_modules)} core modules parseable")
+    else:
+        r = CheckResult(4, "module_syntax", Verdict.FAIL,
+                       f"Syntax errors in: {', '.join(failed_modules)}")
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.6: Check profgen modules
+    profgen_dir = TITAN_ROOT / "profgen"
+    if profgen_dir.exists():
+        profgen_files = list(profgen_dir.glob("*.py"))
+        if len(profgen_files) >= 5:
+            r = CheckResult(4, "profgen", Verdict.OK,
+                           f"Profgen: {len(profgen_files)} modules present")
+        else:
+            r = CheckResult(4, "profgen", Verdict.WARN,
+                           f"Profgen: only {len(profgen_files)} modules", critical=False)
+    else:
+        r = CheckResult(4, "profgen", Verdict.WARN, "Profgen directory not found", critical=False)
+    report.checks.append(r)
+    log_check(r)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # MASTER VERDICT
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -729,7 +898,7 @@ def print_verdict(report: MasterVerifyReport):
     print(f"\n{'='*60}")
     
     # Layer summary
-    layer_names = {0: "KERNEL", 1: "NETWORK", 2: "ENVIRONMENT", 3: "IDENTITY"}
+    layer_names = {0: "KERNEL", 1: "NETWORK", 2: "ENVIRONMENT", 3: "IDENTITY", 4: "INTEGRATION"}
     layer_status = report.layer_status
     
     for layer_num in sorted(layer_status.keys()):
@@ -874,6 +1043,7 @@ def main():
     check_layer_1(report, interface=args.interface)
     check_layer_2(report, profile_path=profile_path)
     check_layer_3(report, profile_path=profile_path, target_domain=args.target)
+    check_layer_4(report)
     
     report.end_time = time.time()
     

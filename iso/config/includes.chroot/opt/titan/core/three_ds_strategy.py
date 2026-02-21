@@ -723,6 +723,41 @@ PSP_3DS_VULNERABILITIES = {
             "Shopify's built-in fraud analysis is basic compared to enterprise antifraud",
         ],
     },
+    "checkout_com": {
+        "3ds_version": "2.0 primary, 1.0 fallback",
+        "downgrade_possible": True,
+        "downgrade_method": "Block threeDSMethodURL → ACS falls back to 1.0. Checkout.com retries with 'attempt' flag.",
+        "timeout_behavior": "Moderate — retries as non-3DS if merchant has 'attempt' mode enabled",
+        "frictionless_exploitable": True,
+        "frictionless_method": "Checkout.com risk engine: low-risk profile + matching geo + low amount = frictionless",
+        "amount_threshold": "EU: PSD2 thresholds apply. Non-EU: merchant-configured, typically $200-500.",
+        "recurring_exempt": True,
+        "recurring_method": "Stored card tokens with merchant-initiated flag skip 3DS on repeat charges.",
+        "weak_points": [
+            "Checkout.com 'attempt' mode: if 3DS fails, merchant can still attempt authorization",
+            "Non-EU cards have significantly lower 3DS enforcement",
+            "Frictionless approval rate is high for aged profiles with consistent behavior",
+            "Some merchants use Checkout.com in 'passive' 3DS mode — collects data but doesn't challenge",
+            "Soft decline → retry without 3DS is supported and commonly configured",
+        ],
+    },
+    "square": {
+        "3ds_version": "2.0 (limited adoption)",
+        "downgrade_possible": False,
+        "downgrade_method": "Square handles 3DS internally — limited merchant control.",
+        "timeout_behavior": "Strict — Square declines on 3DS failure",
+        "frictionless_exploitable": False,
+        "frictionless_method": "Square's risk engine is opaque — limited frictionless exploitation.",
+        "amount_threshold": "Dynamic — Square ML decides. Generally permissive on low amounts.",
+        "recurring_exempt": True,
+        "recurring_method": "Card on File (CoF) transactions skip 3DS after initial auth.",
+        "weak_points": [
+            "Square merchants are typically small businesses with basic fraud tools",
+            "In-person card-on-file tokens can be used for online purchases without 3DS",
+            "Low amounts ($1-25) almost never trigger 3DS on Square",
+            "Square's fraud detection focuses on chargeback patterns, not real-time behavioral analysis",
+        ],
+    },
 }
 
 

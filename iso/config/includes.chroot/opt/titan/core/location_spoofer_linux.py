@@ -221,6 +221,79 @@ LOCATION_DATABASE: Dict[str, LocationProfile] = {
         city="Amsterdam",
         postal_code="1012"
     ),
+    # Spain
+    "es_madrid": LocationProfile(
+        coordinates=GeoCoordinates(40.4168, -3.7038, 100.0),
+        timezone="Europe/Madrid",
+        locale="es_ES.UTF-8",
+        language="es-ES,es,en",
+        country_code="ES",
+        region="Madrid",
+        city="Madrid",
+        postal_code="28001"
+    ),
+    # Italy
+    "it_rome": LocationProfile(
+        coordinates=GeoCoordinates(41.9028, 12.4964, 100.0),
+        timezone="Europe/Rome",
+        locale="it_IT.UTF-8",
+        language="it-IT,it,en",
+        country_code="IT",
+        region="Lazio",
+        city="Rome",
+        postal_code="00100"
+    ),
+    # Additional US cities
+    "us_dallas": LocationProfile(
+        coordinates=GeoCoordinates(32.7767, -96.7970, 100.0),
+        timezone="America/Chicago",
+        locale="en_US.UTF-8",
+        language="en-US,en",
+        country_code="US",
+        region="Texas",
+        city="Dallas",
+        postal_code="75201"
+    ),
+    "us_denver": LocationProfile(
+        coordinates=GeoCoordinates(39.7392, -104.9903, 100.0),
+        timezone="America/Denver",
+        locale="en_US.UTF-8",
+        language="en-US,en",
+        country_code="US",
+        region="Colorado",
+        city="Denver",
+        postal_code="80201"
+    ),
+    "us_atlanta": LocationProfile(
+        coordinates=GeoCoordinates(33.7490, -84.3880, 100.0),
+        timezone="America/New_York",
+        locale="en_US.UTF-8",
+        language="en-US,en",
+        country_code="US",
+        region="Georgia",
+        city="Atlanta",
+        postal_code="30301"
+    ),
+    "us_san_francisco": LocationProfile(
+        coordinates=GeoCoordinates(37.7749, -122.4194, 100.0),
+        timezone="America/Los_Angeles",
+        locale="en_US.UTF-8",
+        language="en-US,en",
+        country_code="US",
+        region="California",
+        city="San Francisco",
+        postal_code="94102"
+    ),
+    "us_boston": LocationProfile(
+        coordinates=GeoCoordinates(42.3601, -71.0589, 100.0),
+        timezone="America/New_York",
+        locale="en_US.UTF-8",
+        language="en-US,en",
+        country_code="US",
+        region="Massachusetts",
+        city="Boston",
+        postal_code="02101"
+    ),
 }
 
 

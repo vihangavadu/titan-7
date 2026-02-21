@@ -187,6 +187,16 @@ class ResidentialProxyManager:
             "port": 7000,
             "geo_format": "{country}_{state}_{city}",
         },
+        "iproyal": {
+            "host": "geo.iproyal.com",
+            "port": 12321,
+            "geo_format": "country-{country}_city-{city}_state-{state}",
+        },
+        "webshare": {
+            "host": "proxy.webshare.io",
+            "port": 80,
+            "geo_format": "{country}-{state}-{city}",
+        },
         "custom": {
             "host": None,
             "port": None,

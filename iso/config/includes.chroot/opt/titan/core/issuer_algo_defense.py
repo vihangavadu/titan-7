@@ -254,6 +254,58 @@ ISSUER_INTELLIGENCE = {
         "device_binding_required": True,
         "consortium_member": True,
     },
+    # Additional US Issuers
+    "433610": {
+        "name": "Wells Fargo",
+        "strictness": 0.6,
+        "velocity_sensitive": True,
+        "amount_ceiling": 2000,
+        "daily_limit": 5000,
+        "exemption_tolerance": "medium",
+        "device_binding_required": False,
+        "consortium_member": True,
+    },
+    "459500": {
+        "name": "USAA",
+        "strictness": 0.55,
+        "velocity_sensitive": False,
+        "amount_ceiling": 3000,
+        "daily_limit": 8000,
+        "exemption_tolerance": "high",
+        "device_binding_required": False,
+        "consortium_member": False,
+    },
+    "601100": {
+        "name": "Discover",
+        "strictness": 0.5,
+        "velocity_sensitive": False,
+        "amount_ceiling": 2500,
+        "daily_limit": 6000,
+        "exemption_tolerance": "high",
+        "device_binding_required": False,
+        "consortium_member": False,
+    },
+    # Neobank / Fintech (stricter ML)
+    "535522": {
+        "name": "Revolut",
+        "strictness": 0.9,
+        "velocity_sensitive": True,
+        "amount_ceiling": 500,
+        "daily_limit": 2000,
+        "exemption_tolerance": "very_low",
+        "device_binding_required": True,
+        "consortium_member": False,
+    },
+    "428837": {
+        "name": "N26",
+        "strictness": 0.85,
+        "velocity_sensitive": True,
+        "amount_ceiling": 600,
+        "daily_limit": 2000,
+        "exemption_tolerance": "very_low",
+        "device_binding_required": True,
+        "consortium_member": False,
+    },
 }
 
 # Default for unknown BINs

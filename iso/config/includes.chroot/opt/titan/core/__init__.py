@@ -1,8 +1,31 @@
 """
-TITAN V7.0 SINGULARITY - Core Library
+TITAN V7.6 SINGULARITY - Core Library
 Reality Synthesis Suite - Shared Components
 
-V7.0 Upgrades (Singularity):
+V7.6 Upgrades (AI Integration + P0 Critical):
+- AI Intelligence Engine with Ollama LLM integration
+- DevHub v7.6.0 with AI provider management & system editing
+- Transaction Analytics, Alert System, BIN Intelligence, Exporter
+- Deep Identity Orchestrator, Leak Detector, Consistency Checker
+- Advanced config validation, monitoring, secure config, migration
+- Service health watchdog, dependency management, metrics collection
+- Verification orchestration, history tracking, remediation, scheduling
+
+V7.5 Upgrades (Singularity Enhancements):
+- JA4+ Dynamic Permutation Engine (TLS fingerprint randomization)
+- IndexedDB/LSNG Sharding Synthesis (advanced storage)
+- TRA Exemption Engine (3DS v2.2 frictionless authentication)
+- ToF Depth Map Synthesis (3D biometric depth maps)
+- Issuer Algorithmic Decline Defense (decline protection)
+- First-Session Bias Elimination (detection removal)
+- Target Discovery auto-discovery, competitor analysis, metrics
+- Intelligence sync, recommendation engine, change tracker
+- Preset version manager, validator, migrator, dynamic builder
+- Timezone monitor, anomaly detector, transition manager
+- QUIC connection pooling, fingerprint rotation, health monitoring
+- Referrer campaign manager, chain validator, adaptive warmup
+
+V7.0 Upgrades (Singularity Foundation):
 - Immutable OS with OverlayFS + A/B atomic partition updates
 - Cockpit middleware daemon (privileged ops via signed JSON over Unix socket)
 - TLS Hello Parroting (JA4+ evasion via Client Hello template injection)
@@ -25,9 +48,9 @@ This module provides the core logic for the Trinity Apps:
 - KYC (Identity Mask)
 """
 
-__version__ = "7.0.3"
+__version__ = "7.6.0"
 __author__ = "Dva.12"
-__status__ = "SINGULARITY"
+__status__ = "SINGULARITY_V76"
 __codename__ = "REALITY_SYNTHESIS"
 
 from .genesis_core import GenesisEngine, ProfileConfig, TargetPreset
@@ -137,6 +160,14 @@ from .titan_services import (
     get_service_manager, start_all_services, stop_all_services, get_services_status,
 )
 from .bug_patch_bridge import BugPatchBridge
+
+# V7.5 Singularity Enhancement Modules
+from .ja4_permutation_engine import JA4PermutationEngine
+from .indexeddb_lsng_synthesis import IndexedDBShardSynthesizer, LocalStorageSynthesizer, StoragePersona, StorageShard
+from .tra_exemption_engine import ExemptionType, CardholderProfile, IssuerBehaviorPredictor
+from .tof_depth_synthesis import FaceDepthGenerator, DepthQuality, FacialLandmarks, DepthMapConfig
+from .issuer_algo_defense import IssuerDeclineDefenseEngine, DeclineReason, AmountOptimizer
+from .first_session_bias_eliminator import FirstSessionBiasEliminator
 
 __all__ = [
     # Trinity Apps Core
@@ -270,4 +301,11 @@ __all__ = [
     'BugPatchBridge',
     # V7.5 Memory Pressure Manager
     'MemoryPressureManager',
+    # V7.5 Singularity Enhancement Modules
+    'JA4PermutationEngine',
+    'IndexedDBShardSynthesizer', 'LocalStorageSynthesizer', 'StoragePersona', 'StorageShard',
+    'ExemptionType', 'CardholderProfile', 'IssuerBehaviorPredictor',
+    'FaceDepthGenerator', 'DepthQuality', 'FacialLandmarks', 'DepthMapConfig',
+    'IssuerDeclineDefenseEngine', 'DeclineReason', 'AmountOptimizer',
+    'FirstSessionBiasEliminator',
 ]

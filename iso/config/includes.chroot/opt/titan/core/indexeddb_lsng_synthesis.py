@@ -165,6 +165,37 @@ WEB_APP_SCHEMAS: Dict[str, Dict] = {
         ],
         "typical_size_kb": 512,
     },
+    "spotify": {
+        "origin": "https://open.spotify.com",
+        "databases": [
+            {"name": "sp-idb", "stores": ["tracks", "playlists", "queue", "recently_played"], "avg_records": 600},
+            {"name": "sp-cache", "stores": ["images", "audio_previews"], "avg_records": 200},
+        ],
+        "typical_size_kb": 2048,
+    },
+    "instagram": {
+        "origin": "https://www.instagram.com",
+        "databases": [
+            {"name": "ig-idb", "stores": ["feed", "stories", "reels", "direct"], "avg_records": 400},
+            {"name": "sw-toolbox", "stores": ["precache", "runtime"], "avg_records": 150},
+        ],
+        "typical_size_kb": 1536,
+    },
+    "discord": {
+        "origin": "https://discord.com",
+        "databases": [
+            {"name": "keyval-store", "stores": ["data"], "avg_records": 80},
+            {"name": "discord-idb", "stores": ["messages", "guilds", "channels", "users"], "avg_records": 500},
+        ],
+        "typical_size_kb": 2560,
+    },
+    "ebay": {
+        "origin": "https://www.ebay.com",
+        "databases": [
+            {"name": "ebay-idb", "stores": ["search", "watched", "bids"], "avg_records": 100},
+        ],
+        "typical_size_kb": 256,
+    },
 }
 
 # Persona-specific app distributions

@@ -42,13 +42,21 @@ LINUX_LEAK_FONTS = [
     "Liberation Sans", "Liberation Serif", "Liberation Mono",
     "DejaVu Sans", "DejaVu Serif", "DejaVu Sans Mono",
     "Noto Color Emoji", "Noto Sans", "Noto Serif",
-    "Ubuntu", "Ubuntu Mono", "Cantarell",
-    "Droid Sans", "Droid Serif",
+    "Noto Sans CJK", "Noto Serif CJK",
+    "Ubuntu", "Ubuntu Mono", "Ubuntu Condensed",
+    "Cantarell", "Droid Sans", "Droid Serif",
     "FreeSans", "FreeSerif", "FreeMono",
-    "Nimbus Sans", "Nimbus Roman",
+    "Nimbus Sans", "Nimbus Roman", "Nimbus Mono",
+    "STIX", "Latin Modern",
+    "Bitstream Vera Sans", "Bitstream Vera Serif",
     # V7.5 FIX: Additional common Debian 12 fonts (synced with font_sanitizer.py)
     "Source Code Pro", "Hack", "Cantarell Light",
     "Noto Sans Mono", "Noto Sans Display",
+    # V7.6: Additional Linux fonts found on Debian 12 / Ubuntu 24.04
+    "Noto Sans Symbols", "Noto Sans Symbols2", "Noto Sans Math",
+    "URW Gothic", "URW Bookman", "C059", "P052",
+    "Lato", "Open Sans", "Roboto",
+    "Liberation Sans Narrow", "TeX Gyre Termes", "TeX Gyre Heros",
 ]
 
 # Fonts that MUST be present per target OS

@@ -306,6 +306,14 @@ class AdvancedProfileGenerator:
     def __init__(self, output_dir: str = "/opt/titan/profiles"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._rng = None  # Seeded per-profile in generate()
+    
+    def _seed_rng(self, profile_uuid: str):
+        """Seed random number generator from profile UUID for deterministic output.
+        Same profile UUID = identical profile data across regenerations."""
+        seed = int(hashlib.sha256(profile_uuid.encode()).hexdigest()[:16], 16)
+        self._rng = random.Random(seed)
+        random.seed(seed)  # Also seed module-level random for library calls
     
     def generate(self, 
                  config: AdvancedProfileConfig,
@@ -320,6 +328,7 @@ class AdvancedProfileGenerator:
         Returns:
             GeneratedAdvancedProfile with full storage
         """
+        self._seed_rng(config.profile_uuid)
         logger.info(f"[*] INITIATING '{config.profile_uuid}' SYNTHESIS...")
         
         # Create profile directory

@@ -235,6 +235,31 @@ class DeclineDecoder:
         "adyen": ADYEN_DECLINE_CODES,
         "authorize_net": AUTHNET_RESPONSE_CODES,
         "iso8583": ISO_RESPONSE_CODES,
+        "checkout_com": {
+            "20005": {"reason": "Do not honor", "category": DeclineCategory.DO_NOT_HONOR, "action": "Generic bank decline. Try different amount/time."},
+            "20051": {"reason": "Insufficient funds", "category": DeclineCategory.INSUFFICIENT_FUNDS, "action": "Lower amount or different card."},
+            "20054": {"reason": "Expired card", "category": DeclineCategory.CARD_ISSUE, "action": "Card expired."},
+            "20055": {"reason": "Incorrect PIN", "category": DeclineCategory.CARD_ISSUE, "action": "PIN required — use credit card instead."},
+            "20059": {"reason": "Suspected fraud", "category": DeclineCategory.FRAUD_BLOCK, "action": "Issuer fraud flag. Card is hot."},
+            "20014": {"reason": "Invalid card number", "category": DeclineCategory.CARD_ISSUE, "action": "Bad card number."},
+            "20082": {"reason": "CVV mismatch", "category": DeclineCategory.CVV_MISMATCH, "action": "Wrong CVV."},
+            "20087": {"reason": "3DS authentication failed", "category": DeclineCategory.THREE_DS_FAIL, "action": "3DS failed. Use bypass or different card."},
+            "20068": {"reason": "Response received too late", "category": DeclineCategory.PROCESSOR_ERROR, "action": "Timeout. Retry."},
+            "200N7": {"reason": "CVV2 mismatch", "category": DeclineCategory.CVV_MISMATCH, "action": "CVV code incorrect."},
+        },
+        "braintree": {
+            "2000": {"reason": "Do not honor", "category": DeclineCategory.DO_NOT_HONOR, "action": "Generic decline. Try different params."},
+            "2001": {"reason": "Insufficient funds", "category": DeclineCategory.INSUFFICIENT_FUNDS, "action": "Lower amount."},
+            "2002": {"reason": "Limit exceeded", "category": DeclineCategory.VELOCITY_LIMIT, "action": "Daily limit. Wait 24h."},
+            "2003": {"reason": "Cardholder activity limit exceeded", "category": DeclineCategory.VELOCITY_LIMIT, "action": "Too many txns. Wait."},
+            "2004": {"reason": "Expired card", "category": DeclineCategory.CARD_ISSUE, "action": "Card expired."},
+            "2005": {"reason": "Invalid card number", "category": DeclineCategory.CARD_ISSUE, "action": "Bad card number."},
+            "2006": {"reason": "Invalid expiry", "category": DeclineCategory.CARD_ISSUE, "action": "Wrong expiry date."},
+            "2010": {"reason": "Card issuer declined CVV", "category": DeclineCategory.CVV_MISMATCH, "action": "Wrong CVV."},
+            "2038": {"reason": "Processor declined", "category": DeclineCategory.DO_NOT_HONOR, "action": "PayPal backend declined. Try different approach."},
+            "2046": {"reason": "Declined — fraud", "category": DeclineCategory.FRAUD_BLOCK, "action": "Fraud flag. Card burned."},
+            "2059": {"reason": "AVS mismatch", "category": DeclineCategory.AVS_MISMATCH, "action": "Fix billing address."},
+        },
     }
     
     @classmethod

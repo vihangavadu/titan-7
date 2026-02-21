@@ -38,8 +38,10 @@ logger = logging.getLogger("TITAN-V7-FONTS")
 class TargetOS(Enum):
     WINDOWS_10 = "windows_10"
     WINDOWS_11 = "windows_11"
+    WINDOWS_11_24H2 = "windows_11_24h2"
     MACOS_14 = "macos_14"
     MACOS_13 = "macos_13"
+    MACOS_15 = "macos_15"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -61,6 +63,12 @@ LINUX_EXCLUSIVE_FONTS = [
     # V7.5 FIX: Additional common Debian 12 fonts
     "Source Code Pro", "Hack", "Cantarell Light",
     "Noto Sans Mono", "Noto Sans Display",
+    # V7.6: Additional Linux fonts found on Debian 12 / Ubuntu 24.04
+    "Noto Sans Symbols", "Noto Sans Symbols2", "Noto Sans Math",
+    "Noto Music", "Noto Sans SignWriting",
+    "URW Gothic", "URW Bookman", "C059", "P052", "Z003", "D050000L",
+    "Lato", "Open Sans", "Roboto",
+    "Liberation Sans Narrow", "TeX Gyre Termes", "TeX Gyre Heros",
 ]
 
 # Fonts that MUST be present for Windows spoofing

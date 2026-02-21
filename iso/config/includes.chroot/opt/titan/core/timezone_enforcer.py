@@ -66,6 +66,15 @@ COUNTRY_TIMEZONES = {
     "CA": "America/Toronto", "AU": "Australia/Sydney", "DE": "Europe/Berlin",
     "FR": "Europe/Paris", "NL": "Europe/Amsterdam", "JP": "Asia/Tokyo",
     "KR": "Asia/Seoul", "BR": "America/Sao_Paulo", "MX": "America/Mexico_City",
+    "ES": "Europe/Madrid", "IT": "Europe/Rome", "PT": "Europe/Lisbon",
+    "BE": "Europe/Brussels", "AT": "Europe/Vienna", "CH": "Europe/Zurich",
+    "SE": "Europe/Stockholm", "NO": "Europe/Oslo", "DK": "Europe/Copenhagen",
+    "FI": "Europe/Helsinki", "PL": "Europe/Warsaw", "CZ": "Europe/Prague",
+    "IE": "Europe/Dublin", "NZ": "Pacific/Auckland", "SG": "Asia/Singapore",
+    "HK": "Asia/Hong_Kong", "IN": "Asia/Kolkata", "AE": "Asia/Dubai",
+    "IL": "Asia/Jerusalem", "ZA": "Africa/Johannesburg", "RU": "Europe/Moscow",
+    "TR": "Europe/Istanbul", "AR": "America/Argentina/Buenos_Aires",
+    "CL": "America/Santiago", "CO": "America/Bogota", "PE": "America/Lima",
 }
 
 

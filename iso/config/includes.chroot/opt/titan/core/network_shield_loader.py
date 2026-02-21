@@ -87,6 +87,9 @@ class NetworkShield:
             "tcp_sack": True,
             "tcp_timestamps": False,
             "tcp_window_scale": 8,
+            "tcp_options_order": ["mss", "nop", "wscale", "nop", "nop", "sack_perm"],
+            "ip_id_behavior": "incremental",
+            "df_bit": True,
         },
         Persona.MACOS: {
             "ttl": 64,

@@ -16,7 +16,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, List, Any, Callable
+from typing import Optional, Dict, List, Any, Callable, Tuple
 import threading
 import time
 import logging
@@ -44,6 +44,13 @@ class MotionType(Enum):
     LOOK_UP = "look_up"
     LOOK_DOWN = "look_down"
     OPEN_MOUTH = "open_mouth"
+    RAISE_EYEBROWS = "raise_eyebrows"
+    FROWN = "frown"
+    HEAD_TILT_LEFT = "head_tilt_left"
+    HEAD_TILT_RIGHT = "head_tilt_right"
+    CLOSE_EYES = "close_eyes"
+    WINK_LEFT = "wink_left"
+    WINK_RIGHT = "wink_right"
 
 
 @dataclass

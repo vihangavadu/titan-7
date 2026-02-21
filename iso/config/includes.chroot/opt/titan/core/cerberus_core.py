@@ -101,8 +101,10 @@ class CardAsset:
             return CardType.MASTERCARD
         elif self.number.startswith(('34', '37')):
             return CardType.AMEX
-        elif self.number.startswith(('6011', '65')):
+        elif self.number.startswith(('6011', '644', '645', '646', '647', '648', '649', '65')):
             return CardType.DISCOVER
+        elif self.number.startswith(('3528', '3529', '353', '354', '355', '356', '357', '358')):
+            return CardType.UNKNOWN  # JCB — not widely supported
         return CardType.UNKNOWN
     
     @property

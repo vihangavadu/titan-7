@@ -89,11 +89,38 @@ class ReferrerWarmup:
             "target deals today",
             "target electronics",
         ],
+        "eneba.com": [
+            "buy game keys online",
+            "cheap steam keys",
+            "eneba game deals",
+            "digital game codes",
+        ],
+        "g2a.com": [
+            "g2a game keys",
+            "cheap game keys g2a",
+            "buy steam key g2a",
+        ],
+        "newegg.com": [
+            "newegg computer parts",
+            "newegg gpu deals",
+            "buy pc parts newegg",
+        ],
+        "stockx.com": [
+            "stockx sneakers",
+            "buy shoes stockx",
+            "stockx deals",
+        ],
+        "steam": [
+            "steam game sale",
+            "steam winter sale",
+            "buy games steam",
+        ],
         "default": [
             "{domain} shopping",
             "{domain} deals",
             "buy from {domain}",
             "{domain} online store",
+            "{domain} reviews",
         ]
     }
     

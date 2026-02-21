@@ -41,11 +41,16 @@ except ImportError:
 
 class BrowserProfile(Enum):
     """Browser TLS fingerprint profiles"""
+    CHROME_133_WIN11 = "chrome_133_win11"
+    CHROME_132_WIN11 = "chrome_132_win11"
     CHROME_131_WIN11 = "chrome_131_win11"
     CHROME_131_MACOS = "chrome_131_macos"
+    FIREFOX_134_WIN11 = "firefox_134_win11"
     FIREFOX_132_WIN11 = "firefox_132_win11"
     FIREFOX_132_LINUX = "firefox_132_linux"
+    SAFARI_18_MACOS = "safari_18_macos"
     SAFARI_17_MACOS = "safari_17_macos"
+    EDGE_133_WIN11 = "edge_133_win11"
     EDGE_131_WIN11 = "edge_131_win11"
 
 

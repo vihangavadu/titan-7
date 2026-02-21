@@ -480,6 +480,7 @@ class PurchaseHistoryEngine:
     def __init__(self, profile_path: Path):
         self.profile_path = profile_path
         self.profile_path.mkdir(parents=True, exist_ok=True)
+        self._rng = None  # Seeded per-generate call
     
     def generate(self, config: PurchaseHistoryConfig) -> Dict[str, Any]:
         """
@@ -488,6 +489,12 @@ class PurchaseHistoryEngine:
         Returns:
             Summary dict with counts and total amounts
         """
+        # Seed RNG from cardholder name for deterministic purchase history
+        seed_str = f"{config.cardholder.full_name}_{config.profile_age_days}"
+        seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:16], 16)
+        self._rng = random.Random(seed)
+        random.seed(seed)
+        
         logger.info(f"[*] Generating purchase history for {config.cardholder.full_name}")
         
         # Initialize Multi-PSP Processor for diverse payment processor integration
@@ -941,7 +948,7 @@ class PurchaseHistoryEngine:
     
     # ─── PAYMENT TRUST TOKENS ─────────────────────────────────────────
     
-    def _inject_payment_tokens(self, config: PurchaseHistoryConfig, multi_psp: Optional[MultiPSPProcessor] = None) -> int:
+    def _inject_payment_tokens(self, config: PurchaseHistoryConfig, multi_psp: Optional['MultiPSPProcessor'] = None) -> int:
         """Inject pre-aged payment processor trust tokens with diverse processor support"""
         tokens_file = self.profile_path / "commerce_tokens.json"
         

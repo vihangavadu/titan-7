@@ -374,6 +374,7 @@ class GenesisEngine:
     def __init__(self, output_dir: str = "/opt/titan/profiles"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._rng = None  # Seeded per-profile in forge_profile()
         
         # Circadian rhythm weights (activity peaks in evening)
         self.circadian_weights = [
@@ -410,6 +411,11 @@ class GenesisEngine:
         profile_id = self._generate_profile_id(config)
         profile_path = self.output_dir / profile_id
         profile_path.mkdir(parents=True, exist_ok=True)
+        
+        # Seed RNG from profile ID for deterministic output
+        seed = int(hashlib.sha256(profile_id.encode()).hexdigest()[:16], 16)
+        self._rng = random.Random(seed)
+        random.seed(seed)
         
         # Generate components
         history = self._generate_history(config)

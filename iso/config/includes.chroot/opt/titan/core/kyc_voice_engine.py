@@ -53,9 +53,10 @@ class VoiceProfile:
     """Voice configuration for TTS"""
     gender: VoiceGender = VoiceGender.MALE
     language: str = "en"
-    accent: str = "us"               # us, gb, au, in
+    accent: str = "us"               # us, gb, au, in, ca, ie, za, nz
     speed: float = 1.0               # 0.5-2.0
     pitch: float = 1.0               # 0.5-2.0
+    age_range: str = "adult"         # young, adult, senior
     # For voice cloning (Coqui XTTS)
     reference_audio: Optional[str] = None  # Path to reference voice sample
     # Piper voice model name

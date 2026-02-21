@@ -162,10 +162,14 @@ HIGH_RISK_MCCS = {
     "5967": "Direct Marketing",
 }
 
-# Disposable email domains
+# Disposable email domains (expanded for 2025+ detection)
 DISPOSABLE_DOMAINS = {
     "tempmail.com", "guerrillamail.com", "10minutemail.com", "mailinator.com",
     "throwaway.email", "temp-mail.org", "fakeinbox.com", "maildrop.cc",
+    "yopmail.com", "sharklasers.com", "guerrillamailblock.com", "grr.la",
+    "dispostable.com", "trashmail.com", "mohmal.com", "tempail.com",
+    "emailondeck.com", "getnada.com", "burnermail.io", "inboxkitten.com",
+    "minuteinbox.com", "tempr.email", "discard.email", "mailnesia.com",
 }
 
 

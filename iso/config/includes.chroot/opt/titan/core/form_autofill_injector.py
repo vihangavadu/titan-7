@@ -105,9 +105,16 @@ class FormAutofillInjector:
     def __init__(self, profile_path: str):
         self.profile_path = Path(profile_path)
         self.profile_path.mkdir(parents=True, exist_ok=True)
+        self._rng = None  # Seeded per inject_all call
     
     def inject_all(self, persona: PersonaAutofill, age_days: int = 90):
         """Inject all autofill data"""
+        # Seed RNG from persona for deterministic autofill data
+        seed_str = f"{persona.full_name}_{persona.email}_{age_days}"
+        seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:16], 16)
+        self._rng = random.Random(seed)
+        random.seed(seed)
+        
         self.inject_form_history(persona, age_days)
         self.inject_autofill_profiles(persona, age_days)
         self.inject_saved_addresses(persona, age_days)

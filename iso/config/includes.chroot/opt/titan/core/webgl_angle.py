@@ -42,6 +42,11 @@ class GPUProfile(Enum):
     GENERIC_INTEL = "generic_intel"
     GENERIC_NVIDIA = "generic_nvidia"
     GENERIC_AMD = "generic_amd"
+    NVIDIA_RTX_4070 = "nvidia_rtx_4070"
+    NVIDIA_RTX_3060 = "nvidia_rtx_3060"
+    INTEL_IRIS_XE = "intel_iris_xe"
+    INTEL_ARC_A770 = "intel_arc_a770"
+    AMD_RX_7600 = "amd_rx_7600"
 
 
 @dataclass

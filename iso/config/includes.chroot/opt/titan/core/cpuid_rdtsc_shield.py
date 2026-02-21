@@ -67,18 +67,56 @@ class CPUIDRDTSCShield:
         "/sys/devices/virtual/dmi/id/chassis_vendor",
     ]
 
-    # DMI overrides matching Dell XPS 15 profile
-    DMI_OVERRIDES = {
-        "/sys/devices/virtual/dmi/id/sys_vendor": "Dell Inc.",
-        "/sys/devices/virtual/dmi/id/product_name": "XPS 15 9520",
-        "/sys/devices/virtual/dmi/id/board_vendor": "Dell Inc.",
-        "/sys/devices/virtual/dmi/id/board_name": "0RH1JY",
-        "/sys/devices/virtual/dmi/id/bios_vendor": "Dell Inc.",
-        "/sys/devices/virtual/dmi/id/bios_version": "1.18.0",
-        "/sys/devices/virtual/dmi/id/bios_date": "09/12/2024",
-        "/sys/devices/virtual/dmi/id/chassis_vendor": "Dell Inc.",
-        "/sys/devices/virtual/dmi/id/chassis_type": "10",
+    # DMI hardware profiles — multiple options to avoid correlation
+    DMI_PROFILES = {
+        "dell_xps_15": {
+            "/sys/devices/virtual/dmi/id/sys_vendor": "Dell Inc.",
+            "/sys/devices/virtual/dmi/id/product_name": "XPS 15 9520",
+            "/sys/devices/virtual/dmi/id/board_vendor": "Dell Inc.",
+            "/sys/devices/virtual/dmi/id/board_name": "0RH1JY",
+            "/sys/devices/virtual/dmi/id/bios_vendor": "Dell Inc.",
+            "/sys/devices/virtual/dmi/id/bios_version": "1.18.0",
+            "/sys/devices/virtual/dmi/id/bios_date": "09/12/2024",
+            "/sys/devices/virtual/dmi/id/chassis_vendor": "Dell Inc.",
+            "/sys/devices/virtual/dmi/id/chassis_type": "10",
+        },
+        "lenovo_thinkpad_x1": {
+            "/sys/devices/virtual/dmi/id/sys_vendor": "LENOVO",
+            "/sys/devices/virtual/dmi/id/product_name": "21HM004GUS",
+            "/sys/devices/virtual/dmi/id/board_vendor": "LENOVO",
+            "/sys/devices/virtual/dmi/id/board_name": "21HM004GUS",
+            "/sys/devices/virtual/dmi/id/bios_vendor": "LENOVO",
+            "/sys/devices/virtual/dmi/id/bios_version": "N3HET82W (1.52)",
+            "/sys/devices/virtual/dmi/id/bios_date": "08/15/2024",
+            "/sys/devices/virtual/dmi/id/chassis_vendor": "LENOVO",
+            "/sys/devices/virtual/dmi/id/chassis_type": "10",
+        },
+        "hp_elitebook_840": {
+            "/sys/devices/virtual/dmi/id/sys_vendor": "HP",
+            "/sys/devices/virtual/dmi/id/product_name": "HP EliteBook 840 G9",
+            "/sys/devices/virtual/dmi/id/board_vendor": "HP",
+            "/sys/devices/virtual/dmi/id/board_name": "89D2",
+            "/sys/devices/virtual/dmi/id/bios_vendor": "HP",
+            "/sys/devices/virtual/dmi/id/bios_version": "T76 Ver. 01.09.00",
+            "/sys/devices/virtual/dmi/id/bios_date": "07/22/2024",
+            "/sys/devices/virtual/dmi/id/chassis_vendor": "HP",
+            "/sys/devices/virtual/dmi/id/chassis_type": "10",
+        },
+        "asus_rog_zephyrus": {
+            "/sys/devices/virtual/dmi/id/sys_vendor": "ASUSTeK COMPUTER INC.",
+            "/sys/devices/virtual/dmi/id/product_name": "ROG Zephyrus G14 GA402XV",
+            "/sys/devices/virtual/dmi/id/board_vendor": "ASUSTeK COMPUTER INC.",
+            "/sys/devices/virtual/dmi/id/board_name": "GA402XV",
+            "/sys/devices/virtual/dmi/id/bios_vendor": "American Megatrends International, LLC.",
+            "/sys/devices/virtual/dmi/id/bios_version": "GA402XV.316",
+            "/sys/devices/virtual/dmi/id/bios_date": "06/28/2024",
+            "/sys/devices/virtual/dmi/id/chassis_vendor": "ASUSTeK COMPUTER INC.",
+            "/sys/devices/virtual/dmi/id/chassis_type": "10",
+        },
     }
+
+    # Default profile for backward compatibility
+    DMI_OVERRIDES = DMI_PROFILES["dell_xps_15"]
 
     # Kernel parameters for anti-VM hardening
     KERNEL_PARAMS = {

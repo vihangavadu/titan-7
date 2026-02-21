@@ -321,10 +321,13 @@ class ImmutableOSManager:
         self._boot_state = BootState.ROLLBACK
         return self.apply_update(previous)
 
-    def wipe_ephemeral(self) -> bool:
+    def wipe_ephemeral(self, secure: bool = True) -> bool:
         """
         Wipe all ephemeral data from the OverlayFS upper layer.
         Equivalent to a "soft reboot" — clears all session artifacts.
+        
+        Args:
+            secure: If True, overwrite files before deletion to prevent forensic recovery
         """
         try:
             for edir in self._config.ephemeral_dirs:
@@ -333,14 +336,64 @@ class ImmutableOSManager:
                         item_path = os.path.join(edir, item)
                         try:
                             if os.path.isdir(item_path):
-                                shutil.rmtree(item_path)
+                                if secure:
+                                    self._secure_rmtree(item_path)
+                                else:
+                                    shutil.rmtree(item_path)
                             else:
-                                os.remove(item_path)
+                                if secure:
+                                    self._secure_delete(item_path)
+                                else:
+                                    os.remove(item_path)
                         except (PermissionError, OSError):
                             continue
             return True
         except Exception:
             return False
+
+    @staticmethod
+    def _secure_delete(filepath: str) -> None:
+        """Overwrite file with random data before deletion to prevent forensic recovery."""
+        try:
+            size = os.path.getsize(filepath)
+            with open(filepath, 'wb') as f:
+                f.write(os.urandom(size))
+                f.flush()
+                os.fsync(f.fileno())
+            os.remove(filepath)
+        except (OSError, PermissionError):
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
+
+    @staticmethod
+    def _secure_rmtree(dirpath: str) -> None:
+        """Securely wipe directory tree — overwrite all files before removal."""
+        for root, dirs, files in os.walk(dirpath, topdown=False):
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                try:
+                    size = os.path.getsize(fpath)
+                    with open(fpath, 'wb') as f:
+                        f.write(os.urandom(min(size, 1024 * 1024)))
+                        f.flush()
+                        os.fsync(f.fileno())
+                    os.remove(fpath)
+                except (OSError, PermissionError):
+                    try:
+                        os.remove(fpath)
+                    except OSError:
+                        pass
+            for dname in dirs:
+                try:
+                    os.rmdir(os.path.join(root, dname))
+                except OSError:
+                    pass
+        try:
+            os.rmdir(dirpath)
+        except OSError:
+            pass
 
     def get_system_status(self) -> Dict:
         """Get comprehensive immutable OS status."""

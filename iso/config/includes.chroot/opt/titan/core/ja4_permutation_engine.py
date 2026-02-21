@@ -41,19 +41,26 @@ __author__ = "Dva.12"
 
 class BrowserTarget(Enum):
     """Target browser for fingerprint matching"""
+    CHROME_133 = "chrome_133"
+    CHROME_132 = "chrome_132"
     CHROME_131 = "chrome_131"
     CHROME_130 = "chrome_130"
     CHROME_129 = "chrome_129"
+    FIREFOX_134 = "firefox_134"
     FIREFOX_133 = "firefox_133"
     FIREFOX_132 = "firefox_132"
+    EDGE_133 = "edge_133"
     EDGE_131 = "edge_131"
+    SAFARI_18 = "safari_18"
     SAFARI_17 = "safari_17"
 
 
 class OSTarget(Enum):
     """Target OS for fingerprint matching"""
     WINDOWS_11 = "windows_11"
+    WINDOWS_11_24H2 = "windows_11_24h2"
     WINDOWS_10 = "windows_10"
+    MACOS_15 = "macos_15"
     MACOS_14 = "macos_14"
     MACOS_13 = "macos_13"
 

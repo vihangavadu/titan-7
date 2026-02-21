@@ -58,6 +58,22 @@ AUDIO_OS_PROFILES = {
         "noise_floor_db": -90,
         "timing_jitter_ms": 2.9,          # CoreAudio timing jitter
         "oscillator_detune_range": 153600, # cents
+        "context_sample_rate": 44100,
+        "destination_channels": 2,
+    },
+    "windows_11_24h2": {
+        "default_sample_rate": 48000,     # Win11 24H2 defaults to 48kHz
+        "channel_count": 2,
+        "channel_layout": "stereo",
+        "base_latency": 0.01,
+        "output_latency": 0.025,          # Slightly lower on 24H2
+        "max_channel_count": 2,
+        "state": "running",
+        "noise_floor_db": -92,
+        "timing_jitter_ms": 2.5,
+        "oscillator_detune_range": 153600,
+        "context_sample_rate": 48000,
+        "destination_channels": 2,
     },
     "macos": {
         "default_sample_rate": 44100,
@@ -70,6 +86,22 @@ AUDIO_OS_PROFILES = {
         "noise_floor_db": -96,
         "timing_jitter_ms": 1.8,
         "oscillator_detune_range": 153600,
+        "context_sample_rate": 44100,
+        "destination_channels": 2,
+    },
+    "macos_sequoia": {
+        "default_sample_rate": 48000,     # macOS 15 Sequoia defaults to 48kHz
+        "channel_count": 2,
+        "channel_layout": "stereo",
+        "base_latency": 0.004,
+        "output_latency": 0.011,
+        "max_channel_count": 2,
+        "state": "running",
+        "noise_floor_db": -98,
+        "timing_jitter_ms": 1.5,
+        "oscillator_detune_range": 153600,
+        "context_sample_rate": 48000,
+        "destination_channels": 2,
     },
 }
 

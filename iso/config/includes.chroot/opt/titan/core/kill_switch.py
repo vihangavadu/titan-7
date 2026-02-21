@@ -48,7 +48,7 @@ import subprocess
 import threading
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 

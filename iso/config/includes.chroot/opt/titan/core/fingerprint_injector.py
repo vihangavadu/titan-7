@@ -991,15 +991,19 @@ class WebRTCLeakPrevention:
         self._media_devices = self._generate_media_devices()
     
     def _generate_fake_local_ip(self) -> str:
-        """Generate a plausible local IP."""
+        """Generate a plausible local IP, seeded for profile consistency."""
         import random
-        subnet = random.choice(['192.168.1', '192.168.0', '10.0.0', '172.16.0'])
-        host = random.randint(2, 254)
+        # Seed from fake_public_ip or fallback to system random
+        seed_val = hash(self.fake_public_ip or 'titan') & 0xFFFFFFFF
+        rng = random.Random(seed_val)
+        subnet = rng.choice(['192.168.1', '192.168.0', '10.0.0', '172.16.0'])
+        host = rng.randint(2, 254)
         return f"{subnet}.{host}"
     
     def _generate_media_devices(self) -> list:
-        """Generate realistic media device list."""
+        """Generate realistic media device list, seeded for profile consistency."""
         import random
+        rng = random.Random(hash(self.fake_local_ip or 'titan') & 0xFFFFFFFF)
         devices = []
         
         # Typical webcam names
@@ -1015,21 +1019,23 @@ class WebRTCLeakPrevention:
         ]
         
         # Add 1-2 cameras
-        for i in range(random.randint(1, 2)):
+        for i in range(rng.randint(1, 2)):
+            seed_str = f"cam_{i}_{self.fake_local_ip}"
             devices.append({
-                'deviceId': hashlib.sha256(f"cam_{i}".encode()).hexdigest()[:64],
-                'groupId': hashlib.sha256(f"group_cam_{i}".encode()).hexdigest()[:64],
+                'deviceId': hashlib.sha256(seed_str.encode()).hexdigest()[:64],
+                'groupId': hashlib.sha256(f"group_{seed_str}".encode()).hexdigest()[:64],
                 'kind': 'videoinput',
-                'label': random.choice(webcam_names),
+                'label': rng.choice(webcam_names),
             })
         
         # Add 1-2 microphones
-        for i in range(random.randint(1, 2)):
+        for i in range(rng.randint(1, 2)):
+            seed_str = f"mic_{i}_{self.fake_local_ip}"
             devices.append({
-                'deviceId': hashlib.sha256(f"mic_{i}".encode()).hexdigest()[:64],
-                'groupId': hashlib.sha256(f"group_mic_{i}".encode()).hexdigest()[:64],
+                'deviceId': hashlib.sha256(seed_str.encode()).hexdigest()[:64],
+                'groupId': hashlib.sha256(f"group_{seed_str}".encode()).hexdigest()[:64],
                 'kind': 'audioinput',
-                'label': random.choice(mic_names),
+                'label': rng.choice(mic_names),
             })
         
         # Add audio output
@@ -1153,11 +1159,24 @@ class ClientHintsSpoofing:
         '122': {'major': '122', 'full': '122.0.6261.94'},
         '123': {'major': '123', 'full': '123.0.6312.58'},
         '124': {'major': '124', 'full': '124.0.6367.60'},
+        '125': {'major': '125', 'full': '125.0.6422.76'},
+        '126': {'major': '126', 'full': '126.0.6478.114'},
+        '127': {'major': '127', 'full': '127.0.6533.72'},
+        '128': {'major': '128', 'full': '128.0.6613.84'},
+        '129': {'major': '129', 'full': '129.0.6668.70'},
+        '130': {'major': '130', 'full': '130.0.6723.58'},
+        '131': {'major': '131', 'full': '131.0.6778.85'},
+        '132': {'major': '132', 'full': '132.0.6834.83'},
+        '133': {'major': '133', 'full': '133.0.6943.53'},
     }
     
     PLATFORMS = {
         'windows': {'platform': 'Windows', 'platformVersion': '15.0.0'},
+        'windows_10': {'platform': 'Windows', 'platformVersion': '10.0.0'},
+        'windows_11': {'platform': 'Windows', 'platformVersion': '15.0.0'},
         'macos': {'platform': 'macOS', 'platformVersion': '14.3.1'},
+        'macos_sonoma': {'platform': 'macOS', 'platformVersion': '14.4.0'},
+        'macos_sequoia': {'platform': 'macOS', 'platformVersion': '15.1.0'},
         'linux': {'platform': 'Linux', 'platformVersion': '6.5.0'},
     }
     

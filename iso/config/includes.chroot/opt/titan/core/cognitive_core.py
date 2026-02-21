@@ -23,7 +23,7 @@ import base64
 from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional, Dict, List, Any, Union
+from typing import Optional, Dict, List, Any, Union, Tuple
 from enum import Enum
 
 # Load titan.env if present (populates os.environ for all TITAN_ vars)

@@ -22,7 +22,7 @@ import logging
 import threading
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 # Load titan.env config
 try:

@@ -42,6 +42,7 @@ class FraudEngine(Enum):
     SIFT = "sift"
     KOUNT = "kount"
     SEON = "seon"
+    SIGNIFYD = "signifyd"
     CYBERSOURCE = "cybersource"
     MAXMIND = "maxmind"
     STRIPE_RADAR = "stripe_radar"
@@ -52,6 +53,9 @@ class FraudEngine(Enum):
     THREATMETRIX = "threatmetrix"
     DATADOME = "datadome"
     PERIMETER_X = "perimeter_x"
+    ARKOSE_LABS = "arkose_labs"
+    CASTLE = "castle"
+    SARDINE = "sardine"
     INTERNAL = "internal"
     NONE = "none"
 

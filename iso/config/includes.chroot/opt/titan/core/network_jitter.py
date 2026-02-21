@@ -168,10 +168,26 @@ NOISE_DNS_DOMAINS = [
 NOISE_TELEMETRY_URLS = [
     ("time.windows.com", 123, "udp"),      # NTP
     ("time.google.com", 123, "udp"),        # NTP
+    ("time.apple.com", 123, "udp"),         # NTP (macOS)
     ("ocsp.digicert.com", 80, "tcp"),       # OCSP
     ("ocsp.pki.goog", 80, "tcp"),           # OCSP
+    ("ocsp.sectigo.com", 80, "tcp"),        # OCSP (Sectigo)
     ("crl.microsoft.com", 80, "tcp"),       # CRL
+    ("ctldl.windowsupdate.com", 80, "tcp"), # Windows CTL update
+    ("settings-win.data.microsoft.com", 443, "tcp"),  # Windows telemetry
+    ("self.events.data.microsoft.com", 443, "tcp"),   # Windows diagnostics
 ]
+
+# ISP-specific DNS resolver noise (match exit node ISP)
+ISP_DNS_NOISE = {
+    "comcast": ["dns.xfinity.com", "resolver1.comcast.net"],
+    "att": ["dns.att.net", "resolv1.att.net"],
+    "verizon": ["dns.verizon.net", "resolver1.verizon.net"],
+    "spectrum": ["dns.spectrum.net", "resolver1.charter.net"],
+    "google_fiber": ["dns.google", "dns64.dns.google"],
+    "tmobile": ["dns.t-mobile.com"],
+    "cox": ["dns.cox.net"],
+}
 
 
 class NetworkJitterEngine:
