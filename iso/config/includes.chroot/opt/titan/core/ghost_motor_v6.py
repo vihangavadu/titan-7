@@ -1101,3 +1101,352 @@ def get_biocatch_evasion_guide() -> dict:
 def get_warmup_pattern(target: str = "general_ecommerce") -> dict:
     """Get warmup browsing pattern for specific target"""
     return WARMUP_BROWSING_PATTERNS.get(target, WARMUP_BROWSING_PATTERNS["general_ecommerce"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: DEVICE ORIENTATION MIMICRY
+# Mobile device tilt/rotation simulation for KYC selfie and document capture
+# ═══════════════════════════════════════════════════════════════════════════
+
+class DeviceOrientationMimicry:
+    """
+    V7.6: Simulates realistic mobile device orientation patterns.
+    
+    Mobile KYC systems (Jumio, Onfido, Veriff) track DeviceOrientation events
+    to detect:
+    - Robotic/fixed positioning (emulator flag)
+    - Mounted device (fraud flag for selfie bypass)
+    - Unnaturally stable holding (bot/automation)
+    
+    This engine generates human-like orientation patterns including:
+    - Natural hand tremor (0.1-0.5° micro-movements)
+    - Breathing-induced oscillation
+    - Gradual drift correction
+    - Device adjustment movements
+    """
+    
+    # Natural holding patterns (degrees)
+    HOLDING_PATTERNS = {
+        'selfie_front': {
+            'alpha_center': 90,      # Device facing user
+            'beta_center': 80,       # Slightly tilted back
+            'gamma_center': 0,       # Level horizontally
+            'tremor_amplitude': 0.3,
+            'breath_amplitude': 0.5,
+            'drift_rate': 0.1,
+        },
+        'document_scan': {
+            'alpha_center': 180,     # Device facing down
+            'beta_center': -60,      # Angled down at document
+            'gamma_center': 0,
+            'tremor_amplitude': 0.4,
+            'breath_amplitude': 0.3,
+            'drift_rate': 0.15,
+        },
+        'id_hold': {
+            'alpha_center': 90,
+            'beta_center': 70,
+            'gamma_center': 5,
+            'tremor_amplitude': 0.5,
+            'breath_amplitude': 0.4,
+            'drift_rate': 0.2,
+        },
+    }
+    
+    def __init__(self, pattern: str = 'selfie_front'):
+        self.pattern = self.HOLDING_PATTERNS.get(pattern, self.HOLDING_PATTERNS['selfie_front'])
+        self._time_offset = random.uniform(0, 100)
+        self._drift_state = {'alpha': 0, 'beta': 0, 'gamma': 0}
+    
+    def generate_orientation_stream(self, duration_ms: float, sample_rate_hz: int = 60) -> list:
+        """
+        Generate a stream of DeviceOrientation events simulating human holding.
+        
+        Returns list of dicts with alpha, beta, gamma values.
+        """
+        num_samples = int(duration_ms / 1000 * sample_rate_hz)
+        samples = []
+        
+        t_start = time.time() + self._time_offset
+        
+        for i in range(num_samples):
+            t = t_start + i / sample_rate_hz
+            
+            # Base orientation
+            alpha = self.pattern['alpha_center']
+            beta = self.pattern['beta_center']
+            gamma = self.pattern['gamma_center']
+            
+            # Add breathing oscillation (slow sine wave, ~0.2-0.3 Hz)
+            breath_freq = random.uniform(0.2, 0.3)
+            breath = np.sin(t * 2 * np.pi * breath_freq) * self.pattern['breath_amplitude']
+            beta += breath
+            
+            # Add hand tremor (fast irregular micro-movements)
+            tremor_amp = self.pattern['tremor_amplitude']
+            alpha += np.random.randn() * tremor_amp
+            beta += np.random.randn() * tremor_amp * 0.7
+            gamma += np.random.randn() * tremor_amp * 0.5
+            
+            # Add gradual drift
+            self._drift_state['alpha'] += (np.random.randn() - 0.5 * self._drift_state['alpha']) * self.pattern['drift_rate'] / sample_rate_hz
+            self._drift_state['beta'] += (np.random.randn() - 0.5 * self._drift_state['beta']) * self.pattern['drift_rate'] / sample_rate_hz
+            self._drift_state['gamma'] += (np.random.randn() - 0.5 * self._drift_state['gamma']) * self.pattern['drift_rate'] / sample_rate_hz
+            
+            alpha += self._drift_state['alpha']
+            beta += self._drift_state['beta']
+            gamma += self._drift_state['gamma']
+            
+            # Occasional adjustment (human corrects device position)
+            if random.random() < 0.002:  # ~0.2% chance per sample
+                correction = random.uniform(1, 3)
+                beta -= correction * np.sign(self._drift_state['beta'])
+                self._drift_state['beta'] *= 0.3
+            
+            samples.append({
+                'timestamp': int((t - t_start) * 1000),
+                'alpha': round(alpha % 360, 4),
+                'beta': round(np.clip(beta, -180, 180), 4),
+                'gamma': round(np.clip(gamma, -90, 90), 4),
+            })
+        
+        return samples
+    
+    def get_single_orientation(self) -> dict:
+        """Get a single orientation sample for instantaneous use."""
+        stream = self.generate_orientation_stream(50, 60)
+        return stream[-1] if stream else {'alpha': 90, 'beta': 80, 'gamma': 0, 'timestamp': 0}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: TOUCH PRESSURE SYNTHESIS
+# Mobile touch pressure patterns for KYC and behavioral biometrics
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TouchPressureSynthesis:
+    """
+    V7.6: Generates realistic touch pressure patterns for mobile interactions.
+    
+    Behavioral biometrics systems track Touch.force (0.0-1.0) to:
+    - Identify users by unique pressure patterns
+    - Detect automation (constant pressure = bot)
+    - Flag unusual patterns (too light/heavy = not real finger)
+    
+    This engine generates human-like pressure patterns.
+    """
+    
+    # Pressure profiles by action type
+    PRESSURE_PROFILES = {
+        'tap': {
+            'peak_pressure': (0.3, 0.6),      # (min, max) range
+            'attack_ms': (10, 30),             # Time to peak
+            'decay_ms': (20, 60),              # Time from peak to release
+            'sustain_ratio': 0.0,              # No sustain for tap
+        },
+        'long_press': {
+            'peak_pressure': (0.4, 0.7),
+            'attack_ms': (20, 50),
+            'decay_ms': (30, 80),
+            'sustain_ratio': 0.7,              # 70% of peak during hold
+        },
+        'typing': {
+            'peak_pressure': (0.15, 0.35),     # Light quick taps
+            'attack_ms': (5, 15),
+            'decay_ms': (10, 25),
+            'sustain_ratio': 0.0,
+        },
+        'signature': {
+            'peak_pressure': (0.25, 0.55),
+            'attack_ms': (15, 40),
+            'decay_ms': (25, 70),
+            'sustain_ratio': 0.3,
+        },
+        'scroll': {
+            'peak_pressure': (0.2, 0.4),
+            'attack_ms': (10, 25),
+            'decay_ms': (40, 100),
+            'sustain_ratio': 0.5,
+        },
+    }
+    
+    def __init__(self, base_pressure: float = None):
+        # Establish a "user baseline" pressure (humans have consistent patterns)
+        self.base_pressure = base_pressure or random.uniform(0.35, 0.55)
+        self._pressure_variance = random.uniform(0.08, 0.15)
+    
+    def generate_touch_event(self, action_type: str = 'tap', 
+                              duration_ms: float = None) -> list:
+        """
+        Generate a touch pressure curve for a single touch event.
+        
+        Returns list of (timestamp_ms, pressure) tuples.
+        """
+        profile = self.PRESSURE_PROFILES.get(action_type, self.PRESSURE_PROFILES['tap'])
+        
+        # Determine peak pressure (varies around user baseline)
+        peak_min, peak_max = profile['peak_pressure']
+        user_peak = self.base_pressure * random.uniform(0.9, 1.1)
+        peak = np.clip(user_peak + random.uniform(-self._pressure_variance, self._pressure_variance),
+                       peak_min, peak_max)
+        
+        # Timing
+        attack_ms = random.uniform(*profile['attack_ms'])
+        decay_ms = random.uniform(*profile['decay_ms'])
+        
+        if duration_ms and profile['sustain_ratio'] > 0:
+            sustain_ms = max(0, duration_ms - attack_ms - decay_ms)
+        else:
+            sustain_ms = 0
+        
+        total_ms = attack_ms + sustain_ms + decay_ms
+        
+        # Generate pressure curve
+        points = []
+        sample_rate = 120  # 120 Hz touch sampling (common on mobile)
+        num_samples = max(3, int(total_ms / 1000 * sample_rate))
+        
+        for i in range(num_samples):
+            t = i * (total_ms / num_samples)
+            
+            if t < attack_ms:
+                # Attack phase (pressure rising)
+                ratio = t / attack_ms
+                pressure = peak * (1 - (1 - ratio) ** 2)  # Ease-out curve
+            elif t < attack_ms + sustain_ms:
+                # Sustain phase
+                sustain_pressure = peak * profile['sustain_ratio']
+                variation = random.uniform(-0.02, 0.02)
+                pressure = sustain_pressure + variation
+            else:
+                # Decay phase
+                decay_t = t - attack_ms - sustain_ms
+                ratio = decay_t / decay_ms
+                pressure = peak * (1 - ratio) ** 1.5  # Ease-in decay
+            
+            # Add micro-variations
+            pressure += random.uniform(-0.01, 0.01)
+            pressure = max(0, min(1, pressure))
+            
+            points.append({
+                'timestamp': round(t, 2),
+                'force': round(pressure, 4),
+            })
+        
+        return points
+    
+    def generate_typing_sequence(self, num_chars: int) -> list:
+        """Generate pressure sequence for typing num_chars characters."""
+        sequence = []
+        current_time = 0
+        
+        for i in range(num_chars):
+            touch = self.generate_touch_event('typing')
+            for point in touch:
+                sequence.append({
+                    'timestamp': round(current_time + point['timestamp'], 2),
+                    'force': point['force'],
+                    'char_index': i,
+                })
+            
+            # Inter-key delay
+            if i < num_chars - 1:
+                delay = random.uniform(50, 200)
+                current_time += touch[-1]['timestamp'] + delay
+        
+        return sequence
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: MOBILE SENSOR SYNTHESIS COORDINATOR
+# Coordinates all mobile sensor outputs for unified KYC bypass
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MobileSensorSynthesizer:
+    """
+    V7.6: Coordinates all mobile sensor outputs for KYC bypass.
+    
+    Combines:
+    - DeviceOrientation (gyroscope/accelerometer fusion)
+    - Touch pressure
+    - GhostMotor trajectories
+    - Screen dimensions/DPI
+    
+    Into a unified, consistent mobile sensor profile.
+    """
+    
+    DEVICE_PROFILES = {
+        'iphone_14': {
+            'screen_width': 393, 'screen_height': 852,
+            'dpi': 460, 'touch_sample_rate': 120,
+            'orientation_sample_rate': 60,
+            'pressure_supported': True,
+        },
+        'samsung_s23': {
+            'screen_width': 360, 'screen_height': 780,
+            'dpi': 425, 'touch_sample_rate': 240,
+            'orientation_sample_rate': 100,
+            'pressure_supported': True,
+        },
+        'pixel_8': {
+            'screen_width': 412, 'screen_height': 915,
+            'dpi': 420, 'touch_sample_rate': 120,
+            'orientation_sample_rate': 60,
+            'pressure_supported': True,
+        },
+    }
+    
+    def __init__(self, device: str = 'iphone_14', scenario: str = 'selfie_front'):
+        self.device = self.DEVICE_PROFILES.get(device, self.DEVICE_PROFILES['iphone_14'])
+        self.orientation_engine = DeviceOrientationMimicry(scenario)
+        self.pressure_engine = TouchPressureSynthesis()
+        self.motor = GhostMotorV7()
+    
+    def generate_kyc_session_data(self, duration_ms: float = 5000) -> dict:
+        """
+        Generate complete sensor data for a KYC session (e.g., selfie capture).
+        
+        Returns dict with orientation stream, touch events, and screen taps.
+        """
+        orientation_stream = self.orientation_engine.generate_orientation_stream(
+            duration_ms, self.device['orientation_sample_rate']
+        )
+        
+        # Simulate a few tap events (start capture, re-center, capture button)
+        tap_times = [
+            duration_ms * 0.1,   # Initial tap
+            duration_ms * 0.5,   # Adjustment
+            duration_ms * 0.85,  # Capture button
+        ]
+        
+        touch_events = []
+        for t in tap_times:
+            tap_data = self.pressure_engine.generate_touch_event('tap')
+            for point in tap_data:
+                touch_events.append({
+                    'timestamp': round(t + point['timestamp'], 2),
+                    'force': point['force'],
+                    'x': random.uniform(self.device['screen_width'] * 0.3, self.device['screen_width'] * 0.7),
+                    'y': random.uniform(self.device['screen_height'] * 0.4, self.device['screen_height'] * 0.8),
+                })
+        
+        return {
+            'device': self.device,
+            'duration_ms': duration_ms,
+            'orientation_stream': orientation_stream,
+            'touch_events': touch_events,
+            'session_fatigue': self.motor._get_fatigue_factor(),
+        }
+
+
+# V7.6 Convenience exports for mobile sensor synthesis
+def generate_device_orientation(pattern: str = 'selfie_front', duration_ms: float = 3000):
+    """V7.6: Generate device orientation stream"""
+    return DeviceOrientationMimicry(pattern).generate_orientation_stream(duration_ms)
+
+def generate_touch_pressure(action_type: str = 'tap', duration_ms: float = None):
+    """V7.6: Generate touch pressure curve"""
+    return TouchPressureSynthesis().generate_touch_event(action_type, duration_ms)
+
+def generate_kyc_sensor_data(device: str = 'iphone_14', scenario: str = 'selfie_front', duration_ms: float = 5000):
+    """V7.6: Generate complete KYC session sensor data"""
+    return MobileSensorSynthesizer(device, scenario).generate_kyc_session_data(duration_ms)

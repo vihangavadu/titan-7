@@ -1107,3 +1107,350 @@ def get_card_quality_guide() -> Dict:
 def get_bank_enrollment_guide() -> Dict:
     """Get bank enrollment guide for operator"""
     return BANK_ENROLLMENT_GUIDE
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 UPGRADE: P0 CRITICAL COMPONENTS FOR MAXIMUM OPERATIONAL SUCCESS
+# Card Cooling System, Issuer Velocity Tracking, Cross-PSP Correlation
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CardCoolingSystem:
+    """
+    Track card usage and enforce cooling periods between validations.
+    
+    Cards that are validated too frequently across PSPs get flagged.
+    This system enforces minimum cooling periods and tracks heat levels.
+    """
+    
+    # Cooling periods by card tier (minutes)
+    COOLING_PERIODS = {
+        "centurion": 60,   # Premium cards need longer cooling
+        "platinum": 45,
+        "signature": 30,
+        "world_elite": 30,
+        "gold": 20,
+        "classic": 15,
+        "standard": 10,
+    }
+    
+    def __init__(self):
+        self.card_usage: Dict[str, List[Dict]] = {}  # card_hash -> usage history
+        self.card_heat: Dict[str, float] = {}        # card_hash -> heat level (0-100)
+    
+    def get_card_hash(self, card: CardAsset) -> str:
+        """Generate hash for card tracking (uses last 4 + BIN)"""
+        return hashlib.sha256(f"{card.bin}:{card.last_four}".encode()).hexdigest()[:16]
+    
+    def record_usage(self, card: CardAsset, psp: str, result: str) -> None:
+        """Record card usage event."""
+        card_hash = self.get_card_hash(card)
+        
+        if card_hash not in self.card_usage:
+            self.card_usage[card_hash] = []
+        
+        self.card_usage[card_hash].append({
+            "timestamp": datetime.now().timestamp(),
+            "psp": psp,
+            "result": result,
+        })
+        
+        # Update heat level
+        self._update_heat(card_hash, result)
+    
+    def _update_heat(self, card_hash: str, result: str) -> None:
+        """Update card heat level based on usage."""
+        current_heat = self.card_heat.get(card_hash, 0)
+        
+        # Heat increases with usage, decreases with time
+        if result == "LIVE":
+            heat_increase = 10
+        elif result == "DEAD":
+            heat_increase = 30  # Declined cards get hot fast
+        else:
+            heat_increase = 5
+        
+        new_heat = min(100, current_heat + heat_increase)
+        self.card_heat[card_hash] = new_heat
+    
+    def is_cool(self, card: CardAsset, card_level: str = "classic") -> tuple:
+        """
+        Check if card has cooled down enough for next validation.
+        
+        Returns:
+            (is_cool: bool, wait_seconds: int, heat_level: float)
+        """
+        card_hash = self.get_card_hash(card)
+        
+        if card_hash not in self.card_usage:
+            return (True, 0, 0.0)
+        
+        usage = self.card_usage[card_hash]
+        if not usage:
+            return (True, 0, 0.0)
+        
+        last_use = usage[-1]["timestamp"]
+        cooling_period = self.COOLING_PERIODS.get(card_level, 15) * 60  # Convert to seconds
+        
+        time_since = datetime.now().timestamp() - last_use
+        heat_level = self.card_heat.get(card_hash, 0)
+        
+        # Adjust cooling period based on heat
+        adjusted_cooling = cooling_period * (1 + heat_level / 100)
+        
+        if time_since >= adjusted_cooling:
+            # Card has cooled - reduce heat
+            self.card_heat[card_hash] = max(0, heat_level - 20)
+            return (True, 0, heat_level)
+        
+        wait_seconds = int(adjusted_cooling - time_since)
+        return (False, wait_seconds, heat_level)
+    
+    def get_card_status(self, card: CardAsset) -> Dict:
+        """Get full status of a card."""
+        card_hash = self.get_card_hash(card)
+        
+        return {
+            "card_hash": card_hash,
+            "usage_count": len(self.card_usage.get(card_hash, [])),
+            "heat_level": self.card_heat.get(card_hash, 0),
+            "last_psp": self.card_usage.get(card_hash, [{}])[-1].get("psp", "none") if self.card_usage.get(card_hash) else "none",
+            "last_result": self.card_usage.get(card_hash, [{}])[-1].get("result", "none") if self.card_usage.get(card_hash) else "none",
+        }
+
+
+class IssuerVelocityTracker:
+    """
+    Track validation velocity per issuer BIN.
+    
+    Some issuers flag rapid validations from same device/IP.
+    This tracker helps avoid triggering issuer-level velocity blocks.
+    """
+    
+    # Issuer velocity limits (validations per hour)
+    ISSUER_LIMITS = {
+        "Chase": 3,
+        "Bank of America": 5,
+        "Wells Fargo": 4,
+        "Capital One": 6,
+        "Citi": 5,
+        "Amex": 3,
+        "Discover": 8,
+        "USAA": 3,
+        "Navy Federal": 3,
+    }
+    
+    # BIN prefix to issuer mapping
+    BIN_ISSUER_MAP = {
+        "4147": "Chase", "4246": "Chase", "4266": "Chase",
+        "4400": "Bank of America", "4401": "Bank of America", "4500": "Bank of America",
+        "4024": "Wells Fargo", "4054": "Wells Fargo",
+        "4147": "Capital One", "4264": "Capital One",
+        "5424": "Citi", "5412": "Citi",
+        "3782": "Amex", "3737": "Amex", "3700": "Amex",
+        "6011": "Discover", "6500": "Discover",
+    }
+    
+    def __init__(self):
+        self.issuer_usage: Dict[str, List[float]] = {}  # issuer -> timestamps
+    
+    def get_issuer(self, bin6: str) -> str:
+        """Get issuer name from BIN."""
+        for prefix, issuer in self.BIN_ISSUER_MAP.items():
+            if bin6.startswith(prefix):
+                return issuer
+        return "Unknown"
+    
+    def record_validation(self, card: CardAsset) -> None:
+        """Record a validation for issuer tracking."""
+        issuer = self.get_issuer(card.bin)
+        
+        if issuer not in self.issuer_usage:
+            self.issuer_usage[issuer] = []
+        
+        self.issuer_usage[issuer].append(datetime.now().timestamp())
+        
+        # Prune old entries (older than 1 hour)
+        cutoff = datetime.now().timestamp() - 3600
+        self.issuer_usage[issuer] = [t for t in self.issuer_usage[issuer] if t > cutoff]
+    
+    def can_validate(self, card: CardAsset) -> tuple:
+        """
+        Check if we can validate another card from this issuer.
+        
+        Returns:
+            (can_validate: bool, wait_seconds: int, current_count: int, limit: int)
+        """
+        issuer = self.get_issuer(card.bin)
+        limit = self.ISSUER_LIMITS.get(issuer, 10)
+        
+        # Prune old entries
+        cutoff = datetime.now().timestamp() - 3600
+        if issuer in self.issuer_usage:
+            self.issuer_usage[issuer] = [t for t in self.issuer_usage[issuer] if t > cutoff]
+        
+        current_count = len(self.issuer_usage.get(issuer, []))
+        
+        if current_count < limit:
+            return (True, 0, current_count, limit)
+        
+        # Calculate wait time until oldest entry expires
+        oldest = min(self.issuer_usage[issuer])
+        wait_seconds = int(oldest + 3600 - datetime.now().timestamp())
+        
+        return (False, max(0, wait_seconds), current_count, limit)
+    
+    def get_issuer_stats(self) -> Dict:
+        """Get current issuer velocity stats."""
+        stats = {}
+        for issuer, timestamps in self.issuer_usage.items():
+            limit = self.ISSUER_LIMITS.get(issuer, 10)
+            stats[issuer] = {
+                "count_last_hour": len(timestamps),
+                "limit": limit,
+                "utilization": round(len(timestamps) / limit * 100, 1),
+            }
+        return stats
+
+
+class CrossPSPCorrelator:
+    """
+    Track cross-PSP flagging patterns to detect correlation attacks.
+    
+    Cards flagged on one PSP often get flagged on others due to
+    shared fraud networks (Sift, Forter, etc.).
+    """
+    
+    # PSP participation in fraud networks
+    PSP_FRAUD_NETWORKS = {
+        "stripe": ["sift", "forter"],
+        "braintree": ["kount", "fraud_net"],
+        "adyen": ["iovation", "lexisnexis"],
+        "paypal": ["internal", "sift"],
+        "shopify": ["sift", "forter"],
+    }
+    
+    def __init__(self):
+        self.card_flags: Dict[str, Dict[str, str]] = {}  # card_hash -> {psp: result}
+    
+    def record_result(self, card: CardAsset, psp: str, result: str) -> None:
+        """Record PSP result for cross-correlation."""
+        card_hash = hashlib.sha256(f"{card.bin}:{card.last_four}".encode()).hexdigest()[:16]
+        
+        if card_hash not in self.card_flags:
+            self.card_flags[card_hash] = {}
+        
+        self.card_flags[card_hash][psp] = result
+    
+    def get_correlation_risk(self, card: CardAsset) -> Dict:
+        """
+        Get correlation risk assessment for a card.
+        
+        Returns dict with risk level and recommendations.
+        """
+        card_hash = hashlib.sha256(f"{card.bin}:{card.last_four}".encode()).hexdigest()[:16]
+        
+        if card_hash not in self.card_flags:
+            return {
+                "risk_level": "unknown",
+                "flagged_psps": [],
+                "shared_networks": [],
+                "recommendation": "No prior history - proceed with caution",
+            }
+        
+        flags = self.card_flags[card_hash]
+        flagged_psps = [psp for psp, result in flags.items() if result == "DEAD"]
+        live_psps = [psp for psp, result in flags.items() if result == "LIVE"]
+        
+        if not flagged_psps:
+            return {
+                "risk_level": "low",
+                "flagged_psps": [],
+                "live_psps": live_psps,
+                "recommendation": "Card has clean history across PSPs",
+            }
+        
+        # Check shared fraud networks
+        shared_networks = set()
+        for psp in flagged_psps:
+            networks = self.PSP_FRAUD_NETWORKS.get(psp, [])
+            shared_networks.update(networks)
+        
+        # Calculate risk level
+        if len(flagged_psps) >= 2:
+            risk_level = "critical"
+            recommendation = "Card flagged on multiple PSPs - likely burned across all networks"
+        elif "sift" in shared_networks or "forter" in shared_networks:
+            risk_level = "high"
+            recommendation = "Card flagged on PSP with major fraud network - avoid PSPs sharing same network"
+        else:
+            risk_level = "medium"
+            recommendation = f"Card flagged on {flagged_psps[0]} - avoid related PSPs"
+        
+        # Get safe PSPs (not sharing networks with flagged ones)
+        safe_psps = []
+        for psp, networks in self.PSP_FRAUD_NETWORKS.items():
+            if psp not in flagged_psps and not any(n in shared_networks for n in networks):
+                safe_psps.append(psp)
+        
+        return {
+            "risk_level": risk_level,
+            "flagged_psps": flagged_psps,
+            "live_psps": live_psps,
+            "shared_networks": list(shared_networks),
+            "safe_psps": safe_psps,
+            "recommendation": recommendation,
+        }
+
+
+# Initialize global instances
+_cooling_system = CardCoolingSystem()
+_velocity_tracker = IssuerVelocityTracker()
+_psp_correlator = CrossPSPCorrelator()
+
+
+def get_card_intelligence(card: CardAsset, card_level: str = "classic") -> Dict:
+    """
+    Get comprehensive card intelligence for operational decision.
+    
+    Combines cooling status, velocity limits, and cross-PSP correlation.
+    """
+    cooling_status = _cooling_system.is_cool(card, card_level)
+    velocity_status = _velocity_tracker.can_validate(card)
+    correlation_risk = _psp_correlator.get_correlation_risk(card)
+    
+    # Calculate overall risk
+    risk_factors = []
+    if not cooling_status[0]:
+        risk_factors.append(f"Card not cooled ({cooling_status[1]}s remaining)")
+    if not velocity_status[0]:
+        risk_factors.append(f"Issuer velocity limit reached ({velocity_status[2]}/{velocity_status[3]})")
+    if correlation_risk["risk_level"] in ("high", "critical"):
+        risk_factors.append(f"Cross-PSP correlation: {correlation_risk['risk_level']}")
+    
+    go_signal = len(risk_factors) == 0
+    
+    return {
+        "go_signal": go_signal,
+        "risk_factors": risk_factors,
+        "cooling": {
+            "is_cool": cooling_status[0],
+            "wait_seconds": cooling_status[1],
+            "heat_level": cooling_status[2],
+        },
+        "velocity": {
+            "can_validate": velocity_status[0],
+            "wait_seconds": velocity_status[1],
+            "current_count": velocity_status[2],
+            "limit": velocity_status[3],
+            "issuer": _velocity_tracker.get_issuer(card.bin),
+        },
+        "correlation": correlation_risk,
+        "recommendation": "GO" if go_signal else "WAIT" if risk_factors else "AVOID",
+    }
+
+
+def record_validation_event(card: CardAsset, psp: str, result: str, card_level: str = "classic") -> None:
+    """Record a validation event across all intelligence systems."""
+    _cooling_system.record_usage(card, psp, result)
+    _velocity_tracker.record_validation(card)
+    _psp_correlator.record_result(card, psp, result)

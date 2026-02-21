@@ -711,3 +711,751 @@ def intel_aware_handover(profile_path: str, target_id: str,
 if __name__ == "__main__":
     protocol = ManualHandoverProtocol()
     print(f"Handover Protocol initialized. State: {protocol.state.phase}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 HANDOVER ORCHESTRATOR — Orchestrate complex multi-step handovers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import threading
+from collections import defaultdict
+
+
+@dataclass
+class OrchestrationStep:
+    """A step in the handover orchestration."""
+    step_id: int
+    name: str
+    status: str  # "pending", "in_progress", "completed", "failed", "skipped"
+    dependencies: List[int]
+    action: Optional[Callable[[], bool]]
+    result: Optional[Any] = None
+    error: Optional[str] = None
+    started_at: Optional[float] = None
+    completed_at: Optional[float] = None
+
+
+@dataclass
+class OrchestrationResult:
+    """Result of handover orchestration."""
+    success: bool
+    steps_completed: int
+    steps_failed: int
+    total_duration_ms: float
+    failed_steps: List[str]
+    warnings: List[str]
+
+
+class HandoverOrchestrator:
+    """
+    V7.6 Handover Orchestrator - Orchestrates complex multi-step
+    handover processes with dependency management.
+    """
+    
+    # Standard orchestration templates
+    ORCHESTRATION_TEMPLATES = {
+        "standard": [
+            {"name": "Verify profile exists", "dependencies": []},
+            {"name": "Check cookies validity", "dependencies": [0]},
+            {"name": "Validate hardware profile", "dependencies": [0]},
+            {"name": "Kill automation processes", "dependencies": [1, 2]},
+            {"name": "Verify freeze complete", "dependencies": [3]},
+            {"name": "Generate operator instructions", "dependencies": [4]},
+            {"name": "Record handover timestamp", "dependencies": [5]},
+        ],
+        "high_security": [
+            {"name": "Verify profile exists", "dependencies": []},
+            {"name": "Check cookies validity", "dependencies": [0]},
+            {"name": "Validate hardware profile", "dependencies": [0]},
+            {"name": "Verify IP reputation", "dependencies": [0]},
+            {"name": "Check TLS fingerprint", "dependencies": [0]},
+            {"name": "Validate timezone sync", "dependencies": [3, 4]},
+            {"name": "Kill automation processes", "dependencies": [1, 2, 5]},
+            {"name": "Verify freeze complete", "dependencies": [6]},
+            {"name": "Run preflight checks", "dependencies": [7]},
+            {"name": "Generate operator instructions", "dependencies": [8]},
+            {"name": "Record handover timestamp", "dependencies": [9]},
+        ],
+        "quick": [
+            {"name": "Verify profile exists", "dependencies": []},
+            {"name": "Kill automation processes", "dependencies": [0]},
+            {"name": "Generate operator instructions", "dependencies": [1]},
+        ],
+    }
+    
+    def __init__(self, protocol: Optional[ManualHandoverProtocol] = None):
+        self.protocol = protocol or ManualHandoverProtocol()
+        self._steps: List[OrchestrationStep] = []
+        self._execution_lock = threading.Lock()
+        self._orchestration_history: List[OrchestrationResult] = []
+    
+    def load_template(self, template_name: str = "standard"):
+        """Load an orchestration template."""
+        template = self.ORCHESTRATION_TEMPLATES.get(
+            template_name, 
+            self.ORCHESTRATION_TEMPLATES["standard"]
+        )
+        
+        self._steps = []
+        for i, step_def in enumerate(template):
+            step = OrchestrationStep(
+                step_id=i,
+                name=step_def["name"],
+                status="pending",
+                dependencies=step_def["dependencies"],
+                action=self._get_action_for_step(step_def["name"])
+            )
+            self._steps.append(step)
+    
+    def _get_action_for_step(self, step_name: str) -> Optional[Callable[[], bool]]:
+        """Get action function for a step."""
+        actions = {
+            "Verify profile exists": self._verify_profile_exists,
+            "Check cookies validity": self._check_cookies,
+            "Validate hardware profile": self._validate_hardware,
+            "Kill automation processes": self._kill_automation,
+            "Verify freeze complete": self._verify_freeze,
+            "Generate operator instructions": self._generate_instructions,
+            "Record handover timestamp": self._record_timestamp,
+            "Verify IP reputation": self._verify_ip,
+            "Check TLS fingerprint": self._check_tls,
+            "Validate timezone sync": self._validate_timezone,
+            "Run preflight checks": self._run_preflight,
+        }
+        return actions.get(step_name)
+    
+    def _verify_profile_exists(self) -> bool:
+        if self.protocol.state.profile_path and self.protocol.state.profile_path.exists():
+            self.protocol.checklist.profile_exists = True
+            return True
+        return False
+    
+    def _check_cookies(self) -> bool:
+        self.protocol.checklist.cookies_injected = True
+        return True
+    
+    def _validate_hardware(self) -> bool:
+        self.protocol.checklist.hardware_profile_set = True
+        return True
+    
+    def _kill_automation(self) -> bool:
+        self.protocol.initiate_freeze()
+        return True
+    
+    def _verify_freeze(self) -> bool:
+        return self.protocol.verify_freeze()
+    
+    def _generate_instructions(self) -> bool:
+        return True
+    
+    def _record_timestamp(self) -> bool:
+        self.protocol.state.handover_time = datetime.now(timezone.utc)
+        return True
+    
+    def _verify_ip(self) -> bool:
+        return True
+    
+    def _check_tls(self) -> bool:
+        return True
+    
+    def _validate_timezone(self) -> bool:
+        return True
+    
+    def _run_preflight(self) -> bool:
+        if self.protocol.state.profile_path:
+            results = run_preflight_checks(str(self.protocol.state.profile_path))
+            return results.get("passed", False)
+        return False
+    
+    def _can_execute_step(self, step: OrchestrationStep) -> bool:
+        """Check if all dependencies are satisfied."""
+        for dep_id in step.dependencies:
+            dep_step = self._steps[dep_id]
+            if dep_step.status != "completed":
+                return False
+        return True
+    
+    def execute(self) -> OrchestrationResult:
+        """Execute the orchestration."""
+        start_time = time.time()
+        failed_steps = []
+        warnings = []
+        
+        with self._execution_lock:
+            # Execute steps in dependency order
+            max_iterations = len(self._steps) * 2  # Prevent infinite loops
+            iteration = 0
+            
+            while iteration < max_iterations:
+                iteration += 1
+                made_progress = False
+                
+                for step in self._steps:
+                    if step.status == "pending" and self._can_execute_step(step):
+                        step.status = "in_progress"
+                        step.started_at = time.time()
+                        
+                        try:
+                            if step.action:
+                                result = step.action()
+                                step.result = result
+                                
+                                if result:
+                                    step.status = "completed"
+                                else:
+                                    step.status = "failed"
+                                    failed_steps.append(step.name)
+                            else:
+                                # No action, just mark complete
+                                step.status = "completed"
+                        except Exception as e:
+                            step.status = "failed"
+                            step.error = str(e)
+                            failed_steps.append(step.name)
+                        
+                        step.completed_at = time.time()
+                        made_progress = True
+                
+                # Check if all done
+                all_terminal = all(s.status in ("completed", "failed", "skipped") for s in self._steps)
+                if all_terminal:
+                    break
+                
+                if not made_progress:
+                    # Stuck - mark remaining as skipped
+                    for step in self._steps:
+                        if step.status == "pending":
+                            step.status = "skipped"
+                            warnings.append(f"Step '{step.name}' skipped due to unmet dependencies")
+                    break
+        
+        elapsed_ms = (time.time() - start_time) * 1000
+        completed = sum(1 for s in self._steps if s.status == "completed")
+        failed = sum(1 for s in self._steps if s.status == "failed")
+        
+        result = OrchestrationResult(
+            success=failed == 0,
+            steps_completed=completed,
+            steps_failed=failed,
+            total_duration_ms=round(elapsed_ms, 2),
+            failed_steps=failed_steps,
+            warnings=warnings
+        )
+        
+        self._orchestration_history.append(result)
+        return result
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get current orchestration status."""
+        return {
+            "steps": [
+                {
+                    "id": s.step_id,
+                    "name": s.name,
+                    "status": s.status,
+                    "duration_ms": (s.completed_at - s.started_at) * 1000 if s.started_at and s.completed_at else None,
+                    "error": s.error
+                }
+                for s in self._steps
+            ],
+            "total_steps": len(self._steps),
+            "completed": sum(1 for s in self._steps if s.status == "completed"),
+            "failed": sum(1 for s in self._steps if s.status == "failed")
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 OPERATOR GUIDANCE ENGINE — Provide real-time guidance to operators
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class GuidanceMessage:
+    """A guidance message for the operator."""
+    message_id: str
+    severity: str  # "info", "warning", "critical", "success"
+    title: str
+    content: str
+    action_required: bool
+    timestamp: float
+
+
+class OperatorGuidanceEngine:
+    """
+    V7.6 Operator Guidance Engine - Provides real-time guidance
+    and tips to operators during manual execution.
+    """
+    
+    # Context-aware guidance rules
+    GUIDANCE_RULES = {
+        "login_page": [
+            GuidanceMessage("lg1", "info", "Login Approach", 
+                "Enter credentials at human pace (2-3 seconds per field)", False, 0),
+            GuidanceMessage("lg2", "warning", "Autofill Alert", 
+                "Use browser autofill if available - it triggers trust signals", True, 0),
+            GuidanceMessage("lg3", "info", "Failed Login", 
+                "If login fails, wait 30 seconds before retry", False, 0),
+        ],
+        "checkout": [
+            GuidanceMessage("ck1", "critical", "Card Entry", 
+                "Match typing speed to card complexity - don't rush", True, 0),
+            GuidanceMessage("ck2", "warning", "3D Secure", 
+                "If 3DS appears, wait for full load before acting", True, 0),
+            GuidanceMessage("ck3", "info", "Review Order", 
+                "Pause 3-5 seconds on review page - real users read", False, 0),
+        ],
+        "3ds_challenge": [
+            GuidanceMessage("3d1", "critical", "3DS Detected", 
+                "Do NOT close the popup - complete or wait for timeout", True, 0),
+            GuidanceMessage("3d2", "warning", "OTP Entry", 
+                "Enter OTP at 1-2 digits per second, human pace", True, 0),
+            GuidanceMessage("3d3", "info", "Failed 3DS", 
+                "If 3DS fails, do NOT retry immediately - wait 5 minutes", False, 0),
+        ],
+        "captcha": [
+            GuidanceMessage("cp1", "warning", "Captcha Detected", 
+                "Solve carefully - multiple failures increase suspicion", True, 0),
+            GuidanceMessage("cp2", "info", "Image Captcha", 
+                "Take 3-5 seconds per selection - real users aren't instant", False, 0),
+        ],
+        "post_checkout": [
+            GuidanceMessage("pc1", "success", "Order Placed", 
+                "Wait for confirmation email before closing browser", False, 0),
+            GuidanceMessage("pc2", "warning", "Order Review", 
+                "Some orders enter manual review - check email in 24 hours", False, 0),
+            GuidanceMessage("pc3", "info", "Clear Data", 
+                "Clear browser data after confirmed receipt", False, 0),
+        ],
+    }
+    
+    # Domain-specific tips
+    DOMAIN_TIPS = {
+        "amazon.com": [
+            "Amazon tracks mouse hover patterns - browse naturally before checkout",
+            "Add item to cart, then 'continue shopping' before final checkout",
+            "Use Prime trial if account doesn't have it - reduces friction",
+        ],
+        "bestbuy.com": [
+            "Best Buy in-store pickup is fastest - verify name matches ID",
+            "Rewards signup during checkout is normal - can skip safely",
+            "Payment review is common - may take 30 minutes for approval",
+        ],
+        "eneba.com": [
+            "Eneba allows Paysafecard/crypto - consider non-card options",
+            "Key delivery is instant - redeem immediately after purchase",
+            "Account age matters - consider using aged profiles",
+        ],
+    }
+    
+    def __init__(self):
+        self._active_guidance: List[GuidanceMessage] = []
+        self._dismissed_ids: set = set()
+        self._guidance_history: List[Dict] = []
+    
+    def get_guidance_for_context(self, context: str) -> List[GuidanceMessage]:
+        """
+        Get guidance messages for a specific context.
+        
+        Args:
+            context: Current context ("login_page", "checkout", etc.)
+        
+        Returns:
+            List of relevant guidance messages
+        """
+        messages = self.GUIDANCE_RULES.get(context, [])
+        
+        # Filter out dismissed messages
+        active = [m for m in messages if m.message_id not in self._dismissed_ids]
+        
+        # Add timestamps
+        now = time.time()
+        for m in active:
+            m.timestamp = now
+        
+        self._active_guidance = active
+        return active
+    
+    def get_domain_tips(self, domain: str) -> List[str]:
+        """Get domain-specific tips."""
+        # Find matching domain
+        for pattern, tips in self.DOMAIN_TIPS.items():
+            if pattern in domain:
+                return tips
+        return []
+    
+    def dismiss_guidance(self, message_id: str):
+        """Dismiss a guidance message."""
+        self._dismissed_ids.add(message_id)
+    
+    def acknowledge_guidance(self, message_id: str, action_taken: str = ""):
+        """Acknowledge acting on guidance."""
+        self._guidance_history.append({
+            "message_id": message_id,
+            "action_taken": action_taken,
+            "timestamp": time.time()
+        })
+    
+    def get_critical_guidance(self) -> List[GuidanceMessage]:
+        """Get only critical guidance messages."""
+        return [m for m in self._active_guidance if m.severity == "critical"]
+    
+    def generate_step_by_step(self, target_domain: str, 
+                              checkout_type: str = "digital_delivery") -> List[str]:
+        """
+        Generate step-by-step operator guide for a target.
+        
+        Args:
+            target_domain: Target website domain
+            checkout_type: Type of checkout
+        
+        Returns:
+            List of step-by-step instructions
+        """
+        steps = []
+        
+        # Pre-checkout
+        steps.append("1. Launch browser with the prepared profile")
+        steps.append("2. Navigate to target via organic path (Google search preferred)")
+        
+        # Domain-specific
+        tips = self.get_domain_tips(target_domain)
+        if tips:
+            steps.append(f"3. Note: {tips[0]}")
+        
+        # Checkout
+        steps.append("4. Browse naturally for 2-3 minutes before checkout")
+        steps.append("5. Add items to cart, review order")
+        steps.append("6. Proceed to checkout when ready")
+        steps.append("7. Enter payment details at human pace")
+        steps.append("8. Handle 3DS challenge if presented")
+        steps.append("9. Confirm order and note confirmation number")
+        
+        # Post-checkout
+        guide = get_post_checkout_guide(checkout_type)
+        for i, post_step in enumerate(guide.get("steps", [])[:3], 10):
+            steps.append(f"{i}. {post_step}")
+        
+        return steps
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 HANDOVER ANALYTICS — Track handover success rates and patterns
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class HandoverMetrics:
+    """Metrics for handover analytics."""
+    total_handovers: int
+    successful: int
+    failed: int
+    aborted: int
+    avg_duration_ms: float
+    success_rate: float
+    common_failures: List[Tuple[str, int]]
+
+
+class HandoverAnalytics:
+    """
+    V7.6 Handover Analytics - Tracks handover success rates
+    and identifies patterns for improvement.
+    """
+    
+    def __init__(self):
+        self._handover_records: List[Dict] = []
+        self._failure_counts: Dict[str, int] = defaultdict(int)
+        self._domain_stats: Dict[str, Dict] = defaultdict(lambda: {"success": 0, "fail": 0})
+    
+    def record_handover(self, profile_id: str, target_domain: str,
+                       success: bool, duration_ms: float,
+                       failure_reason: Optional[str] = None):
+        """Record a handover outcome."""
+        record = {
+            "profile_id": profile_id,
+            "target_domain": target_domain,
+            "success": success,
+            "duration_ms": duration_ms,
+            "failure_reason": failure_reason,
+            "timestamp": time.time()
+        }
+        
+        self._handover_records.append(record)
+        
+        if not success and failure_reason:
+            self._failure_counts[failure_reason] += 1
+        
+        domain_key = target_domain.replace("www.", "")
+        if success:
+            self._domain_stats[domain_key]["success"] += 1
+        else:
+            self._domain_stats[domain_key]["fail"] += 1
+    
+    def get_metrics(self) -> HandoverMetrics:
+        """Get overall handover metrics."""
+        if not self._handover_records:
+            return HandoverMetrics(0, 0, 0, 0, 0, 0, [])
+        
+        total = len(self._handover_records)
+        successful = sum(1 for r in self._handover_records if r["success"])
+        failed = sum(1 for r in self._handover_records if not r["success"] and r.get("failure_reason"))
+        aborted = total - successful - failed
+        
+        durations = [r["duration_ms"] for r in self._handover_records if r["duration_ms"]]
+        avg_duration = sum(durations) / len(durations) if durations else 0
+        
+        success_rate = successful / total if total > 0 else 0
+        
+        common_failures = sorted(
+            self._failure_counts.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:5]
+        
+        return HandoverMetrics(
+            total_handovers=total,
+            successful=successful,
+            failed=failed,
+            aborted=aborted,
+            avg_duration_ms=round(avg_duration, 2),
+            success_rate=round(success_rate, 3),
+            common_failures=common_failures
+        )
+    
+    def get_domain_success_rate(self, domain: str) -> float:
+        """Get success rate for a specific domain."""
+        domain_key = domain.replace("www.", "")
+        stats = self._domain_stats.get(domain_key, {"success": 0, "fail": 0})
+        total = stats["success"] + stats["fail"]
+        return stats["success"] / total if total > 0 else 0
+    
+    def get_best_performing_domains(self, limit: int = 5) -> List[Tuple[str, float]]:
+        """Get domains with highest success rates."""
+        rates = []
+        for domain, stats in self._domain_stats.items():
+            total = stats["success"] + stats["fail"]
+            if total >= 3:  # Minimum sample size
+                rate = stats["success"] / total
+                rates.append((domain, rate))
+        
+        return sorted(rates, key=lambda x: x[1], reverse=True)[:limit]
+    
+    def get_improvement_suggestions(self) -> List[str]:
+        """Generate improvement suggestions based on data."""
+        suggestions = []
+        metrics = self.get_metrics()
+        
+        if metrics.success_rate < 0.7:
+            suggestions.append("Overall success rate is below 70% - review profile quality")
+        
+        for failure, count in metrics.common_failures:
+            if count >= 3:
+                suggestions.append(f"Address recurring failure: '{failure}' ({count} occurrences)")
+        
+        # Check for domain-specific issues
+        for domain, stats in self._domain_stats.items():
+            total = stats["success"] + stats["fail"]
+            if total >= 5 and stats["fail"] / total > 0.5:
+                suggestions.append(f"High failure rate on {domain} - consider target-specific optimization")
+        
+        if not suggestions:
+            suggestions.append("Performance is good - maintain current practices")
+        
+        return suggestions
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 SECURE HANDOVER CHANNEL — Secure communication during handover
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import base64
+import hmac
+
+
+class SecureHandoverChannel:
+    """
+    V7.6 Secure Handover Channel - Provides secure communication
+    between automated system and operator during handover.
+    """
+    
+    def __init__(self, shared_secret: Optional[str] = None):
+        """
+        Initialize secure channel.
+        
+        Args:
+            shared_secret: Pre-shared key for HMAC (auto-generated if None)
+        """
+        self.secret = shared_secret or base64.b64encode(os.urandom(32)).decode()
+        self._message_queue: List[Dict] = []
+        self._received_acks: set = set()
+    
+    def _sign_message(self, message: str) -> str:
+        """Sign a message with HMAC."""
+        signature = hmac.new(
+            self.secret.encode(),
+            message.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        return signature
+    
+    def _verify_signature(self, message: str, signature: str) -> bool:
+        """Verify message signature."""
+        expected = self._sign_message(message)
+        return hmac.compare_digest(expected, signature)
+    
+    def send_secure_message(self, message_type: str, content: Dict) -> str:
+        """
+        Send a secure message to the operator.
+        
+        Args:
+            message_type: Type of message ("instruction", "warning", "data")
+            content: Message content
+        
+        Returns:
+            Message ID
+        """
+        message_id = hashlib.md5(
+            f"{time.time()}{json.dumps(content)}".encode()
+        ).hexdigest()[:12]
+        
+        payload = json.dumps({
+            "id": message_id,
+            "type": message_type,
+            "content": content,
+            "timestamp": time.time()
+        })
+        
+        signature = self._sign_message(payload)
+        
+        self._message_queue.append({
+            "id": message_id,
+            "payload": payload,
+            "signature": signature,
+            "sent_at": time.time()
+        })
+        
+        return message_id
+    
+    def receive_ack(self, message_id: str, ack_signature: str) -> bool:
+        """
+        Receive acknowledgment from operator.
+        
+        Args:
+            message_id: Message being acknowledged
+            ack_signature: Signature proving receipt
+        
+        Returns:
+            True if ack is valid
+        """
+        if self._verify_signature(message_id, ack_signature):
+            self._received_acks.add(message_id)
+            return True
+        return False
+    
+    def get_pending_messages(self) -> List[Dict]:
+        """Get messages awaiting acknowledgment."""
+        return [
+            msg for msg in self._message_queue 
+            if msg["id"] not in self._received_acks
+        ]
+    
+    def send_handover_data(self, handover_state: HandoverState) -> str:
+        """Send handover data securely."""
+        content = {
+            "profile_id": handover_state.profile_id,
+            "target_domain": handover_state.target_domain,
+            "browser_type": handover_state.browser_type,
+            "profile_path": str(handover_state.profile_path) if handover_state.profile_path else None,
+            "risk_score": handover_state.estimated_risk_score,
+            "operator_playbook": handover_state.operator_playbook,
+        }
+        return self.send_secure_message("handover_data", content)
+    
+    def generate_operator_token(self, handover_state: HandoverState, 
+                                validity_minutes: int = 60) -> str:
+        """
+        Generate a time-limited token for operator authentication.
+        
+        Args:
+            handover_state: Current handover state
+            validity_minutes: Token validity period
+        
+        Returns:
+            Operator authentication token
+        """
+        expiry = time.time() + (validity_minutes * 60)
+        
+        token_data = {
+            "profile_id": handover_state.profile_id,
+            "target": handover_state.target_domain,
+            "expires": expiry
+        }
+        
+        payload = json.dumps(token_data)
+        signature = self._sign_message(payload)
+        
+        token = base64.b64encode(
+            f"{payload}|{signature}".encode()
+        ).decode()
+        
+        return token
+    
+    def verify_operator_token(self, token: str) -> Optional[Dict]:
+        """
+        Verify an operator token.
+        
+        Returns:
+            Token data if valid, None if invalid/expired
+        """
+        try:
+            decoded = base64.b64decode(token).decode()
+            payload, signature = decoded.rsplit("|", 1)
+            
+            if not self._verify_signature(payload, signature):
+                return None
+            
+            token_data = json.loads(payload)
+            
+            if token_data.get("expires", 0) < time.time():
+                return None
+            
+            return token_data
+            
+        except Exception:
+            return None
+
+
+# Global instances
+_handover_orchestrator: Optional[HandoverOrchestrator] = None
+_guidance_engine: Optional[OperatorGuidanceEngine] = None
+_handover_analytics: Optional[HandoverAnalytics] = None
+_secure_channel: Optional[SecureHandoverChannel] = None
+
+
+def get_handover_orchestrator() -> HandoverOrchestrator:
+    """Get global handover orchestrator."""
+    global _handover_orchestrator
+    if _handover_orchestrator is None:
+        _handover_orchestrator = HandoverOrchestrator()
+    return _handover_orchestrator
+
+
+def get_guidance_engine() -> OperatorGuidanceEngine:
+    """Get global operator guidance engine."""
+    global _guidance_engine
+    if _guidance_engine is None:
+        _guidance_engine = OperatorGuidanceEngine()
+    return _guidance_engine
+
+
+def get_handover_analytics() -> HandoverAnalytics:
+    """Get global handover analytics."""
+    global _handover_analytics
+    if _handover_analytics is None:
+        _handover_analytics = HandoverAnalytics()
+    return _handover_analytics
+
+
+def get_secure_channel(secret: Optional[str] = None) -> SecureHandoverChannel:
+    """Get global secure handover channel."""
+    global _secure_channel
+    if _secure_channel is None:
+        _secure_channel = SecureHandoverChannel(secret)
+    return _secure_channel

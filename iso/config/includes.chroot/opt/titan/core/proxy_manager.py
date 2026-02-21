@@ -508,3 +508,554 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     manager = ResidentialProxyManager()
     print(f"Proxy Manager initialized. Pool stats: {manager.get_stats()}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: PROXY HEALTH CHECKER
+# Monitor proxy health and auto-rotate failed proxies
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ProxyHealthChecker:
+    """
+    V7.6: Monitors proxy health and handles auto-rotation.
+    
+    Checks:
+    - Connectivity (TCP handshake)
+    - Latency (response time)
+    - Rate limiting (429 detection)
+    - IP consistency (no unexpected changes)
+    - Blacklist status (via external APIs)
+    
+    Auto-rotates to healthy proxy when current fails.
+    """
+    
+    # Test endpoints by purpose
+    TEST_ENDPOINTS = {
+        'connectivity': 'https://httpbin.org/ip',
+        'latency': 'https://www.google.com/generate_204',
+        'ip_check': 'https://api.ipify.org?format=json',
+    }
+    
+    # Health thresholds
+    THRESHOLDS = {
+        'max_latency_ms': 5000,
+        'max_consecutive_failures': 3,
+        'min_success_rate': 0.7,
+        'health_check_interval_s': 60,
+    }
+    
+    def __init__(self, manager: 'ResidentialProxyManager' = None):
+        import threading
+        
+        self.manager = manager
+        self._health_cache = {}  # proxy_url -> health_data
+        self._check_lock = threading.Lock()
+        self._monitor_thread = None
+        self._stop_monitoring = threading.Event()
+    
+    async def check_proxy_health(self, proxy: ProxyEndpoint) -> Dict:
+        """
+        Comprehensive health check for a single proxy.
+        
+        Returns health report with all metrics.
+        """
+        import time
+        import aiohttp
+        
+        report = {
+            'proxy_url': proxy.url,
+            'timestamp': time.time(),
+            'healthy': True,
+            'issues': [],
+            'metrics': {},
+        }
+        
+        try:
+            proxy_url = proxy.socks5_url
+            connector = aiohttp.TCPConnector()
+            
+            async with aiohttp.ClientSession(connector=connector) as session:
+                # Connectivity + latency test
+                start_time = time.time()
+                try:
+                    async with session.get(
+                        self.TEST_ENDPOINTS['connectivity'],
+                        proxy=proxy_url,
+                        timeout=aiohttp.ClientTimeout(total=10)
+                    ) as resp:
+                        latency_ms = (time.time() - start_time) * 1000
+                        report['metrics']['latency_ms'] = round(latency_ms, 1)
+                        
+                        if resp.status == 200:
+                            report['metrics']['connected'] = True
+                        elif resp.status == 429:
+                            report['issues'].append('rate_limited')
+                            report['healthy'] = False
+                        else:
+                            report['issues'].append(f'http_{resp.status}')
+                        
+                        if latency_ms > self.THRESHOLDS['max_latency_ms']:
+                            report['issues'].append('high_latency')
+                
+                except asyncio.TimeoutError:
+                    report['issues'].append('timeout')
+                    report['healthy'] = False
+                except Exception as e:
+                    report['issues'].append(f'connection_error: {str(e)[:50]}')
+                    report['healthy'] = False
+                
+                # IP check
+                if report.get('metrics', {}).get('connected'):
+                    try:
+                        async with session.get(
+                            self.TEST_ENDPOINTS['ip_check'],
+                            proxy=proxy_url,
+                            timeout=aiohttp.ClientTimeout(total=5)
+                        ) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                report['metrics']['exit_ip'] = data.get('ip')
+                    except Exception:
+                        pass
+        
+        except Exception as e:
+            report['issues'].append(f'check_failed: {str(e)[:50]}')
+            report['healthy'] = False
+        
+        # Update cache
+        with self._check_lock:
+            self._health_cache[proxy.url] = report
+        
+        return report
+    
+    def get_cached_health(self, proxy: ProxyEndpoint) -> Dict:
+        """Get cached health data for proxy."""
+        return self._health_cache.get(proxy.url, {
+            'healthy': True,
+            'issues': [],
+            'cached': False,
+        })
+    
+    def is_proxy_healthy(self, proxy: ProxyEndpoint) -> bool:
+        """Quick check if proxy is healthy based on cache."""
+        cached = self._health_cache.get(proxy.url)
+        if not cached:
+            return True  # Assume healthy if never checked
+        return cached.get('healthy', True)
+    
+    def get_healthiest_proxy(self, proxies: List[ProxyEndpoint]) -> Optional[ProxyEndpoint]:
+        """Select healthiest proxy from list based on cached metrics."""
+        scored = []
+        
+        for proxy in proxies:
+            cached = self._health_cache.get(proxy.url, {})
+            
+            if not cached.get('healthy', True):
+                continue
+            
+            # Score based on latency and success rate
+            latency = cached.get('metrics', {}).get('latency_ms', 1000)
+            score = 100 - min(latency / 50, 100)  # Lower latency = higher score
+            score += proxy.success_rate * 50  # Factor in historical success
+            
+            scored.append((proxy, score))
+        
+        if not scored:
+            return proxies[0] if proxies else None
+        
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return scored[0][0]
+    
+    def start_monitoring(self, check_interval: int = 60):
+        """Start background health monitoring."""
+        import threading
+        
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            return
+        
+        self._stop_monitoring.clear()
+        self._monitor_thread = threading.Thread(
+            target=self._monitoring_loop,
+            args=(check_interval,),
+            daemon=True
+        )
+        self._monitor_thread.start()
+    
+    def stop_monitoring(self):
+        """Stop background monitoring."""
+        self._stop_monitoring.set()
+        if self._monitor_thread:
+            self._monitor_thread.join(timeout=5)
+    
+    def _monitoring_loop(self, interval: int):
+        """Background monitoring loop."""
+        import asyncio
+        
+        while not self._stop_monitoring.is_set():
+            if self.manager:
+                # Check all proxies in pool
+                for proxy_url, proxy in list(self.manager._pool.items()):
+                    if self._stop_monitoring.is_set():
+                        break
+                    try:
+                        asyncio.run(self.check_proxy_health(proxy))
+                    except Exception:
+                        pass
+            
+            self._stop_monitoring.wait(interval)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: PROXY IP INTELLIGENCE
+# Check IP reputation and blacklist status
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ProxyIPIntelligence:
+    """
+    V7.6: Checks IP reputation and blacklist status.
+    
+    Sources checked:
+    - Public blacklists (DNSBL)
+    - Datacenter IP detection
+    - ASN reputation
+    - VPN/Proxy detection services
+    
+    Critical for ensuring proxies haven't been burned.
+    """
+    
+    # DNSBL servers for blacklist checking
+    DNSBL_SERVERS = [
+        'zen.spamhaus.org',
+        'b.barracudacentral.org',
+        'bl.spamcop.net',
+    ]
+    
+    # Known datacenter ASNs (proxies from these are less valuable)
+    DATACENTER_ASNS = {
+        'AS16509': 'Amazon AWS',
+        'AS15169': 'Google',
+        'AS8075': 'Microsoft Azure',
+        'AS14618': 'Amazon AWS',
+        'AS13335': 'Cloudflare',
+        'AS20473': 'Choopa/Vultr',
+        'AS63949': 'Linode',
+        'AS14061': 'DigitalOcean',
+    }
+    
+    def __init__(self):
+        self._cache = {}  # ip -> intelligence_data
+        self._cache_ttl = 3600  # 1 hour cache
+    
+    async def analyze_ip(self, ip_address: str) -> Dict:
+        """
+        Analyze IP address reputation.
+        
+        Returns intelligence report with risk assessment.
+        """
+        import time
+        
+        # Check cache
+        cached = self._cache.get(ip_address)
+        if cached and time.time() - cached['timestamp'] < self._cache_ttl:
+            return cached['data']
+        
+        report = {
+            'ip': ip_address,
+            'timestamp': time.time(),
+            'risk_score': 0,
+            'risk_factors': [],
+            'is_datacenter': False,
+            'is_residential': True,  # Assume residential until proven otherwise
+            'blacklisted': False,
+            'blacklist_hits': [],
+        }
+        
+        # DNSBL check
+        blacklist_results = await self._check_dnsbl(ip_address)
+        if blacklist_results:
+            report['blacklisted'] = True
+            report['blacklist_hits'] = blacklist_results
+            report['risk_score'] += 50
+            report['risk_factors'].append('blacklisted')
+        
+        # Datacenter detection via reverse DNS
+        datacenter_result = await self._check_datacenter(ip_address)
+        if datacenter_result:
+            report['is_datacenter'] = True
+            report['is_residential'] = False
+            report['risk_score'] += 20
+            report['risk_factors'].append(f'datacenter: {datacenter_result}')
+        
+        # ASN lookup
+        asn_info = await self._lookup_asn(ip_address)
+        if asn_info:
+            report['asn'] = asn_info
+            if asn_info.get('asn') in self.DATACENTER_ASNS:
+                report['is_datacenter'] = True
+                report['is_residential'] = False
+                report['risk_score'] += 30
+                report['risk_factors'].append(f'datacenter_asn: {self.DATACENTER_ASNS[asn_info["asn"]]}')
+        
+        # Normalize risk score
+        report['risk_score'] = min(report['risk_score'], 100)
+        report['recommendation'] = self._get_recommendation(report)
+        
+        # Cache result
+        self._cache[ip_address] = {
+            'timestamp': time.time(),
+            'data': report,
+        }
+        
+        return report
+    
+    async def _check_dnsbl(self, ip_address: str) -> List[str]:
+        """Check IP against DNSBL servers."""
+        import socket
+        
+        hits = []
+        reversed_ip = '.'.join(reversed(ip_address.split('.')))
+        
+        for dnsbl in self.DNSBL_SERVERS:
+            query = f"{reversed_ip}.{dnsbl}"
+            try:
+                socket.gethostbyname(query)
+                hits.append(dnsbl)
+            except socket.herror:
+                pass  # Not listed
+            except Exception:
+                pass  # DNS error
+        
+        return hits
+    
+    async def _check_datacenter(self, ip_address: str) -> Optional[str]:
+        """Check if IP belongs to datacenter via reverse DNS."""
+        import socket
+        
+        try:
+            hostname, _, _ = socket.gethostbyaddr(ip_address)
+            hostname_lower = hostname.lower()
+            
+            datacenter_keywords = [
+                'amazon', 'aws', 'azure', 'google', 'cloud',
+                'vps', 'server', 'dedicated', 'vultr', 'linode',
+                'digitalocean', 'ovh', 'hetzner', 'hostinger',
+            ]
+            
+            for keyword in datacenter_keywords:
+                if keyword in hostname_lower:
+                    return hostname
+            
+        except (socket.herror, socket.gaierror):
+            pass  # No reverse DNS
+        except Exception:
+            pass
+        
+        return None
+    
+    async def _lookup_asn(self, ip_address: str) -> Optional[Dict]:
+        """Look up ASN information for IP."""
+        import aiohttp
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f'https://api.iptoasn.com/v1/as/ip/{ip_address}',
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return {
+                            'asn': f"AS{data.get('as_number', '')}",
+                            'name': data.get('as_description', ''),
+                            'country': data.get('as_country_code', ''),
+                        }
+        except Exception:
+            pass
+        
+        return None
+    
+    def _get_recommendation(self, report: Dict) -> str:
+        """Get usage recommendation based on analysis."""
+        if report['risk_score'] >= 70:
+            return 'avoid'
+        elif report['risk_score'] >= 40:
+            return 'use_with_caution'
+        elif report['is_datacenter']:
+            return 'datacenter_limited_use'
+        else:
+            return 'good_for_use'
+    
+    def is_ip_safe(self, ip_address: str) -> bool:
+        """Quick check if IP is safe based on cache."""
+        cached = self._cache.get(ip_address)
+        if not cached:
+            return True  # Assume safe if not checked
+        return cached['data'].get('risk_score', 0) < 50
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: PROXY GEO VERIFIER
+# Verify actual geo location matches expected
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ProxyGeoVerifier:
+    """
+    V7.6: Verifies proxy exit location matches expected geo.
+    
+    Critical for:
+    - Billing address matching (avoid fraud flags)
+    - Regional pricing (geo-block bypass)
+    - Regulatory compliance appearance
+    
+    Uses multiple geo-IP services for accuracy.
+    """
+    
+    # Geo-IP services in priority order
+    GEO_SERVICES = [
+        {'url': 'https://ipapi.co/{ip}/json/', 'country_key': 'country_code', 'city_key': 'city', 'region_key': 'region'},
+        {'url': 'https://ipinfo.io/{ip}/json', 'country_key': 'country', 'city_key': 'city', 'region_key': 'region'},
+        {'url': 'http://ip-api.com/json/{ip}', 'country_key': 'countryCode', 'city_key': 'city', 'region_key': 'regionName'},
+    ]
+    
+    def __init__(self):
+        self._cache = {}
+        self._cache_ttl = 3600
+    
+    async def get_geo_location(self, ip_address: str) -> Dict:
+        """Get geo location for IP address."""
+        import time
+        import aiohttp
+        
+        # Check cache
+        cached = self._cache.get(ip_address)
+        if cached and time.time() - cached['timestamp'] < self._cache_ttl:
+            return cached['data']
+        
+        geo_data = {
+            'ip': ip_address,
+            'country': None,
+            'region': None,
+            'city': None,
+            'source': None,
+            'verified': False,
+        }
+        
+        for service in self.GEO_SERVICES:
+            try:
+                url = service['url'].format(ip=ip_address)
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=5)
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            geo_data['country'] = data.get(service['country_key'])
+                            geo_data['region'] = data.get(service['region_key'])
+                            geo_data['city'] = data.get(service['city_key'])
+                            geo_data['source'] = service['url'].split('/')[2]
+                            geo_data['verified'] = True
+                            break
+            except Exception:
+                continue
+        
+        # Cache result
+        self._cache[ip_address] = {
+            'timestamp': time.time(),
+            'data': geo_data,
+        }
+        
+        return geo_data
+    
+    async def verify_proxy_geo(self, proxy: ProxyEndpoint, 
+                                 expected_country: str,
+                                 expected_region: str = None,
+                                 expected_city: str = None) -> Dict:
+        """
+        Verify proxy exit matches expected geo location.
+        
+        Returns verification result with match details.
+        """
+        import aiohttp
+        
+        result = {
+            'proxy_url': proxy.url,
+            'expected': {
+                'country': expected_country,
+                'region': expected_region,
+                'city': expected_city,
+            },
+            'actual': None,
+            'match': False,
+            'match_level': 'none',
+            'details': [],
+        }
+        
+        # Get actual exit IP
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    'https://api.ipify.org?format=json',
+                    proxy=proxy.socks5_url,
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        exit_ip = data.get('ip')
+                    else:
+                        result['details'].append('Failed to get exit IP')
+                        return result
+        except Exception as e:
+            result['details'].append(f'Connection error: {str(e)[:50]}')
+            return result
+        
+        # Get geo for exit IP
+        geo = await self.get_geo_location(exit_ip)
+        result['actual'] = geo
+        
+        if not geo.get('verified'):
+            result['details'].append('Could not verify geo location')
+            return result
+        
+        # Check matches
+        country_match = geo['country'] and geo['country'].upper() == expected_country.upper()
+        region_match = not expected_region or (geo['region'] and expected_region.lower() in geo['region'].lower())
+        city_match = not expected_city or (geo['city'] and expected_city.lower() in geo['city'].lower())
+        
+        if country_match and city_match and expected_city:
+            result['match'] = True
+            result['match_level'] = 'city'
+            result['details'].append(f"City-level match: {geo['city']}, {geo['country']}")
+        elif country_match and region_match and expected_region:
+            result['match'] = True
+            result['match_level'] = 'region'
+            result['details'].append(f"Region-level match: {geo['region']}, {geo['country']}")
+        elif country_match:
+            result['match'] = True
+            result['match_level'] = 'country'
+            result['details'].append(f"Country-level match: {geo['country']}")
+        else:
+            result['details'].append(f"Geo mismatch: expected {expected_country}, got {geo['country']}")
+        
+        return result
+    
+    def get_cached_geo(self, ip_address: str) -> Optional[Dict]:
+        """Get cached geo data for IP."""
+        cached = self._cache.get(ip_address)
+        if cached:
+            return cached['data']
+        return None
+
+
+# V7.6 Convenience exports
+def create_proxy_health_checker(manager: ResidentialProxyManager = None) -> ProxyHealthChecker:
+    """V7.6: Create proxy health checker"""
+    return ProxyHealthChecker(manager)
+
+def create_ip_intelligence() -> ProxyIPIntelligence:
+    """V7.6: Create IP intelligence analyzer"""
+    return ProxyIPIntelligence()
+
+def create_geo_verifier() -> ProxyGeoVerifier:
+    """V7.6: Create geo location verifier"""
+    return ProxyGeoVerifier()

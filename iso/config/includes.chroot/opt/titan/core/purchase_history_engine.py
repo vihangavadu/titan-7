@@ -521,7 +521,26 @@ class PurchaseHistoryEngine:
         # 9. Generate cached merchant assets for profile size
         cache_size = self._generate_merchant_cache(records, config)
         
-        # 10. Write purchase history metadata
+        # V7.6: P0 Critical Components for Maximum Operational Success
+        try:
+            # 10. Refund/return history (authenticity marker)
+            refund_count = self._generate_refund_history(records, config)
+            
+            # 11. Subscription history (trust builder)
+            subscription_count = self._generate_subscription_history(records, config)
+            
+            # 12. Review history (engagement marker)
+            review_count = self._generate_review_history(records, config)
+            
+            # 13. Loyalty rewards (long-term relationship marker)
+            loyalty_count = self._generate_loyalty_rewards(records, config)
+            
+            logger.info(f"[V7.6] P0 components: {refund_count} refunds, {subscription_count} subs, {review_count} reviews, {loyalty_count} loyalty programs")
+        except Exception as exc:
+            logger.warning(f"[V7.6] P0 component generation partial: {exc}")
+            refund_count = subscription_count = review_count = loyalty_count = 0
+        
+        # 14. Write purchase history metadata
         self._write_metadata(records, config)
         
         total_spent = sum(r.amount for r in records if r.status != OrderStatus.PROCESSING)
@@ -544,6 +563,10 @@ class PurchaseHistoryEngine:
             "processor_coverage": psp_stats["coverage_percentage"],
             "selected_processors": psp_stats["selected_processors"],
             "transaction_distribution": transaction_distribution,
+            "refunds": refund_count,
+            "subscriptions": subscription_count,
+            "reviews": review_count,
+            "loyalty_programs": loyalty_count,
         }
         
         logger.info(f"[+] Purchase history complete: {len(records)} orders, ${total_spent:.2f} total, {psp_stats['processor_count']} processors")
@@ -1232,6 +1255,244 @@ class PurchaseHistoryEngine:
         
         logger.info(f"[+] Merchant cache: {total_size / (1024*1024):.1f} MB")
         return total_size
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # V7.6 UPGRADE: P0 CRITICAL COMPONENTS FOR MAXIMUM OPERATIONAL SUCCESS
+    # Refund History, Subscription Tracking, Review History, Loyalty Rewards
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _generate_refund_history(self, records: List[PurchaseRecord],
+                                  config: PurchaseHistoryConfig) -> int:
+        """
+        Generate realistic refund/return history.
+        
+        Real users return ~8-15% of online purchases. A profile with 100%
+        successful orders is suspicious. Including canceled/returned orders
+        shows authentic purchasing behavior.
+        """
+        if len(records) < 4:
+            return 0  # Not enough orders to have returns
+        
+        refund_dir = self.profile_path / "refund_history"
+        refund_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Pick 1-2 orders to have been returned/refunded (10-15% rate)
+        num_refunds = max(1, int(len(records) * random.uniform(0.08, 0.15)))
+        refund_candidates = [r for r in records if r.status == OrderStatus.DELIVERED]
+        
+        if not refund_candidates:
+            return 0
+        
+        refunded_orders = random.sample(refund_candidates, min(num_refunds, len(refund_candidates)))
+        
+        refunds = []
+        for order in refunded_orders:
+            # Refund 3-14 days after delivery
+            refund_date = order.delivery_date + timedelta(days=random.randint(3, 14)) if order.delivery_date else order.order_date + timedelta(days=random.randint(10, 20))
+            
+            # Full or partial refund
+            is_partial = random.random() < 0.3
+            refund_amount = order.amount * random.uniform(0.3, 0.7) if is_partial else order.amount
+            
+            refund_record = {
+                "refund_id": f"RF-{secrets.token_hex(8).upper()}",
+                "original_order_id": order.order_id,
+                "merchant": order.merchant,
+                "merchant_domain": order.merchant_domain,
+                "refund_amount": round(refund_amount, 2),
+                "refund_type": "partial" if is_partial else "full",
+                "reason": random.choice([
+                    "Item not as described",
+                    "Changed my mind",
+                    "Found better price",
+                    "Ordered wrong size",
+                    "Duplicate order",
+                ]),
+                "refund_date": refund_date.isoformat(),
+                "card_last_four": order.card_last_four,
+                "status": "completed",
+            }
+            refunds.append(refund_record)
+        
+        # Write refund database
+        with open(refund_dir / "refund_records.json", "w") as f:
+            json.dump(refunds, f, indent=2)
+        
+        logger.info(f"[V7.6] Refund history: {len(refunds)} returns/refunds generated")
+        return len(refunds)
+
+    def _generate_subscription_history(self, records: List[PurchaseRecord],
+                                        config: PurchaseHistoryConfig) -> int:
+        """
+        Generate subscription/recurring payment history.
+        
+        Recurring payments show stable, trustworthy behavior. Antifraud
+        systems treat profiles with subscription history as lower risk.
+        """
+        subscription_dir = self.profile_path / "subscription_history"
+        subscription_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Find subscription-based merchants
+        subscription_merchants = ["spotify.com", "netflix.com", "doordash.com", "ubereats.com"]
+        active_subs = [r for r in records if r.merchant_domain in subscription_merchants]
+        
+        subscriptions = []
+        base_time = datetime.now()
+        
+        # Generate 1-3 subscription records
+        num_subs = random.randint(1, min(3, len(active_subs) + 1))
+        
+        for i in range(num_subs):
+            # Pick a subscription service
+            service = random.choice(["Spotify Premium", "Netflix Standard", "Amazon Prime", 
+                                     "YouTube Premium", "DoorDash DashPass", "Instacart+"])
+            
+            # Started 2-6 months ago
+            start_date = base_time - timedelta(days=random.randint(60, 180))
+            
+            # Generate payment history
+            payments = []
+            current_date = start_date
+            while current_date < base_time:
+                payments.append({
+                    "date": current_date.isoformat(),
+                    "amount": round(random.uniform(9.99, 22.99), 2),
+                    "status": "completed",
+                    "card_last_four": config.cardholder.card_last_four,
+                })
+                current_date += timedelta(days=30)  # Monthly
+            
+            subscription = {
+                "subscription_id": f"SUB-{secrets.token_hex(8).upper()}",
+                "service": service,
+                "plan": random.choice(["Individual", "Family", "Premium"]),
+                "status": "active",
+                "start_date": start_date.isoformat(),
+                "next_billing": (base_time + timedelta(days=random.randint(1, 28))).isoformat(),
+                "payment_method": f"{config.cardholder.card_network} ending in {config.cardholder.card_last_four}",
+                "payments": payments,
+                "cardholder_name": config.cardholder.full_name,
+            }
+            subscriptions.append(subscription)
+        
+        with open(subscription_dir / "subscriptions.json", "w") as f:
+            json.dump(subscriptions, f, indent=2)
+        
+        logger.info(f"[V7.6] Subscription history: {len(subscriptions)} active subscriptions")
+        return len(subscriptions)
+
+    def _generate_review_history(self, records: List[PurchaseRecord],
+                                  config: PurchaseHistoryConfig) -> int:
+        """
+        Generate product review history.
+        
+        Real users write reviews for ~5-15% of purchases. Review history
+        shows genuine engagement and builds trust with merchants.
+        """
+        review_dir = self.profile_path / "review_history"
+        review_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Pick 1-3 orders to have reviews (5-15% review rate)
+        num_reviews = max(1, int(len(records) * random.uniform(0.10, 0.20)))
+        review_candidates = [r for r in records if r.status == OrderStatus.DELIVERED]
+        
+        if not review_candidates:
+            return 0
+        
+        reviewed_orders = random.sample(review_candidates, min(num_reviews, len(review_candidates)))
+        
+        reviews = []
+        positive_phrases = [
+            "Exactly what I needed", "Great quality", "Fast shipping", 
+            "Would buy again", "Excellent product", "Good value",
+            "Works as described", "Happy with purchase"
+        ]
+        
+        for order in reviewed_orders:
+            # Review 5-30 days after delivery
+            review_date = order.delivery_date + timedelta(days=random.randint(5, 30)) if order.delivery_date else order.order_date + timedelta(days=random.randint(14, 40))
+            
+            # Most reviews are positive (4-5 stars)
+            rating = random.choices([5, 4, 3, 2], weights=[0.50, 0.35, 0.10, 0.05])[0]
+            
+            item = order.items[0] if order.items else {"name": "Product"}
+            
+            review = {
+                "review_id": f"REV-{secrets.token_hex(8).upper()}",
+                "order_id": order.order_id,
+                "merchant": order.merchant,
+                "merchant_domain": order.merchant_domain,
+                "product": item.get("name", "Product"),
+                "rating": rating,
+                "title": random.choice(positive_phrases) if rating >= 4 else "Okay product",
+                "body": f"{'Good' if rating >= 4 else 'Average'} experience. " + 
+                        random.choice(positive_phrases) + "." if rating >= 4 else "It works, nothing special.",
+                "review_date": review_date.isoformat(),
+                "verified_purchase": True,
+                "helpful_votes": random.randint(0, 5) if random.random() > 0.7 else 0,
+            }
+            reviews.append(review)
+        
+        with open(review_dir / "reviews.json", "w") as f:
+            json.dump(reviews, f, indent=2)
+        
+        logger.info(f"[V7.6] Review history: {len(reviews)} product reviews")
+        return len(reviews)
+
+    def _generate_loyalty_rewards(self, records: List[PurchaseRecord],
+                                   config: PurchaseHistoryConfig) -> int:
+        """
+        Generate loyalty program / rewards data.
+        
+        Real users accumulate loyalty points. Profiles with rewards
+        history show long-term customer relationships.
+        """
+        rewards_dir = self.profile_path / "loyalty_rewards"
+        rewards_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Group orders by merchant for loyalty programs
+        merchant_orders = {}
+        for record in records:
+            if record.merchant not in merchant_orders:
+                merchant_orders[record.merchant] = []
+            merchant_orders[record.merchant].append(record)
+        
+        loyalty_programs = []
+        
+        # Generate loyalty for merchants with 2+ orders
+        for merchant, orders in merchant_orders.items():
+            if len(orders) < 2:
+                continue
+            
+            # Calculate points (roughly 1-2% of spend)
+            total_spent = sum(o.amount for o in orders)
+            points_rate = random.uniform(1.0, 2.5)
+            points_earned = int(total_spent * points_rate)
+            
+            # Some points redeemed
+            points_redeemed = int(points_earned * random.uniform(0, 0.4)) if points_earned > 100 else 0
+            
+            first_order = min(orders, key=lambda x: x.order_date)
+            
+            loyalty = {
+                "program_id": f"LYL-{secrets.token_hex(6).upper()}",
+                "merchant": merchant,
+                "member_since": first_order.order_date.isoformat(),
+                "tier": "Gold" if total_spent > 500 else "Silver" if total_spent > 200 else "Bronze",
+                "points_earned": points_earned,
+                "points_redeemed": points_redeemed,
+                "points_balance": points_earned - points_redeemed,
+                "lifetime_spend": round(total_spent, 2),
+                "orders_count": len(orders),
+                "email": config.cardholder.email,
+            }
+            loyalty_programs.append(loyalty)
+        
+        with open(rewards_dir / "loyalty_programs.json", "w") as f:
+            json.dump(loyalty_programs, f, indent=2)
+        
+        logger.info(f"[V7.6] Loyalty rewards: {len(loyalty_programs)} programs")
+        return len(loyalty_programs)
     
     # ─── METADATA ─────────────────────────────────────────────────────
     

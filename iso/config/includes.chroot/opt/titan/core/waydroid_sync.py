@@ -332,3 +332,653 @@ def start_cross_device_sync(
     if engine.initialize(config):
         engine.start_background_activity(target=target)
     return engine
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL ENHANCEMENTS - Advanced Cross-Device Synthesis
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from collections import defaultdict
+
+
+@dataclass
+class DeviceGraphNode:
+    """Node in the cross-device identity graph"""
+    device_id: str
+    device_type: str  # desktop, mobile, tablet
+    os_type: str
+    browser_ua: str
+    first_seen: float
+    last_seen: float
+    sessions: int = 0
+    linked_devices: List[str] = field(default_factory=list)
+
+
+@dataclass
+class PushNotificationEvent:
+    """Push notification simulation event"""
+    timestamp: float
+    app_package: str
+    notification_type: str
+    interaction: str  # dismissed, opened, ignored
+    response_delay_ms: int
+
+
+@dataclass
+class MobileSessionMetrics:
+    """Metrics for mobile session coherence"""
+    session_id: str
+    start_time: float
+    end_time: Optional[float]
+    activities: List[Dict]
+    screen_on_time: float
+    app_switches: int
+    scroll_distance: int
+    touch_events: int
+
+
+class DeviceGraphSynthesizer:
+    """
+    V7.6 P0: Synthesize realistic cross-device identity graphs.
+    
+    Features:
+    - Multi-device persona coherence
+    - Temporal device usage patterns
+    - Cross-device session linkage
+    - Device binding signal generation
+    """
+    
+    DEVICE_TEMPLATES = {
+        "pixel_7": {
+            "model": "Pixel 7",
+            "brand": "Google",
+            "android_version": "14",
+            "build": "AP2A.240805.005",
+            "screen": (1080, 2400),
+            "dpi": 420,
+        },
+        "samsung_s23": {
+            "model": "SM-S911B",
+            "brand": "Samsung",
+            "android_version": "14",
+            "build": "UP1A.231005.007",
+            "screen": (1080, 2340),
+            "dpi": 425,
+        },
+        "iphone_15": {
+            "model": "iPhone15,2",
+            "brand": "Apple",
+            "ios_version": "17.4",
+            "screen": (1179, 2556),
+            "ppi": 460,
+        },
+    }
+    
+    def __init__(self):
+        self._graph: Dict[str, DeviceGraphNode] = {}
+        self._linkages: List[Tuple[str, str, float]] = []
+        self._lock = threading.Lock()
+    
+    def add_device(
+        self,
+        device_id: str,
+        device_type: str,
+        os_type: str,
+        browser_ua: str,
+    ) -> DeviceGraphNode:
+        """Add a device to the identity graph"""
+        now = time.time()
+        
+        # Generate historical first_seen (30-180 days ago)
+        first_seen = now - random.uniform(30 * 86400, 180 * 86400)
+        
+        node = DeviceGraphNode(
+            device_id=device_id,
+            device_type=device_type,
+            os_type=os_type,
+            browser_ua=browser_ua,
+            first_seen=first_seen,
+            last_seen=now,
+            sessions=random.randint(15, 150),
+        )
+        
+        with self._lock:
+            self._graph[device_id] = node
+        
+        return node
+    
+    def link_devices(self, device_a: str, device_b: str) -> bool:
+        """Create a linkage between two devices (same owner signal)"""
+        with self._lock:
+            if device_a not in self._graph or device_b not in self._graph:
+                return False
+            
+            # Add bidirectional linkage
+            self._graph[device_a].linked_devices.append(device_b)
+            self._graph[device_b].linked_devices.append(device_a)
+            
+            # Record linkage event
+            self._linkages.append((device_a, device_b, time.time()))
+            
+            return True
+    
+    def generate_desktop_mobile_pair(
+        self,
+        timezone: str = "America/New_York",
+        locale: str = "en_US",
+    ) -> Tuple[DeviceGraphNode, DeviceGraphNode]:
+        """Generate a coherent desktop + mobile device pair"""
+        
+        # Desktop device
+        desktop_id = hashlib.sha256(
+            f"desktop_{time.time()}_{random.random()}".encode()
+        ).hexdigest()[:16]
+        
+        desktop = self.add_device(
+            device_id=desktop_id,
+            device_type="desktop",
+            os_type="Windows 11",
+            browser_ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        )
+        
+        # Mobile device
+        mobile_template = random.choice(list(self.DEVICE_TEMPLATES.values()))
+        mobile_id = hashlib.sha256(
+            f"mobile_{time.time()}_{random.random()}".encode()
+        ).hexdigest()[:16]
+        
+        mobile = self.add_device(
+            device_id=mobile_id,
+            device_type="mobile",
+            os_type=f"Android {mobile_template.get('android_version', '14')}",
+            browser_ua=f"Mozilla/5.0 (Linux; Android {mobile_template.get('android_version', '14')}; {mobile_template['model']})",
+        )
+        
+        # Link them
+        self.link_devices(desktop_id, mobile_id)
+        
+        return desktop, mobile
+    
+    def get_device_graph(self) -> Dict:
+        """Get the complete device graph for injection"""
+        with self._lock:
+            return {
+                "devices": {
+                    did: {
+                        "type": node.device_type,
+                        "os": node.os_type,
+                        "first_seen": node.first_seen,
+                        "last_seen": node.last_seen,
+                        "sessions": node.sessions,
+                        "linked": node.linked_devices,
+                    }
+                    for did, node in self._graph.items()
+                },
+                "linkages": [
+                    {"a": a, "b": b, "timestamp": ts}
+                    for a, b, ts in self._linkages
+                ],
+                "total_devices": len(self._graph),
+            }
+    
+    def generate_binding_tokens(self) -> Dict[str, str]:
+        """Generate cross-device binding tokens for cookie injection"""
+        tokens = {}
+        
+        with self._lock:
+            for device_id, node in self._graph.items():
+                # Generate consistent binding token
+                token_seed = f"{device_id}_{node.first_seen}_{node.os_type}"
+                token = hashlib.sha256(token_seed.encode()).hexdigest()[:32]
+                tokens[device_id] = token
+        
+        return tokens
+
+
+class PushNotificationSimulator:
+    """
+    V7.6 P0: Simulate push notification interactions.
+    
+    Features:
+    - Realistic notification timing
+    - App-specific notification patterns
+    - User interaction simulation
+    - FCM/APNs token generation
+    """
+    
+    NOTIFICATION_PATTERNS = {
+        "com.google.android.gm": {
+            "frequency_per_day": (5, 20),
+            "interaction_rate": 0.6,
+            "response_delay_ms": (500, 5000),
+        },
+        "com.amazon.mShop.android.shopping": {
+            "frequency_per_day": (1, 5),
+            "interaction_rate": 0.4,
+            "response_delay_ms": (1000, 10000),
+        },
+        "com.paypal.android.p2pmobile": {
+            "frequency_per_day": (0, 3),
+            "interaction_rate": 0.8,
+            "response_delay_ms": (500, 3000),
+        },
+        "com.whatsapp": {
+            "frequency_per_day": (10, 50),
+            "interaction_rate": 0.7,
+            "response_delay_ms": (200, 2000),
+        },
+    }
+    
+    def __init__(self):
+        self._history: List[PushNotificationEvent] = []
+        self._fcm_tokens: Dict[str, str] = {}
+        self._lock = threading.Lock()
+    
+    def generate_fcm_token(self, app_package: str) -> str:
+        """Generate a realistic FCM registration token"""
+        if app_package in self._fcm_tokens:
+            return self._fcm_tokens[app_package]
+        
+        # FCM tokens are ~163 chars, base64-like
+        chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        token = "".join(random.choice(chars) for _ in range(163))
+        
+        with self._lock:
+            self._fcm_tokens[app_package] = token
+        
+        return token
+    
+    def simulate_notification(
+        self,
+        app_package: str,
+        notification_type: str = "generic",
+    ) -> PushNotificationEvent:
+        """Simulate a single push notification event"""
+        pattern = self.NOTIFICATION_PATTERNS.get(
+            app_package,
+            {"interaction_rate": 0.5, "response_delay_ms": (1000, 5000)},
+        )
+        
+        # Determine interaction
+        interacted = random.random() < pattern["interaction_rate"]
+        if interacted:
+            interaction = random.choice(["opened", "dismissed"])
+            delay = random.randint(*pattern["response_delay_ms"])
+        else:
+            interaction = "ignored"
+            delay = 0
+        
+        event = PushNotificationEvent(
+            timestamp=time.time(),
+            app_package=app_package,
+            notification_type=notification_type,
+            interaction=interaction,
+            response_delay_ms=delay,
+        )
+        
+        with self._lock:
+            self._history.append(event)
+            # Keep last 1000 events
+            if len(self._history) > 1000:
+                self._history = self._history[-1000:]
+        
+        return event
+    
+    def generate_notification_history(
+        self,
+        app_package: str,
+        days: int = 30,
+    ) -> List[Dict]:
+        """Generate historical notification data for an app"""
+        pattern = self.NOTIFICATION_PATTERNS.get(
+            app_package,
+            {"frequency_per_day": (2, 10), "interaction_rate": 0.5, "response_delay_ms": (1000, 5000)},
+        )
+        
+        history = []
+        now = time.time()
+        
+        for day in range(days):
+            day_start = now - (day * 86400)
+            notifications_today = random.randint(*pattern["frequency_per_day"])
+            
+            for _ in range(notifications_today):
+                # Random time during the day (weighted toward waking hours)
+                hour = random.choices(
+                    range(24),
+                    weights=[0.5]*6 + [2]*16 + [1]*2,  # Low at night, high during day
+                )[0]
+                timestamp = day_start + (hour * 3600) + random.randint(0, 3599)
+                
+                interacted = random.random() < pattern["interaction_rate"]
+                
+                history.append({
+                    "timestamp": timestamp,
+                    "app": app_package,
+                    "interaction": "opened" if interacted else "dismissed",
+                    "delay_ms": random.randint(*pattern["response_delay_ms"]) if interacted else 0,
+                })
+        
+        return sorted(history, key=lambda x: x["timestamp"])
+    
+    def get_notification_stats(self) -> Dict:
+        """Get notification interaction statistics"""
+        with self._lock:
+            if not self._history:
+                return {"total": 0}
+            
+            by_app = defaultdict(lambda: {"total": 0, "opened": 0, "dismissed": 0})
+            
+            for event in self._history:
+                by_app[event.app_package]["total"] += 1
+                by_app[event.app_package][event.interaction] += 1
+            
+            return {
+                "total": len(self._history),
+                "by_app": dict(by_app),
+                "fcm_tokens": len(self._fcm_tokens),
+            }
+
+
+class MobileSessionCoherence:
+    """
+    V7.6 P0: Maintain coherent mobile session state.
+    
+    Features:
+    - Session continuity tracking
+    - Activity pattern validation
+    - Touch event synthesis
+    - Screen time simulation
+    """
+    
+    def __init__(self):
+        self._sessions: Dict[str, MobileSessionMetrics] = {}
+        self._current_session: Optional[str] = None
+        self._lock = threading.Lock()
+    
+    def start_session(self) -> str:
+        """Start a new mobile session"""
+        session_id = hashlib.sha256(
+            f"session_{time.time()}_{random.random()}".encode()
+        ).hexdigest()[:16]
+        
+        session = MobileSessionMetrics(
+            session_id=session_id,
+            start_time=time.time(),
+            end_time=None,
+            activities=[],
+            screen_on_time=0.0,
+            app_switches=0,
+            scroll_distance=0,
+            touch_events=0,
+        )
+        
+        with self._lock:
+            self._sessions[session_id] = session
+            self._current_session = session_id
+        
+        return session_id
+    
+    def record_activity(
+        self,
+        activity_type: str,
+        app_package: str = "",
+        duration_ms: int = 0,
+        metadata: Dict = None,
+    ):
+        """Record an activity in the current session"""
+        with self._lock:
+            if not self._current_session:
+                return
+            
+            session = self._sessions.get(self._current_session)
+            if not session:
+                return
+            
+            session.activities.append({
+                "type": activity_type,
+                "app": app_package,
+                "timestamp": time.time(),
+                "duration_ms": duration_ms,
+                "metadata": metadata or {},
+            })
+            
+            # Update metrics
+            if activity_type == "screen_on":
+                session.screen_on_time += duration_ms / 1000.0
+            elif activity_type == "app_switch":
+                session.app_switches += 1
+            elif activity_type == "scroll":
+                session.scroll_distance += metadata.get("distance", 0) if metadata else 0
+            elif activity_type == "touch":
+                session.touch_events += 1
+    
+    def end_session(self) -> Optional[Dict]:
+        """End the current session and return metrics"""
+        with self._lock:
+            if not self._current_session:
+                return None
+            
+            session = self._sessions.get(self._current_session)
+            if not session:
+                return None
+            
+            session.end_time = time.time()
+            self._current_session = None
+            
+            return {
+                "session_id": session.session_id,
+                "duration_seconds": session.end_time - session.start_time,
+                "screen_on_time": session.screen_on_time,
+                "app_switches": session.app_switches,
+                "scroll_distance": session.scroll_distance,
+                "touch_events": session.touch_events,
+                "activities": len(session.activities),
+            }
+    
+    def generate_touch_pattern(
+        self,
+        duration_seconds: float = 60.0,
+        activity_level: str = "normal",
+    ) -> List[Dict]:
+        """Generate realistic touch event pattern"""
+        touches = []
+        
+        # Touch frequency based on activity level
+        freq_map = {
+            "idle": (0.1, 0.5),
+            "normal": (0.5, 2.0),
+            "active": (2.0, 5.0),
+        }
+        freq = freq_map.get(activity_level, freq_map["normal"])
+        
+        current_time = 0.0
+        while current_time < duration_seconds:
+            # Generate touch event
+            touches.append({
+                "timestamp_offset": current_time,
+                "x": random.randint(50, 1030),
+                "y": random.randint(100, 2300),
+                "pressure": random.uniform(0.3, 0.9),
+                "duration_ms": random.randint(50, 200),
+                "type": random.choice(["tap", "tap", "tap", "swipe", "long_press"]),
+            })
+            
+            # Next touch after random interval
+            current_time += random.uniform(*freq)
+        
+        return touches
+    
+    def get_session_history(self, limit: int = 10) -> List[Dict]:
+        """Get recent session summaries"""
+        with self._lock:
+            sessions = sorted(
+                self._sessions.values(),
+                key=lambda s: s.start_time,
+                reverse=True,
+            )[:limit]
+            
+            return [
+                {
+                    "session_id": s.session_id,
+                    "start": s.start_time,
+                    "end": s.end_time,
+                    "activities": len(s.activities),
+                    "screen_time": s.screen_on_time,
+                }
+                for s in sessions
+            ]
+
+
+class CrossDeviceActivityOrchestrator:
+    """
+    V7.6 P0: Orchestrate synchronized cross-device activity.
+    
+    Features:
+    - Coordinated desktop/mobile sessions
+    - Realistic usage pattern generation
+    - Cross-device cookie sync
+    - Device binding signal injection
+    """
+    
+    def __init__(self):
+        self.graph_synthesizer = DeviceGraphSynthesizer()
+        self.push_simulator = PushNotificationSimulator()
+        self.session_coherence = MobileSessionCoherence()
+        self._sync_engine: Optional[WaydroidSyncEngine] = None
+        self._orchestration_active = False
+        self._lock = threading.Lock()
+    
+    def initialize(
+        self,
+        timezone: str = "America/New_York",
+        locale: str = "en_US",
+    ) -> bool:
+        """Initialize complete cross-device orchestration"""
+        # Generate device pair
+        desktop, mobile = self.graph_synthesizer.generate_desktop_mobile_pair(
+            timezone=timezone,
+            locale=locale,
+        )
+        
+        # Initialize sync engine
+        config = SyncConfig()
+        config.persona.timezone = timezone
+        config.persona.locale = locale
+        
+        self._sync_engine = WaydroidSyncEngine()
+        if not self._sync_engine.initialize(config):
+            return False
+        
+        # Generate FCM tokens for common apps
+        for app_package in MERCHANT_APPS.values():
+            self.push_simulator.generate_fcm_token(app_package["package"])
+        
+        self._orchestration_active = True
+        return True
+    
+    def start_coordinated_session(
+        self,
+        target: str,
+        desktop_activity: bool = True,
+        mobile_activity: bool = True,
+    ) -> Dict:
+        """Start a coordinated cross-device session"""
+        result = {
+            "session_id": None,
+            "desktop_active": False,
+            "mobile_active": False,
+        }
+        
+        # Start mobile session tracking
+        session_id = self.session_coherence.start_session()
+        result["session_id"] = session_id
+        
+        # Start mobile background activity
+        if mobile_activity and self._sync_engine:
+            self._sync_engine.start_background_activity(target=target)
+            result["mobile_active"] = True
+        
+        # Generate some notification activity
+        if target in MERCHANT_APPS:
+            app_package = MERCHANT_APPS[target]["package"]
+            self.push_simulator.simulate_notification(app_package)
+        
+        result["desktop_active"] = desktop_activity
+        
+        return result
+    
+    def end_coordinated_session(self) -> Dict:
+        """End coordinated session and collect metrics"""
+        # Stop mobile activity
+        if self._sync_engine:
+            self._sync_engine.stop()
+        
+        # End session tracking
+        session_metrics = self.session_coherence.end_session()
+        
+        return {
+            "session_metrics": session_metrics,
+            "device_graph": self.graph_synthesizer.get_device_graph(),
+            "notification_stats": self.push_simulator.get_notification_stats(),
+        }
+    
+    def get_binding_artifacts(self) -> Dict:
+        """Get all cross-device binding artifacts for injection"""
+        return {
+            "device_graph": self.graph_synthesizer.get_device_graph(),
+            "binding_tokens": self.graph_synthesizer.generate_binding_tokens(),
+            "fcm_tokens": self.push_simulator._fcm_tokens,
+            "session_history": self.session_coherence.get_session_history(),
+        }
+    
+    def get_status(self) -> Dict:
+        """Get orchestrator status"""
+        return {
+            "active": self._orchestration_active,
+            "sync_engine": self._sync_engine.get_status() if self._sync_engine else None,
+            "devices": len(self.graph_synthesizer._graph),
+            "sessions": len(self.session_coherence._sessions),
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SINGLETON INSTANCES
+# ═══════════════════════════════════════════════════════════════════════════
+
+_device_graph_synthesizer: Optional[DeviceGraphSynthesizer] = None
+_push_notification_simulator: Optional[PushNotificationSimulator] = None
+_mobile_session_coherence: Optional[MobileSessionCoherence] = None
+_cross_device_orchestrator: Optional[CrossDeviceActivityOrchestrator] = None
+
+
+def get_device_graph_synthesizer() -> DeviceGraphSynthesizer:
+    """Get global device graph synthesizer"""
+    global _device_graph_synthesizer
+    if _device_graph_synthesizer is None:
+        _device_graph_synthesizer = DeviceGraphSynthesizer()
+    return _device_graph_synthesizer
+
+
+def get_push_notification_simulator() -> PushNotificationSimulator:
+    """Get global push notification simulator"""
+    global _push_notification_simulator
+    if _push_notification_simulator is None:
+        _push_notification_simulator = PushNotificationSimulator()
+    return _push_notification_simulator
+
+
+def get_mobile_session_coherence() -> MobileSessionCoherence:
+    """Get global mobile session coherence tracker"""
+    global _mobile_session_coherence
+    if _mobile_session_coherence is None:
+        _mobile_session_coherence = MobileSessionCoherence()
+    return _mobile_session_coherence
+
+
+def get_cross_device_orchestrator() -> CrossDeviceActivityOrchestrator:
+    """Get global cross-device activity orchestrator"""
+    global _cross_device_orchestrator
+    if _cross_device_orchestrator is None:
+        _cross_device_orchestrator = CrossDeviceActivityOrchestrator()
+    return _cross_device_orchestrator

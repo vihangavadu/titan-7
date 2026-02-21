@@ -2351,3 +2351,281 @@ def get_easy_countries() -> List[Dict]:
 def get_all_non_vbv_bins(country: str = None) -> List[Dict]:
     """Get all non-VBV BINs"""
     return NonVBVRecommendationEngine().get_all_non_vbv_bins(country)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: 3DS CHALLENGE HANDLER
+# When a 3DS challenge is unavoidable, this engine provides optimal handling
+# strategies including timing, decoy attempts, and session management.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class ThreeDSChallengeState:
+    """State tracking for an active 3DS challenge"""
+    challenge_id: str
+    challenge_type: ThreeDSType
+    started_at: str                 # ISO timestamp
+    timeout_seconds: int
+    attempts: int
+    max_attempts: int
+    bank: str
+    merchant: str
+    amount: float
+    status: str                     # pending, timeout_waiting, failed, passed
+    recommendation: str
+
+
+class ThreeDSChallengeHandler:
+    """
+    V7.6: Optimal handling for unavoidable 3DS challenges.
+    
+    When 3DS challenge cannot be avoided, this handler provides:
+    1. Challenge type identification and timing optimization
+    2. Timeout exploitation tracking (wait for merchant fallback)
+    3. Decoy session management (spread attempts across sessions)
+    4. Bank-specific OTP timing patterns
+    5. Challenge failure mitigation (preserve card for future use)
+    """
+    
+    # Bank OTP timing patterns (seconds before bank considers attempt suspicious)
+    BANK_OTP_WINDOWS = {
+        'Chase': {'otp_timeout': 300, 'push_timeout': 120, 'retry_delay': 1800,
+                  'suspicious_speed': 5, 'optimal_entry_time': (15, 45)},
+        'Bank of America': {'otp_timeout': 300, 'push_timeout': 180, 'retry_delay': 1800,
+                            'suspicious_speed': 3, 'optimal_entry_time': (12, 40)},
+        'Capital One': {'otp_timeout': 300, 'push_timeout': 120, 'retry_delay': 900,
+                        'suspicious_speed': 5, 'optimal_entry_time': (10, 35)},
+        'Wells Fargo': {'otp_timeout': 600, 'push_timeout': 180, 'retry_delay': 1800,
+                        'suspicious_speed': 4, 'optimal_entry_time': (12, 50)},
+        'Citi': {'otp_timeout': 300, 'push_timeout': 90, 'retry_delay': 1200,
+                 'suspicious_speed': 3, 'optimal_entry_time': (10, 30)},
+        'American Express': {'otp_timeout': 300, 'push_timeout': 60, 'retry_delay': 3600,
+                             'suspicious_speed': 8, 'optimal_entry_time': (20, 60)},
+        'Discover': {'otp_timeout': 600, 'push_timeout': 180, 'retry_delay': 900,
+                     'suspicious_speed': 5, 'optimal_entry_time': (15, 45)},
+        'USAA': {'otp_timeout': 600, 'push_timeout': 300, 'retry_delay': 600,
+                 'suspicious_speed': 3, 'optimal_entry_time': (8, 30)},
+        'Navy Federal': {'otp_timeout': 600, 'push_timeout': 300, 'retry_delay': 600,
+                         'suspicious_speed': 3, 'optimal_entry_time': (8, 30)},
+    }
+    
+    DEFAULT_TIMING = {'otp_timeout': 300, 'push_timeout': 120, 'retry_delay': 1200,
+                      'suspicious_speed': 5, 'optimal_entry_time': (10, 40)}
+    
+    # Merchant timeout behavior (which merchants process on 3DS timeout)
+    MERCHANT_TIMEOUT_BEHAVIOR = {
+        'amazon.com': {'processes_on_timeout': False, 'timeout_seconds': 600,
+                       'retry_without_3ds': False},
+        'walmart.com': {'processes_on_timeout': True, 'timeout_seconds': 300,
+                        'retry_without_3ds': True},
+        'bestbuy.com': {'processes_on_timeout': False, 'timeout_seconds': 600,
+                        'retry_without_3ds': False},
+        'newegg.com': {'processes_on_timeout': True, 'timeout_seconds': 300,
+                       'retry_without_3ds': True},
+        'g2a.com': {'processes_on_timeout': False, 'timeout_seconds': 600,
+                    'retry_without_3ds': False},
+        'eneba.com': {'processes_on_timeout': False, 'timeout_seconds': 600,
+                      'retry_without_3ds': False},
+        'steam': {'processes_on_timeout': False, 'timeout_seconds': 300,
+                  'retry_without_3ds': False},
+    }
+    
+    DEFAULT_MERCHANT = {'processes_on_timeout': False, 'timeout_seconds': 600,
+                        'retry_without_3ds': False}
+    
+    def __init__(self):
+        self._active_challenges: Dict[str, ThreeDSChallengeState] = {}
+    
+    def start_challenge(self, challenge_id: str, challenge_type: ThreeDSType,
+                        bank: str, merchant: str, amount: float) -> ThreeDSChallengeState:
+        """
+        Register a new 3DS challenge and get optimal handling strategy.
+        """
+        import secrets
+        from datetime import datetime
+        
+        if not challenge_id:
+            challenge_id = secrets.token_hex(8)
+        
+        bank_timing = self.BANK_OTP_WINDOWS.get(bank, self.DEFAULT_TIMING)
+        merchant_behavior = self.MERCHANT_TIMEOUT_BEHAVIOR.get(
+            merchant.lower().replace('www.', ''),
+            self.DEFAULT_MERCHANT
+        )
+        
+        # Determine timeout based on challenge type
+        if challenge_type == ThreeDSType.SMS_OTP:
+            timeout = bank_timing['otp_timeout']
+        elif challenge_type == ThreeDSType.BANK_APP:
+            timeout = bank_timing['push_timeout']
+        else:
+            timeout = merchant_behavior['timeout_seconds']
+        
+        state = ThreeDSChallengeState(
+            challenge_id=challenge_id,
+            challenge_type=challenge_type,
+            started_at=datetime.now().isoformat(),
+            timeout_seconds=timeout,
+            attempts=0,
+            max_attempts=3,
+            bank=bank,
+            merchant=merchant,
+            amount=amount,
+            status='pending',
+            recommendation=self._get_recommendation(challenge_type, bank, merchant, amount),
+        )
+        
+        self._active_challenges[challenge_id] = state
+        return state
+    
+    def _get_recommendation(self, challenge_type: ThreeDSType, bank: str,
+                            merchant: str, amount: float) -> str:
+        """Generate handling recommendation for this challenge."""
+        bank_timing = self.BANK_OTP_WINDOWS.get(bank, self.DEFAULT_TIMING)
+        merchant_behavior = self.MERCHANT_TIMEOUT_BEHAVIOR.get(
+            merchant.lower().replace('www.', ''),
+            self.DEFAULT_MERCHANT
+        )
+        
+        opt_min, opt_max = bank_timing['optimal_entry_time']
+        
+        if challenge_type == ThreeDSType.SMS_OTP:
+            if merchant_behavior['processes_on_timeout']:
+                return (f"TIMEOUT STRATEGY: Let SMS OTP expire. {merchant} may process anyway. "
+                        f"If entering OTP: wait {opt_min}-{opt_max} seconds (not instant).")
+            return (f"SMS OTP: Enter code slowly ({opt_min}-{opt_max}s delay). "
+                    f"Instant entry (<{bank_timing['suspicious_speed']}s) flags as bot.")
+        
+        elif challenge_type == ThreeDSType.BANK_APP:
+            return (f"BANK APP: Cannot bypass remotely. Card requires device with {bank} app. "
+                    f"Consider alternative card without app-based 3DS.")
+        
+        elif challenge_type == ThreeDSType.BIOMETRIC:
+            return (f"BIOMETRIC: Cannot bypass. {bank} requires fingerprint/face on enrolled device. "
+                    f"Card is unusable for remote operations.")
+        
+        elif challenge_type == ThreeDSType.EMAIL_OTP:
+            return (f"EMAIL OTP: Check cardholder's email for code. "
+                    f"Wait {opt_min}-{opt_max}s before entering. Email access required.")
+        
+        elif challenge_type == ThreeDSType.PASSWORD:
+            return (f"3DS PASSWORD: Requires cardholder's preset password. "
+                    f"If unknown, let timeout — some merchants retry without 3DS.")
+        
+        else:
+            if merchant_behavior['processes_on_timeout']:
+                return f"TIMEOUT AVAILABLE: Let challenge expire. {merchant} may process payment."
+            return f"Unknown challenge type. Try timeout strategy or alternative card."
+    
+    def get_timeout_strategy(self, challenge_id: str) -> Dict:
+        """
+        Get detailed timeout exploitation strategy for a challenge.
+        """
+        state = self._active_challenges.get(challenge_id)
+        if not state:
+            return {'error': 'Challenge not found'}
+        
+        merchant_behavior = self.MERCHANT_TIMEOUT_BEHAVIOR.get(
+            state.merchant.lower().replace('www.', ''),
+            self.DEFAULT_MERCHANT
+        )
+        
+        return {
+            'challenge_id': challenge_id,
+            'timeout_seconds': state.timeout_seconds,
+            'processes_on_timeout': merchant_behavior['processes_on_timeout'],
+            'retry_without_3ds': merchant_behavior['retry_without_3ds'],
+            'strategy': 'timeout_wait' if merchant_behavior['processes_on_timeout'] else 'abort_preserve_card',
+            'instructions': [
+                f"1. DO NOT close the 3DS popup/iframe",
+                f"2. Wait {state.timeout_seconds // 60} minutes for timeout",
+                f"3. {'Check if order went through anyway' if merchant_behavior['processes_on_timeout'] else 'Card preserved — try different merchant'}",
+                f"4. If declined, card is still clean (timeout is not failed auth)",
+            ],
+            'success_probability': 0.25 if merchant_behavior['processes_on_timeout'] else 0.0,
+        }
+    
+    def record_attempt(self, challenge_id: str, success: bool) -> Dict:
+        """Record an OTP entry attempt and get next action."""
+        state = self._active_challenges.get(challenge_id)
+        if not state:
+            return {'error': 'Challenge not found'}
+        
+        state.attempts += 1
+        bank_timing = self.BANK_OTP_WINDOWS.get(state.bank, self.DEFAULT_TIMING)
+        
+        if success:
+            state.status = 'passed'
+            return {
+                'challenge_id': challenge_id,
+                'result': 'passed',
+                'next_action': 'proceed_with_purchase',
+            }
+        
+        if state.attempts >= state.max_attempts:
+            state.status = 'failed'
+            return {
+                'challenge_id': challenge_id,
+                'result': 'max_attempts_exceeded',
+                'next_action': 'abort',
+                'card_status': 'potentially_flagged',
+                'cooldown_seconds': bank_timing['retry_delay'],
+                'warning': f"Card may be flagged after {state.attempts} failed 3DS attempts. "
+                           f"Let cool for {bank_timing['retry_delay'] // 60} minutes before retry.",
+            }
+        
+        return {
+            'challenge_id': challenge_id,
+            'result': 'failed',
+            'attempts_remaining': state.max_attempts - state.attempts,
+            'next_action': 'retry',
+            'wait_seconds': bank_timing['retry_delay'] // 4,  # Short delay between attempts
+            'warning': f"Attempt {state.attempts} failed. Wait before retrying.",
+        }
+    
+    def get_decoy_strategy(self, card_bin: str, bank: str) -> Dict:
+        """
+        Get decoy session strategy to protect card from 3DS scrutiny.
+        
+        Multiple small low-3DS transactions before main purchase
+        can reduce challenge probability on the important transaction.
+        """
+        return {
+            'strategy': 'decoy_warmup',
+            'description': "Make 1-2 small purchases on low-3DS merchants before main target",
+            'steps': [
+                {'step': 1, 'target': 'Low-3DS merchant (Auth.net PSP)',
+                 'amount': '$5-15', 'purpose': 'Establish card activity pattern'},
+                {'step': 2, 'delay_minutes': 30,
+                 'purpose': 'Let first transaction clear and reduce novelty flag'},
+                {'step': 3, 'target': 'Main target merchant',
+                 'amount': 'Target amount',
+                 'purpose': 'Card now has recent legitimate activity — lower 3DS probability'},
+            ],
+            'effectiveness': 'Moderate — reduces 3DS on some issuers',
+            'bank_notes': f"{bank}: " + self.BANK_OTP_WINDOWS.get(bank, self.DEFAULT_TIMING).get(
+                'optimal_entry_time', (10, 40)
+            ).__str__() + " seconds optimal OTP entry time",
+        }
+
+
+# V7.6 Convenience exports
+def start_3ds_challenge(challenge_type: str, bank: str, merchant: str, amount: float):
+    """V7.6: Start tracking a 3DS challenge"""
+    type_map = {
+        'sms': ThreeDSType.SMS_OTP, 'sms_otp': ThreeDSType.SMS_OTP,
+        'email': ThreeDSType.EMAIL_OTP, 'email_otp': ThreeDSType.EMAIL_OTP,
+        'app': ThreeDSType.BANK_APP, 'bank_app': ThreeDSType.BANK_APP,
+        'bio': ThreeDSType.BIOMETRIC, 'biometric': ThreeDSType.BIOMETRIC,
+        'password': ThreeDSType.PASSWORD,
+    }
+    challenge_enum = type_map.get(challenge_type.lower(), ThreeDSType.UNKNOWN)
+    return ThreeDSChallengeHandler().start_challenge(None, challenge_enum, bank, merchant, amount)
+
+def get_timeout_strategy(challenge_id: str):
+    """V7.6: Get timeout exploitation strategy for active challenge"""
+    return ThreeDSChallengeHandler().get_timeout_strategy(challenge_id)
+
+def get_3ds_decoy_strategy(card_bin: str, bank: str):
+    """V7.6: Get decoy session strategy for card warmup"""
+    return ThreeDSChallengeHandler().get_decoy_strategy(card_bin, bank)

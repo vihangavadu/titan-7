@@ -628,3 +628,551 @@ def get_cognitive_core(prefer_cloud: bool = True) -> Union[TitanCognitiveCore, C
             return core
     
     return CognitiveCoreLocal()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: ANTIFRAUD PATTERN RECOGNIZER
+# Recognize and adapt to antifraud detection patterns
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AntifraudPatternRecognizer:
+    """
+    V7.6: Recognizes antifraud system patterns and suggests evasion strategies.
+    
+    Detects:
+    - Forter/Riskified/Signifyd fingerprint collection
+    - Device intelligence scripts (ThreatMetrix, Iovation)
+    - Session recording (FullStory, Hotjar)
+    - Bot detection (PerimeterX, DataDome, Kasada)
+    
+    This allows pre-emptive counter-measures before transaction.
+    """
+    
+    # Detection signatures per antifraud vendor
+    SIGNATURES = {
+        'forter': {
+            'scripts': ['forter.com', 'forter.min.js', 'forterToken'],
+            'cookies': ['forterToken', 'ftr_blst', 'ftr_ncd'],
+            'dom': ['data-forter', 'forter-snippet'],
+            'threat_level': 'high',
+        },
+        'riskified': {
+            'scripts': ['beacon-v2', 'riskified.com', 'RISKX'],
+            'cookies': ['riskified_session', 'rCookie'],
+            'dom': ['riskified-beacon', 'riskx'],
+            'threat_level': 'high',
+        },
+        'signifyd': {
+            'scripts': ['signifyd.com', 'sig-api.js', 'deviceFingerprint'],
+            'cookies': ['signifyd_session'],
+            'dom': ['signifyd-device', 'sig_deviceId'],
+            'threat_level': 'medium',
+        },
+        'sift': {
+            'scripts': ['cdn.sift.com', 'sift.js', 's.siftscience'],
+            'cookies': ['_sift_session'],
+            'dom': ['data-sift', 'sift-beacon'],
+            'threat_level': 'high',
+        },
+        'threatmetrix': {
+            'scripts': ['h.online-metrix.net', 'tmx_', 'threatmetrix'],
+            'cookies': ['tmx_', 'online-metrix'],
+            'dom': ['tmx_profiling'],
+            'threat_level': 'high',
+        },
+        'iovation': {
+            'scripts': ['iovation.com', 'ioBlackBox', 'iobb'],
+            'cookies': ['io_token', 'iovation'],
+            'dom': ['ioBlackBox', 'io-beacon'],
+            'threat_level': 'medium',
+        },
+        'perimeterx': {
+            'scripts': ['px-client', 'perimeterx', '_pxmvid'],
+            'cookies': ['_pxvid', '_pxff_', '_pxmvid'],
+            'dom': ['px-captcha', '_px'],
+            'threat_level': 'very_high',
+        },
+        'datadome': {
+            'scripts': ['datadome.co', 'dd.js', 'ddjskey'],
+            'cookies': ['datadome', 'dd_cookie'],
+            'dom': ['datadome-captcha'],
+            'threat_level': 'very_high',
+        },
+        'kasada': {
+            'scripts': ['kasada', 'cd-kogmv'],
+            'cookies': ['cd-kogmv', 'x-kpsdk'],
+            'dom': ['kasada-challenge'],
+            'threat_level': 'very_high',
+        },
+        'fullstory': {
+            'scripts': ['fullstory.com', 'fs.js', '_fs_'],
+            'cookies': ['fs_uid', '_fs_'],
+            'dom': ['fs-highlight'],
+            'threat_level': 'low',  # Session recording, not blocking
+        },
+    }
+    
+    # Counter-measures per threat level
+    COUNTERMEASURES = {
+        'very_high': {
+            'delay_range': (3000, 8000),
+            'human_simulation': 'extensive',
+            'fingerprint_stability': 'critical',
+            'retry_limit': 1,
+            'abort_on_challenge': True,
+        },
+        'high': {
+            'delay_range': (2000, 5000),
+            'human_simulation': 'moderate',
+            'fingerprint_stability': 'high',
+            'retry_limit': 2,
+            'abort_on_challenge': False,
+        },
+        'medium': {
+            'delay_range': (1000, 3000),
+            'human_simulation': 'basic',
+            'fingerprint_stability': 'moderate',
+            'retry_limit': 3,
+            'abort_on_challenge': False,
+        },
+        'low': {
+            'delay_range': (500, 2000),
+            'human_simulation': 'minimal',
+            'fingerprint_stability': 'low',
+            'retry_limit': 5,
+            'abort_on_challenge': False,
+        },
+    }
+    
+    def __init__(self):
+        self._detected_vendors = []
+        self._threat_level = 'low'
+        self._detection_cache = {}
+    
+    def analyze_page(self, html_content: str, cookies: Dict = None, 
+                      network_requests: List[str] = None) -> Dict:
+        """
+        Analyze page for antifraud presence.
+        
+        Args:
+            html_content: Page HTML
+            cookies: Current cookies dict
+            network_requests: List of request URLs
+        """
+        html_lower = html_content.lower()
+        cookies = cookies or {}
+        network_requests = network_requests or []
+        
+        detected = []
+        highest_threat = 'low'
+        
+        for vendor, sig in self.SIGNATURES.items():
+            score = 0
+            
+            # Check scripts in HTML
+            for script_sig in sig['scripts']:
+                if script_sig.lower() in html_lower:
+                    score += 2
+                # Check network requests
+                for req in network_requests:
+                    if script_sig.lower() in req.lower():
+                        score += 3
+            
+            # Check cookies
+            for cookie_sig in sig['cookies']:
+                if any(cookie_sig.lower() in k.lower() for k in cookies.keys()):
+                    score += 2
+            
+            # Check DOM elements
+            for dom_sig in sig['dom']:
+                if dom_sig.lower() in html_lower:
+                    score += 1
+            
+            if score >= 2:
+                detected.append({
+                    'vendor': vendor,
+                    'confidence': min(score / 5, 1.0),
+                    'threat_level': sig['threat_level'],
+                })
+                
+                # Track highest threat
+                threat_order = ['low', 'medium', 'high', 'very_high']
+                if threat_order.index(sig['threat_level']) > threat_order.index(highest_threat):
+                    highest_threat = sig['threat_level']
+        
+        self._detected_vendors = detected
+        self._threat_level = highest_threat
+        
+        return {
+            'vendors_detected': detected,
+            'threat_level': highest_threat,
+            'countermeasures': self.COUNTERMEASURES[highest_threat],
+            'evasion_strategy': self._generate_evasion_strategy(detected),
+        }
+    
+    def _generate_evasion_strategy(self, detected: List[Dict]) -> Dict:
+        """Generate specific evasion strategy for detected vendors."""
+        strategy = {
+            'recommendations': [],
+            'required_modules': [],
+            'timing_profile': 'normal',
+        }
+        
+        vendors = [d['vendor'] for d in detected]
+        
+        if any(v in vendors for v in ['perimeterx', 'datadome', 'kasada']):
+            strategy['recommendations'].append('Use residential proxy with clean IP')
+            strategy['recommendations'].append('Enable full GhostMotor human simulation')
+            strategy['required_modules'].append('ghost_motor_v6')
+            strategy['timing_profile'] = 'very_slow'
+        
+        if any(v in vendors for v in ['forter', 'riskified', 'sift']):
+            strategy['recommendations'].append('Use aged profile with history')
+            strategy['recommendations'].append('Warm card with small transactions first')
+            strategy['required_modules'].append('genesis_core')
+            strategy['timing_profile'] = 'natural'
+        
+        if any(v in vendors for v in ['threatmetrix', 'iovation']):
+            strategy['recommendations'].append('Ensure fingerprint consistency')
+            strategy['required_modules'].append('fingerprint_injector')
+            strategy['timing_profile'] = 'normal'
+        
+        if 'fullstory' in vendors:
+            strategy['recommendations'].append('Avoid erratic mouse movements')
+            strategy['timing_profile'] = 'natural'
+        
+        return strategy
+    
+    def get_current_threat_level(self) -> str:
+        """Get current assessed threat level."""
+        return self._threat_level
+    
+    def get_detected_vendors(self) -> List[Dict]:
+        """Get list of detected antifraud vendors."""
+        return self._detected_vendors
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: SESSION CONTEXT MANAGER
+# Track session context across multiple AI decisions
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SessionContextManager:
+    """
+    V7.6: Manages session context for consistent AI decision-making.
+    
+    Tracks:
+    - Page navigation history
+    - Action history and outcomes
+    - Detected antifraud systems
+    - Profile state (logged in, cart contents, etc.)
+    - Error/retry patterns
+    
+    This context improves AI decision accuracy over session lifetime.
+    """
+    
+    def __init__(self, session_id: str = None):
+        import uuid
+        import time
+        
+        self.session_id = session_id or str(uuid.uuid4())[:8]
+        self.created_at = time.time()
+        
+        self._page_history = []
+        self._action_history = []
+        self._context = {
+            'logged_in': False,
+            'cart_items': 0,
+            'cart_value': 0.0,
+            'checkout_stage': None,
+            'errors_count': 0,
+            'retries_count': 0,
+        }
+        self._antifraud = None
+        self._flags = set()
+    
+    def record_page_visit(self, url: str, title: str = '', 
+                          dom_snapshot: str = None):
+        """Record a page visit."""
+        import time
+        
+        self._page_history.append({
+            'timestamp': time.time(),
+            'url': url,
+            'title': title,
+            'dom_length': len(dom_snapshot) if dom_snapshot else 0,
+        })
+        
+        # Auto-detect context from URL/title
+        self._auto_update_context(url, title)
+        
+        # Limit history size
+        if len(self._page_history) > 50:
+            self._page_history = self._page_history[-50:]
+    
+    def record_action(self, action: str, result: str, 
+                       details: Dict = None):
+        """Record an action and its outcome."""
+        import time
+        
+        self._action_history.append({
+            'timestamp': time.time(),
+            'action': action,
+            'result': result,
+            'details': details or {},
+        })
+        
+        # Update error/retry counters
+        if result in ('error', 'failed'):
+            self._context['errors_count'] += 1
+        if action.startswith('retry'):
+            self._context['retries_count'] += 1
+        
+        # Limit history size
+        if len(self._action_history) > 100:
+            self._action_history = self._action_history[-100:]
+    
+    def _auto_update_context(self, url: str, title: str):
+        """Auto-update context based on page URL/title."""
+        url_lower = url.lower()
+        title_lower = title.lower()
+        combined = f"{url_lower} {title_lower}"
+        
+        # Checkout stage detection
+        if 'cart' in combined:
+            self._context['checkout_stage'] = 'cart'
+        elif 'shipping' in combined or 'delivery' in combined:
+            self._context['checkout_stage'] = 'shipping'
+        elif 'payment' in combined or 'billing' in combined:
+            self._context['checkout_stage'] = 'payment'
+        elif 'review' in combined or 'confirm' in combined:
+            self._context['checkout_stage'] = 'review'
+        elif 'success' in combined or 'thank' in combined:
+            self._context['checkout_stage'] = 'complete'
+        
+        # Login state
+        if 'login' in combined or 'sign in' in combined:
+            self._context['logged_in'] = False
+        elif 'account' in combined or 'profile' in combined:
+            self._context['logged_in'] = True
+    
+    def set_context(self, key: str, value):
+        """Set a context value."""
+        self._context[key] = value
+    
+    def get_context(self, key: str = None):
+        """Get context value or full context."""
+        if key:
+            return self._context.get(key)
+        return self._context.copy()
+    
+    def set_antifraud_analysis(self, analysis: Dict):
+        """Store antifraud analysis results."""
+        self._antifraud = analysis
+    
+    def add_flag(self, flag: str):
+        """Add a warning flag (e.g., 'rate_limited', 'suspicious')."""
+        self._flags.add(flag)
+    
+    def has_flag(self, flag: str) -> bool:
+        """Check if flag is set."""
+        return flag in self._flags
+    
+    def get_summary(self) -> Dict:
+        """Get session summary for AI context."""
+        import time
+        
+        return {
+            'session_id': self.session_id,
+            'duration_seconds': round(time.time() - self.created_at, 1),
+            'pages_visited': len(self._page_history),
+            'actions_taken': len(self._action_history),
+            'current_context': self._context,
+            'antifraud_detected': bool(self._antifraud),
+            'threat_level': self._antifraud.get('threat_level') if self._antifraud else 'unknown',
+            'flags': list(self._flags),
+            'recent_pages': [p['url'] for p in self._page_history[-5:]],
+            'recent_actions': [
+                {'action': a['action'], 'result': a['result']} 
+                for a in self._action_history[-5:]
+            ],
+        }
+    
+    def get_ai_context_prompt(self) -> str:
+        """Generate context prompt for AI decision-making."""
+        summary = self.get_summary()
+        
+        prompt = f"""Session Context:
+- Duration: {summary['duration_seconds']}s
+- Checkout Stage: {self._context.get('checkout_stage', 'browsing')}
+- Cart: {self._context.get('cart_items', 0)} items, ${self._context.get('cart_value', 0):.2f}
+- Logged In: {self._context.get('logged_in', False)}
+- Errors: {self._context.get('errors_count', 0)}, Retries: {self._context.get('retries_count', 0)}
+- Antifraud: {summary['threat_level']}
+- Flags: {', '.join(summary['flags']) or 'none'}
+
+Recent Actions:
+"""
+        for action in summary['recent_actions'][-3:]:
+            prompt += f"- {action['action']}: {action['result']}\n"
+        
+        return prompt
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: BEHAVIORAL ADAPTATION ENGINE
+# Adapt behavior based on AI analysis and session state
+# ═══════════════════════════════════════════════════════════════════════════
+
+class BehavioralAdaptationEngine:
+    """
+    V7.6: Adapts automation behavior based on real-time analysis.
+    
+    Adjusts:
+    - Action timing (delays, typing speed)
+    - Mouse movement patterns
+    - Retry strategies
+    - Abort conditions
+    
+    Based on detected antifraud systems and session state.
+    """
+    
+    # Behavior profiles
+    PROFILES = {
+        'stealth': {
+            'delay_multiplier': 2.5,
+            'typing_speed_wpm': 35,
+            'mouse_smoothness': 0.9,
+            'thinking_pauses': True,
+            'scroll_before_action': True,
+        },
+        'normal': {
+            'delay_multiplier': 1.0,
+            'typing_speed_wpm': 65,
+            'mouse_smoothness': 0.7,
+            'thinking_pauses': False,
+            'scroll_before_action': False,
+        },
+        'fast': {
+            'delay_multiplier': 0.5,
+            'typing_speed_wpm': 120,
+            'mouse_smoothness': 0.4,
+            'thinking_pauses': False,
+            'scroll_before_action': False,
+        },
+        'recovery': {
+            'delay_multiplier': 3.0,
+            'typing_speed_wpm': 25,
+            'mouse_smoothness': 0.95,
+            'thinking_pauses': True,
+            'scroll_before_action': True,
+        },
+    }
+    
+    def __init__(self, initial_profile: str = 'normal'):
+        import random
+        self._random = random.Random()
+        self._profile_name = initial_profile
+        self._profile = self.PROFILES[initial_profile].copy()
+        self._adaptations = []
+    
+    def adapt_to_threat_level(self, threat_level: str):
+        """Adapt behavior based on antifraud threat level."""
+        mapping = {
+            'very_high': 'stealth',
+            'high': 'stealth',
+            'medium': 'normal',
+            'low': 'normal',
+        }
+        
+        new_profile = mapping.get(threat_level, 'normal')
+        if new_profile != self._profile_name:
+            self._profile_name = new_profile
+            self._profile = self.PROFILES[new_profile].copy()
+            self._adaptations.append(f'threat_level_{threat_level}')
+    
+    def adapt_to_errors(self, error_count: int):
+        """Adapt behavior based on error frequency."""
+        if error_count >= 3:
+            self._profile_name = 'recovery'
+            self._profile = self.PROFILES['recovery'].copy()
+            self._adaptations.append('recovery_mode')
+        elif error_count >= 1:
+            self._profile['delay_multiplier'] *= 1.5
+            self._adaptations.append('increased_delays')
+    
+    def get_delay(self, base_delay_ms: int) -> int:
+        """Get adapted delay with variance."""
+        multiplier = self._profile['delay_multiplier']
+        variance = self._random.uniform(0.8, 1.2)
+        return int(base_delay_ms * multiplier * variance)
+    
+    def get_typing_delay(self, char_count: int) -> int:
+        """Get time to type N characters in milliseconds."""
+        wpm = self._profile['typing_speed_wpm']
+        cpm = wpm * 5  # Average 5 chars per word
+        base_ms = (char_count / cpm) * 60 * 1000
+        
+        # Add variance
+        variance = self._random.uniform(0.85, 1.15)
+        return int(base_ms * variance)
+    
+    def should_add_thinking_pause(self) -> bool:
+        """Should we add a thinking pause before action?"""
+        if not self._profile['thinking_pauses']:
+            return False
+        return self._random.random() < 0.3
+    
+    def get_thinking_pause_ms(self) -> int:
+        """Get duration of thinking pause."""
+        return self._random.randint(800, 2500)
+    
+    def should_scroll_before_action(self) -> bool:
+        """Should we scroll element into view before clicking?"""
+        return self._profile['scroll_before_action']
+    
+    def get_mouse_smoothness(self) -> float:
+        """Get mouse movement smoothness (0-1)."""
+        return self._profile['mouse_smoothness']
+    
+    def get_current_profile(self) -> Dict:
+        """Get current behavior profile."""
+        return {
+            'name': self._profile_name,
+            'settings': self._profile.copy(),
+            'adaptations': self._adaptations.copy(),
+        }
+    
+    def should_abort(self, session_context: SessionContextManager) -> Tuple[bool, str]:
+        """Determine if session should abort."""
+        ctx = session_context.get_context()
+        flags = session_context._flags
+        
+        # Hard abort conditions
+        if ctx.get('errors_count', 0) >= 5:
+            return True, 'too_many_errors'
+        
+        if 'rate_limited' in flags:
+            return True, 'rate_limited'
+        
+        if 'fraud_detected' in flags:
+            return True, 'fraud_detected'
+        
+        if ctx.get('retries_count', 0) >= 10:
+            return True, 'excessive_retries'
+        
+        return False, ''
+
+
+# V7.6 Convenience exports
+def create_antifraud_recognizer() -> AntifraudPatternRecognizer:
+    """V7.6: Create antifraud pattern recognizer"""
+    return AntifraudPatternRecognizer()
+
+def create_session_context(session_id: str = None) -> SessionContextManager:
+    """V7.6: Create session context manager"""
+    return SessionContextManager(session_id)
+
+def create_behavioral_adapter(profile: str = 'normal') -> BehavioralAdaptationEngine:
+    """V7.6: Create behavioral adaptation engine"""
+    return BehavioralAdaptationEngine(profile)

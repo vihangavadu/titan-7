@@ -957,7 +957,490 @@ class FontSubPixelShim:
         }
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: WEBRTC LEAK PREVENTION
+# Prevents IP address leaks via WebRTC STUN/TURN requests
+# ═══════════════════════════════════════════════════════════════════════════
+
+class WebRTCLeakPrevention:
+    """
+    V7.6: Prevents WebRTC IP leaks that bypass proxy/VPN.
+    
+    WebRTC can leak:
+    - Local IP address (192.168.x.x, 10.x.x.x)
+    - Public IP (even through VPN via STUN)
+    - Device media capabilities
+    
+    This engine provides:
+    1. RTCPeerConnection override to block STUN
+    2. MediaDevices enumeration spoofing
+    3. IP address masking/replacement
+    """
+    
+    def __init__(self, fake_local_ip: str = None, fake_public_ip: str = None,
+                 block_mode: str = 'spoof'):
+        """
+        Args:
+            fake_local_ip: IP to report as local (e.g., "192.168.1.105")
+            fake_public_ip: IP to report as public (should match proxy exit)
+            block_mode: 'spoof' (replace IPs), 'block' (disable WebRTC), 'allow' (passthrough)
+        """
+        self.fake_local_ip = fake_local_ip or self._generate_fake_local_ip()
+        self.fake_public_ip = fake_public_ip
+        self.block_mode = block_mode
+        self._media_devices = self._generate_media_devices()
+    
+    def _generate_fake_local_ip(self) -> str:
+        """Generate a plausible local IP."""
+        import random
+        subnet = random.choice(['192.168.1', '192.168.0', '10.0.0', '172.16.0'])
+        host = random.randint(2, 254)
+        return f"{subnet}.{host}"
+    
+    def _generate_media_devices(self) -> list:
+        """Generate realistic media device list."""
+        import random
+        devices = []
+        
+        # Typical webcam names
+        webcam_names = [
+            "HD Webcam", "Integrated Camera", "USB 2.0 Camera",
+            "FaceTime HD Camera", "HD Pro Webcam C920",
+        ]
+        
+        # Typical microphone names
+        mic_names = [
+            "Internal Microphone", "Built-in Microphone",
+            "HD Webcam Microphone", "USB Audio Device",
+        ]
+        
+        # Add 1-2 cameras
+        for i in range(random.randint(1, 2)):
+            devices.append({
+                'deviceId': hashlib.sha256(f"cam_{i}".encode()).hexdigest()[:64],
+                'groupId': hashlib.sha256(f"group_cam_{i}".encode()).hexdigest()[:64],
+                'kind': 'videoinput',
+                'label': random.choice(webcam_names),
+            })
+        
+        # Add 1-2 microphones
+        for i in range(random.randint(1, 2)):
+            devices.append({
+                'deviceId': hashlib.sha256(f"mic_{i}".encode()).hexdigest()[:64],
+                'groupId': hashlib.sha256(f"group_mic_{i}".encode()).hexdigest()[:64],
+                'kind': 'audioinput',
+                'label': random.choice(mic_names),
+            })
+        
+        # Add audio output
+        devices.append({
+            'deviceId': 'default',
+            'groupId': hashlib.sha256("speakers".encode()).hexdigest()[:64],
+            'kind': 'audiooutput',
+            'label': 'Default - Speakers',
+        })
+        
+        return devices
+    
+    def generate_webrtc_shim(self) -> str:
+        """
+        Generate JavaScript to prevent WebRTC IP leaks.
+        """
+        import json as _json
+        
+        if self.block_mode == 'block':
+            return """
+(function() {
+    'use strict';
+    // Block WebRTC entirely
+    window.RTCPeerConnection = undefined;
+    window.webkitRTCPeerConnection = undefined;
+    window.mozRTCPeerConnection = undefined;
+    if (navigator.mediaDevices) {
+        navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('NotAllowedError'));
+        navigator.mediaDevices.enumerateDevices = () => Promise.resolve([]);
+    }
+})();
+"""
+        
+        devices_json = _json.dumps(self._media_devices)
+        fake_local = self.fake_local_ip
+        fake_public = self.fake_public_ip or self.fake_local_ip
+        
+        return f"""
+(function() {{
+    'use strict';
+    const _fakeLocalIP = '{fake_local}';
+    const _fakePublicIP = '{fake_public}';
+    const _fakeDevices = {devices_json};
+    
+    // Override RTCPeerConnection to spoof IPs
+    const _OrigRTC = window.RTCPeerConnection || window.webkitRTCPeerConnection;
+    if (_OrigRTC) {{
+        window.RTCPeerConnection = function(config, constraints) {{
+            // Remove STUN/TURN servers to prevent real IP leak
+            if (config && config.iceServers) {{
+                config.iceServers = [];
+            }}
+            const pc = new _OrigRTC(config, constraints);
+            
+            // Override onicecandidate to spoof IP in candidates
+            const _origOnIce = Object.getOwnPropertyDescriptor(pc, 'onicecandidate');
+            Object.defineProperty(pc, 'onicecandidate', {{
+                set: function(handler) {{
+                    pc.addEventListener('icecandidate', function(event) {{
+                        if (event.candidate && event.candidate.candidate) {{
+                            // Replace real IP with fake
+                            let spoofed = event.candidate.candidate;
+                            spoofed = spoofed.replace(/([0-9]{{1,3}}\\.?){{4}}/g, _fakeLocalIP);
+                            const newCandidate = new RTCIceCandidate({{
+                                candidate: spoofed,
+                                sdpMid: event.candidate.sdpMid,
+                                sdpMLineIndex: event.candidate.sdpMLineIndex
+                            }});
+                            handler({{ candidate: newCandidate }});
+                        }} else {{
+                            handler(event);
+                        }}
+                    }});
+                }}
+            }});
+            
+            return pc;
+        }};
+        window.webkitRTCPeerConnection = window.RTCPeerConnection;
+    }}
+    
+    // Override enumerateDevices
+    if (navigator.mediaDevices) {{
+        navigator.mediaDevices.enumerateDevices = () => Promise.resolve(_fakeDevices);
+    }}
+}})();
+"""
+    
+    def get_config(self) -> dict:
+        """Get WebRTC prevention config for external use."""
+        return {
+            'mode': self.block_mode,
+            'fake_local_ip': self.fake_local_ip,
+            'fake_public_ip': self.fake_public_ip,
+            'media_devices': self._media_devices,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: CLIENT HINTS SPOOFING
+# Modern User-Agent Client Hints (UA-CH) API spoofing
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ClientHintsSpoofing:
+    """
+    V7.6: Spoofs User-Agent Client Hints (UA-CH) API.
+    
+    Modern antifraud systems use UA-CH instead of User-Agent string:
+    - Sec-CH-UA: Brand information
+    - Sec-CH-UA-Platform: OS
+    - Sec-CH-UA-Mobile: Is mobile device
+    - Sec-CH-UA-Full-Version-List: Detailed versions
+    
+    Inconsistency between UA string and UA-CH = immediate bot flag.
+    """
+    
+    # Chrome brand versions (must match navigator.userAgent)
+    BRAND_VERSIONS = {
+        '120': {'major': '120', 'full': '120.0.6099.129'},
+        '121': {'major': '121', 'full': '121.0.6167.85'},
+        '122': {'major': '122', 'full': '122.0.6261.94'},
+        '123': {'major': '123', 'full': '123.0.6312.58'},
+        '124': {'major': '124', 'full': '124.0.6367.60'},
+    }
+    
+    PLATFORMS = {
+        'windows': {'platform': 'Windows', 'platformVersion': '15.0.0'},
+        'macos': {'platform': 'macOS', 'platformVersion': '14.3.1'},
+        'linux': {'platform': 'Linux', 'platformVersion': '6.5.0'},
+    }
+    
+    def __init__(self, chrome_version: str = '122', platform: str = 'windows',
+                 is_mobile: bool = False, architecture: str = 'x86'):
+        self.chrome_version = chrome_version
+        self.platform = platform
+        self.is_mobile = is_mobile
+        self.architecture = architecture
+        self._brand_info = self.BRAND_VERSIONS.get(chrome_version, self.BRAND_VERSIONS['122'])
+        self._platform_info = self.PLATFORMS.get(platform, self.PLATFORMS['windows'])
+    
+    def generate_client_hints(self) -> dict:
+        """Generate complete Client Hints data."""
+        brands = [
+            {'brand': 'Not A(Brand', 'version': '8'},
+            {'brand': 'Chromium', 'version': self._brand_info['major']},
+            {'brand': 'Google Chrome', 'version': self._brand_info['major']},
+        ]
+        
+        full_brands = [
+            {'brand': 'Not A(Brand', 'version': '8.0.0.0'},
+            {'brand': 'Chromium', 'version': self._brand_info['full']},
+            {'brand': 'Google Chrome', 'version': self._brand_info['full']},
+        ]
+        
+        return {
+            'brands': brands,
+            'fullVersionList': full_brands,
+            'mobile': self.is_mobile,
+            'platform': self._platform_info['platform'],
+            'platformVersion': self._platform_info['platformVersion'],
+            'architecture': self.architecture,
+            'bitness': '64',
+            'model': '' if not self.is_mobile else 'Pixel 8',
+            'uaFullVersion': self._brand_info['full'],
+            'wow64': False,
+        }
+    
+    def generate_client_hints_shim(self) -> str:
+        """Generate JavaScript to spoof navigator.userAgentData."""
+        import json as _json
+        hints = self.generate_client_hints()
+        hints_json = _json.dumps(hints)
+        
+        return f"""
+(function() {{
+    'use strict';
+    const _hints = {hints_json};
+    
+    // Override navigator.userAgentData
+    Object.defineProperty(navigator, 'userAgentData', {{
+        get: function() {{
+            return {{
+                brands: _hints.brands,
+                mobile: _hints.mobile,
+                platform: _hints.platform,
+                getHighEntropyValues: function(keys) {{
+                    return Promise.resolve({{
+                        brands: _hints.brands,
+                        fullVersionList: _hints.fullVersionList,
+                        mobile: _hints.mobile,
+                        platform: _hints.platform,
+                        platformVersion: _hints.platformVersion,
+                        architecture: _hints.architecture,
+                        bitness: _hints.bitness,
+                        model: _hints.model,
+                        uaFullVersion: _hints.uaFullVersion,
+                        wow64: _hints.wow64,
+                    }});
+                }},
+                toJSON: function() {{
+                    return {{
+                        brands: _hints.brands,
+                        mobile: _hints.mobile,
+                        platform: _hints.platform,
+                    }};
+                }}
+            }};
+        }},
+        configurable: false
+    }});
+}})();
+"""
+    
+    def get_http_headers(self) -> dict:
+        """Get Client Hints HTTP headers for requests."""
+        brands_str = ', '.join([f'"{b["brand"]}";v="{b["version"]}"' for b in self.generate_client_hints()['brands']])
+        
+        return {
+            'Sec-CH-UA': brands_str,
+            'Sec-CH-UA-Mobile': '?1' if self.is_mobile else '?0',
+            'Sec-CH-UA-Platform': f'"{self._platform_info["platform"]}"',
+            'Sec-CH-UA-Platform-Version': f'"{self._platform_info["platformVersion"]}"',
+            'Sec-CH-UA-Arch': f'"{self.architecture}"',
+            'Sec-CH-UA-Bitness': '"64"',
+            'Sec-CH-UA-Full-Version-List': ', '.join([
+                f'"{b["brand"]}";v="{b["version"]}"' 
+                for b in self.generate_client_hints()['fullVersionList']
+            ]),
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: BATTERY API SPOOFING
+# Battery status can be used for fingerprinting and tracking
+# ═══════════════════════════════════════════════════════════════════════════
+
+class BatteryAPISpoofing:
+    """
+    V7.6: Spoofs Battery Status API to prevent fingerprinting.
+    
+    Battery API reveals:
+    - Charging status (plugged in vs battery)
+    - Battery level (unique identifier when combined with other data)
+    - Charging/discharging time (very precise fingerprint)
+    
+    Modern browsers are deprecating this API, but many sites still probe it.
+    """
+    
+    def __init__(self, simulate_desktop: bool = True):
+        """
+        Args:
+            simulate_desktop: If True, simulate always plugged in (desktop behavior)
+        """
+        self.simulate_desktop = simulate_desktop
+        self._state = self._generate_state()
+    
+    def _generate_state(self) -> dict:
+        import random
+        
+        if self.simulate_desktop:
+            # Desktop: always charging, full battery
+            return {
+                'charging': True,
+                'chargingTime': 0,
+                'dischargingTime': float('inf'),
+                'level': 1.0,
+            }
+        else:
+            # Simulate realistic laptop battery
+            level = random.uniform(0.3, 0.95)
+            charging = random.random() > 0.5
+            
+            if charging:
+                charge_time = int((1.0 - level) * 7200)  # Time to full in seconds
+                discharge_time = float('inf')
+            else:
+                charge_time = float('inf')
+                discharge_time = int(level * 14400)  # Time to empty in seconds
+            
+            return {
+                'charging': charging,
+                'chargingTime': charge_time,
+                'dischargingTime': discharge_time,
+                'level': round(level, 2),
+            }
+    
+    def generate_battery_shim(self) -> str:
+        """Generate JavaScript to spoof Battery Status API."""
+        import json as _json
+        
+        # Handle infinity for JSON
+        state = self._state.copy()
+        state['dischargingTime'] = 'Infinity' if state['dischargingTime'] == float('inf') else state['dischargingTime']
+        state['chargingTime'] = 'Infinity' if state['chargingTime'] == float('inf') else state['chargingTime']
+        
+        return f"""
+(function() {{
+    'use strict';
+    const _batteryState = {{
+        charging: {str(self._state['charging']).lower()},
+        chargingTime: {'Infinity' if self._state['chargingTime'] == float('inf') else self._state['chargingTime']},
+        dischargingTime: {'Infinity' if self._state['dischargingTime'] == float('inf') else self._state['dischargingTime']},
+        level: {self._state['level']},
+        onchargingchange: null,
+        onchargingtimechange: null,
+        ondischargingtimechange: null,
+        onlevelchange: null,
+        addEventListener: function() {{}},
+        removeEventListener: function() {{}},
+        dispatchEvent: function() {{ return true; }}
+    }};
+    
+    // Override getBattery
+    if (navigator.getBattery) {{
+        navigator.getBattery = function() {{
+            return Promise.resolve(_batteryState);
+        }};
+    }}
+    
+    // Block BatteryManager access
+    if (window.BatteryManager) {{
+        window.BatteryManager = undefined;
+    }}
+}})();
+"""
+    
+    def get_state(self) -> dict:
+        """Get current battery state for external use."""
+        return self._state.copy()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 UNIFIED FINGERPRINT HARDENING
+# ═══════════════════════════════════════════════════════════════════════════
+
+class UnifiedFingerprintHardener:
+    """
+    V7.6: Combines all fingerprint evasion techniques into a single coordinator.
+    """
+    
+    def __init__(self, profile_uuid: str, platform: str = 'windows',
+                 chrome_version: str = '122', proxy_ip: str = None):
+        self.profile_uuid = profile_uuid
+        self.platform = platform
+        self.chrome_version = chrome_version
+        
+        # Initialize all components
+        self.injector = FingerprintInjector(profile_uuid, target_os=platform)
+        self.webrtc = WebRTCLeakPrevention(fake_public_ip=proxy_ip)
+        self.client_hints = ClientHintsSpoofing(chrome_version, platform)
+        self.battery = BatteryAPISpoofing(simulate_desktop=(platform != 'android'))
+        self.font_shim = FontSubPixelShim(profile_uuid, platform)
+    
+    def generate_all_shims(self) -> str:
+        """Generate combined JavaScript for all fingerprint evasion."""
+        shims = [
+            "// TITAN V7.6 Unified Fingerprint Hardening",
+            self.injector.generate_hardware_concurrency_script(),
+            self.webrtc.generate_webrtc_shim(),
+            self.client_hints.generate_client_hints_shim(),
+            self.battery.generate_battery_shim(),
+            self.font_shim.generate_shim_script(),
+        ]
+        return '\n\n'.join(shims)
+    
+    def get_full_config(self) -> dict:
+        """Get complete fingerprint hardening config."""
+        fp_result = self.injector.generate_full_config()
+        
+        return {
+            'profile_uuid': self.profile_uuid,
+            'platform': self.platform,
+            'chrome_version': self.chrome_version,
+            'fingerprint': {
+                'canvas_hash': fp_result.canvas_hash,
+                'webgl_hash': fp_result.webgl_hash,
+                'audio_hash': fp_result.audio_hash,
+            },
+            'webrtc': self.webrtc.get_config(),
+            'client_hints': self.client_hints.generate_client_hints(),
+            'client_hints_headers': self.client_hints.get_http_headers(),
+            'battery': self.battery.get_state(),
+            'font_env': self.font_shim.get_fontconfig_override(),
+        }
+
+
+# V7.6 Convenience exports
+def create_webrtc_prevention(fake_public_ip: str = None, block_mode: str = 'spoof'):
+    """V7.6: Create WebRTC leak prevention"""
+    return WebRTCLeakPrevention(fake_public_ip=fake_public_ip, block_mode=block_mode)
+
+def create_client_hints_spoof(chrome_version: str = '122', platform: str = 'windows'):
+    """V7.6: Create Client Hints spoofing"""
+    return ClientHintsSpoofing(chrome_version, platform)
+
+def create_unified_hardener(profile_uuid: str, platform: str = 'windows', proxy_ip: str = None):
+    """V7.6: Create unified fingerprint hardener"""
+    return UnifiedFingerprintHardener(profile_uuid, platform, proxy_ip=proxy_ip)
+
+
 if __name__ == "__main__":
+    # Demo of fingerprint injection
+    injector = FingerprintInjector("test-profile-uuid-1234")
+    config = injector.generate_full_config()
+    print(f"Canvas Hash: {config.canvas_hash}")
+    print(f"WebGL Hash: {config.webgl_hash}")
+    print(f"Audio Hash: {config.audio_hash}")
+    
+    # Demo V7.6 unified hardener
+    hardener = create_unified_hardener("test-profile", platform="windows", proxy_ip="203.0.113.50")
+    print(f"\nV7.6 Unified Config: {hardener.get_full_config()['client_hints']}")
     logging.basicConfig(level=logging.INFO)
     
     print("TITAN V7.5 Fingerprint Injector Demo")

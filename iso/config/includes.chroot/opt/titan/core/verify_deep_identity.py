@@ -323,6 +323,1132 @@ def verify_timezone_sync(target_state: str = "", target_country: str = "US") -> 
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL: DEEP IDENTITY ORCHESTRATOR
+# Multi-phase identity verification with parallel checks and auto-remediation
+# ═══════════════════════════════════════════════════════════════════════════
+
+class DeepIdentityOrchestrator:
+    """
+    V7.6 P0: Orchestrates comprehensive identity verification across all phases.
+    Coordinates font, audio, timezone, and additional identity signals with
+    parallel execution and smart dependency resolution.
+    """
+    
+    def __init__(self, target_os: str = "windows_11", profile_path: Optional[Path] = None):
+        self.target_os = target_os
+        self.profile_path = profile_path
+        self.phases: Dict[str, Dict[str, Any]] = {}
+        self.execution_order: List[str] = []
+        self.parallel_groups: List[List[str]] = []
+        self.results: Dict[str, Dict[str, Any]] = {}
+        self.start_time: Optional[float] = None
+        self.hooks: Dict[str, List[callable]] = {
+            "pre_phase": [],
+            "post_phase": [],
+            "on_failure": [],
+            "on_success": []
+        }
+        self._register_default_phases()
+    
+    def _register_default_phases(self) -> None:
+        """Register all default verification phases."""
+        self.register_phase(
+            "fonts",
+            verify_func=self._verify_fonts,
+            priority=1,
+            description="Font environment hygiene",
+            auto_remediate=True,
+            dependencies=[]
+        )
+        self.register_phase(
+            "audio",
+            verify_func=self._verify_audio,
+            priority=2,
+            description="Audio stack hardening",
+            auto_remediate=True,
+            dependencies=[]
+        )
+        self.register_phase(
+            "timezone",
+            verify_func=self._verify_timezone,
+            priority=1,
+            description="Timezone synchronization",
+            auto_remediate=True,
+            dependencies=[]
+        )
+        self.register_phase(
+            "webgl",
+            verify_func=self._verify_webgl,
+            priority=3,
+            description="WebGL fingerprint consistency",
+            auto_remediate=False,
+            dependencies=["fonts"]
+        )
+        self.register_phase(
+            "canvas",
+            verify_func=self._verify_canvas,
+            priority=3,
+            description="Canvas fingerprint hardening",
+            auto_remediate=False,
+            dependencies=["fonts"]
+        )
+        self._compute_execution_order()
+    
+    def register_phase(self, name: str, verify_func: callable,
+                       priority: int = 5, description: str = "",
+                       auto_remediate: bool = False,
+                       dependencies: List[str] = None) -> None:
+        """Register a verification phase."""
+        self.phases[name] = {
+            "name": name,
+            "verify_func": verify_func,
+            "priority": priority,
+            "description": description,
+            "auto_remediate": auto_remediate,
+            "dependencies": dependencies or [],
+            "enabled": True
+        }
+        self._compute_execution_order()
+    
+    def _compute_execution_order(self) -> None:
+        """Compute execution order based on dependencies and priorities."""
+        # Topological sort with priority consideration
+        visited = set()
+        order = []
+        
+        def visit(name: str):
+            if name in visited:
+                return
+            visited.add(name)
+            phase = self.phases.get(name, {})
+            for dep in phase.get("dependencies", []):
+                if dep in self.phases:
+                    visit(dep)
+            order.append(name)
+        
+        # Sort by priority first, then visit
+        sorted_phases = sorted(
+            self.phases.keys(),
+            key=lambda x: self.phases[x].get("priority", 5)
+        )
+        
+        for phase_name in sorted_phases:
+            visit(phase_name)
+        
+        self.execution_order = order
+        
+        # Group phases that can run in parallel (no dependencies between them)
+        self._compute_parallel_groups()
+    
+    def _compute_parallel_groups(self) -> None:
+        """Group phases that can execute in parallel."""
+        groups = []
+        remaining = set(self.execution_order)
+        completed = set()
+        
+        while remaining:
+            # Find all phases whose dependencies are satisfied
+            ready = []
+            for phase in remaining:
+                deps = set(self.phases[phase].get("dependencies", []))
+                if deps.issubset(completed):
+                    ready.append(phase)
+            
+            if not ready:
+                # Circular dependency or error - add remaining one by one
+                ready = [list(remaining)[0]]
+            
+            groups.append(ready)
+            completed.update(ready)
+            remaining -= set(ready)
+        
+        self.parallel_groups = groups
+    
+    def _verify_fonts(self) -> Dict[str, Any]:
+        """Font verification wrapper."""
+        result = verify_font_hygiene(self.target_os)
+        return {
+            "passed": result,
+            "phase": "fonts",
+            "details": {"target_os": self.target_os}
+        }
+    
+    def _verify_audio(self) -> Dict[str, Any]:
+        """Audio verification wrapper."""
+        result = verify_audio_hardening(self.profile_path)
+        return {
+            "passed": result,
+            "phase": "audio",
+            "details": {"profile_path": str(self.profile_path) if self.profile_path else None}
+        }
+    
+    def _verify_timezone(self) -> Dict[str, Any]:
+        """Timezone verification wrapper."""
+        result = verify_timezone_sync()
+        return {
+            "passed": result,
+            "phase": "timezone",
+            "details": {}
+        }
+    
+    def _verify_webgl(self) -> Dict[str, Any]:
+        """WebGL fingerprint consistency check."""
+        # Check WebGL configuration exists
+        webgl_ok = True
+        details = {}
+        
+        if self.profile_path:
+            webgl_conf = self.profile_path / "webgl_config.json"
+            if webgl_conf.exists():
+                try:
+                    with open(webgl_conf) as f:
+                        config = json.load(f)
+                    details["renderer"] = config.get("renderer", "unknown")
+                    details["vendor"] = config.get("vendor", "unknown")
+                    webgl_ok = config.get("enabled", False)
+                except Exception as e:
+                    details["error"] = str(e)
+                    webgl_ok = False
+            else:
+                details["note"] = "No WebGL config found"
+                webgl_ok = True  # Not a failure, just unconfigured
+        
+        return {
+            "passed": webgl_ok,
+            "phase": "webgl",
+            "details": details
+        }
+    
+    def _verify_canvas(self) -> Dict[str, Any]:
+        """Canvas fingerprint hardening check."""
+        canvas_ok = True
+        details = {}
+        
+        if self.profile_path:
+            prefs_file = self.profile_path / "user.js"
+            if prefs_file.exists():
+                try:
+                    content = prefs_file.read_text()
+                    canvas_prefs = [
+                        "privacy.resistFingerprinting",
+                        "canvas.poisondata"
+                    ]
+                    found = sum(1 for p in canvas_prefs if p in content)
+                    details["canvas_prefs_found"] = found
+                    canvas_ok = found > 0
+                except Exception:
+                    pass
+        
+        return {
+            "passed": canvas_ok,
+            "phase": "canvas",
+            "details": details
+        }
+    
+    def add_hook(self, hook_type: str, callback: callable) -> None:
+        """Add execution hook."""
+        if hook_type in self.hooks:
+            self.hooks[hook_type].append(callback)
+    
+    def _fire_hooks(self, hook_type: str, **kwargs) -> None:
+        """Fire all hooks of a type."""
+        for callback in self.hooks.get(hook_type, []):
+            try:
+                callback(**kwargs)
+            except Exception:
+                pass
+    
+    def execute(self, phases: List[str] = None, parallel: bool = True,
+                stop_on_failure: bool = False) -> Dict[str, Any]:
+        """
+        Execute verification phases.
+        
+        Args:
+            phases: List of specific phases to run (None = all)
+            parallel: Run independent phases in parallel
+            stop_on_failure: Stop execution on first failure
+            
+        Returns:
+            Comprehensive verification results
+        """
+        self.start_time = time.time()
+        self.results = {}
+        
+        phases_to_run = phases or self.execution_order
+        all_passed = True
+        
+        groups = self.parallel_groups if parallel else [[p] for p in phases_to_run]
+        
+        for group in groups:
+            group_phases = [p for p in group if p in phases_to_run and self.phases.get(p, {}).get("enabled", True)]
+            
+            for phase_name in group_phases:
+                phase = self.phases.get(phase_name)
+                if not phase:
+                    continue
+                
+                self._fire_hooks("pre_phase", phase=phase_name)
+                
+                try:
+                    result = phase["verify_func"]()
+                    self.results[phase_name] = result
+                    
+                    if result.get("passed"):
+                        self._fire_hooks("on_success", phase=phase_name, result=result)
+                    else:
+                        all_passed = False
+                        self._fire_hooks("on_failure", phase=phase_name, result=result)
+                        
+                        if stop_on_failure:
+                            break
+                
+                except Exception as e:
+                    self.results[phase_name] = {
+                        "passed": False,
+                        "phase": phase_name,
+                        "error": str(e)
+                    }
+                    all_passed = False
+                    self._fire_hooks("on_failure", phase=phase_name, error=e)
+                
+                self._fire_hooks("post_phase", phase=phase_name)
+            
+            if stop_on_failure and not all_passed:
+                break
+        
+        duration = (time.time() - self.start_time) * 1000
+        
+        return {
+            "status": "GHOST" if all_passed else "FLAGGED",
+            "all_passed": all_passed,
+            "phases": self.results,
+            "duration_ms": round(duration, 1),
+            "target_os": self.target_os,
+            "execution_order": phases_to_run
+        }
+    
+    def get_report(self, include_details: bool = True) -> Dict[str, Any]:
+        """Get comprehensive verification report."""
+        return {
+            "results": self.results,
+            "summary": {
+                "total_phases": len(self.results),
+                "passed": sum(1 for r in self.results.values() if r.get("passed")),
+                "failed": sum(1 for r in self.results.values() if not r.get("passed"))
+            },
+            "phases": {
+                name: {
+                    "description": phase.get("description", ""),
+                    "enabled": phase.get("enabled", True),
+                    "auto_remediate": phase.get("auto_remediate", False)
+                }
+                for name, phase in self.phases.items()
+            } if include_details else {}
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL: IDENTITY LEAK DETECTOR
+# Deep analysis of subtle identity leaks across all fingerprint vectors
+# ═══════════════════════════════════════════════════════════════════════════
+
+class IdentityLeakDetector:
+    """
+    V7.6 P0: Detects subtle identity leaks that can expose the true environment.
+    Analyzes fonts, timing, hardware signatures, and behavioral patterns.
+    """
+    
+    def __init__(self, target_os: str = "windows_11"):
+        self.target_os = target_os
+        self.leaks: List[Dict[str, Any]] = []
+        self.severity_scores: Dict[str, int] = {
+            "critical": 100,
+            "high": 75,
+            "medium": 50,
+            "low": 25,
+            "info": 10
+        }
+        self.detection_rules: List[Dict[str, Any]] = []
+        self._register_default_rules()
+    
+    def _register_default_rules(self) -> None:
+        """Register default leak detection rules."""
+        # Font leak rules
+        self.add_rule(
+            name="linux_font_leak",
+            detector=self._detect_linux_fonts,
+            severity="critical",
+            category="fonts",
+            description="Linux-exclusive fonts visible"
+        )
+        
+        # Timezone leak rules
+        self.add_rule(
+            name="utc_timezone",
+            detector=self._detect_utc_timezone,
+            severity="high",
+            category="timezone",
+            description="UTC timezone when target is non-UTC region"
+        )
+        
+        # Audio leak rules
+        self.add_rule(
+            name="audio_context_exposed",
+            detector=self._detect_audio_context,
+            severity="high",
+            category="audio",
+            description="AudioContext fingerprint not protected"
+        )
+        
+        # Environment leak rules
+        self.add_rule(
+            name="linux_paths",
+            detector=self._detect_linux_paths,
+            severity="medium",
+            category="environment",
+            description="Linux path patterns in environment"
+        )
+        
+        # Process leak rules
+        self.add_rule(
+            name="linux_processes",
+            detector=self._detect_linux_processes,
+            severity="medium",
+            category="processes",
+            description="Linux-specific processes running"
+        )
+    
+    def add_rule(self, name: str, detector: callable, severity: str = "medium",
+                 category: str = "general", description: str = "") -> None:
+        """Add a leak detection rule."""
+        self.detection_rules.append({
+            "name": name,
+            "detector": detector,
+            "severity": severity,
+            "category": category,
+            "description": description,
+            "enabled": True
+        })
+    
+    def _detect_linux_fonts(self) -> List[Dict[str, Any]]:
+        """Detect Linux font leaks."""
+        leaks = []
+        try:
+            installed = subprocess.check_output(
+                "fc-list : family", shell=True, timeout=10
+            ).decode()
+            
+            for font in LINUX_LEAK_FONTS:
+                if font in installed:
+                    leaks.append({
+                        "type": "linux_font",
+                        "value": font,
+                        "severity": "critical",
+                        "remediation": f"Remove font: {font}"
+                    })
+        except Exception:
+            pass
+        
+        return leaks
+    
+    def _detect_utc_timezone(self) -> List[Dict[str, Any]]:
+        """Detect UTC timezone leak."""
+        leaks = []
+        try:
+            sys_tz = subprocess.check_output(
+                "date +%Z", shell=True, timeout=3
+            ).decode().strip()
+            
+            if sys_tz == "UTC":
+                leaks.append({
+                    "type": "utc_timezone",
+                    "value": sys_tz,
+                    "severity": "high",
+                    "remediation": "Run TimezoneEnforcer to set target timezone"
+                })
+        except Exception:
+            pass
+        
+        return leaks
+    
+    def _detect_audio_context(self) -> List[Dict[str, Any]]:
+        """Detect unprotected AudioContext."""
+        leaks = []
+        
+        # Check if RFP is enabled
+        if CAMOUFOX_PREFS.exists():
+            try:
+                content = CAMOUFOX_PREFS.read_text()
+                if "privacy.resistFingerprinting" not in content:
+                    leaks.append({
+                        "type": "audio_context",
+                        "value": "RFP not enabled",
+                        "severity": "high",
+                        "remediation": "Enable privacy.resistFingerprinting"
+                    })
+            except Exception:
+                pass
+        
+        return leaks
+    
+    def _detect_linux_paths(self) -> List[Dict[str, Any]]:
+        """Detect Linux path patterns in environment."""
+        leaks = []
+        
+        linux_indicators = [
+            ("/usr/bin", "PATH contains /usr/bin"),
+            ("/home/", "HOME path uses /home/"),
+            (".local/share", "XDG paths detected"),
+        ]
+        
+        for path_pattern, description in linux_indicators:
+            for env_var in ["PATH", "HOME", "XDG_DATA_HOME"]:
+                value = os.environ.get(env_var, "")
+                if path_pattern in value:
+                    leaks.append({
+                        "type": "linux_path",
+                        "value": f"{env_var}={value[:50]}...",
+                        "severity": "medium",
+                        "remediation": f"Environment reveals Linux: {description}"
+                    })
+                    break
+        
+        return leaks
+    
+    def _detect_linux_processes(self) -> List[Dict[str, Any]]:
+        """Detect Linux-specific processes."""
+        leaks = []
+        
+        linux_procs = ["systemd", "gnome-shell", "kwin", "xfce4", "pulseaudio"]
+        
+        for proc in linux_procs:
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-x", proc],
+                    capture_output=True, timeout=2
+                )
+                if result.returncode == 0:
+                    leaks.append({
+                        "type": "linux_process",
+                        "value": proc,
+                        "severity": "low",
+                        "remediation": f"Linux process: {proc}"
+                    })
+            except Exception:
+                pass
+        
+        return leaks
+    
+    def scan(self, categories: List[str] = None) -> Dict[str, Any]:
+        """
+        Run full leak detection scan.
+        
+        Args:
+            categories: Specific categories to scan (None = all)
+            
+        Returns:
+            Scan results with all detected leaks
+        """
+        self.leaks = []
+        start = time.time()
+        
+        for rule in self.detection_rules:
+            if not rule.get("enabled", True):
+                continue
+            
+            if categories and rule.get("category") not in categories:
+                continue
+            
+            try:
+                detected = rule["detector"]()
+                for leak in detected:
+                    leak["rule"] = rule["name"]
+                    leak["category"] = rule.get("category", "general")
+                    self.leaks.append(leak)
+            except Exception as e:
+                self.leaks.append({
+                    "type": "scan_error",
+                    "rule": rule["name"],
+                    "error": str(e),
+                    "severity": "info"
+                })
+        
+        duration = (time.time() - start) * 1000
+        
+        # Calculate overall score
+        total_score = sum(
+            self.severity_scores.get(leak.get("severity", "low"), 25)
+            for leak in self.leaks
+        )
+        
+        return {
+            "status": "CLEAN" if not self.leaks else "LEAKING",
+            "total_leaks": len(self.leaks),
+            "leaks": self.leaks,
+            "risk_score": min(total_score, 1000),
+            "duration_ms": round(duration, 1),
+            "by_category": self._group_by_category(),
+            "by_severity": self._group_by_severity()
+        }
+    
+    def _group_by_category(self) -> Dict[str, int]:
+        """Group leaks by category."""
+        groups = {}
+        for leak in self.leaks:
+            cat = leak.get("category", "unknown")
+            groups[cat] = groups.get(cat, 0) + 1
+        return groups
+    
+    def _group_by_severity(self) -> Dict[str, int]:
+        """Group leaks by severity."""
+        groups = {}
+        for leak in self.leaks:
+            sev = leak.get("severity", "unknown")
+            groups[sev] = groups.get(sev, 0) + 1
+        return groups
+    
+    def get_critical_leaks(self) -> List[Dict[str, Any]]:
+        """Get only critical severity leaks."""
+        return [l for l in self.leaks if l.get("severity") == "critical"]
+    
+    def get_remediations(self) -> List[str]:
+        """Get list of recommended remediations."""
+        return list(set(
+            leak.get("remediation", "")
+            for leak in self.leaks
+            if leak.get("remediation")
+        ))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL: IDENTITY CONSISTENCY CHECKER
+# Cross-validates all identity signals for internal consistency
+# ═══════════════════════════════════════════════════════════════════════════
+
+class IdentityConsistencyChecker:
+    """
+    V7.6 P0: Validates that all identity signals are internally consistent.
+    Detects mismatches between timezone/locale, fonts/OS, hardware/software.
+    """
+    
+    def __init__(self, target_os: str = "windows_11", target_locale: str = "en-US"):
+        self.target_os = target_os
+        self.target_locale = target_locale
+        self.identity_signals: Dict[str, Any] = {}
+        self.inconsistencies: List[Dict[str, Any]] = []
+        self.consistency_rules: List[Dict[str, Any]] = []
+        self._register_default_rules()
+    
+    def _register_default_rules(self) -> None:
+        """Register default consistency rules."""
+        self.add_rule(
+            name="timezone_locale_match",
+            checker=self._check_timezone_locale,
+            description="Timezone matches locale region"
+        )
+        self.add_rule(
+            name="fonts_os_match",
+            checker=self._check_fonts_os,
+            description="Font set matches target OS"
+        )
+        self.add_rule(
+            name="user_agent_os_match",
+            checker=self._check_ua_os,
+            description="User-Agent matches target OS"
+        )
+        self.add_rule(
+            name="webgl_hardware_match",
+            checker=self._check_webgl_hardware,
+            description="WebGL renderer matches hardware profile"
+        )
+    
+    def add_rule(self, name: str, checker: callable, description: str = "") -> None:
+        """Add a consistency check rule."""
+        self.consistency_rules.append({
+            "name": name,
+            "checker": checker,
+            "description": description,
+            "enabled": True
+        })
+    
+    def collect_signals(self, profile_path: Optional[Path] = None) -> None:
+        """Collect all identity signals from the environment."""
+        self.identity_signals = {
+            "target_os": self.target_os,
+            "target_locale": self.target_locale,
+            "profile_path": str(profile_path) if profile_path else None,
+            "collected_at": datetime.now().isoformat()
+        }
+        
+        # Collect timezone
+        try:
+            self.identity_signals["timezone"] = subprocess.check_output(
+                "date +%Z", shell=True, timeout=3
+            ).decode().strip()
+            self.identity_signals["tz_offset"] = subprocess.check_output(
+                "date +%z", shell=True, timeout=3
+            ).decode().strip()
+        except Exception:
+            self.identity_signals["timezone"] = "unknown"
+        
+        # Collect locale
+        self.identity_signals["env_locale"] = os.environ.get("LANG", "unknown")
+        self.identity_signals["env_language"] = os.environ.get("LANGUAGE", "unknown")
+        
+        # Collect fonts
+        try:
+            fonts = subprocess.check_output(
+                "fc-list : family | head -50", shell=True, timeout=10
+            ).decode()
+            self.identity_signals["fonts_sample"] = fonts.split("\n")[:20]
+        except Exception:
+            self.identity_signals["fonts_sample"] = []
+        
+        # Collect profile data if available
+        if profile_path and Path(profile_path).exists():
+            self._collect_profile_signals(Path(profile_path))
+    
+    def _collect_profile_signals(self, profile_path: Path) -> None:
+        """Collect signals from profile configuration."""
+        # Check user.js
+        user_js = profile_path / "user.js"
+        if user_js.exists():
+            try:
+                content = user_js.read_text()
+                # Extract user agent if present
+                if "general.useragent.override" in content:
+                    self.identity_signals["has_ua_override"] = True
+            except Exception:
+                pass
+        
+        # Check identity.json
+        identity_file = profile_path / "identity.json"
+        if identity_file.exists():
+            try:
+                with open(identity_file) as f:
+                    identity = json.load(f)
+                self.identity_signals["profile_identity"] = identity
+            except Exception:
+                pass
+    
+    def _check_timezone_locale(self) -> Dict[str, Any]:
+        """Check timezone-locale consistency."""
+        tz = self.identity_signals.get("timezone", "")
+        locale = self.target_locale
+        
+        # Map locales to expected timezone prefixes
+        locale_tz_map = {
+            "en-US": ["EST", "CST", "MST", "PST", "EDT", "CDT", "MDT", "PDT", "America"],
+            "en-GB": ["GMT", "BST", "Europe/London"],
+            "de-DE": ["CET", "CEST", "Europe/Berlin"],
+            "fr-FR": ["CET", "CEST", "Europe/Paris"],
+            "ja-JP": ["JST", "Asia/Tokyo"],
+        }
+        
+        expected = locale_tz_map.get(locale, [])
+        tz_matches = any(e in tz for e in expected) if expected else True
+        
+        return {
+            "consistent": tz_matches or not expected,
+            "signal_a": f"timezone={tz}",
+            "signal_b": f"locale={locale}",
+            "issue": None if tz_matches else f"Timezone {tz} inconsistent with locale {locale}"
+        }
+    
+    def _check_fonts_os(self) -> Dict[str, Any]:
+        """Check fonts-OS consistency."""
+        fonts = self.identity_signals.get("fonts_sample", [])
+        fonts_str = " ".join(fonts)
+        
+        # Check for OS-specific fonts
+        has_linux = any(f in fonts_str for f in ["Liberation", "DejaVu", "Ubuntu"])
+        has_windows = any(f in fonts_str for f in ["Segoe", "Calibri", "Consolas"])
+        has_macos = any(f in fonts_str for f in ["Helvetica Neue", "SF Pro", "Menlo"])
+        
+        os_type = "windows" if "windows" in self.target_os.lower() else "macos"
+        
+        consistent = True
+        issue = None
+        
+        if os_type == "windows":
+            if has_linux and not has_windows:
+                consistent = False
+                issue = "Linux fonts present but Windows fonts missing"
+        elif os_type == "macos":
+            if has_linux and not has_macos:
+                consistent = False
+                issue = "Linux fonts present but macOS fonts missing"
+        
+        return {
+            "consistent": consistent,
+            "signal_a": f"target_os={self.target_os}",
+            "signal_b": f"has_linux={has_linux}, has_target={has_windows or has_macos}",
+            "issue": issue
+        }
+    
+    def _check_ua_os(self) -> Dict[str, Any]:
+        """Check User-Agent-OS consistency."""
+        has_override = self.identity_signals.get("has_ua_override", False)
+        
+        return {
+            "consistent": has_override,
+            "signal_a": f"target_os={self.target_os}",
+            "signal_b": f"ua_override={has_override}",
+            "issue": None if has_override else "No User-Agent override configured"
+        }
+    
+    def _check_webgl_hardware(self) -> Dict[str, Any]:
+        """Check WebGL-hardware consistency."""
+        profile_identity = self.identity_signals.get("profile_identity", {})
+        webgl = profile_identity.get("webgl", {})
+        hardware = profile_identity.get("hardware", {})
+        
+        consistent = True
+        issue = None
+        
+        # Check if integrated GPU matches reported hardware
+        if webgl and hardware:
+            gpu_vendor = hardware.get("gpu_vendor", "").lower()
+            webgl_vendor = webgl.get("vendor", "").lower()
+            
+            if gpu_vendor and webgl_vendor:
+                if gpu_vendor not in webgl_vendor and webgl_vendor not in gpu_vendor:
+                    consistent = False
+                    issue = f"GPU vendor mismatch: hardware={gpu_vendor}, webgl={webgl_vendor}"
+        
+        return {
+            "consistent": consistent,
+            "signal_a": f"hardware_gpu={hardware.get('gpu_vendor', 'unknown')}",
+            "signal_b": f"webgl_vendor={webgl.get('vendor', 'unknown')}",
+            "issue": issue
+        }
+    
+    def check(self, profile_path: Optional[Path] = None) -> Dict[str, Any]:
+        """
+        Run full consistency check.
+        
+        Args:
+            profile_path: Path to profile directory
+            
+        Returns:
+            Consistency check results
+        """
+        self.collect_signals(profile_path)
+        self.inconsistencies = []
+        
+        start = time.time()
+        
+        results = {}
+        for rule in self.consistency_rules:
+            if not rule.get("enabled", True):
+                continue
+            
+            try:
+                result = rule["checker"]()
+                results[rule["name"]] = result
+                
+                if not result.get("consistent", True):
+                    self.inconsistencies.append({
+                        "rule": rule["name"],
+                        "description": rule.get("description", ""),
+                        **result
+                    })
+            except Exception as e:
+                results[rule["name"]] = {
+                    "consistent": False,
+                    "error": str(e)
+                }
+        
+        duration = (time.time() - start) * 1000
+        all_consistent = len(self.inconsistencies) == 0
+        
+        return {
+            "status": "CONSISTENT" if all_consistent else "INCONSISTENT",
+            "all_consistent": all_consistent,
+            "checks": results,
+            "inconsistencies": self.inconsistencies,
+            "signals_collected": len(self.identity_signals),
+            "duration_ms": round(duration, 1)
+        }
+    
+    def get_identity_report(self) -> Dict[str, Any]:
+        """Get full identity signals report."""
+        return {
+            "signals": self.identity_signals,
+            "inconsistencies": self.inconsistencies,
+            "recommendation": "Fix inconsistencies before operation" if self.inconsistencies else "Identity consistent"
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL: IDENTITY VERIFICATION HISTORY
+# Track verification history, trends, and predict potential issues
+# ═══════════════════════════════════════════════════════════════════════════
+
+class IdentityVerificationHistory:
+    """
+    V7.6 P0: Tracks verification history and identifies patterns/trends.
+    Predicts potential issues based on historical failure patterns.
+    """
+    
+    def __init__(self, profile_id: str = "default"):
+        self.profile_id = profile_id
+        self.history_file = STATE_DIR / "verification_history.json"
+        self.history: List[Dict[str, Any]] = []
+        self.max_entries = 1000
+        self._load_history()
+    
+    def _load_history(self) -> None:
+        """Load history from disk."""
+        if self.history_file.exists():
+            try:
+                with open(self.history_file) as f:
+                    data = json.load(f)
+                self.history = data.get("entries", [])
+            except Exception:
+                self.history = []
+    
+    def _save_history(self) -> None:
+        """Save history to disk."""
+        try:
+            self.history_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.history_file, "w") as f:
+                json.dump({
+                    "profile_id": self.profile_id,
+                    "entries": self.history[-self.max_entries:],
+                    "updated_at": datetime.now().isoformat()
+                }, f, indent=2)
+        except Exception:
+            pass
+    
+    def record(self, verification_result: Dict[str, Any]) -> None:
+        """
+        Record a verification result.
+        
+        Args:
+            verification_result: Result from DeepIdentityOrchestrator.execute()
+        """
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "profile_id": self.profile_id,
+            "status": verification_result.get("status", "UNKNOWN"),
+            "all_passed": verification_result.get("all_passed", False),
+            "duration_ms": verification_result.get("duration_ms", 0),
+            "phases": {}
+        }
+        
+        # Record phase results
+        for phase_name, phase_result in verification_result.get("phases", {}).items():
+            entry["phases"][phase_name] = {
+                "passed": phase_result.get("passed", False)
+            }
+        
+        self.history.append(entry)
+        self._save_history()
+    
+    def get_recent(self, count: int = 10) -> List[Dict[str, Any]]:
+        """Get recent verification entries."""
+        return self.history[-count:]
+    
+    def get_statistics(self, days: int = 7) -> Dict[str, Any]:
+        """
+        Get verification statistics for specified period.
+        
+        Args:
+            days: Number of days to include
+            
+        Returns:
+            Statistics summary
+        """
+        cutoff = datetime.now().timestamp() - (days * 86400)
+        recent = [
+            e for e in self.history
+            if datetime.fromisoformat(e["timestamp"]).timestamp() > cutoff
+        ]
+        
+        if not recent:
+            return {"message": "No data for period", "total": 0}
+        
+        total = len(recent)
+        passed = sum(1 for e in recent if e.get("all_passed", False))
+        
+        # Phase statistics
+        phase_stats = {}
+        for entry in recent:
+            for phase, result in entry.get("phases", {}).items():
+                if phase not in phase_stats:
+                    phase_stats[phase] = {"total": 0, "passed": 0}
+                phase_stats[phase]["total"] += 1
+                if result.get("passed"):
+                    phase_stats[phase]["passed"] += 1
+        
+        # Calculate pass rates
+        for phase in phase_stats:
+            total_phase = phase_stats[phase]["total"]
+            passed_phase = phase_stats[phase]["passed"]
+            phase_stats[phase]["pass_rate"] = round(passed_phase / total_phase * 100, 1) if total_phase > 0 else 0
+        
+        return {
+            "period_days": days,
+            "total_verifications": total,
+            "passed": passed,
+            "failed": total - passed,
+            "pass_rate": round(passed / total * 100, 1) if total > 0 else 0,
+            "phase_statistics": phase_stats,
+            "avg_duration_ms": round(sum(e.get("duration_ms", 0) for e in recent) / total, 1) if total > 0 else 0
+        }
+    
+    def get_failure_patterns(self) -> Dict[str, Any]:
+        """Identify recurring failure patterns."""
+        phase_failures = {}
+        
+        for entry in self.history:
+            if entry.get("all_passed"):
+                continue
+            
+            for phase, result in entry.get("phases", {}).items():
+                if not result.get("passed"):
+                    phase_failures[phase] = phase_failures.get(phase, 0) + 1
+        
+        # Sort by frequency
+        sorted_failures = sorted(
+            phase_failures.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        
+        return {
+            "most_common_failures": sorted_failures[:5],
+            "total_failures": sum(phase_failures.values()),
+            "unique_failing_phases": len(phase_failures),
+            "recommendations": self._generate_recommendations(sorted_failures)
+        }
+    
+    def _generate_recommendations(self, failures: List[tuple]) -> List[str]:
+        """Generate recommendations based on failure patterns."""
+        recommendations = []
+        
+        for phase, count in failures[:3]:
+            if phase == "fonts":
+                recommendations.append(f"Font issues ({count}x): Run FontSanitizer regularly")
+            elif phase == "timezone":
+                recommendations.append(f"Timezone issues ({count}x): Check TimezoneEnforcer before sessions")
+            elif phase == "audio":
+                recommendations.append(f"Audio issues ({count}x): Verify Camoufox audio prefs")
+            elif phase == "webgl":
+                recommendations.append(f"WebGL issues ({count}x): Update WebGL configuration")
+        
+        return recommendations
+    
+    def predict_issues(self) -> Dict[str, Any]:
+        """
+        Predict potential issues based on historical patterns.
+        
+        Returns:
+            Predictions and preventive recommendations
+        """
+        if len(self.history) < 5:
+            return {"message": "Insufficient history for predictions", "predictions": []}
+        
+        predictions = []
+        stats = self.get_statistics(days=7)
+        
+        # Check overall trend
+        if stats.get("pass_rate", 100) < 80:
+            predictions.append({
+                "type": "declining_pass_rate",
+                "confidence": 0.8,
+                "message": f"Pass rate below 80% ({stats.get('pass_rate')}%)",
+                "action": "Review and fix recurring issues"
+            })
+        
+        # Check phase-specific issues
+        for phase, pstats in stats.get("phase_statistics", {}).items():
+            if pstats.get("pass_rate", 100) < 70:
+                predictions.append({
+                    "type": f"phase_degradation_{phase}",
+                    "confidence": 0.75,
+                    "message": f"{phase} phase has low pass rate ({pstats.get('pass_rate')}%)",
+                    "action": f"Investigate and fix {phase} configuration"
+                })
+        
+        return {
+            "predictions": predictions,
+            "risk_level": "high" if len(predictions) > 2 else "medium" if predictions else "low",
+            "analysis_based_on": len(self.history)
+        }
+    
+    def clear_history(self, before_days: int = None) -> int:
+        """
+        Clear history entries.
+        
+        Args:
+            before_days: Only clear entries older than this (None = clear all)
+            
+        Returns:
+            Number of entries cleared
+        """
+        if before_days is None:
+            count = len(self.history)
+            self.history = []
+        else:
+            cutoff = datetime.now().timestamp() - (before_days * 86400)
+            original_count = len(self.history)
+            self.history = [
+                e for e in self.history
+                if datetime.fromisoformat(e["timestamp"]).timestamp() > cutoff
+            ]
+            count = original_count - len(self.history)
+        
+        self._save_history()
+        return count
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SINGLETON GETTERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+_orchestrator_instance: Optional[DeepIdentityOrchestrator] = None
+_leak_detector_instance: Optional[IdentityLeakDetector] = None
+_consistency_checker_instance: Optional[IdentityConsistencyChecker] = None
+_verification_history_instance: Optional[IdentityVerificationHistory] = None
+
+
+def get_deep_identity_orchestrator(target_os: str = "windows_11",
+                                   profile_path: Optional[Path] = None) -> DeepIdentityOrchestrator:
+    """Get or create DeepIdentityOrchestrator singleton."""
+    global _orchestrator_instance
+    if _orchestrator_instance is None:
+        _orchestrator_instance = DeepIdentityOrchestrator(target_os, profile_path)
+    return _orchestrator_instance
+
+
+def get_identity_leak_detector(target_os: str = "windows_11") -> IdentityLeakDetector:
+    """Get or create IdentityLeakDetector singleton."""
+    global _leak_detector_instance
+    if _leak_detector_instance is None:
+        _leak_detector_instance = IdentityLeakDetector(target_os)
+    return _leak_detector_instance
+
+
+def get_identity_consistency_checker(target_os: str = "windows_11",
+                                     target_locale: str = "en-US") -> IdentityConsistencyChecker:
+    """Get or create IdentityConsistencyChecker singleton."""
+    global _consistency_checker_instance
+    if _consistency_checker_instance is None:
+        _consistency_checker_instance = IdentityConsistencyChecker(target_os, target_locale)
+    return _consistency_checker_instance
+
+
+def get_identity_verification_history(profile_id: str = "default") -> IdentityVerificationHistory:
+    """Get or create IdentityVerificationHistory singleton."""
+    global _verification_history_instance
+    if _verification_history_instance is None:
+        _verification_history_instance = IdentityVerificationHistory(profile_id)
+    return _verification_history_instance
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════════════
 

@@ -2013,3 +2013,748 @@ def get_bypass_targets(card_country="US", amount=200, min_score=60):
 def get_downgradeable():
     """Quick: get sites where 3DS 2.0→1.0 downgrade works"""
     return TargetDiscovery().get_downgradeable_sites()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL ENHANCEMENTS - Advanced Target Discovery Operations
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import threading
+from collections import defaultdict
+
+
+@dataclass
+class AggregatedIntelligence:
+    """Aggregated intelligence for a target"""
+    domain: str
+    sources: List[str]
+    psp_consensus: str
+    fraud_engine_consensus: str
+    three_ds_consensus: str
+    confidence_score: float
+    last_aggregated: float
+    raw_intel: Dict
+
+
+@dataclass
+class DiscoveryScheduleConfig:
+    """Discovery schedule configuration"""
+    schedule_id: str
+    dork_categories: List[str]
+    interval_hours: float
+    max_sites_per_run: int
+    auto_add_to_db: bool
+    min_bypass_score: int
+    enabled: bool = True
+    last_run: Optional[float] = None
+    next_run: Optional[float] = None
+
+
+@dataclass
+class CompetitorAnalysis:
+    """Competitor analysis result"""
+    source_domain: str
+    competitors: List[Dict]
+    shared_characteristics: List[str]
+    recommended_targets: List[str]
+    analyzed_at: float
+
+
+@dataclass
+class DiscoveryMetricsSnapshot:
+    """Discovery metrics snapshot"""
+    timestamp: float
+    total_discoveries: int
+    easy_2d_count: int
+    bypassable_count: int
+    conversion_rate: float
+    avg_bypass_score: float
+    top_categories: Dict[str, int]
+
+
+class TargetIntelligenceAggregator:
+    """
+    V7.6 P0: Aggregate intelligence from multiple sources.
+    
+    Features:
+    - Multi-source intelligence gathering
+    - Consensus building for PSP/3DS/fraud engine
+    - Confidence scoring
+    - Historical intelligence tracking
+    """
+    
+    INTEL_SOURCES = [
+        "probe",           # Direct site probing
+        "database",        # Internal database
+        "discovery",       # Auto-discovery results
+        "manual",          # Manual intelligence
+        "external_api",    # External APIs (if available)
+    ]
+    
+    def __init__(self):
+        self._intel_cache: Dict[str, List[Dict]] = defaultdict(list)
+        self._aggregated: Dict[str, AggregatedIntelligence] = {}
+        self._lock = threading.Lock()
+        self.logger = logging.getLogger("TITAN-INTEL-AGGREGATOR")
+    
+    def add_intelligence(self, domain: str, source: str, intel: Dict):
+        """Add intelligence from a source"""
+        with self._lock:
+            entry = {
+                "source": source,
+                "timestamp": time.time(),
+                **intel,
+            }
+            self._intel_cache[domain].append(entry)
+            
+            # Limit history per domain
+            if len(self._intel_cache[domain]) > 20:
+                self._intel_cache[domain] = self._intel_cache[domain][-20:]
+    
+    def aggregate(self, domain: str) -> AggregatedIntelligence:
+        """Aggregate all intelligence for a domain"""
+        with self._lock:
+            intel_list = self._intel_cache.get(domain, [])
+            
+            if not intel_list:
+                return AggregatedIntelligence(
+                    domain=domain,
+                    sources=[],
+                    psp_consensus="unknown",
+                    fraud_engine_consensus="unknown",
+                    three_ds_consensus="unknown",
+                    confidence_score=0,
+                    last_aggregated=time.time(),
+                    raw_intel={},
+                )
+            
+            # Count votes for consensus
+            psp_votes = defaultdict(int)
+            fraud_votes = defaultdict(int)
+            three_ds_votes = defaultdict(int)
+            sources = set()
+            
+            for intel in intel_list:
+                sources.add(intel.get("source", "unknown"))
+                
+                # Weight recent intel more heavily
+                age_hours = (time.time() - intel.get("timestamp", 0)) / 3600
+                weight = max(0.1, 1 - (age_hours / 168))  # Decay over 1 week
+                
+                if intel.get("psp"):
+                    psp_votes[intel["psp"]] += weight
+                if intel.get("fraud_engine"):
+                    fraud_votes[intel["fraud_engine"]] += weight
+                if intel.get("three_ds"):
+                    three_ds_votes[intel["three_ds"]] += weight
+            
+            # Get consensus (highest votes)
+            psp_consensus = max(psp_votes, key=psp_votes.get) if psp_votes else "unknown"
+            fraud_consensus = max(fraud_votes, key=fraud_votes.get) if fraud_votes else "unknown"
+            three_ds_consensus = max(three_ds_votes, key=three_ds_votes.get) if three_ds_votes else "unknown"
+            
+            # Calculate confidence
+            total_sources = len(sources)
+            recency_factor = min(1, len([i for i in intel_list if time.time() - i.get("timestamp", 0) < 86400]) / 3)
+            confidence = (total_sources / len(self.INTEL_SOURCES)) * 0.5 + recency_factor * 0.5
+            
+            aggregated = AggregatedIntelligence(
+                domain=domain,
+                sources=list(sources),
+                psp_consensus=psp_consensus,
+                fraud_engine_consensus=fraud_consensus,
+                three_ds_consensus=three_ds_consensus,
+                confidence_score=round(confidence, 2),
+                last_aggregated=time.time(),
+                raw_intel={
+                    "psp_votes": dict(psp_votes),
+                    "fraud_votes": dict(fraud_votes),
+                    "three_ds_votes": dict(three_ds_votes),
+                    "total_intel_entries": len(intel_list),
+                },
+            )
+            
+            self._aggregated[domain] = aggregated
+            return aggregated
+    
+    def get_aggregated(self, domain: str) -> Optional[AggregatedIntelligence]:
+        """Get cached aggregated intelligence"""
+        return self._aggregated.get(domain)
+    
+    def bulk_aggregate(self, domains: List[str]) -> Dict[str, AggregatedIntelligence]:
+        """Aggregate intelligence for multiple domains"""
+        results = {}
+        for domain in domains:
+            results[domain] = self.aggregate(domain)
+        return results
+    
+    def get_high_confidence_targets(self, min_confidence: float = 0.7) -> List[str]:
+        """Get domains with high confidence intelligence"""
+        return [
+            domain for domain, intel in self._aggregated.items()
+            if intel.confidence_score >= min_confidence
+        ]
+    
+    def get_stats(self) -> Dict:
+        """Get aggregator statistics"""
+        with self._lock:
+            return {
+                "domains_tracked": len(self._intel_cache),
+                "aggregated_count": len(self._aggregated),
+                "total_intel_entries": sum(len(v) for v in self._intel_cache.values()),
+                "avg_confidence": round(
+                    sum(a.confidence_score for a in self._aggregated.values()) / max(1, len(self._aggregated)), 2
+                ),
+            }
+
+
+class DiscoveryScheduler:
+    """
+    V7.6 P0: Schedule periodic discovery runs.
+    
+    Features:
+    - Configurable discovery schedules
+    - Category-based scheduling
+    - Background execution
+    - Run history and reporting
+    """
+    
+    def __init__(self, target_discovery: TargetDiscovery = None):
+        self.td = target_discovery or TargetDiscovery()
+        self._schedules: Dict[str, DiscoveryScheduleConfig] = {}
+        self._run_history: List[Dict] = []
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+        self._lock = threading.Lock()
+        self.logger = logging.getLogger("TITAN-DISCOVERY-SCHEDULER")
+        
+        # Default schedules
+        self._init_default_schedules()
+    
+    def _init_default_schedules(self):
+        """Initialize default discovery schedules"""
+        defaults = [
+            DiscoveryScheduleConfig(
+                schedule_id="shopify_hourly",
+                dork_categories=["shopify"],
+                interval_hours=1,
+                max_sites_per_run=20,
+                auto_add_to_db=True,
+                min_bypass_score=70,
+            ),
+            DiscoveryScheduleConfig(
+                schedule_id="gaming_daily",
+                dork_categories=["gaming", "gift_cards"],
+                interval_hours=24,
+                max_sites_per_run=50,
+                auto_add_to_db=True,
+                min_bypass_score=60,
+            ),
+            DiscoveryScheduleConfig(
+                schedule_id="crypto_12h",
+                dork_categories=["crypto"],
+                interval_hours=12,
+                max_sites_per_run=30,
+                auto_add_to_db=True,
+                min_bypass_score=65,
+            ),
+        ]
+        
+        for schedule in defaults:
+            self._schedules[schedule.schedule_id] = schedule
+    
+    def add_schedule(self, config: DiscoveryScheduleConfig):
+        """Add or update a discovery schedule"""
+        with self._lock:
+            config.next_run = time.time() + (config.interval_hours * 3600)
+            self._schedules[config.schedule_id] = config
+            self.logger.info(f"Added schedule: {config.schedule_id}")
+    
+    def remove_schedule(self, schedule_id: str):
+        """Remove a discovery schedule"""
+        with self._lock:
+            if schedule_id in self._schedules:
+                del self._schedules[schedule_id]
+    
+    def enable_schedule(self, schedule_id: str, enabled: bool = True):
+        """Enable or disable a schedule"""
+        with self._lock:
+            if schedule_id in self._schedules:
+                self._schedules[schedule_id].enabled = enabled
+    
+    def start(self):
+        """Start the scheduler"""
+        if self._running:
+            return
+        
+        self._running = True
+        self._thread = threading.Thread(target=self._scheduler_loop, daemon=True)
+        self._thread.start()
+        self.logger.info("Discovery scheduler started")
+    
+    def stop(self):
+        """Stop the scheduler"""
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=10)
+        self.logger.info("Discovery scheduler stopped")
+    
+    def _scheduler_loop(self):
+        """Main scheduler loop"""
+        while self._running:
+            try:
+                current_time = time.time()
+                
+                with self._lock:
+                    for schedule_id, schedule in self._schedules.items():
+                        if not schedule.enabled:
+                            continue
+                        
+                        if schedule.next_run and current_time >= schedule.next_run:
+                            self._execute_schedule(schedule)
+                
+                time.sleep(60)  # Check every minute
+            except Exception as e:
+                self.logger.error(f"Scheduler error: {e}")
+    
+    def _execute_schedule(self, schedule: DiscoveryScheduleConfig):
+        """Execute a scheduled discovery run"""
+        self.logger.info(f"Executing discovery schedule: {schedule.schedule_id}")
+        
+        try:
+            # Find dork indices for categories
+            dork_indices = [
+                i for i, d in enumerate(DISCOVERY_DORKS)
+                if d.get("category") in schedule.dork_categories
+            ]
+            
+            if not dork_indices:
+                dork_indices = None  # Use all if no match
+            
+            # Run discovery
+            discovery = AutoDiscovery()
+            results = discovery.discover_sites(
+                dork_indices=dork_indices,
+                auto_probe=True,
+            )
+            
+            # Filter by bypass score
+            good_results = [
+                r for r in results
+                if (r.get("bypass_score") or 0) >= schedule.min_bypass_score
+            ][:schedule.max_sites_per_run]
+            
+            # Auto-add if configured
+            added_count = 0
+            if schedule.auto_add_to_db and good_results:
+                for r in good_results:
+                    if r.get("classification") in ("EASY_2D", "2D_WITH_ANTIFRAUD", "3DS_BYPASSABLE"):
+                        try:
+                            self.td.add_site(r["domain"], auto_probe=False)
+                            added_count += 1
+                        except Exception:
+                            pass
+            
+            # Record run
+            run_record = {
+                "schedule_id": schedule.schedule_id,
+                "timestamp": time.time(),
+                "total_found": len(results),
+                "above_threshold": len(good_results),
+                "auto_added": added_count,
+                "categories": schedule.dork_categories,
+            }
+            
+            with self._lock:
+                self._run_history.append(run_record)
+                if len(self._run_history) > 100:
+                    self._run_history = self._run_history[-100:]
+                
+                # Update schedule
+                schedule.last_run = time.time()
+                schedule.next_run = time.time() + (schedule.interval_hours * 3600)
+            
+            self.logger.info(
+                f"Schedule {schedule.schedule_id} complete: "
+                f"found={len(results)}, added={added_count}"
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Schedule execution failed: {e}")
+    
+    def run_now(self, schedule_id: str) -> Dict:
+        """Run a schedule immediately"""
+        with self._lock:
+            if schedule_id not in self._schedules:
+                return {"error": f"Schedule {schedule_id} not found"}
+            
+            schedule = self._schedules[schedule_id]
+        
+        self._execute_schedule(schedule)
+        return {"status": "completed", "schedule_id": schedule_id}
+    
+    def get_history(self, limit: int = 20) -> List[Dict]:
+        """Get run history"""
+        with self._lock:
+            return self._run_history[-limit:]
+    
+    def get_status(self) -> Dict:
+        """Get scheduler status"""
+        with self._lock:
+            return {
+                "running": self._running,
+                "schedules": {
+                    sid: {
+                        "enabled": s.enabled,
+                        "interval_hours": s.interval_hours,
+                        "categories": s.dork_categories,
+                        "last_run": s.last_run,
+                        "next_run": s.next_run,
+                    }
+                    for sid, s in self._schedules.items()
+                },
+                "total_runs": len(self._run_history),
+            }
+
+
+class SiteCompetitorAnalyzer:
+    """
+    V7.6 P0: Analyze similar sites to discovered targets.
+    
+    Features:
+    - Find similar sites based on category/PSP/characteristics
+    - Identify competitor patterns
+    - Recommend untested targets
+    """
+    
+    def __init__(self, target_discovery: TargetDiscovery = None):
+        self.td = target_discovery or TargetDiscovery()
+        self._analyses: Dict[str, CompetitorAnalysis] = {}
+        self._lock = threading.Lock()
+        self.logger = logging.getLogger("TITAN-COMPETITOR-ANALYZER")
+    
+    def analyze(self, source_domain: str) -> CompetitorAnalysis:
+        """Analyze competitors for a source domain"""
+        # Find source site
+        source_site = None
+        for s in self.td.sites:
+            if s.domain == source_domain:
+                source_site = s
+                break
+        
+        if not source_site:
+            return CompetitorAnalysis(
+                source_domain=source_domain,
+                competitors=[],
+                shared_characteristics=[],
+                recommended_targets=[],
+                analyzed_at=time.time(),
+            )
+        
+        # Find similar sites
+        competitors = []
+        for s in self.td.sites:
+            if s.domain == source_domain:
+                continue
+            
+            similarity_score = 0
+            shared = []
+            
+            # Same category
+            if s.category == source_site.category:
+                similarity_score += 30
+                shared.append(f"Same category: {s.category.value}")
+            
+            # Same PSP
+            if s.psp == source_site.psp:
+                similarity_score += 25
+                shared.append(f"Same PSP: {s.psp.value}")
+            
+            # Same 3DS status
+            if s.three_ds == source_site.three_ds:
+                similarity_score += 20
+                shared.append(f"Same 3DS: {s.three_ds}")
+            
+            # Same difficulty
+            if s.difficulty == source_site.difficulty:
+                similarity_score += 15
+                shared.append(f"Same difficulty: {s.difficulty.value}")
+            
+            # Overlapping countries
+            country_overlap = set(s.country_focus) & set(source_site.country_focus)
+            if country_overlap:
+                similarity_score += 10
+                shared.append(f"Shared countries: {country_overlap}")
+            
+            # Same Shopify status
+            if s.is_shopify == source_site.is_shopify:
+                similarity_score += 5
+            
+            if similarity_score >= 40:  # Threshold for "competitor"
+                competitors.append({
+                    "domain": s.domain,
+                    "name": s.name,
+                    "similarity_score": similarity_score,
+                    "shared_characteristics": shared,
+                    "success_rate": s.success_rate,
+                    "difficulty": s.difficulty.value,
+                })
+        
+        # Sort by similarity
+        competitors.sort(key=lambda x: x["similarity_score"], reverse=True)
+        competitors = competitors[:20]  # Top 20
+        
+        # Build overall shared characteristics
+        all_shared = []
+        if source_site.category:
+            all_shared.append(f"Category: {source_site.category.value}")
+        if source_site.psp:
+            all_shared.append(f"PSP: {source_site.psp.value}")
+        if source_site.three_ds:
+            all_shared.append(f"3DS: {source_site.three_ds}")
+        if source_site.is_shopify:
+            all_shared.append("Platform: Shopify")
+        
+        # Recommend untested (unverified or low success rate)
+        recommended = [
+            c["domain"] for c in competitors
+            if c.get("success_rate", 0) < 0.5 or c.get("difficulty") == "easy"
+        ][:5]
+        
+        analysis = CompetitorAnalysis(
+            source_domain=source_domain,
+            competitors=competitors,
+            shared_characteristics=all_shared,
+            recommended_targets=recommended,
+            analyzed_at=time.time(),
+        )
+        
+        with self._lock:
+            self._analyses[source_domain] = analysis
+        
+        return analysis
+    
+    def find_similar(self, category: str = None, psp: str = None,
+                     three_ds: str = None, limit: int = 20) -> List[Dict]:
+        """Find sites matching specific characteristics"""
+        results = []
+        
+        for s in self.td.sites:
+            if category and s.category.value != category:
+                continue
+            if psp and s.psp.value != psp:
+                continue
+            if three_ds and s.three_ds != three_ds:
+                continue
+            
+            results.append({
+                "domain": s.domain,
+                "name": s.name,
+                "category": s.category.value,
+                "psp": s.psp.value,
+                "three_ds": s.three_ds,
+                "success_rate": s.success_rate,
+            })
+        
+        results.sort(key=lambda x: x["success_rate"], reverse=True)
+        return results[:limit]
+    
+    def get_category_leaders(self, category: str, limit: int = 10) -> List[Dict]:
+        """Get top performing sites in a category"""
+        return self.find_similar(category=category, limit=limit)
+
+
+class DiscoveryMetricsTracker:
+    """
+    V7.6 P0: Track discovery success rates and patterns.
+    
+    Features:
+    - Discovery metrics collection
+    - Category performance tracking
+    - Trend analysis
+    - Success rate calculation
+    """
+    
+    def __init__(self, retention_days: int = 30):
+        self.retention_days = retention_days
+        
+        # Metrics storage
+        self._discoveries: List[Dict] = []
+        self._category_stats: Dict[str, Dict] = defaultdict(lambda: {
+            "total": 0, "easy_2d": 0, "bypassable": 0, "hard": 0,
+        })
+        self._daily_stats: Dict[str, Dict] = {}
+        
+        self._lock = threading.Lock()
+        self.logger = logging.getLogger("TITAN-DISCOVERY-METRICS")
+    
+    def record_discovery(self, result: Dict):
+        """Record a discovery result for metrics"""
+        with self._lock:
+            entry = {
+                "domain": result.get("domain"),
+                "category": result.get("expected_category"),
+                "classification": result.get("classification"),
+                "bypass_score": result.get("bypass_score"),
+                "timestamp": time.time(),
+            }
+            
+            self._discoveries.append(entry)
+            
+            # Update category stats
+            category = result.get("expected_category", "unknown")
+            self._category_stats[category]["total"] += 1
+            
+            classification = result.get("classification", "")
+            if classification == "EASY_2D":
+                self._category_stats[category]["easy_2d"] += 1
+            elif classification in ("3DS_BYPASSABLE", "3DS_DOWNGRADEABLE"):
+                self._category_stats[category]["bypassable"] += 1
+            elif classification == "3DS_HARD":
+                self._category_stats[category]["hard"] += 1
+            
+            # Update daily stats
+            day = time.strftime("%Y-%m-%d")
+            if day not in self._daily_stats:
+                self._daily_stats[day] = {"total": 0, "easy": 0, "bypassable": 0}
+            self._daily_stats[day]["total"] += 1
+            if classification == "EASY_2D":
+                self._daily_stats[day]["easy"] += 1
+            elif classification in ("3DS_BYPASSABLE", "3DS_DOWNGRADEABLE"):
+                self._daily_stats[day]["bypassable"] += 1
+            
+            # Cleanup old data
+            self._cleanup()
+    
+    def record_batch(self, results: List[Dict]):
+        """Record multiple discovery results"""
+        for result in results:
+            self.record_discovery(result)
+    
+    def _cleanup(self):
+        """Remove old data beyond retention period"""
+        cutoff = time.time() - (self.retention_days * 86400)
+        self._discoveries = [d for d in self._discoveries if d["timestamp"] > cutoff]
+        
+        cutoff_date = (datetime.now(timezone.utc) - timedelta(days=self.retention_days)).strftime("%Y-%m-%d")
+        self._daily_stats = {k: v for k, v in self._daily_stats.items() if k >= cutoff_date}
+    
+    def get_snapshot(self) -> DiscoveryMetricsSnapshot:
+        """Get current metrics snapshot"""
+        with self._lock:
+            total = len(self._discoveries)
+            easy_2d = sum(1 for d in self._discoveries if d.get("classification") == "EASY_2D")
+            bypassable = sum(1 for d in self._discoveries if d.get("classification") in ("3DS_BYPASSABLE", "3DS_DOWNGRADEABLE"))
+            
+            # Conversion rate (easy + bypassable / total)
+            conversion = (easy_2d + bypassable) / max(1, total)
+            
+            # Average bypass score
+            scores = [d.get("bypass_score", 0) for d in self._discoveries if d.get("bypass_score")]
+            avg_score = sum(scores) / max(1, len(scores))
+            
+            # Top categories
+            top_cats = dict(sorted(
+                {k: v["total"] for k, v in self._category_stats.items()}.items(),
+                key=lambda x: x[1], reverse=True
+            )[:5])
+            
+            return DiscoveryMetricsSnapshot(
+                timestamp=time.time(),
+                total_discoveries=total,
+                easy_2d_count=easy_2d,
+                bypassable_count=bypassable,
+                conversion_rate=round(conversion, 3),
+                avg_bypass_score=round(avg_score, 1),
+                top_categories=top_cats,
+            )
+    
+    def get_category_performance(self) -> Dict[str, Dict]:
+        """Get performance metrics by category"""
+        with self._lock:
+            performance = {}
+            for cat, stats in self._category_stats.items():
+                total = stats["total"]
+                if total == 0:
+                    continue
+                
+                performance[cat] = {
+                    "total": total,
+                    "easy_2d": stats["easy_2d"],
+                    "bypassable": stats["bypassable"],
+                    "hard": stats["hard"],
+                    "easy_rate": round(stats["easy_2d"] / total * 100, 1),
+                    "bypassable_rate": round(stats["bypassable"] / total * 100, 1),
+                }
+            
+            return performance
+    
+    def get_daily_trend(self, days: int = 7) -> Dict[str, Dict]:
+        """Get daily discovery trend"""
+        with self._lock:
+            sorted_days = sorted(self._daily_stats.keys(), reverse=True)[:days]
+            return {day: self._daily_stats[day] for day in sorted_days}
+    
+    def get_best_performing_dorks(self, limit: int = 10) -> List[Dict]:
+        """Identify best performing dork queries"""
+        # This would require tracking which dork found each site
+        # Simplified version based on category performance
+        cat_perf = self.get_category_performance()
+        
+        ranked = []
+        for cat, stats in cat_perf.items():
+            if stats["total"] < 5:  # Minimum sample
+                continue
+            
+            score = stats["easy_rate"] * 0.6 + stats["bypassable_rate"] * 0.4
+            ranked.append({
+                "category": cat,
+                "score": round(score, 1),
+                "total_discoveries": stats["total"],
+                "easy_rate": stats["easy_rate"],
+            })
+        
+        ranked.sort(key=lambda x: x["score"], reverse=True)
+        return ranked[:limit]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SINGLETON INSTANCES
+# ═══════════════════════════════════════════════════════════════════════════
+
+_target_intelligence_aggregator: Optional[TargetIntelligenceAggregator] = None
+_discovery_scheduler: Optional[DiscoveryScheduler] = None
+_site_competitor_analyzer: Optional[SiteCompetitorAnalyzer] = None
+_discovery_metrics_tracker: Optional[DiscoveryMetricsTracker] = None
+
+
+def get_target_intelligence_aggregator() -> TargetIntelligenceAggregator:
+    """Get global target intelligence aggregator"""
+    global _target_intelligence_aggregator
+    if _target_intelligence_aggregator is None:
+        _target_intelligence_aggregator = TargetIntelligenceAggregator()
+    return _target_intelligence_aggregator
+
+
+def get_discovery_scheduler() -> DiscoveryScheduler:
+    """Get global discovery scheduler"""
+    global _discovery_scheduler
+    if _discovery_scheduler is None:
+        _discovery_scheduler = DiscoveryScheduler()
+    return _discovery_scheduler
+
+
+def get_site_competitor_analyzer() -> SiteCompetitorAnalyzer:
+    """Get global site competitor analyzer"""
+    global _site_competitor_analyzer
+    if _site_competitor_analyzer is None:
+        _site_competitor_analyzer = SiteCompetitorAnalyzer()
+    return _site_competitor_analyzer
+
+
+def get_discovery_metrics_tracker() -> DiscoveryMetricsTracker:
+    """Get global discovery metrics tracker"""
+    global _discovery_metrics_tracker
+    if _discovery_metrics_tracker is None:
+        _discovery_metrics_tracker = DiscoveryMetricsTracker()
+    return _discovery_metrics_tracker

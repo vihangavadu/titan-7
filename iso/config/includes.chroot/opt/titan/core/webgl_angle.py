@@ -442,3 +442,378 @@ def get_webgl_config(hw_vendor: str = "", profile_uuid: str = "") -> Dict:
     config = shim.generate_webgl_config(gpu, profile_uuid)
     config.update(get_render_timing_config(gpu))
     return config
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL ENHANCEMENTS - Advanced WebGL Synthesis
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import threading
+import random
+import time
+from collections import defaultdict
+from typing import Any
+
+
+@dataclass
+class CanvasFingerprint:
+    """Canvas fingerprint data"""
+    hash: str
+    width: int
+    height: int
+    data_points: int
+    generation_seed: int
+    profile_uuid: str
+
+
+@dataclass
+class WebGLBenchmark:
+    """WebGL benchmark result"""
+    gpu_profile: GPUProfile
+    simple_fps: float
+    complex_fps: float
+    first_frame_ms: float
+    frame_variance: float
+    timestamp: float
+
+
+@dataclass
+class GPUConsistencyCheck:
+    """GPU consistency validation result"""
+    profile_uuid: str
+    claimed_gpu: str
+    webgl_renderer: str
+    timing_consistent: bool
+    extension_consistent: bool
+    overall_pass: bool
+    issues: List[str]
+
+
+class CanvasFingerprintGenerator:
+    """
+    V7.6 P0: Deterministic canvas fingerprint generation.
+    
+    Features:
+    - Profile-seeded deterministic hashes
+    - Consistent across sessions
+    - Noise injection for uniqueness
+    - Anti-detection randomization
+    """
+    
+    def __init__(self):
+        self._cache: Dict[str, CanvasFingerprint] = {}
+        self._lock = threading.Lock()
+    
+    def generate(self, profile_uuid: str, width: int = 400, height: int = 200) -> CanvasFingerprint:
+        """Generate deterministic canvas fingerprint for profile"""
+        cache_key = f"{profile_uuid}_{width}_{height}"
+        
+        with self._lock:
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+        
+        # Deterministic seed from profile UUID
+        seed = int(hashlib.sha256(
+            f"canvas_{profile_uuid}".encode()
+        ).hexdigest()[:8], 16)
+        
+        # Generate canvas data simulation
+        rng = random.Random(seed)
+        data_points = width * height * 4  # RGBA
+        
+        # Create deterministic hash
+        hash_input = f"{profile_uuid}_{seed}_{width}_{height}_{data_points}"
+        canvas_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:32]
+        
+        fingerprint = CanvasFingerprint(
+            hash=canvas_hash,
+            width=width,
+            height=height,
+            data_points=data_points,
+            generation_seed=seed,
+            profile_uuid=profile_uuid,
+        )
+        
+        with self._lock:
+            self._cache[cache_key] = fingerprint
+        
+        return fingerprint
+    
+    def get_injection_config(self, profile_uuid: str) -> Dict:
+        """Get canvas fingerprint injection configuration"""
+        fp = self.generate(profile_uuid)
+        
+        return {
+            "canvas.hash_override": fp.hash,
+            "canvas.noise_seed": fp.generation_seed,
+            "canvas.deterministic": True,
+            "canvas.width_default": fp.width,
+            "canvas.height_default": fp.height,
+        }
+    
+    def verify_consistency(self, profile_uuid: str, observed_hash: str) -> bool:
+        """Verify observed hash matches expected"""
+        expected = self.generate(profile_uuid)
+        return expected.hash == observed_hash
+
+
+class WebGLPerformanceNormalizer:
+    """
+    V7.6 P0: Normalize WebGL rendering performance to match claimed GPU.
+    
+    Features:
+    - Frame timing normalization
+    - requestAnimationFrame interception
+    - Performance.now() jitter injection
+    - GPU-appropriate latency simulation
+    """
+    
+    def __init__(self):
+        self._benchmarks: Dict[str, WebGLBenchmark] = {}
+        self._lock = threading.Lock()
+    
+    def get_timing_constraints(self, gpu_profile: GPUProfile) -> Dict:
+        """Get timing constraints for JS injection"""
+        timing = RENDER_TIMING_DB.get(gpu_profile, RENDER_TIMING_DB[GPUProfile.ANGLE_D3D11])
+        
+        # Calculate frame time targets
+        simple_fps_target = (timing.target_fps_simple[0] + timing.target_fps_simple[1]) / 2
+        complex_fps_target = (timing.target_fps_complex[0] + timing.target_fps_complex[1]) / 2
+        
+        return {
+            "performance.frame_time_simple_ms": 1000.0 / simple_fps_target,
+            "performance.frame_time_complex_ms": 1000.0 / complex_fps_target,
+            "performance.jitter_ms": timing.frame_jitter_ms,
+            "performance.first_frame_delay_ms": timing.first_frame_delay_ms,
+            "performance.fps_variance": 0.1,  # 10% variance
+            "performance.normalize_raf": True,
+            "performance.normalize_now": True,
+        }
+    
+    def record_benchmark(self, profile_uuid: str, gpu_profile: GPUProfile,
+                         simple_fps: float, complex_fps: float,
+                         first_frame_ms: float) -> WebGLBenchmark:
+        """Record a benchmark result for analysis"""
+        timing = RENDER_TIMING_DB.get(gpu_profile, RENDER_TIMING_DB[GPUProfile.ANGLE_D3D11])
+        
+        # Calculate variance from expected
+        expected_simple = (timing.target_fps_simple[0] + timing.target_fps_simple[1]) / 2
+        variance = abs(simple_fps - expected_simple) / expected_simple
+        
+        benchmark = WebGLBenchmark(
+            gpu_profile=gpu_profile,
+            simple_fps=simple_fps,
+            complex_fps=complex_fps,
+            first_frame_ms=first_frame_ms,
+            frame_variance=variance,
+            timestamp=time.time(),
+        )
+        
+        with self._lock:
+            self._benchmarks[profile_uuid] = benchmark
+        
+        return benchmark
+    
+    def is_performance_consistent(self, profile_uuid: str) -> bool:
+        """Check if performance matches claimed GPU"""
+        with self._lock:
+            benchmark = self._benchmarks.get(profile_uuid)
+        
+        if not benchmark:
+            return True  # No data to compare
+        
+        # Variance should be under 20%
+        return benchmark.frame_variance < 0.2
+
+
+class GPUProfileValidator:
+    """
+    V7.6 P0: Validate GPU profile consistency.
+    
+    Features:
+    - Cross-check WebGL params against claimed hardware
+    - Detect mismatched configurations
+    - Validate extension availability
+    - Performance plausibility checks
+    """
+    
+    def __init__(self):
+        self._validations: Dict[str, GPUConsistencyCheck] = {}
+        self._lock = threading.Lock()
+    
+    def validate(self, profile_uuid: str, config: Dict) -> GPUConsistencyCheck:
+        """Validate GPU profile configuration"""
+        issues = []
+        
+        claimed_gpu = config.get("webgl.gpu_profile", "")
+        webgl_renderer = config.get("webgl.renderer", "")
+        
+        # Check GPU profile exists
+        try:
+            gpu = GPUProfile(claimed_gpu)
+            expected_params = GPU_PROFILES.get(gpu)
+        except (ValueError, KeyError):
+            issues.append(f"Unknown GPU profile: {claimed_gpu}")
+            expected_params = None
+        
+        timing_consistent = True
+        extension_consistent = True
+        
+        if expected_params:
+            # Check renderer string
+            if expected_params.renderer != webgl_renderer:
+                if config.get("webgl.custom_renderer"):
+                    pass  # Custom override allowed
+                else:
+                    issues.append("Renderer string mismatch")
+            
+            # Check extensions
+            config_extensions = set(config.get("webgl.extensions", []))
+            expected_extensions = set(expected_params.extensions)
+            
+            missing = expected_extensions - config_extensions
+            extra = config_extensions - expected_extensions
+            
+            if missing:
+                issues.append(f"Missing extensions: {len(missing)}")
+                extension_consistent = False
+            if extra:
+                issues.append(f"Extra extensions: {len(extra)}")
+            
+            # Check texture sizes
+            if config.get("webgl.max_texture_size", 0) > expected_params.max_texture_size * 1.5:
+                issues.append("Texture size exceeds GPU capability")
+        
+        overall_pass = len(issues) == 0
+        
+        check = GPUConsistencyCheck(
+            profile_uuid=profile_uuid,
+            claimed_gpu=claimed_gpu,
+            webgl_renderer=webgl_renderer,
+            timing_consistent=timing_consistent,
+            extension_consistent=extension_consistent,
+            overall_pass=overall_pass,
+            issues=issues,
+        )
+        
+        with self._lock:
+            self._validations[profile_uuid] = check
+        
+        return check
+    
+    def get_remediation(self, check: GPUConsistencyCheck) -> List[str]:
+        """Get remediation steps for failed checks"""
+        remediation = []
+        
+        for issue in check.issues:
+            if "Renderer string mismatch" in issue:
+                remediation.append("Update webgl.renderer to match GPU profile")
+            elif "Missing extensions" in issue:
+                remediation.append("Add missing WebGL extensions to config")
+            elif "Texture size" in issue:
+                remediation.append("Reduce max_texture_size to GPU-appropriate value")
+            elif "Unknown GPU profile" in issue:
+                remediation.append("Use valid GPU profile: ANGLE_D3D11, GENERIC_INTEL, etc.")
+        
+        return remediation
+
+
+class WebGLExtensionManager:
+    """
+    V7.6 P0: Manage WebGL extension availability and consistency.
+    
+    Features:
+    - Extension filtering per GPU profile
+    - Deterministic extension ordering
+    - Extension capability validation
+    """
+    
+    # Extensions that vary by GPU capability
+    CAPABILITY_EXTENSIONS = {
+        "high_end": [
+            "EXT_disjoint_timer_query",
+            "EXT_texture_compression_bptc",
+            "WEBGL_compressed_texture_astc",
+        ],
+        "mid_range": [
+            "EXT_texture_filter_anisotropic",
+            "WEBGL_compressed_texture_s3tc",
+        ],
+        "low_end": [
+            # Basic extensions only
+        ],
+    }
+    
+    def __init__(self):
+        self._extension_cache: Dict[str, List[str]] = {}
+    
+    def get_extensions_for_profile(self, gpu_profile: GPUProfile,
+                                     profile_uuid: str = "") -> List[str]:
+        """Get deterministic extension list for GPU profile"""
+        params = GPU_PROFILES.get(gpu_profile, GPU_PROFILES[GPUProfile.ANGLE_D3D11])
+        base_extensions = list(params.extensions)
+        
+        # Deterministic ordering based on profile UUID
+        if profile_uuid:
+            seed = int(hashlib.sha256(profile_uuid.encode()).hexdigest()[:8], 16)
+            rng = random.Random(seed)
+            rng.shuffle(base_extensions)
+        
+        return base_extensions
+    
+    def filter_extensions(self, extensions: List[str], gpu_tier: str) -> List[str]:
+        """Filter extensions based on GPU tier"""
+        if gpu_tier == "low_end":
+            # Remove high-end only extensions
+            high_end = set(self.CAPABILITY_EXTENSIONS["high_end"])
+            return [e for e in extensions if e not in high_end]
+        return extensions
+    
+    def validate_extension(self, extension: str, gpu_profile: GPUProfile) -> bool:
+        """Check if extension is valid for GPU profile"""
+        params = GPU_PROFILES.get(gpu_profile)
+        if not params:
+            return False
+        return extension in params.extensions
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SINGLETON INSTANCES
+# ═══════════════════════════════════════════════════════════════════════════
+
+_canvas_fingerprint_generator: Optional[CanvasFingerprintGenerator] = None
+_webgl_performance_normalizer: Optional[WebGLPerformanceNormalizer] = None
+_gpu_profile_validator: Optional[GPUProfileValidator] = None
+_webgl_extension_manager: Optional[WebGLExtensionManager] = None
+
+
+def get_canvas_fingerprint_generator() -> CanvasFingerprintGenerator:
+    """Get global canvas fingerprint generator"""
+    global _canvas_fingerprint_generator
+    if _canvas_fingerprint_generator is None:
+        _canvas_fingerprint_generator = CanvasFingerprintGenerator()
+    return _canvas_fingerprint_generator
+
+
+def get_webgl_performance_normalizer() -> WebGLPerformanceNormalizer:
+    """Get global WebGL performance normalizer"""
+    global _webgl_performance_normalizer
+    if _webgl_performance_normalizer is None:
+        _webgl_performance_normalizer = WebGLPerformanceNormalizer()
+    return _webgl_performance_normalizer
+
+
+def get_gpu_profile_validator() -> GPUProfileValidator:
+    """Get global GPU profile validator"""
+    global _gpu_profile_validator
+    if _gpu_profile_validator is None:
+        _gpu_profile_validator = GPUProfileValidator()
+    return _gpu_profile_validator
+
+
+def get_webgl_extension_manager() -> WebGLExtensionManager:
+    """Get global WebGL extension manager"""
+    global _webgl_extension_manager
+    if _webgl_extension_manager is None:
+        _webgl_extension_manager = WebGLExtensionManager()
+    return _webgl_extension_manager

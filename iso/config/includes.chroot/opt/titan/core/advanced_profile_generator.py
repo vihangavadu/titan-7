@@ -344,6 +344,16 @@ class AdvancedProfileGenerator:
         self._generate_form_autofill(profile_path, config)  # Zero-decline autofill
         self._generate_sessionstore(profile_path, config)  # V7.0: LZ4 session store
         
+        # V7.6: P0 Critical Components for Maximum Operational Success
+        try:
+            self._generate_site_engagement(profile_path, config, narrative)
+            self._generate_notification_permissions(profile_path, config)
+            self._generate_bookmarks(profile_path, config, narrative)
+            self._generate_favicons(profile_path, config, narrative)
+            logger.info("[V7.6] All P0 critical components generated")
+        except Exception as exc:
+            logger.warning("[V7.6] P0 component generation partial: %s", exc)
+        
         # Calculate profile size
         profile_size = self._calculate_size(profile_path)
         
@@ -1237,6 +1247,412 @@ class AdvancedProfileGenerator:
         
         with open(proxy_file, "w") as f:
             json.dump(proxy_config, f, indent=2)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # V7.6 UPGRADE: P0 CRITICAL COMPONENTS FOR MAXIMUM OPERATIONAL SUCCESS
+    # Site Engagement, Notification Permissions, Bookmarks, Favicons
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _generate_site_engagement(self, profile_path: Path, config: AdvancedProfileConfig, 
+                                   narrative: Dict):
+        """
+        Generate Chrome Site Engagement database with realistic scores.
+        
+        Site Engagement is Chrome's trust scoring system - sites with higher
+        engagement get more permissions (autoplay, notifications, etc).
+        Fraud engines check this database for profile authenticity.
+        """
+        # Only for Chromium-based browsers
+        if "firefox" in config.user_agent.lower():
+            return
+        
+        default_path = profile_path / "Default"
+        default_path.mkdir(exist_ok=True)
+        
+        engagement_db = default_path / "Site Engagement"
+        conn = sqlite3.connect(engagement_db)
+        cursor = conn.cursor()
+        
+        CHROME_EPOCH_OFFSET = 11644473600 * 1000000
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT NOT NULL PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS site_engagement (
+                origin TEXT NOT NULL PRIMARY KEY,
+                score REAL NOT NULL DEFAULT 0,
+                last_shortcut_launch_time INTEGER NOT NULL DEFAULT 0,
+                last_engagement_time INTEGER NOT NULL DEFAULT 0,
+                notifications_suppressed INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        
+        cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("version", "4"))
+        
+        # Build engagement from narrative domains
+        all_domains = list(set(
+            narrative.get("trust_domains", []) + narrative.get("commerce_domains", [])
+        ))
+        
+        base_time = datetime.now()
+        for domain in all_domains:
+            origin = f"https://www.{domain}"
+            # Score based on domain type (trust domains higher)
+            if domain in narrative.get("trust_domains", []):
+                score = random.uniform(50.0, 95.0)  # High engagement
+            else:
+                score = random.uniform(15.0, 50.0)  # Moderate engagement
+            
+            last_engagement = int((base_time - timedelta(days=random.randint(0, 3))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+            
+            cursor.execute(
+                "INSERT OR REPLACE INTO site_engagement (origin, score, last_shortcut_launch_time, last_engagement_time, notifications_suppressed) VALUES (?, ?, ?, ?, ?)",
+                (origin, round(score, 2), 0, last_engagement, 0)
+            )
+        
+        conn.commit()
+        conn.close()
+        logger.debug("[V7.6] Site engagement scores generated")
+
+    def _generate_notification_permissions(self, profile_path: Path, config: AdvancedProfileConfig):
+        """
+        Generate notification permissions showing realistic user decisions.
+        
+        Real users accept/deny notification prompts over time.
+        Empty permissions = obvious synthetic profile.
+        """
+        # Firefox uses permissions.sqlite
+        if "firefox" in config.user_agent.lower():
+            perms_db = profile_path / "permissions.sqlite"
+            conn = _fx_sqlite(perms_db)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS moz_perms (
+                    id INTEGER PRIMARY KEY,
+                    origin TEXT,
+                    type TEXT,
+                    permission INTEGER,
+                    expireType INTEGER DEFAULT 0,
+                    expireTime INTEGER DEFAULT 0,
+                    modificationTime INTEGER
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS moz_hosts (
+                    id INTEGER PRIMARY KEY,
+                    host TEXT,
+                    type TEXT,
+                    permission INTEGER,
+                    expireType INTEGER DEFAULT 0,
+                    expireTime INTEGER DEFAULT 0,
+                    modificationTime INTEGER,
+                    isInBrowserElement INTEGER DEFAULT 0
+                )
+            """)
+            
+            # Notification decisions
+            notification_sites = [
+                ("https://www.youtube.com", 1),  # Allow
+                ("https://mail.google.com", 1),  # Allow
+                ("https://www.facebook.com", 1),  # Allow
+                ("https://twitter.com", 2),  # Deny
+                ("https://www.reddit.com", 2),  # Deny
+                ("https://www.amazon.com", 2),  # Deny spam
+                ("https://www.linkedin.com", 2),  # Deny
+            ]
+            
+            base_time = datetime.now()
+            for i, (origin, permission) in enumerate(random.sample(notification_sites, min(5, len(notification_sites)))):
+                mod_time = int((base_time - timedelta(days=random.randint(10, config.profile_age_days))).timestamp() * 1000)
+                cursor.execute(
+                    "INSERT INTO moz_perms (origin, type, permission, modificationTime) VALUES (?, ?, ?, ?)",
+                    (origin, "desktop-notification", permission, mod_time)
+                )
+            
+            conn.commit()
+            conn.close()
+        else:
+            # Chrome uses Preferences JSON
+            default_path = profile_path / "Default"
+            default_path.mkdir(exist_ok=True)
+            
+            prefs_file = default_path / "Preferences"
+            prefs = {}
+            if prefs_file.exists():
+                try:
+                    with open(prefs_file, 'r') as f:
+                        prefs = json.load(f)
+                except:
+                    pass
+            
+            if "profile" not in prefs:
+                prefs["profile"] = {}
+            if "content_settings" not in prefs["profile"]:
+                prefs["profile"]["content_settings"] = {}
+            if "exceptions" not in prefs["profile"]["content_settings"]:
+                prefs["profile"]["content_settings"]["exceptions"] = {}
+            
+            notification_sites = [
+                ("https://www.youtube.com", 1),
+                ("https://mail.google.com", 1),
+                ("https://www.facebook.com", 1),
+                ("https://twitter.com", 2),
+                ("https://www.amazon.com", 2),
+            ]
+            
+            notifications = {}
+            base_time = datetime.now()
+            for site, decision in random.sample(notification_sites, min(4, len(notification_sites))):
+                timestamp = int((base_time - timedelta(days=random.randint(10, config.profile_age_days))).timestamp())
+                notifications[f"{site},*"] = {
+                    "last_modified": str(timestamp * 1000000),
+                    "setting": decision,
+                    "expiration": "0"
+                }
+            
+            prefs["profile"]["content_settings"]["exceptions"]["notifications"] = notifications
+            
+            with open(prefs_file, 'w') as f:
+                json.dump(prefs, f, indent=2)
+        
+        logger.debug("[V7.6] Notification permissions generated")
+
+    def _generate_bookmarks(self, profile_path: Path, config: AdvancedProfileConfig, 
+                            narrative: Dict):
+        """
+        Generate bookmarks with realistic temporal evolution.
+        
+        Real users accumulate bookmarks over time. Empty bookmarks = suspicious.
+        """
+        # Firefox: add moz_bookmarks to places.sqlite
+        if "firefox" in config.user_agent.lower():
+            places_db = profile_path / "places.sqlite"
+            if not places_db.exists():
+                return
+            
+            conn = _fx_sqlite(places_db)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS moz_bookmarks (
+                    id INTEGER PRIMARY KEY,
+                    type INTEGER DEFAULT 1,
+                    fk INTEGER,
+                    parent INTEGER,
+                    position INTEGER DEFAULT 0,
+                    title TEXT,
+                    keyword_id INTEGER,
+                    folder_type TEXT,
+                    dateAdded INTEGER,
+                    lastModified INTEGER,
+                    guid TEXT
+                )
+            """)
+            
+            base_time = datetime.now()
+            age_base = base_time - timedelta(days=config.profile_age_days)
+            
+            # Create root folders
+            cursor.execute(
+                "INSERT INTO moz_bookmarks (id, type, parent, title, dateAdded, lastModified, guid) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (1, 2, 0, "", int(age_base.timestamp() * 1000000), int(base_time.timestamp() * 1000000), "root________")
+            )
+            cursor.execute(
+                "INSERT INTO moz_bookmarks (id, type, parent, title, dateAdded, lastModified, guid) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (2, 2, 1, "Bookmarks Toolbar", int(age_base.timestamp() * 1000000), int(base_time.timestamp() * 1000000), "toolbar_____")
+            )
+            cursor.execute(
+                "INSERT INTO moz_bookmarks (id, type, parent, title, dateAdded, lastModified, guid) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (3, 2, 1, "Other Bookmarks", int(age_base.timestamp() * 1000000), int(base_time.timestamp() * 1000000), "unfiled_____")
+            )
+            
+            # Add bookmarks from trust domains
+            bookmark_id = 100
+            for domain in narrative.get("trust_domains", [])[:8]:
+                date_added = int((age_base + timedelta(days=random.randint(0, config.profile_age_days // 2))).timestamp() * 1000000)
+                guid = secrets.token_urlsafe(9)[:12]
+                
+                # First insert into moz_places
+                url = f"https://www.{domain}/"
+                title = f"{domain.split('.')[0].title()}"
+                cursor.execute(
+                    "INSERT OR IGNORE INTO moz_places (url, title, guid) VALUES (?, ?, ?)",
+                    (url, title, secrets.token_urlsafe(9)[:12])
+                )
+                fk = cursor.lastrowid or random.randint(1, 1000)
+                
+                cursor.execute(
+                    "INSERT INTO moz_bookmarks (id, type, fk, parent, position, title, dateAdded, lastModified, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (bookmark_id, 1, fk, 2, bookmark_id - 100, title, date_added, date_added, guid)
+                )
+                bookmark_id += 1
+            
+            conn.commit()
+            conn.close()
+        else:
+            # Chrome: create Bookmarks JSON
+            default_path = profile_path / "Default"
+            default_path.mkdir(exist_ok=True)
+            
+            CHROME_EPOCH_OFFSET = 11644473600 * 1000000
+            base_time = datetime.now()
+            age_base = base_time - timedelta(days=config.profile_age_days)
+            
+            bookmark_items = []
+            for domain in narrative.get("trust_domains", [])[:6]:
+                date_added = int((age_base + timedelta(days=random.randint(0, config.profile_age_days // 2))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+                bookmark_items.append({
+                    "date_added": str(date_added),
+                    "guid": secrets.token_hex(8) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(12),
+                    "id": str(random.randint(100, 9999)),
+                    "name": domain.split('.')[0].title(),
+                    "type": "url",
+                    "url": f"https://www.{domain}/"
+                })
+            
+            bookmarks_data = {
+                "checksum": secrets.token_hex(16),
+                "roots": {
+                    "bookmark_bar": {
+                        "children": bookmark_items,
+                        "date_added": str(int(age_base.timestamp() * 1000000) + CHROME_EPOCH_OFFSET),
+                        "date_modified": str(int(base_time.timestamp() * 1000000) + CHROME_EPOCH_OFFSET),
+                        "guid": secrets.token_hex(8) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(4) + "-" + secrets.token_hex(12),
+                        "id": "1",
+                        "name": "Bookmarks bar",
+                        "type": "folder"
+                    },
+                    "other": {"children": [], "date_added": str(int(age_base.timestamp() * 1000000) + CHROME_EPOCH_OFFSET), "date_modified": "0", "id": "2", "name": "Other bookmarks", "type": "folder"},
+                    "synced": {"children": [], "date_added": str(int(age_base.timestamp() * 1000000) + CHROME_EPOCH_OFFSET), "date_modified": "0", "id": "3", "name": "Mobile bookmarks", "type": "folder"}
+                },
+                "version": 1
+            }
+            
+            with open(default_path / "Bookmarks", 'w') as f:
+                json.dump(bookmarks_data, f, indent=3)
+        
+        logger.debug("[V7.6] Bookmarks generated")
+
+    def _generate_favicons(self, profile_path: Path, config: AdvancedProfileConfig, 
+                           narrative: Dict):
+        """
+        Generate favicons database.
+        
+        Chrome/Firefox store favicons in a separate database. Empty favicon
+        database + filled history = obvious synthetic profile.
+        """
+        all_domains = list(set(
+            narrative.get("trust_domains", []) + narrative.get("commerce_domains", [])
+        ))
+        
+        # Firefox: favicons.sqlite
+        if "firefox" in config.user_agent.lower():
+            favicons_db = profile_path / "favicons.sqlite"
+            conn = _fx_sqlite(favicons_db)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS moz_icons (
+                    id INTEGER PRIMARY KEY,
+                    icon_url TEXT NOT NULL,
+                    fixed_icon_url_hash INTEGER NOT NULL,
+                    width INTEGER NOT NULL DEFAULT 0,
+                    root INTEGER NOT NULL DEFAULT 0,
+                    color INTEGER,
+                    expire_ms INTEGER NOT NULL DEFAULT 0,
+                    data BLOB
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS moz_pages_w_icons (
+                    id INTEGER PRIMARY KEY,
+                    page_url TEXT NOT NULL,
+                    page_url_hash INTEGER NOT NULL
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS moz_icons_to_pages (
+                    page_id INTEGER NOT NULL,
+                    icon_id INTEGER NOT NULL,
+                    expire_ms INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (page_id, icon_id)
+                )
+            """)
+            
+            base_time = datetime.now()
+            for i, domain in enumerate(all_domains[:50]):
+                icon_url = f"https://www.{domain}/favicon.ico"
+                page_url = f"https://www.{domain}/"
+                
+                url_hash = hash(icon_url) & 0x7FFFFFFF
+                page_hash = hash(page_url) & 0x7FFFFFFF
+                
+                expire_ms = int((base_time + timedelta(days=30)).timestamp() * 1000)
+                
+                cursor.execute(
+                    "INSERT INTO moz_icons (icon_url, fixed_icon_url_hash, width, expire_ms) VALUES (?, ?, ?, ?)",
+                    (icon_url, url_hash, 16, expire_ms)
+                )
+                icon_id = cursor.lastrowid
+                
+                cursor.execute(
+                    "INSERT INTO moz_pages_w_icons (page_url, page_url_hash) VALUES (?, ?)",
+                    (page_url, page_hash)
+                )
+                page_id = cursor.lastrowid
+                
+                cursor.execute(
+                    "INSERT INTO moz_icons_to_pages (page_id, icon_id, expire_ms) VALUES (?, ?, ?)",
+                    (page_id, icon_id, expire_ms)
+                )
+            
+            conn.commit()
+            conn.close()
+        else:
+            # Chrome: Favicons database
+            default_path = profile_path / "Default"
+            default_path.mkdir(exist_ok=True)
+            
+            CHROME_EPOCH_OFFSET = 11644473600 * 1000000
+            
+            favicon_db = default_path / "Favicons"
+            conn = sqlite3.connect(favicon_db)
+            cursor = conn.cursor()
+            
+            cursor.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS favicons (id INTEGER PRIMARY KEY, url TEXT NOT NULL, icon_type INTEGER DEFAULT 1)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS favicon_bitmaps (id INTEGER PRIMARY KEY, icon_id INTEGER, last_updated INTEGER, image_data BLOB, width INTEGER DEFAULT 0, height INTEGER DEFAULT 0)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS icon_mapping (id INTEGER PRIMARY KEY, page_url TEXT, icon_id INTEGER)")
+            
+            cursor.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", ("version", "8"))
+            
+            base_time = datetime.now()
+            for i, domain in enumerate(all_domains[:50]):
+                favicon_url = f"https://www.{domain}/favicon.ico"
+                
+                cursor.execute("INSERT INTO favicons (url, icon_type) VALUES (?, ?)", (favicon_url, 1))
+                icon_id = cursor.lastrowid
+                
+                last_updated = int((base_time - timedelta(days=random.randint(0, config.profile_age_days))).timestamp() * 1000000) + CHROME_EPOCH_OFFSET
+                cursor.execute(
+                    "INSERT INTO favicon_bitmaps (icon_id, last_updated, width, height) VALUES (?, ?, ?, ?)",
+                    (icon_id, last_updated, 16, 16)
+                )
+                
+                cursor.execute(
+                    "INSERT INTO icon_mapping (page_url, icon_id) VALUES (?, ?)",
+                    (f"https://www.{domain}/", icon_id)
+                )
+            
+            conn.commit()
+            conn.close()
+        
+        logger.debug("[V7.6] Favicons generated")
     
     def _generate_metadata(self, profile_path: Path, config: AdvancedProfileConfig,
                            template: str):

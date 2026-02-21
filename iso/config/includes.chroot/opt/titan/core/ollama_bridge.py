@@ -704,3 +704,775 @@ def get_cache_stats() -> Dict:
         "providers": get_provider_status(),
         "any_available": is_ollama_available(),
     }
+
+
+# =============================================================================
+# TITAN V7.6 P0 CRITICAL ENHANCEMENTS
+# =============================================================================
+
+import threading
+import random
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Callable
+
+
+@dataclass
+class ProviderHealth:
+    """Health status for an LLM provider"""
+    provider: str
+    model: str
+    is_healthy: bool
+    latency_ms: float
+    success_rate: float
+    last_check: float
+    consecutive_failures: int = 0
+
+
+@dataclass
+class LLMUsageRecord:
+    """Record of LLM API usage"""
+    provider: str
+    model: str
+    task_type: str
+    tokens_sent: int
+    tokens_received: int
+    latency_ms: float
+    cost_estimate: float
+    timestamp: float
+    success: bool
+
+
+@dataclass
+class PromptTemplate:
+    """Template for prompt optimization"""
+    name: str
+    task_type: str
+    template: str
+    system_prompt: str = ""
+    temperature: float = 0.3
+    max_tokens: int = 8192
+
+
+class LLMLoadBalancer:
+    """
+    V7.6 P0 CRITICAL: Load balance across multiple LLM providers.
+    
+    Distributes requests across providers based on health, latency,
+    and configured weights to maximize reliability and performance.
+    
+    Usage:
+        balancer = get_llm_load_balancer()
+        
+        # Configure providers with weights
+        balancer.add_provider("ollama", "mistral:7b", weight=1.0)
+        balancer.add_provider("groq", "llama-3.1-70b", weight=2.0)
+        
+        # Get next provider
+        provider, model = balancer.get_next_provider("bin_generation")
+    """
+    
+    def __init__(self):
+        self.providers: Dict[str, Dict] = {}
+        self.health_status: Dict[str, ProviderHealth] = {}
+        self._request_counts: Dict[str, int] = {}
+        self._lock = threading.Lock()
+        self._health_check_interval = 60.0
+        self._last_health_check = 0.0
+        logger.info("LLMLoadBalancer initialized")
+    
+    def add_provider(self, provider: str, model: str, 
+                    weight: float = 1.0, priority: int = 1) -> None:
+        """Add a provider to the load balancer"""
+        key = f"{provider}/{model}"
+        with self._lock:
+            self.providers[key] = {
+                "provider": provider,
+                "model": model,
+                "weight": weight,
+                "priority": priority,
+                "enabled": True,
+            }
+            self._request_counts[key] = 0
+            self.health_status[key] = ProviderHealth(
+                provider=provider,
+                model=model,
+                is_healthy=True,
+                latency_ms=0,
+                success_rate=1.0,
+                last_check=time.time()
+            )
+        logger.info(f"Added provider: {key} (weight={weight})")
+    
+    def remove_provider(self, provider: str, model: str) -> None:
+        """Remove a provider"""
+        key = f"{provider}/{model}"
+        with self._lock:
+            self.providers.pop(key, None)
+            self._request_counts.pop(key, None)
+            self.health_status.pop(key, None)
+    
+    def _calculate_score(self, key: str) -> float:
+        """Calculate selection score for a provider"""
+        config = self.providers.get(key, {})
+        health = self.health_status.get(key)
+        
+        if not config.get("enabled", False):
+            return -1
+        
+        if health and not health.is_healthy:
+            return -1
+        
+        weight = config.get("weight", 1.0)
+        priority = config.get("priority", 1)
+        
+        # Higher weight = more likely, lower priority number = more likely
+        score = weight / (priority + 0.1)
+        
+        # Adjust for latency
+        if health and health.latency_ms > 0:
+            latency_factor = 1.0 / (1 + health.latency_ms / 1000)
+            score *= latency_factor
+        
+        # Adjust for success rate
+        if health and health.success_rate < 1.0:
+            score *= health.success_rate
+        
+        return score
+    
+    def get_next_provider(self, task_type: str = "default") -> Optional[Tuple[str, str]]:
+        """
+        Get next provider using weighted selection.
+        
+        Returns:
+            Tuple of (provider, model) or None
+        """
+        with self._lock:
+            # Check if health check needed
+            if time.time() - self._last_health_check > self._health_check_interval:
+                self._update_health_status()
+            
+            # Calculate scores
+            scores = {}
+            for key, config in self.providers.items():
+                score = self._calculate_score(key)
+                if score > 0:
+                    scores[key] = score
+            
+            if not scores:
+                return None
+            
+            # Weighted random selection
+            total = sum(scores.values())
+            r = random.random() * total
+            
+            cumulative = 0
+            for key, score in scores.items():
+                cumulative += score
+                if r <= cumulative:
+                    self._request_counts[key] += 1
+                    config = self.providers[key]
+                    return (config["provider"], config["model"])
+            
+            # Fallback to first available
+            key = list(scores.keys())[0]
+            config = self.providers[key]
+            return (config["provider"], config["model"])
+    
+    def _update_health_status(self) -> None:
+        """Update health status for all providers"""
+        self._last_health_check = time.time()
+        
+        for key, config in self.providers.items():
+            provider = config["provider"]
+            is_healthy = _check_provider_available(provider)
+            
+            if key in self.health_status:
+                health = self.health_status[key]
+                if is_healthy:
+                    health.consecutive_failures = 0
+                else:
+                    health.consecutive_failures += 1
+                health.is_healthy = is_healthy and health.consecutive_failures < 3
+                health.last_check = time.time()
+    
+    def record_success(self, provider: str, model: str, latency_ms: float) -> None:
+        """Record successful request"""
+        key = f"{provider}/{model}"
+        with self._lock:
+            if key in self.health_status:
+                health = self.health_status[key]
+                health.is_healthy = True
+                health.consecutive_failures = 0
+                # Exponential moving average for latency
+                health.latency_ms = 0.8 * health.latency_ms + 0.2 * latency_ms
+                # Update success rate
+                health.success_rate = min(1.0, health.success_rate * 0.9 + 0.1)
+    
+    def record_failure(self, provider: str, model: str) -> None:
+        """Record failed request"""
+        key = f"{provider}/{model}"
+        with self._lock:
+            if key in self.health_status:
+                health = self.health_status[key]
+                health.consecutive_failures += 1
+                health.success_rate = max(0.0, health.success_rate * 0.9)
+                if health.consecutive_failures >= 3:
+                    health.is_healthy = False
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get load balancer status"""
+        with self._lock:
+            return {
+                "provider_count": len(self.providers),
+                "healthy_count": sum(1 for h in self.health_status.values() if h.is_healthy),
+                "request_distribution": dict(self._request_counts),
+                "providers": {
+                    key: {
+                        "is_healthy": health.is_healthy,
+                        "latency_ms": round(health.latency_ms, 1),
+                        "success_rate": round(health.success_rate, 2),
+                        "weight": self.providers.get(key, {}).get("weight", 0),
+                    }
+                    for key, health in self.health_status.items()
+                }
+            }
+
+
+# Singleton instance
+_llm_load_balancer: Optional[LLMLoadBalancer] = None
+
+def get_llm_load_balancer() -> LLMLoadBalancer:
+    """Get singleton LLMLoadBalancer instance"""
+    global _llm_load_balancer
+    if _llm_load_balancer is None:
+        _llm_load_balancer = LLMLoadBalancer()
+    return _llm_load_balancer
+
+
+class PromptOptimizer:
+    """
+    V7.6 P0 CRITICAL: Optimize prompts for better model responses.
+    
+    Manages prompt templates, optimizes prompts for specific models,
+    and tracks prompt effectiveness.
+    
+    Usage:
+        optimizer = get_prompt_optimizer()
+        
+        # Register template
+        optimizer.register_template(PromptTemplate(
+            name="bin_gen",
+            task_type="bin_generation",
+            template="Generate BINs for {card_type} in {country}..."
+        ))
+        
+        # Optimize prompt
+        optimized = optimizer.optimize_prompt(
+            "Generate 10 BINs",
+            task_type="bin_generation"
+        )
+    """
+    
+    # Model-specific optimization hints
+    MODEL_HINTS: Dict[str, Dict[str, str]] = {
+        "mistral": {
+            "json_hint": "Output ONLY valid JSON. No markdown, no explanations.",
+            "format_style": "concise",
+        },
+        "llama": {
+            "json_hint": "Respond with raw JSON only. No text before or after.",
+            "format_style": "detailed",
+        },
+        "gpt": {
+            "json_hint": "Respond with valid JSON.",
+            "format_style": "balanced",
+        },
+        "claude": {
+            "json_hint": "Output only the JSON object or array.",
+            "format_style": "verbose",
+        },
+    }
+    
+    def __init__(self):
+        self.templates: Dict[str, PromptTemplate] = {}
+        self._effectiveness_scores: Dict[str, deque] = {}
+        self._lock = threading.Lock()
+        logger.info("PromptOptimizer initialized")
+    
+    def register_template(self, template: PromptTemplate) -> None:
+        """Register a prompt template"""
+        with self._lock:
+            self.templates[template.name] = template
+            self._effectiveness_scores[template.name] = deque(maxlen=50)
+        logger.info(f"Registered template: {template.name}")
+    
+    def get_template(self, name: str) -> Optional[PromptTemplate]:
+        """Get template by name"""
+        return self.templates.get(name)
+    
+    def optimize_prompt(self, prompt: str, task_type: str = "default",
+                       model_hint: str = "") -> str:
+        """
+        Optimize a prompt for better model response.
+        
+        Args:
+            prompt: Original prompt
+            task_type: Task type for context
+            model_hint: Model family hint (mistral, llama, gpt, claude)
+            
+        Returns:
+            Optimized prompt
+        """
+        optimized = prompt
+        
+        # Find matching template
+        template = None
+        with self._lock:
+            for t in self.templates.values():
+                if t.task_type == task_type:
+                    template = t
+                    break
+        
+        if template and template.system_prompt:
+            optimized = f"{template.system_prompt}\n\n{optimized}"
+        
+        # Add model-specific hints
+        hints = self.MODEL_HINTS.get(model_hint.lower(), {})
+        if hints.get("json_hint") and "json" in task_type.lower():
+            optimized += f"\n\n{hints['json_hint']}"
+        
+        # Add common optimizations
+        if "json" in task_type.lower() or "generation" in task_type.lower():
+            if "JSON" not in optimized:
+                optimized += "\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown, no explanation."
+        
+        return optimized
+    
+    def record_effectiveness(self, template_name: str, success: bool,
+                            quality_score: float = 0.0) -> None:
+        """Record template effectiveness"""
+        with self._lock:
+            if template_name in self._effectiveness_scores:
+                self._effectiveness_scores[template_name].append({
+                    "success": success,
+                    "quality": quality_score,
+                    "timestamp": time.time()
+                })
+    
+    def get_template_stats(self, template_name: str) -> Dict:
+        """Get effectiveness stats for a template"""
+        with self._lock:
+            if template_name not in self._effectiveness_scores:
+                return {"exists": False}
+            
+            scores = list(self._effectiveness_scores[template_name])
+        
+        if not scores:
+            return {"exists": True, "samples": 0}
+        
+        success_rate = sum(1 for s in scores if s["success"]) / len(scores)
+        avg_quality = sum(s["quality"] for s in scores) / len(scores)
+        
+        return {
+            "exists": True,
+            "samples": len(scores),
+            "success_rate": round(success_rate, 2),
+            "avg_quality": round(avg_quality, 2),
+        }
+    
+    def suggest_improvements(self, template_name: str) -> List[str]:
+        """Suggest prompt improvements based on effectiveness data"""
+        stats = self.get_template_stats(template_name)
+        suggestions = []
+        
+        if stats.get("success_rate", 1.0) < 0.8:
+            suggestions.append("Add clearer output format instructions")
+            suggestions.append("Break complex requests into steps")
+        
+        if stats.get("avg_quality", 1.0) < 0.6:
+            suggestions.append("Add examples of expected output")
+            suggestions.append("Be more specific about requirements")
+        
+        return suggestions
+
+
+# Singleton instance
+_prompt_optimizer: Optional[PromptOptimizer] = None
+
+def get_prompt_optimizer() -> PromptOptimizer:
+    """Get singleton PromptOptimizer instance"""
+    global _prompt_optimizer
+    if _prompt_optimizer is None:
+        _prompt_optimizer = PromptOptimizer()
+    return _prompt_optimizer
+
+
+class LLMResponseValidator:
+    """
+    V7.6 P0 CRITICAL: Validate and sanitize LLM responses.
+    
+    Ensures LLM responses meet quality standards and don't contain
+    harmful content or malformed data.
+    
+    Usage:
+        validator = get_llm_response_validator()
+        
+        # Validate JSON response
+        is_valid, errors = validator.validate_json_response(response, schema)
+        
+        # Sanitize response
+        clean = validator.sanitize_response(response)
+    """
+    
+    # Forbidden content patterns
+    FORBIDDEN_PATTERNS = [
+        r"<script[^>]*>",
+        r"javascript:",
+        r"data:text/html",
+    ]
+    
+    def __init__(self):
+        self._validation_history: deque = deque(maxlen=100)
+        self._lock = threading.Lock()
+        logger.info("LLMResponseValidator initialized")
+    
+    def validate_json_response(self, response: str, 
+                               expected_type: type = None) -> Tuple[bool, List[str]]:
+        """
+        Validate a JSON response.
+        
+        Args:
+            response: Raw response text
+            expected_type: Expected Python type (list, dict)
+            
+        Returns:
+            Tuple of (is_valid, error_messages)
+        """
+        errors = []
+        
+        if not response or not response.strip():
+            errors.append("Empty response")
+            return False, errors
+        
+        # Try to parse JSON
+        parsed = _extract_json(response)
+        
+        if parsed is None:
+            errors.append("Invalid JSON format")
+            return False, errors
+        
+        # Check expected type
+        if expected_type and not isinstance(parsed, expected_type):
+            errors.append(f"Expected {expected_type.__name__}, got {type(parsed).__name__}")
+            return False, errors
+        
+        # Check for empty containers
+        if isinstance(parsed, (list, dict)) and len(parsed) == 0:
+            errors.append("Response is empty container")
+            # Not necessarily an error, but record it
+        
+        self._record_validation(True, errors)
+        return len(errors) == 0, errors
+    
+    def validate_structure(self, data: Any, 
+                          required_fields: List[str] = None) -> Tuple[bool, List[str]]:
+        """Validate data structure has required fields"""
+        errors = []
+        
+        if not isinstance(data, dict):
+            errors.append("Data is not a dictionary")
+            return False, errors
+        
+        if required_fields:
+            missing = [f for f in required_fields if f not in data]
+            if missing:
+                errors.append(f"Missing required fields: {missing}")
+        
+        return len(errors) == 0, errors
+    
+    def sanitize_response(self, response: str) -> str:
+        """Remove potentially harmful content from response"""
+        import re
+        
+        sanitized = response
+        
+        # Remove script tags
+        for pattern in self.FORBIDDEN_PATTERNS:
+            sanitized = re.sub(pattern, "", sanitized, flags=re.IGNORECASE)
+        
+        # Strip excessive whitespace
+        sanitized = "\n".join(line.strip() for line in sanitized.split("\n"))
+        sanitized = re.sub(r"\n{3,}", "\n\n", sanitized)
+        
+        return sanitized.strip()
+    
+    def check_quality(self, response: str, min_length: int = 10,
+                     max_length: int = 100000) -> Tuple[bool, str]:
+        """Check response quality"""
+        if len(response) < min_length:
+            return False, f"Response too short ({len(response)} < {min_length})"
+        
+        if len(response) > max_length:
+            return False, f"Response too long ({len(response)} > {max_length})"
+        
+        # Check for repetitive content
+        words = response.lower().split()
+        if len(words) > 10:
+            unique_ratio = len(set(words)) / len(words)
+            if unique_ratio < 0.3:
+                return False, "Response appears repetitive"
+        
+        return True, "Quality OK"
+    
+    def _record_validation(self, success: bool, errors: List[str]) -> None:
+        """Record validation result"""
+        with self._lock:
+            self._validation_history.append({
+                "success": success,
+                "error_count": len(errors),
+                "timestamp": time.time()
+            })
+    
+    def get_validation_stats(self) -> Dict:
+        """Get validation statistics"""
+        with self._lock:
+            results = list(self._validation_history)
+        
+        if not results:
+            return {"samples": 0}
+        
+        success_count = sum(1 for r in results if r["success"])
+        
+        return {
+            "samples": len(results),
+            "success_rate": round(success_count / len(results), 2),
+            "avg_errors": round(sum(r["error_count"] for r in results) / len(results), 2),
+        }
+
+
+# Singleton instance
+_response_validator: Optional[LLMResponseValidator] = None
+
+def get_llm_response_validator() -> LLMResponseValidator:
+    """Get singleton LLMResponseValidator instance"""
+    global _response_validator
+    if _response_validator is None:
+        _response_validator = LLMResponseValidator()
+    return _response_validator
+
+
+class LLMUsageTracker:
+    """
+    V7.6 P0 CRITICAL: Track LLM usage and costs across providers.
+    
+    Monitors API usage, estimates costs, and provides usage analytics
+    for operational budgeting and optimization.
+    
+    Usage:
+        tracker = get_llm_usage_tracker()
+        
+        # Record usage
+        tracker.record_usage(
+            provider="openai",
+            model="gpt-4o",
+            tokens_sent=1000,
+            tokens_received=500,
+            success=True
+        )
+        
+        # Get usage report
+        report = tracker.get_usage_report()
+    """
+    
+    # Approximate token costs per 1K tokens (as of 2024)
+    COST_PER_1K_TOKENS: Dict[str, Tuple[float, float]] = {
+        "gpt-4o": (0.005, 0.015),           # (input, output)
+        "gpt-4o-mini": (0.00015, 0.0006),
+        "claude-3-5-sonnet": (0.003, 0.015),
+        "llama-3.1-70b": (0.0008, 0.0008),  # Groq
+        "mistral:7b": (0.0, 0.0),           # Local/free
+        "default": (0.001, 0.002),
+    }
+    
+    def __init__(self):
+        self.usage_records: deque = deque(maxlen=10000)
+        self._daily_totals: Dict[str, Dict] = {}
+        self._lock = threading.Lock()
+        logger.info("LLMUsageTracker initialized")
+    
+    def record_usage(self, provider: str, model: str, task_type: str,
+                    tokens_sent: int, tokens_received: int,
+                    latency_ms: float, success: bool) -> None:
+        """Record LLM API usage"""
+        # Calculate cost estimate
+        cost_key = model if model in self.COST_PER_1K_TOKENS else "default"
+        input_cost, output_cost = self.COST_PER_1K_TOKENS.get(cost_key, (0.001, 0.002))
+        
+        cost_estimate = (tokens_sent / 1000 * input_cost + 
+                        tokens_received / 1000 * output_cost)
+        
+        record = LLMUsageRecord(
+            provider=provider,
+            model=model,
+            task_type=task_type,
+            tokens_sent=tokens_sent,
+            tokens_received=tokens_received,
+            latency_ms=latency_ms,
+            cost_estimate=cost_estimate,
+            timestamp=time.time(),
+            success=success
+        )
+        
+        with self._lock:
+            self.usage_records.append(record)
+            
+            # Update daily totals
+            date_key = datetime.now().strftime("%Y-%m-%d")
+            if date_key not in self._daily_totals:
+                self._daily_totals[date_key] = {
+                    "tokens_sent": 0,
+                    "tokens_received": 0,
+                    "cost": 0.0,
+                    "requests": 0,
+                    "successes": 0,
+                }
+            
+            day = self._daily_totals[date_key]
+            day["tokens_sent"] += tokens_sent
+            day["tokens_received"] += tokens_received
+            day["cost"] += cost_estimate
+            day["requests"] += 1
+            if success:
+                day["successes"] += 1
+    
+    def get_usage_report(self, hours: int = 24) -> Dict[str, Any]:
+        """Generate usage report for specified time period"""
+        cutoff = time.time() - (hours * 3600)
+        
+        with self._lock:
+            recent = [r for r in self.usage_records if r.timestamp > cutoff]
+        
+        if not recent:
+            return {
+                "period_hours": hours,
+                "total_requests": 0,
+                "message": "No usage data"
+            }
+        
+        total_tokens_sent = sum(r.tokens_sent for r in recent)
+        total_tokens_received = sum(r.tokens_received for r in recent)
+        total_cost = sum(r.cost_estimate for r in recent)
+        success_count = sum(1 for r in recent if r.success)
+        
+        # Group by provider
+        by_provider: Dict[str, Dict] = {}
+        for r in recent:
+            key = f"{r.provider}/{r.model}"
+            if key not in by_provider:
+                by_provider[key] = {
+                    "requests": 0,
+                    "tokens": 0,
+                    "cost": 0.0,
+                    "avg_latency": 0.0,
+                }
+            by_provider[key]["requests"] += 1
+            by_provider[key]["tokens"] += r.tokens_sent + r.tokens_received
+            by_provider[key]["cost"] += r.cost_estimate
+        
+        # Calculate averages
+        avg_latency = sum(r.latency_ms for r in recent) / len(recent)
+        
+        return {
+            "period_hours": hours,
+            "total_requests": len(recent),
+            "success_rate": round(success_count / len(recent), 2),
+            "total_tokens_sent": total_tokens_sent,
+            "total_tokens_received": total_tokens_received,
+            "total_cost_usd": round(total_cost, 4),
+            "avg_latency_ms": round(avg_latency, 1),
+            "by_provider": {
+                k: {
+                    "requests": v["requests"],
+                    "tokens": v["tokens"],
+                    "cost_usd": round(v["cost"], 4),
+                }
+                for k, v in by_provider.items()
+            },
+        }
+    
+    def get_daily_report(self, date: str = None) -> Dict:
+        """Get report for a specific day"""
+        date_key = date or datetime.now().strftime("%Y-%m-%d")
+        
+        with self._lock:
+            day = self._daily_totals.get(date_key, {})
+        
+        if not day:
+            return {"date": date_key, "has_data": False}
+        
+        return {
+            "date": date_key,
+            "has_data": True,
+            "total_requests": day.get("requests", 0),
+            "success_rate": round(day.get("successes", 0) / max(day.get("requests", 1), 1), 2),
+            "tokens_sent": day.get("tokens_sent", 0),
+            "tokens_received": day.get("tokens_received", 0),
+            "estimated_cost_usd": round(day.get("cost", 0), 4),
+        }
+    
+    def get_cost_projection(self, days: int = 30) -> Dict:
+        """Project costs based on current usage"""
+        report = self.get_usage_report(hours=24)
+        daily_cost = report.get("total_cost_usd", 0)
+        daily_tokens = report.get("total_tokens_sent", 0) + report.get("total_tokens_received", 0)
+        
+        return {
+            "projection_days": days,
+            "daily_cost_usd": round(daily_cost, 4),
+            "projected_cost_usd": round(daily_cost * days, 2),
+            "daily_tokens": daily_tokens,
+            "projected_tokens": daily_tokens * days,
+        }
+    
+    def export_usage(self, format: str = "json") -> str:
+        """Export usage data"""
+        with self._lock:
+            records = [
+                {
+                    "provider": r.provider,
+                    "model": r.model,
+                    "task_type": r.task_type,
+                    "tokens_sent": r.tokens_sent,
+                    "tokens_received": r.tokens_received,
+                    "latency_ms": r.latency_ms,
+                    "cost_estimate": r.cost_estimate,
+                    "timestamp": r.timestamp,
+                    "success": r.success,
+                }
+                for r in self.usage_records
+            ]
+        
+        if format == "json":
+            return json.dumps(records, indent=2)
+        else:
+            # CSV
+            lines = ["provider,model,task_type,tokens_sent,tokens_received,cost,success"]
+            for r in records:
+                lines.append(
+                    f"{r['provider']},{r['model']},{r['task_type']},"
+                    f"{r['tokens_sent']},{r['tokens_received']},"
+                    f"{r['cost_estimate']},{r['success']}"
+                )
+            return "\n".join(lines)
+
+
+# Singleton instance
+_usage_tracker: Optional[LLMUsageTracker] = None
+
+def get_llm_usage_tracker() -> LLMUsageTracker:
+    """Get singleton LLMUsageTracker instance"""
+    global _usage_tracker
+    if _usage_tracker is None:
+        _usage_tracker = LLMUsageTracker()
+    return _usage_tracker

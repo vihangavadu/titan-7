@@ -1135,3 +1135,395 @@ class AmbientLightingNormalizer:
             f"eq=brightness={brightness - 1.0:.3f}:saturation=1.05,"
             f"noise=alls=2:allf=t"  # Subtle sensor noise for realism
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: DOCUMENT QUALITY ANALYZER
+# Analyze document quality before injection to avoid detection
+# ═══════════════════════════════════════════════════════════════════════════
+
+class DocumentQualityAnalyzer:
+    """
+    V7.6: Analyzes document image quality before KYC injection.
+    
+    KYC providers analyze document quality to detect:
+    - Screen photo captures (moiré patterns, pixel grid)
+    - Printout scans (paper texture, dot patterns)
+    - Photo-of-photo attacks (reflection, blur)
+    - JPEG compression artifacts from multiple saves
+    
+    This analyzer identifies issues BEFORE injection.
+    """
+    
+    # Quality thresholds
+    THRESHOLDS = {
+        'min_resolution': (1000, 600),  # Min width x height
+        'max_jpeg_quality_loss': 3,      # Max re-compression cycles
+        'min_sharpness': 40.0,           # Laplacian variance threshold
+        'max_noise_level': 15.0,         # Peak noise tolerance
+        'min_contrast': 0.3,             # Histogram spread requirement
+    }
+    
+    def __init__(self):
+        self._has_cv2 = False
+        self._has_numpy = False
+        try:
+            import cv2
+            import numpy as np
+            self._has_cv2 = True
+            self._has_numpy = True
+        except ImportError:
+            pass
+    
+    def analyze(self, image_path: str) -> Dict[str, Any]:
+        """
+        Analyze document image for KYC readiness.
+        
+        Returns quality report with pass/fail for each metric.
+        """
+        import os
+        
+        if not os.path.exists(image_path):
+            return {'error': f'Image not found: {image_path}', 'ready': False}
+        
+        report = {
+            'image_path': image_path,
+            'ready': True,
+            'issues': [],
+            'metrics': {},
+        }
+        
+        # Get file size
+        file_size = os.path.getsize(image_path)
+        report['metrics']['file_size_kb'] = file_size / 1024
+        
+        if file_size < 50 * 1024:  # < 50KB
+            report['issues'].append('File too small - likely low quality')
+        
+        if self._has_cv2:
+            self._analyze_with_cv2(image_path, report)
+        else:
+            # Basic checks without OpenCV
+            self._analyze_basic(image_path, report)
+        
+        report['ready'] = len(report['issues']) == 0
+        return report
+    
+    def _analyze_with_cv2(self, image_path: str, report: Dict):
+        """Full analysis using OpenCV."""
+        import cv2
+        import numpy as np
+        
+        img = cv2.imread(image_path)
+        if img is None:
+            report['issues'].append('Could not read image')
+            return
+        
+        h, w = img.shape[:2]
+        report['metrics']['resolution'] = (w, h)
+        
+        # Resolution check
+        min_w, min_h = self.THRESHOLDS['min_resolution']
+        if w < min_w or h < min_h:
+            report['issues'].append(f'Resolution too low: {w}x{h}, need {min_w}x{min_h}')
+        
+        # Sharpness (Laplacian variance)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+        sharpness = laplacian.var()
+        report['metrics']['sharpness'] = round(sharpness, 2)
+        
+        if sharpness < self.THRESHOLDS['min_sharpness']:
+            report['issues'].append(f'Image too blurry: sharpness={sharpness:.1f}')
+        
+        # Contrast (histogram analysis)
+        hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+        hist_norm = hist / hist.sum()
+        non_zero = np.count_nonzero(hist_norm > 0.001)
+        contrast = non_zero / 256
+        report['metrics']['contrast'] = round(contrast, 2)
+        
+        if contrast < self.THRESHOLDS['min_contrast']:
+            report['issues'].append(f'Low contrast: {contrast:.2f}')
+        
+        # Noise level estimation
+        noise = self._estimate_noise(gray)
+        report['metrics']['noise_level'] = round(noise, 2)
+        
+        if noise > self.THRESHOLDS['max_noise_level']:
+            report['issues'].append(f'High noise level: {noise:.1f}')
+        
+        # Moiré pattern detection (screen capture indicator)
+        moire_score = self._detect_moire(gray)
+        report['metrics']['moire_score'] = round(moire_score, 2)
+        
+        if moire_score > 0.5:
+            report['issues'].append('Possible moiré pattern (screen capture?)')
+    
+    def _analyze_basic(self, image_path: str, report: Dict):
+        """Basic analysis without OpenCV."""
+        # Use PIL if available
+        try:
+            from PIL import Image
+            with Image.open(image_path) as img:
+                w, h = img.size
+                report['metrics']['resolution'] = (w, h)
+                
+                min_w, min_h = self.THRESHOLDS['min_resolution']
+                if w < min_w or h < min_h:
+                    report['issues'].append(f'Resolution too low: {w}x{h}')
+        except Exception:
+            report['issues'].append('Could not analyze image dimensions')
+    
+    def _estimate_noise(self, gray_img) -> float:
+        """Estimate image noise level using Median Absolute Deviation."""
+        import cv2
+        import numpy as np
+        
+        # High-pass filter to isolate noise
+        blurred = cv2.GaussianBlur(gray_img, (5, 5), 0)
+        noise = cv2.absdiff(gray_img, blurred)
+        
+        return np.median(noise) * 1.4826
+    
+    def _detect_moire(self, gray_img) -> float:
+        """Detect moiré patterns indicating screen capture."""
+        import cv2
+        import numpy as np
+        
+        # FFT to detect regular patterns
+        f = np.fft.fft2(gray_img.astype(np.float32))
+        fshift = np.fft.fftshift(f)
+        magnitude = np.abs(fshift)
+        
+        # Look for peaks at regular intervals (screen pixel grid)
+        h, w = magnitude.shape
+        center = (h // 2, w // 2)
+        
+        # Create annular mask to find periodic peaks
+        y, x = np.ogrid[:h, :w]
+        r = np.sqrt((x - center[1])**2 + (y - center[0])**2)
+        
+        # Check mid-frequency range where moiré appears
+        ring_mask = (r > 50) & (r < min(h, w) // 4)
+        ring_values = magnitude[ring_mask]
+        
+        # High variance in ring = possible moiré
+        if ring_values.std() > 0:
+            peak_ratio = ring_values.max() / ring_values.mean()
+            return min(peak_ratio / 50, 1.0)  # Normalize to 0-1
+        
+        return 0.0
+    
+    def get_enhancement_suggestions(self, report: Dict) -> List[str]:
+        """Get suggestions to fix document quality issues."""
+        suggestions = []
+        
+        for issue in report.get('issues', []):
+            if 'resolution' in issue.lower():
+                suggestions.append('Use higher resolution source image')
+            elif 'blur' in issue.lower():
+                suggestions.append('Use sharper source or apply unsharp mask')
+            elif 'noise' in issue.lower():
+                suggestions.append('Apply denoising filter before injection')
+            elif 'moire' in issue.lower():
+                suggestions.append('Use direct scan, not photo of screen')
+            elif 'contrast' in issue.lower():
+                suggestions.append('Adjust levels/curves to improve contrast')
+        
+        return suggestions
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: KYC ANTI-DETECTION ENGINE
+# Counter KYC provider anti-spoofing measures
+# ═══════════════════════════════════════════════════════════════════════════
+
+class KYCAntiDetectionEngine:
+    """
+    V7.6: Counter various KYC anti-spoofing detection methods.
+    
+    Detection methods and countermeasures:
+    1. Screen reflection detection → Add realistic specular highlights
+    2. Blink frequency analysis → Natural blink timing with variance
+    3. Micro-expression detection → Subtle expression micro-variations
+    4. Device orientation consistency → Smooth gyro data injection
+    5. Video injection detection → Frame timestamp manipulation
+    """
+    
+    # Natural blink timing distribution (ms between blinks)
+    BLINK_INTERVALS = {
+        'relaxed': (2500, 6000),   # Reading/relaxed state
+        'attentive': (3000, 8000),  # Focused on task
+        'stressed': (1500, 3500),   # Under pressure
+    }
+    
+    # Micro-expression amplitude ranges
+    MICRO_EXPRESSIONS = {
+        'eyebrow_raise': (0.01, 0.03),
+        'eye_squint': (0.005, 0.02),
+        'lip_tension': (0.01, 0.025),
+        'nostril_flare': (0.005, 0.015),
+    }
+    
+    def __init__(self, state: str = 'attentive'):
+        import random
+        self.state = state
+        self._random = random.Random()
+        self._last_blink = 0
+        self._next_blink = self._generate_next_blink_time()
+    
+    def _generate_next_blink_time(self) -> int:
+        """Generate next blink time with natural variance."""
+        interval = self.BLINK_INTERVALS.get(self.state, self.BLINK_INTERVALS['attentive'])
+        return self._random.randint(*interval)
+    
+    def generate_natural_blink_schedule(self, duration_ms: int) -> List[int]:
+        """Generate natural blink schedule for video duration."""
+        blinks = []
+        current_time = self._random.randint(500, 2000)  # Random start
+        
+        while current_time < duration_ms:
+            blinks.append(current_time)
+            current_time += self._generate_next_blink_time()
+        
+        return blinks
+    
+    def generate_micro_expression_keyframes(self, duration_ms: int, 
+                                              fps: int = 30) -> List[Dict]:
+        """
+        Generate subtle micro-expression variations for realistic face.
+        
+        These micro-movements make static/CGI faces appear more natural.
+        """
+        keyframes = []
+        frame_interval = 1000 // fps
+        num_frames = duration_ms // frame_interval
+        
+        for i in range(num_frames):
+            time_ms = i * frame_interval
+            
+            # Generate subtle random variations
+            frame = {'time_ms': time_ms}
+            for expr, (min_val, max_val) in self.MICRO_EXPRESSIONS.items():
+                # Perlin-like smooth noise for natural variation
+                phase = time_ms / 1000 * self._random.uniform(0.3, 0.7)
+                import math
+                value = (math.sin(phase) + 1) / 2 * (max_val - min_val) + min_val
+                frame[expr] = round(value, 4)
+            
+            keyframes.append(frame)
+        
+        return keyframes
+    
+    def generate_specular_highlights(self, face_bbox: Tuple[int, int, int, int],
+                                       light_positions: List[str] = None) -> List[Dict]:
+        """
+        Generate realistic specular highlights for face.
+        
+        Makes injected face appear to be in real environment with actual light sources.
+        """
+        if light_positions is None:
+            light_positions = ['top_left', 'ambient']
+        
+        x, y, w, h = face_bbox
+        highlights = []
+        
+        for pos in light_positions:
+            if pos == 'top_left':
+                highlights.append({
+                    'type': 'specular',
+                    'position': (x + int(w * 0.3), y + int(h * 0.15)),
+                    'radius': int(min(w, h) * 0.08),
+                    'intensity': 0.15,
+                    'falloff': 2.0,
+                })
+            elif pos == 'top_right':
+                highlights.append({
+                    'type': 'specular',
+                    'position': (x + int(w * 0.7), y + int(h * 0.15)),
+                    'radius': int(min(w, h) * 0.06),
+                    'intensity': 0.10,
+                    'falloff': 2.5,
+                })
+            elif pos == 'ambient':
+                # Subtle ambient fill on cheeks
+                highlights.append({
+                    'type': 'ambient',
+                    'position': (x + int(w * 0.25), y + int(h * 0.5)),
+                    'radius': int(min(w, h) * 0.15),
+                    'intensity': 0.05,
+                    'falloff': 1.5,
+                })
+        
+        return highlights
+    
+    def generate_device_orientation_data(self, duration_ms: int,
+                                           device_type: str = 'phone') -> List[Dict]:
+        """
+        Generate realistic device orientation sensor data.
+        
+        KYC apps check if device sensors match expected patterns for
+        a human holding a phone/tablet.
+        """
+        import math
+        
+        data_points = []
+        sample_rate = 50  # 50 Hz typical for motion sensors
+        num_samples = (duration_ms * sample_rate) // 1000
+        
+        # Base orientation (portrait mode, slightly tilted)
+        base_alpha = 0  # Compass (we keep stable)
+        base_beta = 80  # Tilt front/back (holding phone facing user)
+        base_gamma = -5  # Tilt left/right (slight right hand tilt)
+        
+        # Human hand tremor parameters
+        tremor_freq = self._random.uniform(8, 12)  # Hz (physiological tremor)
+        tremor_amp = self._random.uniform(0.3, 0.8)  # Degrees
+        
+        for i in range(num_samples):
+            time_ms = (i * 1000) // sample_rate
+            t = time_ms / 1000  # Time in seconds
+            
+            # Add physiological tremor
+            tremor = tremor_amp * math.sin(2 * math.pi * tremor_freq * t)
+            tremor2 = tremor_amp * 0.7 * math.sin(2 * math.pi * tremor_freq * 1.1 * t + 0.5)
+            
+            # Add slow drift (breathing, shifting grip)
+            drift_beta = 2 * math.sin(2 * math.pi * 0.2 * t)  # ~0.2 Hz breathing
+            drift_gamma = 1.5 * math.sin(2 * math.pi * 0.15 * t + 1)
+            
+            data_points.append({
+                'time_ms': time_ms,
+                'alpha': round(base_alpha + tremor * 0.1, 2),
+                'beta': round(base_beta + tremor + drift_beta, 2),
+                'gamma': round(base_gamma + tremor2 + drift_gamma, 2),
+            })
+        
+        return data_points
+    
+    def get_frame_timestamp_jitter(self, frame_number: int, fps: int = 30) -> int:
+        """
+        Generate realistic frame timestamp jitter.
+        
+        Perfect frame timing = video injection indicator.
+        Real cameras have slight timing variations.
+        """
+        # Base expected timestamp
+        expected_ms = (frame_number * 1000) // fps
+        
+        # Add realistic jitter (-2ms to +3ms typical for webcams)
+        jitter = self._random.gauss(0.5, 1.2)
+        jitter = max(-2, min(3, jitter))
+        
+        return expected_ms + int(jitter)
+
+
+# V7.6 Convenience exports
+def analyze_document_quality(image_path: str) -> Dict:
+    """V7.6: Analyze document quality for KYC injection"""
+    return DocumentQualityAnalyzer().analyze(image_path)
+
+def create_anti_detection_engine(state: str = 'attentive') -> KYCAntiDetectionEngine:
+    """V7.6: Create anti-detection engine for KYC bypass"""
+    return KYCAntiDetectionEngine(state)

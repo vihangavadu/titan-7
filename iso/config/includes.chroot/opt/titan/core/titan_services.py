@@ -661,3 +661,628 @@ def stop_all_services():
 
 def get_services_status() -> Dict:
     return get_service_manager().get_status()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL ENHANCEMENTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ServiceHealthWatchdog:
+    """
+    V7.6 P0: Monitor service health and auto-restart failed services.
+    
+    Continuously monitors all TITAN services for health issues and
+    automatically restarts failed services with exponential backoff.
+    """
+    
+    _instance = None
+    
+    def __init__(self, service_manager: TitanServiceManager = None):
+        self.service_manager = service_manager or get_service_manager()
+        self.health_checks: Dict[str, Dict] = {}
+        self.restart_counts: Dict[str, int] = {}
+        self.max_restarts = 5
+        self.base_backoff_seconds = 30
+        self._thread = None
+        self._running = False
+        self.check_interval = 30
+        self.logger = logging.getLogger("TITAN-WATCHDOG")
+        
+        self._register_default_checks()
+    
+    def _register_default_checks(self):
+        """Register default health checks for all services."""
+        self.register_health_check(
+            "tx_monitor",
+            check_fn=self._check_tx_monitor,
+            restart_fn=self._restart_tx_monitor,
+            critical=True
+        )
+        self.register_health_check(
+            "discovery_scheduler",
+            check_fn=self._check_discovery_scheduler,
+            restart_fn=self._restart_discovery_scheduler,
+            critical=False
+        )
+        self.register_health_check(
+            "feedback_loop",
+            check_fn=self._check_feedback_loop,
+            restart_fn=self._restart_feedback_loop,
+            critical=False
+        )
+        self.register_health_check(
+            "memory_pressure",
+            check_fn=self._check_memory_pressure,
+            restart_fn=self._restart_memory_pressure,
+            critical=True
+        )
+    
+    def register_health_check(
+        self,
+        service_name: str,
+        check_fn,
+        restart_fn,
+        critical: bool = False,
+        interval_override: int = None
+    ):
+        """Register a health check for a service."""
+        self.health_checks[service_name] = {
+            "check_fn": check_fn,
+            "restart_fn": restart_fn,
+            "critical": critical,
+            "interval": interval_override or self.check_interval,
+            "last_check": None,
+            "last_status": None,
+            "consecutive_failures": 0
+        }
+        self.restart_counts[service_name] = 0
+    
+    def _check_tx_monitor(self) -> Dict:
+        """Check transaction monitor health."""
+        if not self.service_manager.tx_monitor:
+            return {"healthy": False, "reason": "not_initialized"}
+        try:
+            stats = self.service_manager.tx_monitor.get_stats()
+            is_running = stats.get("running", False) or stats.get("status") == "running"
+            return {"healthy": is_running, "stats": stats}
+        except Exception as e:
+            return {"healthy": False, "reason": str(e)}
+    
+    def _restart_tx_monitor(self) -> bool:
+        """Restart transaction monitor."""
+        try:
+            if self.service_manager.tx_monitor:
+                self.service_manager.tx_monitor.stop()
+            port = int(get_config("TITAN_TX_MONITOR_PORT", "7443"))
+            from transaction_monitor import TransactionMonitor
+            self.service_manager.tx_monitor = TransactionMonitor()
+            self.service_manager.tx_monitor.start(port)
+            return True
+        except Exception as e:
+            self.logger.error(f"TX Monitor restart failed: {e}")
+            return False
+    
+    def _check_discovery_scheduler(self) -> Dict:
+        """Check discovery scheduler health."""
+        if not self.service_manager.discovery_scheduler:
+            return {"healthy": False, "reason": "not_initialized"}
+        status = self.service_manager.discovery_scheduler.get_status()
+        return {"healthy": status.get("running", False), "status": status}
+    
+    def _restart_discovery_scheduler(self) -> bool:
+        """Restart discovery scheduler."""
+        try:
+            if self.service_manager.discovery_scheduler:
+                self.service_manager.discovery_scheduler.stop()
+            hour = int(get_config("TITAN_DISCOVERY_RUN_HOUR", "3"))
+            self.service_manager.discovery_scheduler = DailyDiscoveryScheduler(run_hour=hour)
+            self.service_manager.discovery_scheduler.start()
+            return True
+        except Exception as e:
+            self.logger.error(f"Discovery scheduler restart failed: {e}")
+            return False
+    
+    def _check_feedback_loop(self) -> Dict:
+        """Check feedback loop health."""
+        if not self.service_manager.feedback_loop:
+            return {"healthy": False, "reason": "not_initialized"}
+        status = self.service_manager.feedback_loop.get_status()
+        return {"healthy": status.get("running", False), "status": status}
+    
+    def _restart_feedback_loop(self) -> bool:
+        """Restart feedback loop."""
+        try:
+            if self.service_manager.feedback_loop:
+                self.service_manager.feedback_loop.stop()
+            self.service_manager.feedback_loop = OperationalFeedbackLoop()
+            self.service_manager.feedback_loop.start()
+            return True
+        except Exception as e:
+            self.logger.error(f"Feedback loop restart failed: {e}")
+            return False
+    
+    def _check_memory_pressure(self) -> Dict:
+        """Check memory pressure manager health."""
+        if not self.service_manager.memory_pressure:
+            return {"healthy": False, "reason": "not_initialized"}
+        status = self.service_manager.memory_pressure.get_status()
+        return {"healthy": status.get("running", False), "status": status}
+    
+    def _restart_memory_pressure(self) -> bool:
+        """Restart memory pressure manager."""
+        try:
+            if self.service_manager.memory_pressure:
+                self.service_manager.memory_pressure.stop()
+            self.service_manager.memory_pressure = MemoryPressureManager(
+                service_manager=self.service_manager
+            )
+            self.service_manager.memory_pressure.start()
+            return True
+        except Exception as e:
+            self.logger.error(f"Memory pressure manager restart failed: {e}")
+            return False
+    
+    def _get_backoff(self, service_name: str) -> int:
+        """Calculate exponential backoff for service restarts."""
+        count = self.restart_counts.get(service_name, 0)
+        return min(self.base_backoff_seconds * (2 ** count), 600)  # Max 10 minutes
+    
+    def _watchdog_loop(self):
+        """Main watchdog monitoring loop."""
+        while self._running:
+            for service_name, check_info in self.health_checks.items():
+                try:
+                    result = check_info["check_fn"]()
+                    check_info["last_check"] = datetime.now(timezone.utc).isoformat()
+                    check_info["last_status"] = result
+                    
+                    if result.get("healthy", False):
+                        check_info["consecutive_failures"] = 0
+                        self.restart_counts[service_name] = 0
+                    else:
+                        check_info["consecutive_failures"] += 1
+                        
+                        if check_info["consecutive_failures"] >= 3:
+                            if self.restart_counts[service_name] < self.max_restarts:
+                                self.logger.warning(
+                                    f"Service {service_name} unhealthy, attempting restart "
+                                    f"({self.restart_counts[service_name]+1}/{self.max_restarts})"
+                                )
+                                if check_info["restart_fn"]():
+                                    self.restart_counts[service_name] += 1
+                                    check_info["consecutive_failures"] = 0
+                                    self.logger.info(f"Service {service_name} restarted successfully")
+                                else:
+                                    self.restart_counts[service_name] += 1
+                            else:
+                                self.logger.error(
+                                    f"Service {service_name} exceeded max restarts ({self.max_restarts})"
+                                )
+                except Exception as e:
+                    self.logger.error(f"Health check failed for {service_name}: {e}")
+            
+            time.sleep(self.check_interval)
+    
+    def start(self):
+        """Start the watchdog."""
+        self._running = True
+        self._thread = threading.Thread(target=self._watchdog_loop, daemon=True)
+        self._thread.start()
+        self.logger.info("Service Health Watchdog started")
+    
+    def stop(self):
+        """Stop the watchdog."""
+        self._running = False
+    
+    def get_status(self) -> Dict:
+        """Get watchdog status."""
+        return {
+            "running": self._running,
+            "check_interval": self.check_interval,
+            "services": {
+                name: {
+                    "last_check": info.get("last_check"),
+                    "healthy": info.get("last_status", {}).get("healthy"),
+                    "consecutive_failures": info.get("consecutive_failures", 0),
+                    "restart_count": self.restart_counts.get(name, 0)
+                }
+                for name, info in self.health_checks.items()
+            }
+        }
+
+
+class ServiceDependencyManager:
+    """
+    V7.6 P0: Manage service dependencies and startup order.
+    
+    Ensures services start in correct order respecting dependencies,
+    with proper wait times for dependent services.
+    """
+    
+    _instance = None
+    
+    def __init__(self):
+        self.dependencies: Dict[str, List[str]] = {}
+        self.startup_order: List[str] = []
+        self.service_status: Dict[str, str] = {}
+        self.logger = logging.getLogger("TITAN-DEPS")
+        
+        self._register_default_dependencies()
+    
+    def _register_default_dependencies(self):
+        """Register default service dependencies."""
+        # Memory pressure has no deps, must start first
+        self.register_dependency("memory_pressure", [])
+        
+        # TX monitor depends on memory pressure
+        self.register_dependency("tx_monitor", ["memory_pressure"])
+        
+        # Feedback loop depends on TX monitor
+        self.register_dependency("feedback_loop", ["tx_monitor"])
+        
+        # Discovery scheduler is independent
+        self.register_dependency("discovery_scheduler", ["memory_pressure"])
+        
+        # Watchdog monitors all, starts last
+        self.register_dependency("watchdog", [
+            "memory_pressure", "tx_monitor", "feedback_loop", "discovery_scheduler"
+        ])
+    
+    def register_dependency(self, service: str, depends_on: List[str]):
+        """Register service dependencies."""
+        self.dependencies[service] = depends_on
+        self._recalculate_order()
+    
+    def _recalculate_order(self):
+        """Calculate topological startup order."""
+        in_degree = {s: 0 for s in self.dependencies}
+        for service, deps in self.dependencies.items():
+            in_degree[service] = len(deps)
+        
+        queue = [s for s, d in in_degree.items() if d == 0]
+        order = []
+        
+        while queue:
+            service = queue.pop(0)
+            order.append(service)
+            
+            for other, deps in self.dependencies.items():
+                if service in deps:
+                    in_degree[other] -= 1
+                    if in_degree[other] == 0 and other not in order:
+                        queue.append(other)
+        
+        self.startup_order = order
+    
+    def get_startup_order(self) -> List[str]:
+        """Get services in dependency-ordered startup sequence."""
+        return list(self.startup_order)
+    
+    def can_start(self, service: str) -> Tuple[bool, List[str]]:
+        """Check if a service can start (all dependencies ready)."""
+        deps = self.dependencies.get(service, [])
+        pending = [d for d in deps if self.service_status.get(d) != "running"]
+        return len(pending) == 0, pending
+    
+    def mark_started(self, service: str):
+        """Mark a service as started."""
+        self.service_status[service] = "running"
+    
+    def mark_stopped(self, service: str):
+        """Mark a service as stopped."""
+        self.service_status[service] = "stopped"
+    
+    def get_dependents(self, service: str) -> List[str]:
+        """Get services that depend on the given service."""
+        return [s for s, deps in self.dependencies.items() if service in deps]
+    
+    def get_shutdown_order(self) -> List[str]:
+        """Get services in reverse dependency order for shutdown."""
+        return list(reversed(self.startup_order))
+
+
+class ServiceMetricsCollector:
+    """
+    V7.6 P0: Collect and export service metrics.
+    
+    Aggregates metrics from all services for monitoring dashboards,
+    alerting, and operational insights.
+    """
+    
+    _instance = None
+    
+    def __init__(self):
+        self.metrics: Dict[str, Dict] = {}
+        self.metric_history: Dict[str, List] = {}
+        self.max_history = 1000
+        self._thread = None
+        self._running = False
+        self.collection_interval = 60
+        self.logger = logging.getLogger("TITAN-METRICS")
+    
+    def collect_metrics(self) -> Dict:
+        """Collect current metrics from all services."""
+        mgr = get_service_manager()
+        now = datetime.now(timezone.utc).isoformat()
+        
+        metrics = {
+            "timestamp": now,
+            "services": {}
+        }
+        
+        # TX Monitor metrics
+        if mgr.tx_monitor:
+            try:
+                stats = mgr.tx_monitor.get_stats()
+                metrics["services"]["tx_monitor"] = {
+                    "running": stats.get("running", False),
+                    "total_tx": stats.get("total_transactions", 0),
+                    "approved": stats.get("approved", 0),
+                    "declined": stats.get("declined", 0),
+                    "success_rate": stats.get("success_rate", 0)
+                }
+            except Exception:
+                metrics["services"]["tx_monitor"] = {"error": "unavailable"}
+        
+        # Discovery scheduler metrics
+        if mgr.discovery_scheduler:
+            try:
+                status = mgr.discovery_scheduler.get_status()
+                metrics["services"]["discovery_scheduler"] = {
+                    "running": status.get("running", False),
+                    "last_run": status.get("last_run"),
+                    "last_result": status.get("last_result")
+                }
+            except Exception:
+                metrics["services"]["discovery_scheduler"] = {"error": "unavailable"}
+        
+        # Feedback loop metrics
+        if mgr.feedback_loop:
+            try:
+                status = mgr.feedback_loop.get_status()
+                metrics["services"]["feedback_loop"] = {
+                    "running": status.get("running", False),
+                    "tracked_sites": status.get("tracked_sites", 0),
+                    "tracked_bins": status.get("tracked_bins", 0)
+                }
+            except Exception:
+                metrics["services"]["feedback_loop"] = {"error": "unavailable"}
+        
+        # Memory pressure metrics
+        if mgr.memory_pressure:
+            try:
+                status = mgr.memory_pressure.get_status()
+                metrics["services"]["memory_pressure"] = {
+                    "running": status.get("running", False),
+                    "tier": status.get("tier", "unknown"),
+                    "free_mb": status.get("free_mb", 0)
+                }
+            except Exception:
+                metrics["services"]["memory_pressure"] = {"error": "unavailable"}
+        
+        # Store in history
+        for service, data in metrics["services"].items():
+            if service not in self.metric_history:
+                self.metric_history[service] = []
+            self.metric_history[service].append({
+                "timestamp": now,
+                "data": data
+            })
+            # Trim history
+            if len(self.metric_history[service]) > self.max_history:
+                self.metric_history[service] = self.metric_history[service][-self.max_history:]
+        
+        self.metrics = metrics
+        return metrics
+    
+    def get_metrics(self) -> Dict:
+        """Get current metrics."""
+        return self.metrics
+    
+    def get_metric_history(self, service: str, limit: int = 100) -> List:
+        """Get metric history for a service."""
+        history = self.metric_history.get(service, [])
+        return history[-limit:]
+    
+    def export_prometheus(self) -> str:
+        """Export metrics in Prometheus format."""
+        lines = []
+        for service, data in self.metrics.get("services", {}).items():
+            prefix = f"titan_{service}"
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    if isinstance(value, (int, float)):
+                        lines.append(f"{prefix}_{key} {value}")
+                    elif isinstance(value, bool):
+                        lines.append(f'{prefix}_{key} {1 if value else 0}')
+        return "\n".join(lines)
+    
+    def _collection_loop(self):
+        """Metrics collection loop."""
+        while self._running:
+            try:
+                self.collect_metrics()
+            except Exception as e:
+                self.logger.error(f"Metrics collection failed: {e}")
+            time.sleep(self.collection_interval)
+    
+    def start(self):
+        """Start metrics collection."""
+        self._running = True
+        self._thread = threading.Thread(target=self._collection_loop, daemon=True)
+        self._thread.start()
+        self.logger.info("Service Metrics Collector started")
+    
+    def stop(self):
+        """Stop metrics collection."""
+        self._running = False
+
+
+class ServiceConfigManager:
+    """
+    V7.6 P0: Centralized service configuration management.
+    
+    Provides unified configuration access for all services with
+    validation, defaults, and hot-reload capability.
+    """
+    
+    _instance = None
+    CONFIG_FILE = Path("/opt/titan/data/services/service_config.json")
+    
+    def __init__(self):
+        self.config: Dict = {}
+        self.defaults: Dict = {}
+        self.validators: Dict[str, callable] = {}
+        self.change_callbacks: List[callable] = []
+        self.logger = logging.getLogger("TITAN-CONFIG")
+        
+        self._register_defaults()
+        self._load_config()
+    
+    def _register_defaults(self):
+        """Register default configuration values."""
+        self.defaults = {
+            "tx_monitor": {
+                "port": 7443,
+                "autostart": True,
+                "log_level": "INFO"
+            },
+            "discovery_scheduler": {
+                "run_hour": 3,
+                "autostart": True,
+                "max_sites": 50
+            },
+            "feedback_loop": {
+                "autostart": True,
+                "update_interval_minutes": 30
+            },
+            "memory_pressure": {
+                "autostart": True,
+                "green_threshold_mb": 2500,
+                "yellow_threshold_mb": 800,
+                "red_threshold_mb": 400
+            },
+            "watchdog": {
+                "autostart": True,
+                "check_interval_seconds": 30,
+                "max_restarts": 5
+            }
+        }
+    
+    def _load_config(self):
+        """Load configuration from disk."""
+        if self.CONFIG_FILE.exists():
+            try:
+                with open(self.CONFIG_FILE) as f:
+                    self.config = json.load(f)
+            except Exception as e:
+                self.logger.warning(f"Failed to load config: {e}")
+                self.config = {}
+        else:
+            self.config = {}
+    
+    def _save_config(self):
+        """Save configuration to disk."""
+        try:
+            self.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.CONFIG_FILE, 'w') as f:
+                json.dump(self.config, f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Failed to save config: {e}")
+    
+    def get(self, service: str, key: str, default=None):
+        """Get a configuration value."""
+        service_config = self.config.get(service, {})
+        if key in service_config:
+            return service_config[key]
+        
+        service_defaults = self.defaults.get(service, {})
+        if key in service_defaults:
+            return service_defaults[key]
+        
+        return default
+    
+    def set(self, service: str, key: str, value):
+        """Set a configuration value."""
+        if service not in self.config:
+            self.config[service] = {}
+        
+        # Validate if validator registered
+        validator_key = f"{service}.{key}"
+        if validator_key in self.validators:
+            if not self.validators[validator_key](value):
+                raise ValueError(f"Invalid value for {validator_key}: {value}")
+        
+        old_value = self.config[service].get(key)
+        self.config[service][key] = value
+        self._save_config()
+        
+        # Notify callbacks
+        for callback in self.change_callbacks:
+            try:
+                callback(service, key, old_value, value)
+            except Exception:
+                pass
+    
+    def get_service_config(self, service: str) -> Dict:
+        """Get all configuration for a service."""
+        defaults = self.defaults.get(service, {}).copy()
+        overrides = self.config.get(service, {})
+        defaults.update(overrides)
+        return defaults
+    
+    def register_validator(self, service: str, key: str, validator: callable):
+        """Register a validator for a config key."""
+        self.validators[f"{service}.{key}"] = validator
+    
+    def register_change_callback(self, callback: callable):
+        """Register a callback for config changes."""
+        self.change_callbacks.append(callback)
+    
+    def export_config(self) -> Dict:
+        """Export full configuration with defaults merged."""
+        result = {}
+        for service in set(list(self.defaults.keys()) + list(self.config.keys())):
+            result[service] = self.get_service_config(service)
+        return result
+    
+    def reset_to_defaults(self, service: str = None):
+        """Reset configuration to defaults."""
+        if service:
+            if service in self.config:
+                del self.config[service]
+        else:
+            self.config = {}
+        self._save_config()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SINGLETON GETTERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_service_health_watchdog() -> ServiceHealthWatchdog:
+    """Get singleton ServiceHealthWatchdog instance."""
+    if ServiceHealthWatchdog._instance is None:
+        ServiceHealthWatchdog._instance = ServiceHealthWatchdog()
+    return ServiceHealthWatchdog._instance
+
+
+def get_service_dependency_manager() -> ServiceDependencyManager:
+    """Get singleton ServiceDependencyManager instance."""
+    if ServiceDependencyManager._instance is None:
+        ServiceDependencyManager._instance = ServiceDependencyManager()
+    return ServiceDependencyManager._instance
+
+
+def get_service_metrics_collector() -> ServiceMetricsCollector:
+    """Get singleton ServiceMetricsCollector instance."""
+    if ServiceMetricsCollector._instance is None:
+        ServiceMetricsCollector._instance = ServiceMetricsCollector()
+    return ServiceMetricsCollector._instance
+
+
+def get_service_config_manager() -> ServiceConfigManager:
+    """Get singleton ServiceConfigManager instance."""
+    if ServiceConfigManager._instance is None:
+        ServiceConfigManager._instance = ServiceConfigManager()
+    return ServiceConfigManager._instance

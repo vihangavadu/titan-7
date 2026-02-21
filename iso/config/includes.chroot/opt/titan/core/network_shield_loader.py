@@ -550,3 +550,762 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# =============================================================================
+# TITAN V7.6 P0 CRITICAL ENHANCEMENTS
+# =============================================================================
+
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import List, Callable, Tuple
+from collections import deque
+
+
+@dataclass
+class ShieldHealthMetric:
+    """Health metric for shield monitoring"""
+    timestamp: float
+    packets_processed: int
+    errors: int
+    cpu_usage_pct: float
+    memory_bytes: int
+    is_healthy: bool
+
+
+@dataclass
+class PersonaProfile:
+    """Complete persona profile with all TCP/IP parameters"""
+    name: str
+    ttl: int
+    tcp_window: int
+    tcp_mss: int
+    tcp_sack: bool
+    tcp_timestamps: bool
+    tcp_window_scale: int
+    tcp_options_order: str = ""
+    ip_id_behavior: str = "increment"  # increment, random, zero
+    df_flag: bool = True  # Don't Fragment
+
+
+@dataclass
+class SignatureOptimization:
+    """Optimization result for signature tuning"""
+    original_persona: str
+    optimized_params: Dict[str, Any]
+    target_matched: str
+    confidence_score: float
+    applied: bool = False
+
+
+class ShieldHealthMonitor:
+    """
+    V7.6 P0 CRITICAL: Monitor eBPF program health and kernel stability.
+    
+    Tracks shield performance, detects anomalies, and triggers
+    alerts when shield behavior degrades.
+    
+    Usage:
+        monitor = get_shield_health_monitor()
+        
+        # Start monitoring
+        monitor.start_monitoring(shield)
+        
+        # Get health status
+        health = monitor.get_health_status()
+        
+        # Register failure callback
+        monitor.on_degradation(callback)
+    """
+    
+    # Health thresholds
+    ERROR_RATE_WARNING = 0.01  # 1%
+    ERROR_RATE_CRITICAL = 0.05  # 5%
+    CPU_WARNING_PCT = 10.0
+    CPU_CRITICAL_PCT = 25.0
+    
+    def __init__(self, check_interval: float = 10.0):
+        self.check_interval = check_interval
+        self.shield: Optional[NetworkShield] = None
+        self._history: deque = deque(maxlen=100)
+        self._stop_event = threading.Event()
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._degradation_callbacks: List[Callable] = []
+        self._recovery_callbacks: List[Callable] = []
+        self._is_healthy = True
+        self._lock = threading.Lock()
+        logger.info("ShieldHealthMonitor initialized")
+    
+    def start_monitoring(self, shield: NetworkShield) -> None:
+        """Start health monitoring for the shield"""
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            return
+        
+        self.shield = shield
+        self._stop_event.clear()
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            daemon=True,
+            name="ShieldHealthMonitor"
+        )
+        self._monitor_thread.start()
+        logger.info("Shield health monitoring started")
+    
+    def stop_monitoring(self) -> None:
+        """Stop health monitoring"""
+        self._stop_event.set()
+        if self._monitor_thread:
+            self._monitor_thread.join(timeout=5.0)
+        logger.info("Shield health monitoring stopped")
+    
+    def on_degradation(self, callback: Callable[[ShieldHealthMetric], None]) -> None:
+        """Register callback for shield degradation"""
+        with self._lock:
+            self._degradation_callbacks.append(callback)
+    
+    def on_recovery(self, callback: Callable[[], None]) -> None:
+        """Register callback for shield recovery"""
+        with self._lock:
+            self._recovery_callbacks.append(callback)
+    
+    def _monitor_loop(self) -> None:
+        """Main monitoring loop"""
+        last_stats = None
+        
+        while not self._stop_event.is_set():
+            try:
+                metric = self._collect_metric(last_stats)
+                last_stats = metric
+                
+                with self._lock:
+                    self._history.append(metric)
+                    
+                    if not metric.is_healthy:
+                        if self._is_healthy:
+                            self._is_healthy = False
+                            self._trigger_degradation(metric)
+                    else:
+                        if not self._is_healthy:
+                            self._is_healthy = True
+                            self._trigger_recovery()
+                
+            except Exception as e:
+                logger.error(f"Health monitoring error: {e}")
+            
+            self._stop_event.wait(self.check_interval)
+    
+    def _collect_metric(self, last_metric: Optional[ShieldHealthMetric]) -> ShieldHealthMetric:
+        """Collect current health metric"""
+        packets = 0
+        errors = 0
+        cpu = 0.0
+        memory = 0
+        
+        if self.shield and self.shield.is_loaded:
+            stats = self.shield.get_stats()
+            packets = stats.get("packets_total", 0)
+            
+            # Calculate error rate from previous sample
+            if last_metric and packets > last_metric.packets_processed:
+                # Simplified - would need actual error tracking
+                errors = 0
+            
+            # Get CPU usage from /proc if available
+            try:
+                # This is a simplified approach
+                cpu = self._get_ebpf_cpu_usage()
+            except Exception:
+                pass
+        
+        # Determine health
+        is_healthy = True
+        if packets > 0 and last_metric:
+            packet_delta = packets - last_metric.packets_processed
+            if packet_delta > 0:
+                error_rate = errors / packet_delta
+                if error_rate > self.ERROR_RATE_CRITICAL:
+                    is_healthy = False
+        
+        if cpu > self.CPU_CRITICAL_PCT:
+            is_healthy = False
+        
+        return ShieldHealthMetric(
+            timestamp=time.time(),
+            packets_processed=packets,
+            errors=errors,
+            cpu_usage_pct=cpu,
+            memory_bytes=memory,
+            is_healthy=is_healthy
+        )
+    
+    def _get_ebpf_cpu_usage(self) -> float:
+        """Estimate eBPF CPU usage"""
+        # This would ideally read from /proc/softirqs or BPF stats
+        # Simplified implementation returns 0
+        return 0.0
+    
+    def _trigger_degradation(self, metric: ShieldHealthMetric) -> None:
+        """Trigger degradation callbacks"""
+        logger.warning("Shield degradation detected")
+        for callback in self._degradation_callbacks:
+            try:
+                callback(metric)
+            except Exception as e:
+                logger.error(f"Degradation callback error: {e}")
+    
+    def _trigger_recovery(self) -> None:
+        """Trigger recovery callbacks"""
+        logger.info("Shield health recovered")
+        for callback in self._recovery_callbacks:
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f"Recovery callback error: {e}")
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get current health status"""
+        with self._lock:
+            recent = list(self._history)[-10:]
+        
+        if not recent:
+            return {
+                "status": "unknown",
+                "is_healthy": False,
+                "message": "No health data"
+            }
+        
+        latest = recent[-1]
+        avg_cpu = sum(m.cpu_usage_pct for m in recent) / len(recent)
+        total_packets = recent[-1].packets_processed - recent[0].packets_processed
+        
+        return {
+            "status": "healthy" if self._is_healthy else "degraded",
+            "is_healthy": self._is_healthy,
+            "packets_processed": latest.packets_processed,
+            "avg_cpu_pct": round(avg_cpu, 2),
+            "packets_last_window": total_packets,
+            "samples_collected": len(self._history),
+            "last_check": latest.timestamp,
+        }
+    
+    def force_health_check(self) -> ShieldHealthMetric:
+        """Force immediate health check"""
+        return self._collect_metric(
+            list(self._history)[-1] if self._history else None
+        )
+
+
+# Singleton instance
+_shield_health_monitor: Optional[ShieldHealthMonitor] = None
+
+def get_shield_health_monitor() -> ShieldHealthMonitor:
+    """Get singleton ShieldHealthMonitor instance"""
+    global _shield_health_monitor
+    if _shield_health_monitor is None:
+        _shield_health_monitor = ShieldHealthMonitor()
+    return _shield_health_monitor
+
+
+class DynamicPersonaEngine:
+    """
+    V7.6 P0 CRITICAL: Dynamic persona switching based on target requirements.
+    
+    Automatically selects and applies the optimal persona based on
+    the target platform, expected fingerprint, and detection avoidance.
+    
+    Usage:
+        engine = get_dynamic_persona_engine()
+        
+        # Configure for target
+        engine.configure_for_target("stripe.com")
+        
+        # Get optimal persona
+        persona = engine.get_optimal_persona()
+        
+        # Apply to shield
+        engine.apply_to_shield(shield)
+    """
+    
+    # Target platform persona mappings
+    TARGET_PERSONAS: Dict[str, str] = {
+        # Financial platforms prefer Windows desktop
+        "stripe.com": "windows",
+        "paypal.com": "windows",
+        "onfido.com": "windows",
+        "jumio.com": "windows",
+        "veriff.com": "windows",
+        
+        # Tech platforms more diverse
+        "github.com": "macos",
+        "google.com": "windows",
+        "aws.amazon.com": "linux",
+        
+        # Social platforms
+        "facebook.com": "windows",
+        "twitter.com": "windows",
+        
+        # Default
+        "default": "windows",
+    }
+    
+    # Enhanced persona profiles
+    PERSONA_PROFILES: Dict[str, PersonaProfile] = {
+        "windows_10": PersonaProfile(
+            name="Windows 10 Desktop",
+            ttl=128,
+            tcp_window=65535,
+            tcp_mss=1460,
+            tcp_sack=True,
+            tcp_timestamps=False,
+            tcp_window_scale=8,
+            tcp_options_order="MSS,NOP,WScale,NOP,NOP,SACK",
+            ip_id_behavior="increment",
+            df_flag=True,
+        ),
+        "windows_11": PersonaProfile(
+            name="Windows 11 Desktop",
+            ttl=128,
+            tcp_window=64240,
+            tcp_mss=1460,
+            tcp_sack=True,
+            tcp_timestamps=False,
+            tcp_window_scale=8,
+            tcp_options_order="MSS,NOP,WScale,NOP,NOP,SACK",
+            ip_id_behavior="increment",
+            df_flag=True,
+        ),
+        "macos_monterey": PersonaProfile(
+            name="macOS Monterey",
+            ttl=64,
+            tcp_window=65535,
+            tcp_mss=1460,
+            tcp_sack=True,
+            tcp_timestamps=True,
+            tcp_window_scale=6,
+            tcp_options_order="MSS,NOP,WScale,NOP,NOP,TS,SACK",
+            ip_id_behavior="random",
+            df_flag=True,
+        ),
+        "linux_ubuntu": PersonaProfile(
+            name="Ubuntu Linux",
+            ttl=64,
+            tcp_window=29200,
+            tcp_mss=1460,
+            tcp_sack=True,
+            tcp_timestamps=True,
+            tcp_window_scale=7,
+            tcp_options_order="MSS,SACK,TS,NOP,WScale",
+            ip_id_behavior="zero",
+            df_flag=True,
+        ),
+        "android_12": PersonaProfile(
+            name="Android 12 Mobile",
+            ttl=64,
+            tcp_window=65535,
+            tcp_mss=1400,
+            tcp_sack=True,
+            tcp_timestamps=True,
+            tcp_window_scale=7,
+            tcp_options_order="MSS,SACK,TS,NOP,WScale",
+            ip_id_behavior="random",
+            df_flag=True,
+        ),
+    }
+    
+    def __init__(self):
+        self.current_target: Optional[str] = None
+        self.current_persona: Optional[PersonaProfile] = None
+        self._history: List[Tuple[str, str, float]] = []  # (target, persona, timestamp)
+        self._lock = threading.Lock()
+        logger.info("DynamicPersonaEngine initialized")
+    
+    def configure_for_target(self, target: str) -> PersonaProfile:
+        """
+        Configure optimal persona for a target.
+        
+        Args:
+            target: Target domain or platform
+            
+        Returns:
+            Selected PersonaProfile
+        """
+        with self._lock:
+            self.current_target = target
+            
+            # Find matching target
+            persona_key = self.TARGET_PERSONAS.get(target, "default")
+            if persona_key == "default":
+                # Try partial match
+                for domain, persona in self.TARGET_PERSONAS.items():
+                    if domain in target:
+                        persona_key = persona
+                        break
+            
+            # Map to full profile
+            if persona_key == "windows":
+                profile_key = "windows_11"
+            elif persona_key == "macos":
+                profile_key = "macos_monterey"
+            elif persona_key == "linux":
+                profile_key = "linux_ubuntu"
+            else:
+                profile_key = "windows_11"
+            
+            self.current_persona = self.PERSONA_PROFILES.get(
+                profile_key, 
+                self.PERSONA_PROFILES["windows_11"]
+            )
+            
+            self._history.append((target, profile_key, time.time()))
+            
+            logger.info(f"Persona configured for {target}: {self.current_persona.name}")
+            return self.current_persona
+    
+    def get_optimal_persona(self) -> Optional[PersonaProfile]:
+        """Get currently configured optimal persona"""
+        with self._lock:
+            return self.current_persona
+    
+    def apply_to_shield(self, shield: NetworkShield) -> bool:
+        """Apply current persona to shield"""
+        if not self.current_persona:
+            logger.warning("No persona configured")
+            return False
+        
+        # Map to basic persona for shield
+        if self.current_persona.ttl == 128:
+            basic_persona = "windows"
+        elif "macos" in self.current_persona.name.lower():
+            basic_persona = "macos"
+        else:
+            basic_persona = "linux"
+        
+        try:
+            shield.set_persona(basic_persona)
+            logger.info(f"Applied persona to shield: {basic_persona}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to apply persona: {e}")
+            return False
+    
+    def get_all_profiles(self) -> Dict[str, PersonaProfile]:
+        """Get all available persona profiles"""
+        return dict(self.PERSONA_PROFILES)
+    
+    def add_custom_profile(self, key: str, profile: PersonaProfile) -> None:
+        """Add a custom persona profile"""
+        self.PERSONA_PROFILES[key] = profile
+        logger.info(f"Added custom profile: {key}")
+    
+    def get_history(self) -> List[Dict]:
+        """Get persona selection history"""
+        with self._lock:
+            return [
+                {"target": t, "persona": p, "timestamp": ts}
+                for t, p, ts in self._history[-20:]
+            ]
+
+
+# Singleton instance
+_persona_engine: Optional[DynamicPersonaEngine] = None
+
+def get_dynamic_persona_engine() -> DynamicPersonaEngine:
+    """Get singleton DynamicPersonaEngine instance"""
+    global _persona_engine
+    if _persona_engine is None:
+        _persona_engine = DynamicPersonaEngine()
+    return _persona_engine
+
+
+class ShieldSignatureOptimizer:
+    """
+    V7.6 P0 CRITICAL: Optimize TCP/IP signatures for specific targets.
+    
+    Fine-tunes network fingerprint parameters based on observed
+    target behavior and detection patterns.
+    
+    Usage:
+        optimizer = get_shield_signature_optimizer()
+        
+        # Optimize for target
+        optimization = optimizer.optimize_for_target("stripe.com")
+        
+        # Apply optimization
+        optimizer.apply_optimization(shield, optimization)
+    """
+    
+    # Known target fingerprint preferences
+    TARGET_PREFERENCES: Dict[str, Dict[str, Any]] = {
+        "stripe.com": {
+            "preferred_ttl": 128,
+            "preferred_window": 65535,
+            "timestamps_expected": False,
+            "notes": "Stripe fraud detection prefers Windows desktop signatures",
+        },
+        "paypal.com": {
+            "preferred_ttl": 128,
+            "preferred_window": 65535,
+            "timestamps_expected": False,
+            "notes": "PayPal has strict fingerprint validation",
+        },
+        "onfido.com": {
+            "preferred_ttl": 128,
+            "preferred_window": 64240,
+            "timestamps_expected": False,
+            "notes": "Onfido KYC requires consistent desktop fingerprint",
+        },
+    }
+    
+    def __init__(self):
+        self.optimizations: List[SignatureOptimization] = []
+        self._lock = threading.Lock()
+        logger.info("ShieldSignatureOptimizer initialized")
+    
+    def optimize_for_target(self, target: str, 
+                           base_persona: str = "windows") -> SignatureOptimization:
+        """
+        Generate optimized signature for target.
+        
+        Args:
+            target: Target domain
+            base_persona: Base persona to optimize from
+            
+        Returns:
+            SignatureOptimization with recommended parameters
+        """
+        prefs = self.TARGET_PREFERENCES.get(target, {})
+        
+        optimized_params = {
+            "ttl": prefs.get("preferred_ttl", 128),
+            "tcp_window": prefs.get("preferred_window", 65535),
+            "tcp_timestamps": prefs.get("timestamps_expected", False),
+            "tcp_mss": 1460,
+            "tcp_sack": True,
+        }
+        
+        # Calculate confidence based on target knowledge
+        confidence = 0.9 if target in self.TARGET_PREFERENCES else 0.6
+        
+        optimization = SignatureOptimization(
+            original_persona=base_persona,
+            optimized_params=optimized_params,
+            target_matched=target,
+            confidence_score=confidence,
+            applied=False
+        )
+        
+        with self._lock:
+            self.optimizations.append(optimization)
+        
+        logger.info(f"Generated optimization for {target}, confidence={confidence}")
+        return optimization
+    
+    def apply_optimization(self, shield: NetworkShield,
+                           optimization: SignatureOptimization) -> bool:
+        """Apply signature optimization to shield"""
+        try:
+            # Update shield's signature map
+            if shield.is_loaded:
+                # Would use bpftool to update specific parameters
+                params = optimization.optimized_params
+                
+                # For now, apply via persona
+                if params.get("ttl") == 128:
+                    shield.set_persona("windows")
+                elif params.get("ttl") == 64:
+                    shield.set_persona("linux")
+                
+                optimization.applied = True
+                logger.info(f"Applied optimization for {optimization.target_matched}")
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Failed to apply optimization: {e}")
+            return False
+    
+    def get_optimization_history(self) -> List[Dict]:
+        """Get optimization history"""
+        with self._lock:
+            return [
+                {
+                    "target": o.target_matched,
+                    "confidence": o.confidence_score,
+                    "applied": o.applied,
+                }
+                for o in self.optimizations[-20:]
+            ]
+    
+    def add_target_preference(self, target: str, 
+                              preferences: Dict[str, Any]) -> None:
+        """Add custom target preference"""
+        self.TARGET_PREFERENCES[target] = preferences
+        logger.info(f"Added preference for {target}")
+
+
+# Singleton instance
+_signature_optimizer: Optional[ShieldSignatureOptimizer] = None
+
+def get_shield_signature_optimizer() -> ShieldSignatureOptimizer:
+    """Get singleton ShieldSignatureOptimizer instance"""
+    global _signature_optimizer
+    if _signature_optimizer is None:
+        _signature_optimizer = ShieldSignatureOptimizer()
+    return _signature_optimizer
+
+
+class MultiInterfaceShieldManager:
+    """
+    V7.6 P0 CRITICAL: Manage shields across multiple network interfaces.
+    
+    Coordinates shield deployment and configuration across multiple
+    network interfaces for complex network setups.
+    
+    Usage:
+        manager = get_multi_interface_shield_manager()
+        
+        # Register interfaces
+        manager.register_interface("eth0", "primary")
+        manager.register_interface("wlan0", "failover")
+        
+        # Deploy shields
+        manager.deploy_all_shields()
+    """
+    
+    def __init__(self):
+        self.interfaces: Dict[str, Dict] = {}
+        self.shields: Dict[str, NetworkShield] = {}
+        self._primary_interface: Optional[str] = None
+        self._lock = threading.Lock()
+        logger.info("MultiInterfaceShieldManager initialized")
+    
+    def register_interface(self, interface: str, role: str = "primary") -> None:
+        """
+        Register a network interface.
+        
+        Args:
+            interface: Interface name (e.g., "eth0")
+            role: Interface role ("primary", "failover", "monitoring")
+        """
+        with self._lock:
+            self.interfaces[interface] = {
+                "role": role,
+                "shield_deployed": False,
+                "persona": None,
+                "last_updated": None,
+            }
+            
+            if role == "primary":
+                self._primary_interface = interface
+        
+        logger.info(f"Registered interface: {interface} ({role})")
+    
+    def unregister_interface(self, interface: str) -> None:
+        """Unregister an interface"""
+        with self._lock:
+            if interface in self.shields:
+                self.shields[interface].unload()
+                del self.shields[interface]
+            if interface in self.interfaces:
+                del self.interfaces[interface]
+    
+    def deploy_shield(self, interface: str, mode: str = "xdp") -> bool:
+        """Deploy shield to specific interface"""
+        with self._lock:
+            if interface not in self.interfaces:
+                logger.error(f"Interface not registered: {interface}")
+                return False
+            
+            try:
+                shield = NetworkShield(interface=interface)
+                shield.load(mode=mode)
+                self.shields[interface] = shield
+                self.interfaces[interface]["shield_deployed"] = True
+                self.interfaces[interface]["last_updated"] = time.time()
+                
+                logger.info(f"Shield deployed on {interface}")
+                return True
+            except NetworkShieldError as e:
+                logger.error(f"Failed to deploy shield on {interface}: {e}")
+                return False
+    
+    def deploy_all_shields(self, mode: str = "xdp") -> Dict[str, bool]:
+        """Deploy shields to all registered interfaces"""
+        results = {}
+        for interface in list(self.interfaces.keys()):
+            results[interface] = self.deploy_shield(interface, mode)
+        return results
+    
+    def unload_all_shields(self) -> None:
+        """Unload shields from all interfaces"""
+        with self._lock:
+            for interface, shield in self.shields.items():
+                try:
+                    shield.unload()
+                    self.interfaces[interface]["shield_deployed"] = False
+                except Exception as e:
+                    logger.error(f"Error unloading shield from {interface}: {e}")
+            self.shields.clear()
+    
+    def set_persona_all(self, persona: str) -> Dict[str, bool]:
+        """Set persona on all deployed shields"""
+        results = {}
+        with self._lock:
+            for interface, shield in self.shields.items():
+                try:
+                    shield.set_persona(persona)
+                    self.interfaces[interface]["persona"] = persona
+                    results[interface] = True
+                except Exception as e:
+                    logger.error(f"Error setting persona on {interface}: {e}")
+                    results[interface] = False
+        return results
+    
+    def get_primary_shield(self) -> Optional[NetworkShield]:
+        """Get the primary interface shield"""
+        with self._lock:
+            if self._primary_interface and self._primary_interface in self.shields:
+                return self.shields[self._primary_interface]
+            return None
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get manager status"""
+        with self._lock:
+            return {
+                "interface_count": len(self.interfaces),
+                "shields_deployed": len(self.shields),
+                "primary_interface": self._primary_interface,
+                "interfaces": {
+                    iface: {
+                        "role": info["role"],
+                        "shield_deployed": info["shield_deployed"],
+                        "persona": info["persona"],
+                    }
+                    for iface, info in self.interfaces.items()
+                }
+            }
+    
+    def failover_to_backup(self) -> bool:
+        """Failover from primary to backup interface"""
+        with self._lock:
+            # Find first failover interface
+            for interface, info in self.interfaces.items():
+                if info["role"] == "failover" and info["shield_deployed"]:
+                    self._primary_interface = interface
+                    logger.info(f"Failed over to {interface}")
+                    return True
+            
+            logger.warning("No failover interface available")
+            return False
+
+
+# Singleton instance
+_multi_interface_manager: Optional[MultiInterfaceShieldManager] = None
+
+def get_multi_interface_shield_manager() -> MultiInterfaceShieldManager:
+    """Get singleton MultiInterfaceShieldManager instance"""
+    global _multi_interface_manager
+    if _multi_interface_manager is None:
+        _multi_interface_manager = MultiInterfaceShieldManager()
+    return _multi_interface_manager

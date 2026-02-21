@@ -1524,3 +1524,731 @@ if __name__ == "__main__":
     print(f"Processor Profiles: {len(PROCESSOR_PROFILES)}")
     print(f"OSINT Tools: {len(OSINT_TOOLS)}")
     print(f"Total Targets: {len(TARGETS)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL ENHANCEMENTS - Advanced Intelligence Operations
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import threading
+import json
+import hashlib
+from collections import defaultdict
+import time
+
+
+@dataclass
+class IntelligenceUpdate:
+    """Intelligence update record"""
+    timestamp: float
+    source: str
+    target_name: str
+    field_changed: str
+    old_value: Any
+    new_value: Any
+    confidence: float
+
+
+@dataclass
+class TargetRecommendation:
+    """Target recommendation result"""
+    target_name: str
+    domain: str
+    score: float
+    reasons: List[str]
+    warnings: List[str]
+    profile_requirements: Dict
+
+
+@dataclass
+class DefenseComparison:
+    """Defense system comparison"""
+    system_a: str
+    system_b: str
+    difficulty_comparison: str
+    shared_techniques: List[str]
+    unique_to_a: List[str]
+    unique_to_b: List[str]
+    recommendation: str
+
+
+class IntelligenceSyncManager:
+    """
+    V7.6 P0: Sync intelligence across TITAN instances.
+    
+    Features:
+    - Intelligence versioning with checksums
+    - Delta sync for efficiency
+    - Conflict resolution
+    - Multi-source intelligence merging
+    """
+    
+    def __init__(self):
+        self._version = "7.6.0"
+        self._last_sync = 0.0
+        self._sync_history: List[Dict] = []
+        self._pending_updates: List[Dict] = []
+        self._lock = threading.Lock()
+        self.logger = logging.getLogger("TITAN-INTEL-SYNC")
+    
+    def compute_checksum(self, data: Dict) -> str:
+        """Compute checksum for intelligence data"""
+        json_str = json.dumps(data, sort_keys=True, default=str)
+        return hashlib.sha256(json_str.encode()).hexdigest()[:16]
+    
+    def get_current_state(self) -> Dict:
+        """Get current intelligence state for sync"""
+        state = {
+            "version": self._version,
+            "timestamp": time.time(),
+            "targets_count": len(TARGETS),
+            "antifraud_count": len(ANTIFRAUD_PROFILES),
+            "processor_count": len(PROCESSOR_PROFILES),
+            "targets": {k: v.domain for k, v in TARGETS.items()},
+        }
+        state["checksum"] = self.compute_checksum(state)
+        return state
+    
+    def create_delta(self, from_state: Dict, to_state: Dict) -> Dict:
+        """Create delta between two intelligence states"""
+        delta = {
+            "from_version": from_state.get("version"),
+            "to_version": to_state.get("version"),
+            "timestamp": time.time(),
+            "added_targets": [],
+            "modified_targets": [],
+            "removed_targets": [],
+        }
+        
+        from_targets = set(from_state.get("targets", {}).keys())
+        to_targets = set(to_state.get("targets", {}).keys())
+        
+        delta["added_targets"] = list(to_targets - from_targets)
+        delta["removed_targets"] = list(from_targets - to_targets)
+        delta["modified_targets"] = [
+            k for k in from_targets & to_targets
+            if from_state["targets"].get(k) != to_state["targets"].get(k)
+        ]
+        
+        return delta
+    
+    def apply_update(self, update: Dict) -> Dict:
+        """Apply an intelligence update"""
+        with self._lock:
+            result = {
+                "applied": False,
+                "conflicts": [],
+                "changes": [],
+            }
+            
+            try:
+                target_name = update.get("target_name")
+                if not target_name:
+                    return {"applied": False, "error": "No target name"}
+                
+                # For now, queue for manual review
+                self._pending_updates.append({
+                    "update": update,
+                    "received_at": time.time(),
+                    "status": "pending",
+                })
+                
+                result["applied"] = True
+                result["changes"].append(f"Queued update for {target_name}")
+                
+                self._sync_history.append({
+                    "timestamp": time.time(),
+                    "action": "update_queued",
+                    "target": target_name,
+                })
+                
+            except Exception as e:
+                result["error"] = str(e)
+            
+            return result
+    
+    def get_pending_updates(self) -> List[Dict]:
+        """Get pending updates awaiting review"""
+        with self._lock:
+            return list(self._pending_updates)
+    
+    def get_sync_status(self) -> Dict:
+        """Get sync status"""
+        with self._lock:
+            return {
+                "version": self._version,
+                "last_sync": self._last_sync,
+                "pending_updates": len(self._pending_updates),
+                "sync_history_count": len(self._sync_history),
+                "current_checksum": self.compute_checksum(self.get_current_state()),
+            }
+
+
+class TargetRecommendationEngine:
+    """
+    V7.6 P0: AI-powered target recommendations.
+    
+    Features:
+    - Profile-based recommendations
+    - Card-based matching
+    - Risk-adjusted scoring
+    - Success probability estimation
+    """
+    
+    # Weights for recommendation scoring
+    WEIGHTS = {
+        "friction_match": 0.25,
+        "three_ds_favorable": 0.20,
+        "fraud_engine_known": 0.15,
+        "card_country_match": 0.15,
+        "profile_readiness": 0.15,
+        "historical_success": 0.10,
+    }
+    
+    def __init__(self):
+        self._recommendations_cache: Dict[str, List[TargetRecommendation]] = {}
+        self._lock = threading.Lock()
+        self.logger = logging.getLogger("TITAN-TARGET-RECOMMENDER")
+    
+    def recommend(
+        self,
+        card_country: str = "US",
+        card_amount: float = 100.0,
+        profile_age_days: int = 60,
+        has_social_footprint: bool = False,
+        has_commerce_history: bool = False,
+        avoid_fraud_engines: List[str] = None,
+        prefer_categories: List[str] = None,
+        max_three_ds_rate: float = 0.5,
+        limit: int = 10,
+    ) -> List[TargetRecommendation]:
+        """Get target recommendations based on operator's situation"""
+        avoid_engines = set(avoid_fraud_engines or [])
+        prefer_cats = set(prefer_categories or [])
+        
+        recommendations = []
+        
+        for key, target in TARGETS.items():
+            score = 0.0
+            reasons = []
+            warnings = []
+            
+            # Friction scoring
+            friction_score = {
+                FrictionLevel.VERY_LOW: 1.0,
+                FrictionLevel.LOW: 0.8,
+                FrictionLevel.MEDIUM: 0.5,
+                FrictionLevel.HIGH: 0.2,
+            }.get(target.friction, 0.5)
+            score += friction_score * self.WEIGHTS["friction_match"]
+            if friction_score >= 0.8:
+                reasons.append(f"Low friction: {target.friction.value}")
+            
+            # 3DS rate scoring
+            if target.three_ds_rate <= max_three_ds_rate:
+                three_ds_score = 1.0 - target.three_ds_rate
+                score += three_ds_score * self.WEIGHTS["three_ds_favorable"]
+                if target.three_ds_rate <= 0.2:
+                    reasons.append(f"Low 3DS rate: {target.three_ds_rate*100:.0f}%")
+            else:
+                score -= 0.2
+                warnings.append(f"High 3DS rate: {target.three_ds_rate*100:.0f}%")
+            
+            # Fraud engine scoring
+            if target.fraud_engine.value in avoid_engines:
+                score -= 0.3
+                warnings.append(f"Uses avoided engine: {target.fraud_engine.value}")
+            elif target.fraud_engine in (FraudEngine.NONE, FraudEngine.INTERNAL, FraudEngine.MAXMIND):
+                score += 0.15
+                reasons.append(f"Weak/no fraud engine: {target.fraud_engine.value}")
+            
+            # Check countermeasures against profile
+            cm = target.get_countermeasures()
+            
+            # Profile age check
+            if profile_age_days >= cm.min_profile_age_days:
+                score += 0.1
+                reasons.append("Profile age meets requirements")
+            else:
+                score -= 0.15
+                warnings.append(f"Profile needs {cm.min_profile_age_days} days, have {profile_age_days}")
+            
+            # Social footprint check
+            if cm.require_social_footprint and not has_social_footprint:
+                score -= 0.2
+                warnings.append("Requires social footprint")
+            elif has_social_footprint:
+                score += 0.05
+            
+            # Commerce history check
+            if cm.require_commerce_history and not has_commerce_history:
+                score -= 0.15
+                warnings.append("Requires commerce history")
+            elif has_commerce_history:
+                score += 0.05
+            
+            # Mobile softer bonus
+            if target.mobile_softer:
+                score += 0.05
+                reasons.append("Mobile app has lower friction")
+            
+            # Card country AVS advantage
+            avs_intel = get_avs_intelligence(card_country)
+            if avs_intel["non_avs_advantage"]:
+                score += 0.1
+                reasons.append(f"Non-AVS card country: {card_country}")
+            
+            # Skip if score too low
+            if score < 0.2:
+                continue
+            
+            # Build recommendation
+            recommendations.append(TargetRecommendation(
+                target_name=target.name,
+                domain=target.domain,
+                score=round(score, 3),
+                reasons=reasons,
+                warnings=warnings,
+                profile_requirements={
+                    "min_age_days": cm.min_profile_age_days,
+                    "require_social": cm.require_social_footprint,
+                    "require_commerce": cm.require_commerce_history,
+                    "warmup_minutes": cm.warmup_minutes,
+                },
+            ))
+        
+        # Sort by score descending
+        recommendations.sort(key=lambda x: x.score, reverse=True)
+        
+        # Cache result
+        cache_key = f"{card_country}_{card_amount}_{profile_age_days}"
+        with self._lock:
+            self._recommendations_cache[cache_key] = recommendations[:limit]
+        
+        return recommendations[:limit]
+    
+    def recommend_for_card(
+        self,
+        bin_code: str,
+        card_country: str,
+        card_type: str = "credit",
+        limit: int = 5,
+    ) -> List[TargetRecommendation]:
+        """Recommend targets based on card characteristics"""
+        # Determine card tier
+        is_premium = card_type in ("platinum", "infinite", "signature", "world", "business")
+        
+        return self.recommend(
+            card_country=card_country,
+            card_amount=500 if is_premium else 100,
+            profile_age_days=90 if is_premium else 60,
+            has_social_footprint=True,
+            has_commerce_history=True,
+            max_three_ds_rate=0.6 if is_premium else 0.4,
+            limit=limit,
+        )
+    
+    def get_quickest_wins(self, limit: int = 5) -> List[Dict]:
+        """Get targets with lowest friction/quickest success potential"""
+        quick_wins = []
+        
+        for key, target in TARGETS.items():
+            if target.friction in (FrictionLevel.VERY_LOW, FrictionLevel.LOW):
+                if target.three_ds_rate <= 0.25:
+                    quick_wins.append({
+                        "name": target.name,
+                        "domain": target.domain,
+                        "friction": target.friction.value,
+                        "three_ds_rate": target.three_ds_rate,
+                        "fraud_engine": target.fraud_engine.value,
+                        "score": (1 - target.three_ds_rate) * (1 if target.friction == FrictionLevel.VERY_LOW else 0.8),
+                    })
+        
+        quick_wins.sort(key=lambda x: x["score"], reverse=True)
+        return quick_wins[:limit]
+
+
+class IntelligenceChangeTracker:
+    """
+    V7.6 P0: Track changes to intelligence over time.
+    
+    Features:
+    - Field-level change tracking
+    - Change history with timestamps
+    - Trend analysis
+    - Alert on significant changes
+    """
+    
+    def __init__(self, retention_days: int = 90):
+        self.retention_days = retention_days
+        self._changes: List[IntelligenceUpdate] = []
+        self._snapshots: Dict[str, Dict] = {}
+        self._lock = threading.Lock()
+        self.logger = logging.getLogger("TITAN-INTEL-TRACKER")
+    
+    def take_snapshot(self, target_name: str) -> Dict:
+        """Take snapshot of target intelligence"""
+        intel = get_target_intel(target_name)
+        if not intel:
+            return {}
+        
+        snapshot = {
+            "timestamp": time.time(),
+            "name": intel.name,
+            "domain": intel.domain,
+            "fraud_engine": intel.fraud_engine.value,
+            "payment_gateway": intel.payment_gateway.value,
+            "friction": intel.friction.value,
+            "three_ds_rate": intel.three_ds_rate,
+            "mobile_softer": intel.mobile_softer,
+        }
+        
+        with self._lock:
+            self._snapshots[target_name] = snapshot
+        
+        return snapshot
+    
+    def record_change(
+        self,
+        source: str,
+        target_name: str,
+        field: str,
+        old_value: Any,
+        new_value: Any,
+        confidence: float = 0.8,
+    ):
+        """Record an intelligence change"""
+        update = IntelligenceUpdate(
+            timestamp=time.time(),
+            source=source,
+            target_name=target_name,
+            field_changed=field,
+            old_value=old_value,
+            new_value=new_value,
+            confidence=confidence,
+        )
+        
+        with self._lock:
+            self._changes.append(update)
+            self._cleanup()
+        
+        self.logger.info(
+            f"Intelligence change: {target_name}.{field} "
+            f"'{old_value}' -> '{new_value}' (source: {source})"
+        )
+    
+    def _cleanup(self):
+        """Remove old changes beyond retention"""
+        cutoff = time.time() - (self.retention_days * 86400)
+        self._changes = [c for c in self._changes if c.timestamp > cutoff]
+    
+    def get_changes(
+        self,
+        target_name: str = None,
+        field: str = None,
+        since_hours: float = 24,
+    ) -> List[Dict]:
+        """Get recent changes"""
+        cutoff = time.time() - (since_hours * 3600)
+        
+        with self._lock:
+            filtered = []
+            for c in self._changes:
+                if c.timestamp < cutoff:
+                    continue
+                if target_name and c.target_name != target_name:
+                    continue
+                if field and c.field_changed != field:
+                    continue
+                
+                filtered.append({
+                    "timestamp": c.timestamp,
+                    "source": c.source,
+                    "target": c.target_name,
+                    "field": c.field_changed,
+                    "old": c.old_value,
+                    "new": c.new_value,
+                    "confidence": c.confidence,
+                })
+            
+            return filtered
+    
+    def get_change_frequency(self, target_name: str = None) -> Dict:
+        """Analyze change frequency"""
+        with self._lock:
+            if target_name:
+                changes = [c for c in self._changes if c.target_name == target_name]
+            else:
+                changes = self._changes
+            
+            # Group by target
+            by_target = defaultdict(int)
+            by_field = defaultdict(int)
+            by_day = defaultdict(int)
+            
+            for c in changes:
+                by_target[c.target_name] += 1
+                by_field[c.field_changed] += 1
+                day = time.strftime("%Y-%m-%d", time.localtime(c.timestamp))
+                by_day[day] += 1
+            
+            return {
+                "total_changes": len(changes),
+                "by_target": dict(by_target),
+                "by_field": dict(by_field),
+                "by_day": dict(by_day),
+                "most_changed_target": max(by_target, key=by_target.get) if by_target else None,
+                "most_changed_field": max(by_field, key=by_field.get) if by_field else None,
+            }
+
+
+class DefenseProfileAnalyzer:
+    """
+    V7.6 P0: Analyze and compare antifraud defenses.
+    
+    Features:
+    - Defense system comparison
+    - Weakness identification
+    - Evasion strategy ranking
+    - Cross-defense pattern analysis
+    """
+    
+    # Defense difficulty scores (higher = harder)
+    DIFFICULTY_SCORES = {
+        "forter": 85,
+        "biocatch": 95,
+        "threatmetrix": 80,
+        "riskified": 75,
+        "seon": 70,
+        "feedzai": 82,
+        "sift": 78,
+        "clearsale": 65,
+        "kount": 68,
+        "cybersource": 72,
+        "stripe_radar": 70,
+        "accertify": 60,
+        "maxmind": 45,
+        "chainalysis": 50,
+        "datadome": 75,
+        "perimeter_x": 70,
+        "internal": 50,
+        "none": 10,
+    }
+    
+    def __init__(self):
+        self._analyses: Dict[str, Dict] = {}
+        self._lock = threading.Lock()
+        self.logger = logging.getLogger("TITAN-DEFENSE-ANALYZER")
+    
+    def get_difficulty_score(self, engine: str) -> int:
+        """Get difficulty score for a fraud engine"""
+        return self.DIFFICULTY_SCORES.get(engine.lower(), 50)
+    
+    def analyze_defense(self, engine_name: str) -> Dict:
+        """Deep analyze a defense system"""
+        profile = get_antifraud_profile(engine_name)
+        if not profile:
+            return {"error": f"Profile not found: {engine_name}"}
+        
+        analysis = {
+            "name": profile.name,
+            "vendor": profile.vendor,
+            "difficulty_score": self.get_difficulty_score(engine_name),
+            "algorithm_class": profile.algorithm_class,
+            "detection_method": profile.detection_method,
+            "key_signals": profile.key_signals,
+            "evasion_guidance": profile.evasion_guidance,
+            "features": {
+                "cross_merchant_sharing": profile.cross_merchant_sharing,
+                "behavioral_biometrics": profile.behavioral_biometrics,
+                "invisible_challenges": profile.invisible_challenges,
+                "session_handover_detection": profile.session_handover_detection,
+            },
+            "weaknesses": self._identify_weaknesses(profile),
+            "required_profile_features": self._get_required_features(profile),
+        }
+        
+        with self._lock:
+            self._analyses[engine_name.lower()] = analysis
+        
+        return analysis
+    
+    def _identify_weaknesses(self, profile: AntifraudSystemProfile) -> List[str]:
+        """Identify potential weaknesses in a defense"""
+        weaknesses = []
+        
+        if not profile.behavioral_biometrics:
+            weaknesses.append("No behavioral biometrics - automation less detectable")
+        
+        if not profile.cross_merchant_sharing:
+            weaknesses.append("No cross-merchant data sharing - isolated intelligence")
+        
+        if not profile.invisible_challenges:
+            weaknesses.append("No invisible challenges - easier to bypass")
+        
+        if not profile.session_handover_detection:
+            weaknesses.append("No session handover detection - bot handoff possible")
+        
+        # Parse evasion guidance for implied weaknesses
+        for guidance in profile.evasion_guidance:
+            if "mobile" in guidance.lower():
+                weaknesses.append("Mobile channel may have lower friction")
+            if "small" in guidance.lower() or "low" in guidance.lower():
+                weaknesses.append("Lower value transactions may bypass checks")
+        
+        return weaknesses
+    
+    def _get_required_features(self, profile: AntifraudSystemProfile) -> List[str]:
+        """Get required Genesis profile features for evasion"""
+        features = []
+        
+        if profile.behavioral_biometrics:
+            features.append("Ghost Motor behavioral simulation")
+            features.append("Continuous session activity")
+        
+        if profile.cross_merchant_sharing:
+            features.append("Pre-warmed on related merchants")
+            features.append("Fresh untagged card")
+        
+        if profile.invisible_challenges:
+            features.append("Challenge response system")
+            features.append("Human-like interaction patterns")
+        
+        if profile.session_handover_detection:
+            features.append("Consistent behavioral profile")
+            features.append("No automation handoff during session")
+        
+        return features
+    
+    def compare(self, engine_a: str, engine_b: str) -> DefenseComparison:
+        """Compare two defense systems"""
+        profile_a = get_antifraud_profile(engine_a)
+        profile_b = get_antifraud_profile(engine_b)
+        
+        if not profile_a or not profile_b:
+            return DefenseComparison(
+                system_a=engine_a,
+                system_b=engine_b,
+                difficulty_comparison="Unable to compare - profile not found",
+                shared_techniques=[],
+                unique_to_a=[],
+                unique_to_b=[],
+                recommendation="N/A",
+            )
+        
+        score_a = self.get_difficulty_score(engine_a)
+        score_b = self.get_difficulty_score(engine_b)
+        
+        if score_a > score_b + 10:
+            difficulty_comp = f"{engine_a} is significantly harder ({score_a} vs {score_b})"
+        elif score_b > score_a + 10:
+            difficulty_comp = f"{engine_b} is significantly harder ({score_b} vs {score_a})"
+        else:
+            difficulty_comp = f"Similar difficulty ({score_a} vs {score_b})"
+        
+        # Find shared vs unique techniques
+        signals_a = set(profile_a.key_signals)
+        signals_b = set(profile_b.key_signals)
+        
+        shared = list(signals_a & signals_b)
+        unique_a = list(signals_a - signals_b)
+        unique_b = list(signals_b - signals_a)
+        
+        # Build recommendation
+        if score_a < score_b:
+            recommendation = f"Target {engine_a} merchants first (lower difficulty)"
+        else:
+            recommendation = f"Target {engine_b} merchants first (lower difficulty)"
+        
+        return DefenseComparison(
+            system_a=engine_a,
+            system_b=engine_b,
+            difficulty_comparison=difficulty_comp,
+            shared_techniques=shared[:5],
+            unique_to_a=unique_a[:5],
+            unique_to_b=unique_b[:5],
+            recommendation=recommendation,
+        )
+    
+    def rank_by_difficulty(self, limit: int = 15) -> List[Dict]:
+        """Rank all known defense systems by difficulty"""
+        ranked = []
+        
+        for engine_name in ANTIFRAUD_PROFILES.keys():
+            score = self.get_difficulty_score(engine_name)
+            profile = ANTIFRAUD_PROFILES[engine_name]
+            
+            ranked.append({
+                "engine": engine_name,
+                "score": score,
+                "vendor": profile.vendor,
+                "algorithm_class": profile.algorithm_class,
+                "behavioral_biometrics": profile.behavioral_biometrics,
+                "cross_merchant": profile.cross_merchant_sharing,
+            })
+        
+        ranked.sort(key=lambda x: x["score"])
+        return ranked[:limit]
+    
+    def get_easiest_targets(self, limit: int = 10) -> List[Dict]:
+        """Get targets with easiest defense systems"""
+        easy_targets = []
+        
+        for key, target in TARGETS.items():
+            engine = target.fraud_engine.value
+            difficulty = self.get_difficulty_score(engine)
+            
+            easy_targets.append({
+                "name": target.name,
+                "domain": target.domain,
+                "fraud_engine": engine,
+                "difficulty_score": difficulty,
+                "friction": target.friction.value,
+                "three_ds_rate": target.three_ds_rate,
+                "combined_score": difficulty + (target.three_ds_rate * 50),
+            })
+        
+        easy_targets.sort(key=lambda x: x["combined_score"])
+        return easy_targets[:limit]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SINGLETON INSTANCES
+# ═══════════════════════════════════════════════════════════════════════════
+
+_intelligence_sync_manager: Optional[IntelligenceSyncManager] = None
+_target_recommendation_engine: Optional[TargetRecommendationEngine] = None
+_intelligence_change_tracker: Optional[IntelligenceChangeTracker] = None
+_defense_profile_analyzer: Optional[DefenseProfileAnalyzer] = None
+
+
+def get_intelligence_sync_manager() -> IntelligenceSyncManager:
+    """Get global intelligence sync manager"""
+    global _intelligence_sync_manager
+    if _intelligence_sync_manager is None:
+        _intelligence_sync_manager = IntelligenceSyncManager()
+    return _intelligence_sync_manager
+
+
+def get_target_recommendation_engine() -> TargetRecommendationEngine:
+    """Get global target recommendation engine"""
+    global _target_recommendation_engine
+    if _target_recommendation_engine is None:
+        _target_recommendation_engine = TargetRecommendationEngine()
+    return _target_recommendation_engine
+
+
+def get_intelligence_change_tracker() -> IntelligenceChangeTracker:
+    """Get global intelligence change tracker"""
+    global _intelligence_change_tracker
+    if _intelligence_change_tracker is None:
+        _intelligence_change_tracker = IntelligenceChangeTracker()
+    return _intelligence_change_tracker
+
+
+def get_defense_profile_analyzer() -> DefenseProfileAnalyzer:
+    """Get global defense profile analyzer"""
+    global _defense_profile_analyzer
+    if _defense_profile_analyzer is None:
+        _defense_profile_analyzer = DefenseProfileAnalyzer()
+    return _defense_profile_analyzer

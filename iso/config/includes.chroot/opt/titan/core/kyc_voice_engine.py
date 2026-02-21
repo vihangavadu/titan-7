@@ -657,3 +657,825 @@ class KYCVoiceEngine:
             {"id": "gb_female", "name": "British Female", "gender": "female", "accent": "gb"},
             {"id": "au_male", "name": "Australian Male", "gender": "male", "accent": "au"},
         ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 VOICE CLONE ENGINE — Clone voices from reference audio samples
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import hashlib
+from collections import defaultdict
+
+
+@dataclass
+class VoiceClone:
+    """A cloned voice profile."""
+    clone_id: str
+    name: str
+    reference_audio: str
+    duration_seconds: float
+    quality_score: float
+    language: str
+    gender: VoiceGender
+    created_at: float
+    sample_count: int
+
+
+class VoiceCloneEngine:
+    """
+    V7.6 Voice Clone Engine - Clones voices from reference audio
+    samples for highly realistic TTS.
+    """
+    
+    CLONES_DIR = Path("/opt/titan/data/voice_clones")
+    MIN_SAMPLE_DURATION = 5.0  # Minimum 5 seconds of reference audio
+    
+    def __init__(self):
+        self._clones: Dict[str, VoiceClone] = {}
+        self._load_clones()
+    
+    def _load_clones(self):
+        """Load saved voice clones."""
+        if not self.CLONES_DIR.exists():
+            return
+        
+        index_file = self.CLONES_DIR / "clones.json"
+        if index_file.exists():
+            try:
+                data = json.loads(index_file.read_text())
+                for clone_data in data.get("clones", []):
+                    clone = VoiceClone(
+                        clone_id=clone_data["clone_id"],
+                        name=clone_data["name"],
+                        reference_audio=clone_data["reference_audio"],
+                        duration_seconds=clone_data["duration_seconds"],
+                        quality_score=clone_data["quality_score"],
+                        language=clone_data["language"],
+                        gender=VoiceGender(clone_data["gender"]),
+                        created_at=clone_data["created_at"],
+                        sample_count=clone_data.get("sample_count", 1)
+                    )
+                    self._clones[clone.clone_id] = clone
+            except Exception as e:
+                logger.warning(f"Could not load voice clones: {e}")
+    
+    def _save_clones(self):
+        """Save voice clones index."""
+        self.CLONES_DIR.mkdir(parents=True, exist_ok=True)
+        index_file = self.CLONES_DIR / "clones.json"
+        
+        data = {
+            "clones": [
+                {
+                    "clone_id": c.clone_id,
+                    "name": c.name,
+                    "reference_audio": c.reference_audio,
+                    "duration_seconds": c.duration_seconds,
+                    "quality_score": c.quality_score,
+                    "language": c.language,
+                    "gender": c.gender.value,
+                    "created_at": c.created_at,
+                    "sample_count": c.sample_count
+                }
+                for c in self._clones.values()
+            ]
+        }
+        index_file.write_text(json.dumps(data, indent=2))
+    
+    def _get_audio_duration(self, audio_path: str) -> float:
+        """Get audio duration in seconds."""
+        try:
+            result = subprocess.run([
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                audio_path
+            ], capture_output=True, text=True, timeout=5)
+            return float(result.stdout.strip())
+        except Exception:
+            return 0
+    
+    def create_clone(self, name: str, reference_audio: str,
+                    language: str = "en",
+                    gender: VoiceGender = VoiceGender.MALE) -> Optional[VoiceClone]:
+        """
+        Create a voice clone from reference audio.
+        
+        Args:
+            name: Human-readable name for the clone
+            reference_audio: Path to reference audio file
+            language: Language code
+            gender: Voice gender
+        
+        Returns:
+            Created VoiceClone or None on failure
+        """
+        if not os.path.exists(reference_audio):
+            logger.error(f"Reference audio not found: {reference_audio}")
+            return None
+        
+        duration = self._get_audio_duration(reference_audio)
+        if duration < self.MIN_SAMPLE_DURATION:
+            logger.warning(f"Reference audio too short ({duration}s), need at least {self.MIN_SAMPLE_DURATION}s")
+        
+        # Generate clone ID
+        clone_id = hashlib.md5(
+            f"{name}{reference_audio}{time.time()}".encode()
+        ).hexdigest()[:12]
+        
+        # Copy reference audio to clones directory
+        self.CLONES_DIR.mkdir(parents=True, exist_ok=True)
+        dest_audio = self.CLONES_DIR / f"{clone_id}.wav"
+        
+        # Convert to WAV 22050 Hz mono
+        try:
+            subprocess.run([
+                "ffmpeg", "-y", "-i", reference_audio,
+                "-ar", "22050", "-ac", "1",
+                str(dest_audio)
+            ], capture_output=True, timeout=30)
+        except Exception as e:
+            logger.error(f"Could not process reference audio: {e}")
+            return None
+        
+        # Analyze audio quality
+        quality_score = self._analyze_quality(str(dest_audio))
+        
+        clone = VoiceClone(
+            clone_id=clone_id,
+            name=name,
+            reference_audio=str(dest_audio),
+            duration_seconds=duration,
+            quality_score=quality_score,
+            language=language,
+            gender=gender,
+            created_at=time.time(),
+            sample_count=1
+        )
+        
+        self._clones[clone_id] = clone
+        self._save_clones()
+        
+        logger.info(f"Voice clone created: {name} (quality: {quality_score:.2f})")
+        return clone
+    
+    def _analyze_quality(self, audio_path: str) -> float:
+        """Analyze audio quality for voice cloning."""
+        # Basic quality score based on duration and file size
+        duration = self._get_audio_duration(audio_path)
+        file_size = os.path.getsize(audio_path) if os.path.exists(audio_path) else 0
+        
+        # Score factors
+        duration_score = min(duration / 30.0, 1.0)  # Max at 30 seconds
+        size_score = min(file_size / (100 * 1024), 1.0)  # Expect ~100KB for 10s
+        
+        return (duration_score * 0.6 + size_score * 0.4)
+    
+    def add_sample(self, clone_id: str, additional_audio: str) -> bool:
+        """Add additional sample to improve clone quality."""
+        clone = self._clones.get(clone_id)
+        if not clone:
+            return False
+        
+        # Merge additional audio with existing reference
+        # For simplicity, just concatenate
+        merged_path = self.CLONES_DIR / f"{clone_id}_merged.wav"
+        
+        try:
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", clone.reference_audio,
+                "-i", additional_audio,
+                "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1",
+                str(merged_path)
+            ], capture_output=True, timeout=30)
+            
+            if merged_path.exists():
+                os.replace(str(merged_path), clone.reference_audio)
+                clone.sample_count += 1
+                clone.duration_seconds = self._get_audio_duration(clone.reference_audio)
+                clone.quality_score = self._analyze_quality(clone.reference_audio)
+                self._save_clones()
+                return True
+        except Exception as e:
+            logger.warning(f"Could not add sample: {e}")
+        
+        return False
+    
+    def get_clone(self, clone_id: str) -> Optional[VoiceClone]:
+        """Get a voice clone by ID."""
+        return self._clones.get(clone_id)
+    
+    def list_clones(self) -> List[Dict]:
+        """List all voice clones."""
+        return [
+            {
+                "id": c.clone_id,
+                "name": c.name,
+                "duration": c.duration_seconds,
+                "quality": round(c.quality_score, 2),
+                "language": c.language,
+                "gender": c.gender.value,
+                "samples": c.sample_count
+            }
+            for c in self._clones.values()
+        ]
+    
+    def delete_clone(self, clone_id: str) -> bool:
+        """Delete a voice clone."""
+        clone = self._clones.pop(clone_id, None)
+        if clone:
+            try:
+                if os.path.exists(clone.reference_audio):
+                    os.remove(clone.reference_audio)
+            except Exception:
+                pass
+            self._save_clones()
+            return True
+        return False
+    
+    def get_voice_profile(self, clone_id: str) -> Optional[VoiceProfile]:
+        """Get VoiceProfile for a clone to use with KYCVoiceEngine."""
+        clone = self._clones.get(clone_id)
+        if not clone:
+            return None
+        
+        return VoiceProfile(
+            gender=clone.gender,
+            language=clone.language,
+            reference_audio=clone.reference_audio
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 SPEECH QUALITY ANALYZER — Analyze speech quality and naturalness
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class QualityMetrics:
+    """Speech quality metrics."""
+    overall_score: float
+    clarity_score: float
+    naturalness_score: float
+    pacing_score: float
+    volume_score: float
+    issues: List[str]
+
+
+class SpeechQualityAnalyzer:
+    """
+    V7.6 Speech Quality Analyzer - Analyzes generated speech
+    for quality and naturalness.
+    """
+    
+    # Target metrics for natural speech
+    TARGET_METRICS = {
+        "duration_per_word": (0.3, 0.6),  # seconds
+        "silence_ratio": (0.1, 0.3),       # pause time ratio
+        "volume_variance": (0.1, 0.4),     # volume consistency
+        "sample_rate": 22050,
+    }
+    
+    def __init__(self):
+        self._analysis_cache: Dict[str, QualityMetrics] = {}
+    
+    def analyze(self, audio_path: str, text: str) -> QualityMetrics:
+        """
+        Analyze speech quality.
+        
+        Args:
+            audio_path: Path to speech audio file
+            text: Original text that was spoken
+        
+        Returns:
+            QualityMetrics with scores and issues
+        """
+        issues = []
+        scores = {}
+        
+        # Get audio info
+        duration = self._get_duration(audio_path)
+        word_count = len(text.split())
+        
+        # Analyze pacing
+        if word_count > 0:
+            pace = duration / word_count
+            min_pace, max_pace = self.TARGET_METRICS["duration_per_word"]
+            
+            if pace < min_pace:
+                issues.append("Speech too fast")
+                scores["pacing"] = max(0, 1 - (min_pace - pace) * 2)
+            elif pace > max_pace:
+                issues.append("Speech too slow")
+                scores["pacing"] = max(0, 1 - (pace - max_pace) * 2)
+            else:
+                scores["pacing"] = 1.0
+        else:
+            scores["pacing"] = 0.5
+        
+        # Analyze volume (using ffmpeg loudnorm stats)
+        volume_info = self._analyze_volume(audio_path)
+        if volume_info:
+            input_i = volume_info.get("input_i", -20)
+            if input_i < -30:
+                issues.append("Volume too low")
+                scores["volume"] = 0.5
+            elif input_i > -10:
+                issues.append("Volume too high")
+                scores["volume"] = 0.7
+            else:
+                scores["volume"] = 1.0
+        else:
+            scores["volume"] = 0.7
+        
+        # Clarity score (based on no obvious issues)
+        clarity_issues = [i for i in issues if "Volume" not in i]
+        scores["clarity"] = 1.0 - len(clarity_issues) * 0.2
+        
+        # Naturalness (harder to measure without ML)
+        scores["naturalness"] = min(
+            scores.get("pacing", 0.5),
+            scores.get("volume", 0.5)
+        )
+        
+        # Overall score
+        overall = (
+            scores.get("clarity", 0.5) * 0.3 +
+            scores.get("naturalness", 0.5) * 0.3 +
+            scores.get("pacing", 0.5) * 0.25 +
+            scores.get("volume", 0.5) * 0.15
+        )
+        
+        metrics = QualityMetrics(
+            overall_score=round(overall, 2),
+            clarity_score=round(scores.get("clarity", 0.5), 2),
+            naturalness_score=round(scores.get("naturalness", 0.5), 2),
+            pacing_score=round(scores.get("pacing", 0.5), 2),
+            volume_score=round(scores.get("volume", 0.5), 2),
+            issues=issues
+        )
+        
+        self._analysis_cache[audio_path] = metrics
+        return metrics
+    
+    def _get_duration(self, audio_path: str) -> float:
+        """Get audio duration."""
+        try:
+            result = subprocess.run([
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                audio_path
+            ], capture_output=True, text=True, timeout=5)
+            return float(result.stdout.strip())
+        except Exception:
+            return 0
+    
+    def _analyze_volume(self, audio_path: str) -> Optional[Dict]:
+        """Analyze volume using ffmpeg loudnorm."""
+        try:
+            result = subprocess.run([
+                "ffmpeg", "-i", audio_path,
+                "-af", "loudnorm=I=-16:print_format=json",
+                "-f", "null", "-"
+            ], capture_output=True, text=True, timeout=10)
+            
+            # Parse loudnorm output
+            output = result.stderr
+            json_match = output[output.rfind("{"):output.rfind("}") + 1]
+            if json_match:
+                return json.loads(json_match)
+        except Exception:
+            pass
+        return None
+    
+    def suggest_improvements(self, metrics: QualityMetrics) -> List[str]:
+        """Suggest improvements based on quality analysis."""
+        suggestions = []
+        
+        if metrics.pacing_score < 0.7:
+            if "too fast" in str(metrics.issues):
+                suggestions.append("Decrease speech speed to 0.85x")
+            else:
+                suggestions.append("Increase speech speed to 1.15x")
+        
+        if metrics.volume_score < 0.7:
+            suggestions.append("Normalize audio volume")
+        
+        if metrics.naturalness_score < 0.7:
+            suggestions.append("Use a higher quality TTS backend (Coqui XTTS)")
+        
+        if not suggestions:
+            suggestions.append("Quality is acceptable for KYC")
+        
+        return suggestions
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 LIP SYNC OPTIMIZER — Optimize lip sync for different PSPs
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class LipSyncConfig:
+    """Lip sync configuration."""
+    mouth_amplitude: float = 1.0
+    jaw_movement: float = 0.8
+    expression_intensity: float = 1.0
+    head_motion: float = 0.3
+    blink_frequency: float = 0.2
+    sync_offset_ms: float = 0
+
+
+class LipSyncOptimizer:
+    """
+    V7.6 Lip Sync Optimizer - Optimizes lip sync parameters
+    for different KYC providers and detection systems.
+    """
+    
+    # Pre-tuned profiles for different KYC providers
+    PROVIDER_PROFILES = {
+        "stripe_identity": LipSyncConfig(
+            mouth_amplitude=1.1,
+            jaw_movement=0.9,
+            expression_intensity=1.0,
+            head_motion=0.2,
+            blink_frequency=0.25,
+            sync_offset_ms=-50
+        ),
+        "onfido": LipSyncConfig(
+            mouth_amplitude=1.0,
+            jaw_movement=0.85,
+            expression_intensity=0.9,
+            head_motion=0.35,
+            blink_frequency=0.2,
+            sync_offset_ms=0
+        ),
+        "jumio": LipSyncConfig(
+            mouth_amplitude=0.95,
+            jaw_movement=0.8,
+            expression_intensity=1.1,
+            head_motion=0.25,
+            blink_frequency=0.18,
+            sync_offset_ms=-30
+        ),
+        "veriff": LipSyncConfig(
+            mouth_amplitude=1.05,
+            jaw_movement=0.9,
+            expression_intensity=1.0,
+            head_motion=0.3,
+            blink_frequency=0.22,
+            sync_offset_ms=0
+        ),
+        "default": LipSyncConfig()
+    }
+    
+    def __init__(self):
+        self._optimization_history: Dict[str, List[Dict]] = defaultdict(list)
+    
+    def get_config_for_provider(self, provider: str) -> LipSyncConfig:
+        """Get optimized lip sync config for a provider."""
+        return self.PROVIDER_PROFILES.get(
+            provider.lower().replace(" ", "_"),
+            self.PROVIDER_PROFILES["default"]
+        )
+    
+    def optimize_for_success(self, provider: str,
+                            base_config: Optional[LipSyncConfig] = None) -> LipSyncConfig:
+        """
+        Get optimized config based on past success history.
+        
+        Args:
+            provider: KYC provider name
+            base_config: Starting config to modify
+        
+        Returns:
+            Optimized LipSyncConfig
+        """
+        config = base_config or self.get_config_for_provider(provider)
+        history = self._optimization_history.get(provider, [])
+        
+        if not history:
+            return config
+        
+        # Find best performing config from history
+        successful = [h for h in history if h.get("success")]
+        if not successful:
+            return config
+        
+        # Average the successful configs
+        avg_amplitude = sum(h["config"]["mouth_amplitude"] for h in successful) / len(successful)
+        avg_jaw = sum(h["config"]["jaw_movement"] for h in successful) / len(successful)
+        avg_expression = sum(h["config"]["expression_intensity"] for h in successful) / len(successful)
+        
+        return LipSyncConfig(
+            mouth_amplitude=avg_amplitude,
+            jaw_movement=avg_jaw,
+            expression_intensity=avg_expression,
+            head_motion=config.head_motion,
+            blink_frequency=config.blink_frequency,
+            sync_offset_ms=config.sync_offset_ms
+        )
+    
+    def record_result(self, provider: str, config: LipSyncConfig, success: bool):
+        """Record a KYC attempt result for optimization."""
+        self._optimization_history[provider].append({
+            "config": {
+                "mouth_amplitude": config.mouth_amplitude,
+                "jaw_movement": config.jaw_movement,
+                "expression_intensity": config.expression_intensity
+            },
+            "success": success,
+            "timestamp": time.time()
+        })
+        
+        # Keep only last 50 attempts
+        if len(self._optimization_history[provider]) > 50:
+            self._optimization_history[provider] = self._optimization_history[provider][-50:]
+    
+    def get_success_rate(self, provider: str) -> float:
+        """Get success rate for a provider."""
+        history = self._optimization_history.get(provider, [])
+        if not history:
+            return 0
+        
+        successful = sum(1 for h in history if h.get("success"))
+        return successful / len(history)
+    
+    def apply_to_video(self, video_path: str, config: LipSyncConfig,
+                      output_path: str) -> bool:
+        """
+        Apply lip sync adjustments to video.
+        
+        Note: This is a simplified implementation. Full lip sync
+        optimization requires integration with LivePortrait or
+        similar tools.
+        """
+        try:
+            # Apply sync offset and expression adjustments via ffmpeg
+            filters = []
+            
+            # Sync offset
+            if config.sync_offset_ms != 0:
+                offset = config.sync_offset_ms / 1000
+                if offset > 0:
+                    filters.append(f"adelay={abs(int(config.sync_offset_ms))}|{abs(int(config.sync_offset_ms))}")
+                else:
+                    filters.append(f"atrim=start={abs(offset)}")
+            
+            # Expression intensity via contrast/saturation
+            if config.expression_intensity != 1.0:
+                contrast = config.expression_intensity
+                filters.append(f"eq=contrast={contrast}")
+            
+            filter_str = ",".join(filters) if filters else "copy"
+            
+            cmd = [
+                "ffmpeg", "-y", "-i", video_path,
+                "-vf", filter_str if "eq=" in filter_str else "copy",
+                "-af", filter_str if "adelay" in filter_str or "atrim" in filter_str else "acopy",
+                "-c:v", "libx264", "-c:a", "aac",
+                output_path
+            ]
+            
+            subprocess.run(cmd, capture_output=True, timeout=60)
+            return os.path.exists(output_path)
+            
+        except Exception as e:
+            logger.warning(f"Lip sync optimization failed: {e}")
+            return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 MULTI-LANGUAGE VOICE ENGINE — Handle multiple languages and accents
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class LanguageSupport:
+    """Language support information."""
+    code: str
+    name: str
+    accents: List[str]
+    piper_models: List[str]
+    espeak_voice: str
+    default_gender: VoiceGender
+
+
+class MultiLanguageVoiceEngine:
+    """
+    V7.6 Multi-Language Voice Engine - Handles TTS across
+    multiple languages with appropriate accent matching.
+    """
+    
+    # Supported languages with configuration
+    LANGUAGES = {
+        "en": LanguageSupport(
+            code="en",
+            name="English",
+            accents=["us", "gb", "au", "in"],
+            piper_models=["en_US-lessac-medium", "en_GB-alan-medium"],
+            espeak_voice="en",
+            default_gender=VoiceGender.MALE
+        ),
+        "es": LanguageSupport(
+            code="es",
+            name="Spanish",
+            accents=["es", "mx", "ar"],
+            piper_models=["es_ES-davefx-medium", "es_MX-arlette-medium"],
+            espeak_voice="es",
+            default_gender=VoiceGender.MALE
+        ),
+        "fr": LanguageSupport(
+            code="fr",
+            name="French",
+            accents=["fr", "ca"],
+            piper_models=["fr_FR-siwis-medium"],
+            espeak_voice="fr",
+            default_gender=VoiceGender.FEMALE
+        ),
+        "de": LanguageSupport(
+            code="de",
+            name="German",
+            accents=["de", "at", "ch"],
+            piper_models=["de_DE-thorsten-medium"],
+            espeak_voice="de",
+            default_gender=VoiceGender.MALE
+        ),
+        "it": LanguageSupport(
+            code="it",
+            name="Italian",
+            accents=["it"],
+            piper_models=["it_IT-riccardo-medium"],
+            espeak_voice="it",
+            default_gender=VoiceGender.MALE
+        ),
+        "pt": LanguageSupport(
+            code="pt",
+            name="Portuguese",
+            accents=["br", "pt"],
+            piper_models=["pt_BR-faber-medium"],
+            espeak_voice="pt-br",
+            default_gender=VoiceGender.MALE
+        ),
+    }
+    
+    def __init__(self, base_engine: Optional[KYCVoiceEngine] = None):
+        """
+        Initialize multi-language engine.
+        
+        Args:
+            base_engine: KYCVoiceEngine instance to use
+        """
+        self.base_engine = base_engine or KYCVoiceEngine()
+        self._download_status: Dict[str, bool] = {}
+    
+    def get_supported_languages(self) -> List[Dict]:
+        """Get list of supported languages."""
+        return [
+            {
+                "code": lang.code,
+                "name": lang.name,
+                "accents": lang.accents,
+                "default_gender": lang.default_gender.value
+            }
+            for lang in self.LANGUAGES.values()
+        ]
+    
+    def get_voice_profile(self, language: str, accent: Optional[str] = None,
+                         gender: Optional[VoiceGender] = None) -> VoiceProfile:
+        """
+        Get voice profile for a language.
+        
+        Args:
+            language: Language code (e.g., "en", "es")
+            accent: Optional accent (e.g., "us", "gb")
+            gender: Optional gender preference
+        
+        Returns:
+            VoiceProfile for the language
+        """
+        lang_support = self.LANGUAGES.get(language, self.LANGUAGES["en"])
+        
+        actual_accent = accent if accent in lang_support.accents else lang_support.accents[0]
+        actual_gender = gender or lang_support.default_gender
+        
+        # Select appropriate Piper model
+        piper_model = lang_support.piper_models[0]
+        for model in lang_support.piper_models:
+            if actual_accent.upper() in model or actual_accent.lower() in model:
+                piper_model = model
+                break
+        
+        return VoiceProfile(
+            gender=actual_gender,
+            language=language,
+            accent=actual_accent,
+            piper_model=piper_model
+        )
+    
+    def detect_language(self, text: str) -> str:
+        """
+        Detect language of text.
+        
+        Simple heuristic based on character frequency.
+        For production, use langdetect or similar.
+        """
+        # Common language indicators
+        indicators = {
+            "es": ["ñ", "¿", "¡"],
+            "fr": ["ç", "œ", "ê", "é"],
+            "de": ["ß", "ü", "ö", "ä"],
+            "pt": ["ã", "ç", "õ"],
+            "it": ["è", "ò", "ù"],
+        }
+        
+        text_lower = text.lower()
+        for lang, chars in indicators.items():
+            if any(c in text_lower for c in chars):
+                return lang
+        
+        return "en"
+    
+    def generate_speech(self, text: str, language: Optional[str] = None,
+                       accent: Optional[str] = None,
+                       gender: Optional[VoiceGender] = None,
+                       output_path: Optional[str] = None) -> Optional[str]:
+        """
+        Generate speech in specified language.
+        
+        Auto-detects language if not specified.
+        """
+        if language is None:
+            language = self.detect_language(text)
+        
+        voice = self.get_voice_profile(language, accent, gender)
+        return self.base_engine.generate_speech(text, voice, output_path)
+    
+    def get_accent_for_country(self, country_code: str) -> Tuple[str, str]:
+        """
+        Get language and accent for a country code.
+        
+        Args:
+            country_code: ISO country code (e.g., "US", "GB", "MX")
+        
+        Returns:
+            Tuple of (language, accent)
+        """
+        # Country to language/accent mapping
+        mapping = {
+            "US": ("en", "us"),
+            "GB": ("en", "gb"),
+            "CA": ("en", "us"),
+            "AU": ("en", "au"),
+            "IN": ("en", "in"),
+            "ES": ("es", "es"),
+            "MX": ("es", "mx"),
+            "AR": ("es", "ar"),
+            "FR": ("fr", "fr"),
+            "DE": ("de", "de"),
+            "AT": ("de", "at"),
+            "CH": ("de", "ch"),
+            "IT": ("it", "it"),
+            "BR": ("pt", "br"),
+            "PT": ("pt", "pt"),
+        }
+        
+        return mapping.get(country_code.upper(), ("en", "us"))
+
+
+# Global instances
+_voice_clone_engine: Optional[VoiceCloneEngine] = None
+_speech_quality_analyzer: Optional[SpeechQualityAnalyzer] = None
+_lip_sync_optimizer: Optional[LipSyncOptimizer] = None
+_multi_language_engine: Optional[MultiLanguageVoiceEngine] = None
+
+
+def get_voice_clone_engine() -> VoiceCloneEngine:
+    """Get global voice clone engine."""
+    global _voice_clone_engine
+    if _voice_clone_engine is None:
+        _voice_clone_engine = VoiceCloneEngine()
+    return _voice_clone_engine
+
+
+def get_speech_quality_analyzer() -> SpeechQualityAnalyzer:
+    """Get global speech quality analyzer."""
+    global _speech_quality_analyzer
+    if _speech_quality_analyzer is None:
+        _speech_quality_analyzer = SpeechQualityAnalyzer()
+    return _speech_quality_analyzer
+
+
+def get_lip_sync_optimizer() -> LipSyncOptimizer:
+    """Get global lip sync optimizer."""
+    global _lip_sync_optimizer
+    if _lip_sync_optimizer is None:
+        _lip_sync_optimizer = LipSyncOptimizer()
+    return _lip_sync_optimizer
+
+
+def get_multi_language_engine() -> MultiLanguageVoiceEngine:
+    """Get global multi-language voice engine."""
+    global _multi_language_engine
+    if _multi_language_engine is None:
+        _multi_language_engine = MultiLanguageVoiceEngine()
+    return _multi_language_engine

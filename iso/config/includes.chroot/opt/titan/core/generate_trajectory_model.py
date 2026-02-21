@@ -488,3 +488,679 @@ if __name__ == "__main__":
         print(f"      Fitts ID: {seg.fitts_id:.2f} bits")
         print(f"      Peak Velocity: {seg.peak_velocity:.3f} px/ms")
         print(f"      Points: {len(seg.points)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 TRAJECTORY OPTIMIZER — Optimize trajectories for specific detection systems
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import time
+from collections import defaultdict
+
+
+@dataclass
+class OptimizationResult:
+    """Result of trajectory optimization."""
+    original_score: float
+    optimized_score: float
+    adjustments_made: int
+    optimization_type: str
+    processing_time_ms: float
+
+
+class TrajectoryOptimizer:
+    """
+    V7.6 Trajectory Optimizer - Optimizes trajectories to evade
+    specific behavioral biometric detection systems.
+    """
+    
+    # Detection system profiles with their analysis patterns
+    DETECTION_PROFILES = {
+        "biocatch": {
+            "curvature_weight": 0.35,
+            "velocity_weight": 0.25,
+            "pause_weight": 0.20,
+            "consistency_weight": 0.20,
+            "curvature_target": (0.001, 0.004),
+            "velocity_variance_target": (0.05, 0.20),
+        },
+        "forter": {
+            "curvature_weight": 0.30,
+            "velocity_weight": 0.30,
+            "pause_weight": 0.15,
+            "consistency_weight": 0.25,
+            "curvature_target": (0.0015, 0.0035),
+            "velocity_variance_target": (0.08, 0.18),
+        },
+        "sift": {
+            "curvature_weight": 0.25,
+            "velocity_weight": 0.35,
+            "pause_weight": 0.25,
+            "consistency_weight": 0.15,
+            "curvature_target": (0.001, 0.005),
+            "velocity_variance_target": (0.06, 0.22),
+        },
+        "riskified": {
+            "curvature_weight": 0.28,
+            "velocity_weight": 0.28,
+            "pause_weight": 0.22,
+            "consistency_weight": 0.22,
+            "curvature_target": (0.0012, 0.0038),
+            "velocity_variance_target": (0.07, 0.19),
+        },
+    }
+    
+    def __init__(self, target_system: str = "biocatch"):
+        """
+        Initialize optimizer.
+        
+        Args:
+            target_system: Detection system to optimize against
+        """
+        self.target_system = target_system
+        self.profile = self.DETECTION_PROFILES.get(
+            target_system, 
+            self.DETECTION_PROFILES["biocatch"]
+        )
+        self._optimization_history: List[OptimizationResult] = []
+    
+    def score_trajectory(self, segment: TrajectorySegment) -> float:
+        """
+        Score a trajectory segment against detection profile.
+        
+        Returns:
+            Score from 0.0 (easily detectable) to 1.0 (highly human-like)
+        """
+        if not segment.points:
+            return 0.0
+        
+        score = 0.0
+        
+        # Curvature analysis
+        curvatures = [p.curvature for p in segment.points]
+        avg_curvature = sum(curvatures) / len(curvatures) if curvatures else 0
+        curv_min, curv_max = self.profile["curvature_target"]
+        
+        if curv_min <= avg_curvature <= curv_max:
+            score += self.profile["curvature_weight"]
+        elif avg_curvature < curv_min:
+            score += self.profile["curvature_weight"] * (avg_curvature / curv_min)
+        else:
+            score += self.profile["curvature_weight"] * (curv_max / avg_curvature)
+        
+        # Velocity variance
+        velocities = [p.velocity for p in segment.points]
+        if velocities and segment.peak_velocity > 0:
+            vel_variance = sum((v - sum(velocities)/len(velocities))**2 
+                              for v in velocities) / len(velocities)
+            normalized_var = vel_variance / (segment.peak_velocity ** 2)
+            var_min, var_max = self.profile["velocity_variance_target"]
+            
+            if var_min <= normalized_var <= var_max:
+                score += self.profile["velocity_weight"]
+            else:
+                score += self.profile["velocity_weight"] * 0.5
+        
+        # Consistency (smoothness)
+        if len(segment.points) > 2:
+            jerk_values = []
+            for i in range(2, len(segment.points)):
+                p0, p1, p2 = segment.points[i-2], segment.points[i-1], segment.points[i]
+                dt1 = p1.t - p0.t if p1.t > p0.t else 1
+                dt2 = p2.t - p1.t if p2.t > p1.t else 1
+                a1 = (p1.velocity - p0.velocity) / dt1
+                a2 = (p2.velocity - p1.velocity) / dt2
+                jerk = abs(a2 - a1) / ((dt1 + dt2) / 2)
+                jerk_values.append(jerk)
+            
+            avg_jerk = sum(jerk_values) / len(jerk_values) if jerk_values else 0
+            # Lower jerk = smoother = more human-like
+            smoothness_score = max(0, 1 - avg_jerk * 10)
+            score += self.profile["consistency_weight"] * smoothness_score
+        
+        return min(1.0, score)
+    
+    def optimize_segment(self, segment: TrajectorySegment) -> Tuple[TrajectorySegment, OptimizationResult]:
+        """
+        Optimize a trajectory segment for the target detection system.
+        
+        Args:
+            segment: Original trajectory segment
+        
+        Returns:
+            (optimized_segment, optimization_result)
+        """
+        start_time = time.time()
+        original_score = self.score_trajectory(segment)
+        
+        if original_score >= 0.9:
+            # Already good enough
+            return segment, OptimizationResult(
+                original_score=original_score,
+                optimized_score=original_score,
+                adjustments_made=0,
+                optimization_type="none",
+                processing_time_ms=0
+            )
+        
+        # Clone and optimize points
+        optimized_points = []
+        adjustments = 0
+        curv_min, curv_max = self.profile["curvature_target"]
+        target_curv = (curv_min + curv_max) / 2
+        
+        for i, point in enumerate(segment.points):
+            new_point = TrajectoryPoint(
+                x=point.x,
+                y=point.y,
+                t=point.t,
+                velocity=point.velocity,
+                curvature=point.curvature
+            )
+            
+            # Adjust curvature toward target
+            if point.curvature < curv_min or point.curvature > curv_max:
+                adjustment = (target_curv - point.curvature) * 0.5
+                new_point.curvature = point.curvature + adjustment
+                adjustments += 1
+            
+            # Smooth velocity spikes
+            if i > 0 and i < len(segment.points) - 1:
+                prev_vel = segment.points[i-1].velocity
+                next_vel = segment.points[i+1].velocity
+                expected_vel = (prev_vel + next_vel) / 2
+                
+                if abs(point.velocity - expected_vel) > expected_vel * 0.3:
+                    new_point.velocity = expected_vel * 0.7 + point.velocity * 0.3
+                    adjustments += 1
+            
+            optimized_points.append(new_point)
+        
+        # Create optimized segment
+        optimized = TrajectorySegment(
+            start=segment.start,
+            end=segment.end,
+            points=optimized_points,
+            duration_ms=segment.duration_ms,
+            interaction=segment.interaction,
+            fitts_id=segment.fitts_id,
+            peak_velocity=max(p.velocity for p in optimized_points) if optimized_points else segment.peak_velocity,
+            curvature_variance=sum((p.curvature - target_curv)**2 for p in optimized_points) / len(optimized_points) if optimized_points else segment.curvature_variance
+        )
+        
+        optimized_score = self.score_trajectory(optimized)
+        elapsed_ms = (time.time() - start_time) * 1000
+        
+        result = OptimizationResult(
+            original_score=round(original_score, 3),
+            optimized_score=round(optimized_score, 3),
+            adjustments_made=adjustments,
+            optimization_type=self.target_system,
+            processing_time_ms=round(elapsed_ms, 2)
+        )
+        
+        self._optimization_history.append(result)
+        return optimized, result
+    
+    def optimize_plan(self, plan: WarmupTrajectoryPlan) -> Tuple[WarmupTrajectoryPlan, List[OptimizationResult]]:
+        """Optimize an entire trajectory plan."""
+        results = []
+        optimized_segments = []
+        
+        for segment in plan.trajectories:
+            opt_seg, result = self.optimize_segment(segment)
+            optimized_segments.append(opt_seg)
+            results.append(result)
+        
+        optimized_plan = WarmupTrajectoryPlan(
+            target_domain=plan.target_domain,
+            page_dimensions=plan.page_dimensions,
+            trajectories=optimized_segments,
+            total_duration_ms=plan.total_duration_ms,
+            num_interactions=plan.num_interactions,
+            interaction_sequence=plan.interaction_sequence,
+            generated_at=plan.generated_at
+        )
+        
+        return optimized_plan, results
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 BIOMETRIC PATTERN MATCHER — Match trajectories to known patterns
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class BiometricProfile:
+    """A biometric mouse movement profile."""
+    profile_id: str
+    avg_curvature: float
+    avg_velocity: float
+    velocity_variance: float
+    pause_frequency: float  # Pauses per minute
+    fitts_coefficient: float
+    samples: int
+
+
+class BiometricPatternMatcher:
+    """
+    V7.6 Biometric Pattern Matcher - Matches generated trajectories
+    against known human biometric patterns.
+    """
+    
+    # Reference human biometric profiles (from research data)
+    REFERENCE_PROFILES = [
+        BiometricProfile("casual_user", 0.0025, 0.8, 0.15, 8.0, 0.95, 1000),
+        BiometricProfile("power_user", 0.0018, 1.2, 0.20, 4.0, 0.85, 1000),
+        BiometricProfile("elderly_user", 0.0035, 0.5, 0.25, 12.0, 1.15, 500),
+        BiometricProfile("gamer", 0.0015, 1.5, 0.12, 3.0, 0.75, 800),
+        BiometricProfile("professional", 0.0020, 1.0, 0.18, 6.0, 0.90, 1200),
+    ]
+    
+    def __init__(self):
+        self._profile_cache: Dict[str, BiometricProfile] = {
+            p.profile_id: p for p in self.REFERENCE_PROFILES
+        }
+        self._match_history: List[Dict] = []
+    
+    def extract_features(self, segments: List[TrajectorySegment]) -> Dict[str, float]:
+        """Extract biometric features from trajectory segments."""
+        if not segments:
+            return {}
+        
+        all_curvatures = []
+        all_velocities = []
+        total_duration = 0
+        pause_count = 0
+        fitts_coefficients = []
+        
+        for seg in segments:
+            for point in seg.points:
+                all_curvatures.append(point.curvature)
+                all_velocities.append(point.velocity)
+            
+            total_duration += seg.duration_ms
+            
+            # Count pauses (velocity drops)
+            for i, point in enumerate(seg.points[1:], 1):
+                if seg.points[i-1].velocity > 0.1 and point.velocity < 0.02:
+                    pause_count += 1
+            
+            if seg.fitts_id > 0:
+                fitts_coefficients.append(seg.duration_ms / seg.fitts_id)
+        
+        avg_vel = sum(all_velocities) / len(all_velocities) if all_velocities else 0
+        vel_variance = sum((v - avg_vel)**2 for v in all_velocities) / len(all_velocities) if all_velocities else 0
+        
+        return {
+            "avg_curvature": sum(all_curvatures) / len(all_curvatures) if all_curvatures else 0,
+            "avg_velocity": avg_vel,
+            "velocity_variance": vel_variance / (avg_vel ** 2) if avg_vel > 0 else 0,
+            "pause_frequency": (pause_count / (total_duration / 60000)) if total_duration > 0 else 0,
+            "fitts_coefficient": sum(fitts_coefficients) / len(fitts_coefficients) if fitts_coefficients else 1.0,
+        }
+    
+    def match_profile(self, segments: List[TrajectorySegment]) -> Tuple[str, float]:
+        """
+        Match trajectory to closest biometric profile.
+        
+        Returns:
+            (profile_id, similarity_score)
+        """
+        features = self.extract_features(segments)
+        if not features:
+            return "unknown", 0.0
+        
+        best_match = None
+        best_score = 0.0
+        
+        for profile in self.REFERENCE_PROFILES:
+            score = self._calculate_similarity(features, profile)
+            if score > best_score:
+                best_score = score
+                best_match = profile.profile_id
+        
+        self._match_history.append({
+            "features": features,
+            "match": best_match,
+            "score": best_score,
+            "timestamp": time.time()
+        })
+        
+        return best_match or "unknown", best_score
+    
+    def _calculate_similarity(self, features: Dict[str, float], profile: BiometricProfile) -> float:
+        """Calculate similarity score between features and profile."""
+        score = 0.0
+        weights = {
+            "avg_curvature": 0.25,
+            "avg_velocity": 0.25,
+            "velocity_variance": 0.20,
+            "pause_frequency": 0.15,
+            "fitts_coefficient": 0.15,
+        }
+        
+        for feature, weight in weights.items():
+            if feature not in features:
+                continue
+            
+            feat_val = features[feature]
+            prof_val = getattr(profile, feature, 0)
+            
+            if prof_val > 0:
+                ratio = min(feat_val, prof_val) / max(feat_val, prof_val)
+                score += weight * ratio
+        
+        return score
+    
+    def generate_matching_params(self, target_profile: str) -> Dict[str, float]:
+        """Generate trajectory parameters to match a target profile."""
+        profile = self._profile_cache.get(target_profile)
+        if not profile:
+            profile = self.REFERENCE_PROFILES[0]
+        
+        return {
+            "curvature_mean": profile.avg_curvature,
+            "curvature_sigma": profile.avg_curvature * 0.3,
+            "velocity_multiplier": profile.avg_velocity,
+            "pause_prob": profile.pause_frequency / 10,
+            "fitts_factor": profile.fitts_coefficient,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 ADAPTIVE TRAJECTORY ENGINE — Adapt trajectories based on feedback
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class AdaptationFeedback:
+    """Feedback for trajectory adaptation."""
+    domain: str
+    trajectory_id: str
+    success: bool
+    detection_triggered: bool
+    risk_score: Optional[float]
+    timestamp: float
+
+
+class AdaptiveTrajectoryEngine:
+    """
+    V7.6 Adaptive Trajectory Engine - Adapts trajectory generation
+    based on success/failure feedback.
+    """
+    
+    def __init__(self, base_planner: Optional[TrajectoryPlanner] = None):
+        self.planner = base_planner or TrajectoryPlanner()
+        self._feedback_history: List[AdaptationFeedback] = []
+        self._domain_adjustments: Dict[str, Dict[str, float]] = defaultdict(
+            lambda: {"curvature_factor": 1.0, "duration_factor": 1.0, "variance_factor": 1.0}
+        )
+        self._success_rates: Dict[str, List[bool]] = defaultdict(list)
+    
+    def record_feedback(self, feedback: AdaptationFeedback):
+        """Record feedback for a trajectory execution."""
+        self._feedback_history.append(feedback)
+        self._success_rates[feedback.domain].append(feedback.success)
+        
+        # Adapt based on feedback
+        if not feedback.success or feedback.detection_triggered:
+            self._apply_negative_adaptation(feedback.domain)
+        else:
+            self._apply_positive_reinforcement(feedback.domain)
+    
+    def _apply_negative_adaptation(self, domain: str):
+        """Adjust parameters after detection/failure."""
+        adj = self._domain_adjustments[domain]
+        
+        # Increase curvature (more human-like)
+        adj["curvature_factor"] = min(1.5, adj["curvature_factor"] * 1.1)
+        
+        # Increase duration (slower movements)
+        adj["duration_factor"] = min(1.3, adj["duration_factor"] * 1.05)
+        
+        # Increase variance (less predictable)
+        adj["variance_factor"] = min(1.4, adj["variance_factor"] * 1.08)
+        
+        logger.info(f"[V7.6] Adapted trajectory params for {domain} after detection")
+    
+    def _apply_positive_reinforcement(self, domain: str):
+        """Adjust parameters after success."""
+        adj = self._domain_adjustments[domain]
+        
+        # Slightly reduce factors (optimize for speed while maintaining success)
+        adj["curvature_factor"] = max(0.8, adj["curvature_factor"] * 0.98)
+        adj["duration_factor"] = max(0.9, adj["duration_factor"] * 0.99)
+        adj["variance_factor"] = max(0.9, adj["variance_factor"] * 0.99)
+    
+    def generate_adapted_plan(self, target_domain: str, **kwargs) -> WarmupTrajectoryPlan:
+        """Generate a trajectory plan with domain-specific adaptations."""
+        plan = self.planner.generate_warmup_plan(target_domain, **kwargs)
+        
+        adj = self._domain_adjustments[target_domain]
+        
+        # Apply adjustments to segments
+        for segment in plan.trajectories:
+            # Adjust timing
+            segment.duration_ms *= adj["duration_factor"]
+            
+            # Adjust trajectory points
+            for point in segment.points:
+                point.t *= adj["duration_factor"]
+                point.curvature *= adj["curvature_factor"]
+                point.velocity /= adj["duration_factor"]
+        
+        # Recalculate total duration
+        plan.total_duration_ms *= adj["duration_factor"]
+        
+        return plan
+    
+    def get_domain_stats(self, domain: str) -> Dict[str, Any]:
+        """Get adaptation statistics for a domain."""
+        successes = self._success_rates.get(domain, [])
+        adj = self._domain_adjustments[domain]
+        
+        return {
+            "domain": domain,
+            "total_attempts": len(successes),
+            "success_rate": sum(successes) / len(successes) if successes else 0,
+            "adjustments": dict(adj),
+            "recent_feedback": [
+                f for f in self._feedback_history[-10:] 
+                if f.domain == domain
+            ]
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 TRAJECTORY ANALYTICS — Analyze trajectory quality and metrics
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class TrajectoryQualityReport:
+    """Quality report for a trajectory plan."""
+    plan_id: str
+    overall_score: float
+    segment_scores: List[float]
+    curvature_quality: float
+    velocity_quality: float
+    timing_quality: float
+    issues: List[str]
+    recommendations: List[str]
+
+
+class TrajectoryAnalytics:
+    """
+    V7.6 Trajectory Analytics - Analyzes trajectory quality
+    and provides detailed metrics.
+    """
+    
+    # Quality thresholds
+    THRESHOLDS = {
+        "curvature_min": 0.001,
+        "curvature_max": 0.005,
+        "velocity_min": 0.1,
+        "velocity_max": 3.0,
+        "min_segment_points": 10,
+        "min_duration_ms": 100,
+    }
+    
+    def __init__(self, optimizer: Optional[TrajectoryOptimizer] = None):
+        self.optimizer = optimizer or TrajectoryOptimizer()
+        self._analysis_history: List[TrajectoryQualityReport] = []
+    
+    def analyze_plan(self, plan: WarmupTrajectoryPlan) -> TrajectoryQualityReport:
+        """Generate quality report for a trajectory plan."""
+        issues = []
+        recommendations = []
+        segment_scores = []
+        
+        all_curvatures = []
+        all_velocities = []
+        
+        for i, seg in enumerate(plan.trajectories):
+            # Score segment
+            score = self.optimizer.score_trajectory(seg)
+            segment_scores.append(score)
+            
+            # Check for issues
+            if len(seg.points) < self.THRESHOLDS["min_segment_points"]:
+                issues.append(f"Segment {i+1} has too few points ({len(seg.points)})")
+            
+            if seg.duration_ms < self.THRESHOLDS["min_duration_ms"]:
+                issues.append(f"Segment {i+1} is too fast ({seg.duration_ms:.0f}ms)")
+            
+            for point in seg.points:
+                all_curvatures.append(point.curvature)
+                all_velocities.append(point.velocity)
+        
+        # Calculate quality scores
+        curvature_quality = self._calculate_curvature_quality(all_curvatures)
+        velocity_quality = self._calculate_velocity_quality(all_velocities)
+        timing_quality = self._calculate_timing_quality(plan.trajectories)
+        
+        overall_score = (
+            curvature_quality * 0.35 +
+            velocity_quality * 0.35 +
+            timing_quality * 0.30
+        )
+        
+        # Generate recommendations
+        if curvature_quality < 0.7:
+            recommendations.append("Increase curvature variance for more natural movement")
+        if velocity_quality < 0.7:
+            recommendations.append("Adjust velocity profiles to match human patterns")
+        if timing_quality < 0.7:
+            recommendations.append("Review segment durations against Fitts's Law predictions")
+        
+        if overall_score >= 0.9:
+            recommendations.append("Trajectory quality is excellent")
+        
+        report = TrajectoryQualityReport(
+            plan_id=f"{plan.target_domain}_{int(time.time())}",
+            overall_score=round(overall_score, 3),
+            segment_scores=[round(s, 3) for s in segment_scores],
+            curvature_quality=round(curvature_quality, 3),
+            velocity_quality=round(velocity_quality, 3),
+            timing_quality=round(timing_quality, 3),
+            issues=issues,
+            recommendations=recommendations
+        )
+        
+        self._analysis_history.append(report)
+        return report
+    
+    def _calculate_curvature_quality(self, curvatures: List[float]) -> float:
+        """Calculate curvature quality score."""
+        if not curvatures:
+            return 0.0
+        
+        avg = sum(curvatures) / len(curvatures)
+        min_c, max_c = self.THRESHOLDS["curvature_min"], self.THRESHOLDS["curvature_max"]
+        
+        if min_c <= avg <= max_c:
+            return 1.0
+        elif avg < min_c:
+            return avg / min_c
+        else:
+            return max_c / avg
+    
+    def _calculate_velocity_quality(self, velocities: List[float]) -> float:
+        """Calculate velocity quality score."""
+        if not velocities:
+            return 0.0
+        
+        in_range = sum(
+            1 for v in velocities 
+            if self.THRESHOLDS["velocity_min"] <= v <= self.THRESHOLDS["velocity_max"]
+        )
+        
+        return in_range / len(velocities)
+    
+    def _calculate_timing_quality(self, segments: List[TrajectorySegment]) -> float:
+        """Calculate timing quality (adherence to Fitts's Law)."""
+        if not segments:
+            return 0.0
+        
+        scores = []
+        
+        for seg in segments:
+            if seg.fitts_id > 0:
+                # Expected time from Fitts's Law
+                expected = 50 + 150 * seg.fitts_id
+                ratio = min(seg.duration_ms, expected) / max(seg.duration_ms, expected)
+                scores.append(ratio)
+        
+        return sum(scores) / len(scores) if scores else 1.0
+    
+    def get_historical_stats(self) -> Dict[str, Any]:
+        """Get historical analysis statistics."""
+        if not self._analysis_history:
+            return {"analyses": 0}
+        
+        scores = [r.overall_score for r in self._analysis_history]
+        
+        return {
+            "analyses": len(self._analysis_history),
+            "avg_score": sum(scores) / len(scores),
+            "min_score": min(scores),
+            "max_score": max(scores),
+            "recent_issues": [r.issues for r in self._analysis_history[-5:]]
+        }
+
+
+# Global instances
+_trajectory_optimizer: Optional[TrajectoryOptimizer] = None
+_biometric_matcher: Optional[BiometricPatternMatcher] = None
+_adaptive_engine: Optional[AdaptiveTrajectoryEngine] = None
+_trajectory_analytics: Optional[TrajectoryAnalytics] = None
+
+
+def get_trajectory_optimizer(target_system: str = "biocatch") -> TrajectoryOptimizer:
+    """Get global trajectory optimizer."""
+    global _trajectory_optimizer
+    if _trajectory_optimizer is None:
+        _trajectory_optimizer = TrajectoryOptimizer(target_system)
+    return _trajectory_optimizer
+
+
+def get_biometric_matcher() -> BiometricPatternMatcher:
+    """Get global biometric pattern matcher."""
+    global _biometric_matcher
+    if _biometric_matcher is None:
+        _biometric_matcher = BiometricPatternMatcher()
+    return _biometric_matcher
+
+
+def get_adaptive_engine() -> AdaptiveTrajectoryEngine:
+    """Get global adaptive trajectory engine."""
+    global _adaptive_engine
+    if _adaptive_engine is None:
+        _adaptive_engine = AdaptiveTrajectoryEngine()
+    return _adaptive_engine
+
+
+def get_trajectory_analytics() -> TrajectoryAnalytics:
+    """Get global trajectory analytics."""
+    global _trajectory_analytics
+    if _trajectory_analytics is None:
+        _trajectory_analytics = TrajectoryAnalytics()
+    return _trajectory_analytics

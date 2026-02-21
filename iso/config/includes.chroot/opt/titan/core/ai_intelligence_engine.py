@@ -1081,11 +1081,717 @@ def get_ai_status() -> Dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 AI MODEL SELECTOR — Dynamic model selection by task type
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class AIModelProfile:
+    """Profile for an AI model's capabilities."""
+    name: str
+    provider: str  # ollama, openai, anthropic, vllm
+    context_length: int
+    speed_tier: str  # fast, medium, slow
+    reasoning_score: float  # 0.0-1.0
+    specialties: List[str]  # bin_analysis, code, reasoning, etc.
+    cost_per_1k_tokens: float
+
+
+class AIModelSelector:
+    """
+    V7.6 Dynamic AI Model Selector - Chooses optimal model based on
+    task type, latency requirements, and model capabilities.
+    """
+    
+    MODEL_PROFILES: Dict[str, AIModelProfile] = {
+        "mistral:7b": AIModelProfile(
+            name="mistral:7b", provider="ollama", context_length=8192,
+            speed_tier="fast", reasoning_score=0.75,
+            specialties=["general", "bin_analysis", "target_recon"],
+            cost_per_1k_tokens=0.0
+        ),
+        "llama3:8b": AIModelProfile(
+            name="llama3:8b", provider="ollama", context_length=8192,
+            speed_tier="fast", reasoning_score=0.80,
+            specialties=["general", "reasoning", "behavioral"],
+            cost_per_1k_tokens=0.0
+        ),
+        "llama3:70b": AIModelProfile(
+            name="llama3:70b", provider="ollama", context_length=8192,
+            speed_tier="slow", reasoning_score=0.95,
+            specialties=["complex_reasoning", "3ds_strategy", "audit"],
+            cost_per_1k_tokens=0.0
+        ),
+        "qwen2.5:72b": AIModelProfile(
+            name="qwen2.5:72b", provider="vllm", context_length=32768,
+            speed_tier="medium", reasoning_score=0.92,
+            specialties=["bin_analysis", "target_recon", "operation_planning"],
+            cost_per_1k_tokens=0.0
+        ),
+        "codellama:13b": AIModelProfile(
+            name="codellama:13b", provider="ollama", context_length=16384,
+            speed_tier="medium", reasoning_score=0.70,
+            specialties=["code", "technical_analysis"],
+            cost_per_1k_tokens=0.0
+        ),
+    }
+    
+    TASK_REQUIREMENTS: Dict[str, Dict] = {
+        "bin_analysis": {"min_reasoning": 0.70, "max_latency": "medium", "preferred_specialty": "bin_analysis"},
+        "target_recon": {"min_reasoning": 0.65, "max_latency": "fast", "preferred_specialty": "target_recon"},
+        "3ds_strategy": {"min_reasoning": 0.85, "max_latency": "slow", "preferred_specialty": "3ds_strategy"},
+        "behavioral_tuning": {"min_reasoning": 0.70, "max_latency": "fast", "preferred_specialty": "behavioral"},
+        "profile_audit": {"min_reasoning": 0.80, "max_latency": "medium", "preferred_specialty": "audit"},
+        "operation_planning": {"min_reasoning": 0.85, "max_latency": "medium", "preferred_specialty": "operation_planning"},
+    }
+    
+    def __init__(self):
+        self._available_models: Dict[str, bool] = {}
+        self._model_latencies: Dict[str, float] = {}
+        self._refresh_available_models()
+    
+    def _refresh_available_models(self):
+        """Check which models are actually available."""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["ollama", "list"],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                lines = result.stdout.strip().split("\n")[1:]  # Skip header
+                for line in lines:
+                    parts = line.split()
+                    if parts:
+                        model_name = parts[0]
+                        self._available_models[model_name] = True
+        except Exception:
+            pass
+    
+    def select_model(self, task_type: str, urgency: str = "normal") -> str:
+        """
+        Select optimal model for task.
+        
+        Args:
+            task_type: One of bin_analysis, target_recon, 3ds_strategy, etc.
+            urgency: "critical" (fastest), "normal", "thorough" (best quality)
+        
+        Returns:
+            Model name string
+        """
+        requirements = self.TASK_REQUIREMENTS.get(task_type, {
+            "min_reasoning": 0.70, "max_latency": "medium", "preferred_specialty": "general"
+        })
+        
+        # Adjust requirements based on urgency
+        if urgency == "critical":
+            requirements["max_latency"] = "fast"
+        elif urgency == "thorough":
+            requirements["min_reasoning"] = max(requirements["min_reasoning"], 0.85)
+            requirements["max_latency"] = "slow"
+        
+        # Score each available model
+        best_model = "mistral:7b"  # Default fallback
+        best_score = 0.0
+        
+        for model_name, profile in self.MODEL_PROFILES.items():
+            if not self._available_models.get(model_name, False):
+                # Check if base model name matches
+                base_name = model_name.split(":")[0]
+                if not any(base_name in m for m in self._available_models):
+                    continue
+            
+            score = 0.0
+            
+            # Check reasoning threshold
+            if profile.reasoning_score >= requirements["min_reasoning"]:
+                score += profile.reasoning_score * 40
+            else:
+                continue  # Doesn't meet minimum reasoning requirement
+            
+            # Check latency requirement
+            latency_ok = self._latency_meets_requirement(
+                profile.speed_tier, requirements["max_latency"]
+            )
+            if not latency_ok:
+                continue
+            
+            # Bonus for specialty match
+            if requirements["preferred_specialty"] in profile.specialties:
+                score += 30
+            
+            # Bonus for "general" specialty (versatile)
+            if "general" in profile.specialties:
+                score += 10
+            
+            # Prefer fast models if equally capable
+            if profile.speed_tier == "fast":
+                score += 15
+            elif profile.speed_tier == "medium":
+                score += 8
+            
+            if score > best_score:
+                best_score = score
+                best_model = model_name
+        
+        logger.debug(f"Model selection for {task_type}: {best_model} (score={best_score:.1f})")
+        return best_model
+    
+    def _latency_meets_requirement(self, model_tier: str, required_max: str) -> bool:
+        """Check if model speed tier meets latency requirement."""
+        tier_order = {"fast": 0, "medium": 1, "slow": 2}
+        return tier_order.get(model_tier, 2) <= tier_order.get(required_max, 2)
+    
+    def get_model_stats(self) -> Dict:
+        """Get statistics about available models."""
+        return {
+            "available_models": list(self._available_models.keys()),
+            "model_count": len(self._available_models),
+            "profiles_defined": len(self.MODEL_PROFILES),
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 AI PROMPT OPTIMIZER — Cached prompt templates & optimization
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class AIPromptOptimizer:
+    """
+    V7.6 Prompt Optimizer - Manages optimized prompt templates,
+    caches successful prompts, and improves response quality.
+    """
+    
+    # Optimized prompt templates by task type
+    PROMPT_TEMPLATES: Dict[str, str] = {
+        "bin_analysis": """You are a BIN intelligence analyst. Analyze this card BIN for fraud transaction success probability.
+
+BIN: {bin_number}
+Target: {target}
+Amount: ${amount}
+
+Known BIN data: {bin_data}
+{decline_history}
+
+Respond in EXACTLY this JSON format:
+{{
+    "bank_name": "string",
+    "card_type": "credit|debit|prepaid",
+    "card_level": "classic|gold|platinum|signature|infinite",
+    "network": "visa|mastercard|amex|discover",
+    "success_probability": 0.0-1.0,
+    "ai_score": 0-100,
+    "risk_factors": ["list", "of", "risks"],
+    "recommended_targets": ["target1", "target2"],
+    "reasoning": "brief explanation"
+}}""",
+
+        "target_recon": """You are a merchant fraud system analyst. Analyze this target's fraud defenses.
+
+Target: {target}
+Category: {category}
+
+Respond in EXACTLY this JSON format:
+{{
+    "fraud_engine": "forter|riskified|seon|stripe_radar|cybersource|internal|unknown",
+    "payment_processor": "stripe|adyen|checkout|braintree|paypal|internal",
+    "three_ds_probability": 0.0-1.0,
+    "avs_strictness": "strict|moderate|relaxed",
+    "velocity_limits": "description of limits",
+    "bypass_tips": ["tip1", "tip2"],
+    "difficulty_score": 0-100
+}}""",
+
+        "3ds_strategy": """You are a 3DS bypass specialist. Analyze this transaction for 3DS challenge probability and bypass strategy.
+
+BIN: {bin_number}
+Target: {target}
+Amount: ${amount}
+Device: {device_type}
+Card info: {card_info}
+Target info: {target_info}
+
+Respond in EXACTLY this JSON format:
+{{
+    "challenge_probability": 0.0-1.0,
+    "bypass_probability": 0.0-1.0,
+    "recommended_strategy": "string",
+    "amount_threshold": number,
+    "timing_recommendation": "string",
+    "device_recommendations": ["rec1", "rec2"],
+    "reasoning": "brief explanation"
+}}""",
+
+        "behavioral_tuning": """You are a behavioral biometrics specialist for Ghost Motor. Configure optimal human simulation parameters.
+
+Target: {target}
+Fraud engine: {fraud_engine}
+
+Respond in EXACTLY this JSON format:
+{{
+    "mouse_speed_min": 200-400,
+    "mouse_speed_max": 600-1200,
+    "click_delay_min_ms": 60-120,
+    "click_delay_max_ms": 200-400,
+    "typing_wpm_min": 25-45,
+    "typing_wpm_max": 55-85,
+    "typing_error_rate": 0.01-0.05,
+    "scroll_behavior": "natural|smooth|stepped",
+    "idle_pattern": "description",
+    "page_dwell_min_s": 5-15,
+    "page_dwell_max_s": 30-60
+}}""",
+    }
+    
+    # Cache of successful prompts (prompt_hash -> response)
+    _prompt_cache: Dict[str, Dict] = {}
+    _cache_hits: int = 0
+    _cache_misses: int = 0
+    
+    @classmethod
+    def get_optimized_prompt(cls, task_type: str, **kwargs) -> str:
+        """
+        Get optimized prompt for task type with variable substitution.
+        """
+        template = cls.PROMPT_TEMPLATES.get(task_type)
+        if not template:
+            raise ValueError(f"Unknown task type: {task_type}")
+        
+        # Fill in template variables
+        try:
+            return template.format(**kwargs)
+        except KeyError as e:
+            logger.warning(f"Missing prompt variable: {e}")
+            # Fill missing with placeholder
+            for key in ["bin_number", "target", "amount", "category", "device_type",
+                       "card_info", "target_info", "bin_data", "decline_history",
+                       "fraud_engine"]:
+                if key not in kwargs:
+                    kwargs[key] = "unknown"
+            return template.format(**kwargs)
+    
+    @classmethod
+    def cache_response(cls, prompt_hash: str, response: Dict):
+        """Cache a successful AI response."""
+        cls._prompt_cache[prompt_hash] = {
+            "response": response,
+            "timestamp": time.time(),
+            "hits": 0
+        }
+        # Limit cache size
+        if len(cls._prompt_cache) > 1000:
+            # Remove oldest entries
+            sorted_keys = sorted(
+                cls._prompt_cache.keys(),
+                key=lambda k: cls._prompt_cache[k]["timestamp"]
+            )
+            for key in sorted_keys[:200]:
+                del cls._prompt_cache[key]
+    
+    @classmethod
+    def get_cached_response(cls, prompt_hash: str) -> Optional[Dict]:
+        """Get cached response if available and not stale."""
+        cached = cls._prompt_cache.get(prompt_hash)
+        if cached:
+            age_hours = (time.time() - cached["timestamp"]) / 3600
+            if age_hours < 24:  # Cache valid for 24 hours
+                cached["hits"] += 1
+                cls._cache_hits += 1
+                return cached["response"]
+            else:
+                del cls._prompt_cache[prompt_hash]
+        cls._cache_misses += 1
+        return None
+    
+    @classmethod
+    def get_prompt_hash(cls, task_type: str, **kwargs) -> str:
+        """Generate hash for prompt caching."""
+        import hashlib
+        key_parts = [task_type]
+        for k, v in sorted(kwargs.items()):
+            key_parts.append(f"{k}={v}")
+        return hashlib.md5("|".join(key_parts).encode()).hexdigest()[:16]
+    
+    @classmethod
+    def get_cache_stats(cls) -> Dict:
+        """Get cache statistics."""
+        total = cls._cache_hits + cls._cache_misses
+        hit_rate = cls._cache_hits / total if total > 0 else 0
+        return {
+            "cache_size": len(cls._prompt_cache),
+            "cache_hits": cls._cache_hits,
+            "cache_misses": cls._cache_misses,
+            "hit_rate": f"{hit_rate:.1%}",
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 AI RESPONSE VALIDATOR — Validate AI responses & detect hallucinations
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class AIValidationResult:
+    """Result of AI response validation."""
+    valid: bool
+    confidence: float
+    issues: List[str]
+    corrected_response: Optional[Dict]
+    hallucination_score: float  # 0.0 = definitely real, 1.0 = definitely hallucinated
+
+
+class AIResponseValidator:
+    """
+    V7.6 Response Validator - Validates AI responses for accuracy,
+    detects hallucinations, and ensures actionable output.
+    """
+    
+    # Known valid values for validation
+    VALID_NETWORKS = {"visa", "mastercard", "amex", "discover", "jcb", "unionpay"}
+    VALID_CARD_TYPES = {"credit", "debit", "prepaid", "charge"}
+    VALID_CARD_LEVELS = {"classic", "standard", "gold", "platinum", "signature", "infinite", "black", "world", "world_elite"}
+    VALID_FRAUD_ENGINES = {"forter", "riskified", "seon", "stripe_radar", "cybersource", "kount", "maxmind", "accertify", "internal", "unknown"}
+    VALID_PSPS = {"stripe", "adyen", "checkout", "braintree", "paypal", "worldpay", "authorize", "square", "internal"}
+    
+    # Known BIN prefixes for hallucination detection
+    KNOWN_BIN_BANKS: Dict[str, str] = {
+        "421783": "Bank of America", "414720": "Chase", "426684": "Capital One",
+        "453245": "Wells Fargo", "400115": "US Bank", "426428": "Citi",
+        "479226": "Navy Federal", "474426": "USAA", "379880": "Amex",
+    }
+    
+    @classmethod
+    def validate_bin_analysis(cls, response: Dict, bin_number: str) -> AIValidationResult:
+        """Validate BIN analysis response."""
+        issues = []
+        hallucination_score = 0.0
+        corrected = response.copy()
+        
+        # Check required fields
+        required = ["bank_name", "card_type", "network", "success_probability", "ai_score"]
+        for field in required:
+            if field not in response:
+                issues.append(f"Missing required field: {field}")
+        
+        # Validate network
+        network = response.get("network", "").lower()
+        if network and network not in cls.VALID_NETWORKS:
+            issues.append(f"Invalid network: {network}")
+            # Try to correct based on BIN
+            if bin_number.startswith("4"):
+                corrected["network"] = "visa"
+            elif bin_number.startswith("5") or bin_number.startswith("2"):
+                corrected["network"] = "mastercard"
+            elif bin_number.startswith("3"):
+                corrected["network"] = "amex"
+        
+        # Validate card_type
+        card_type = response.get("card_type", "").lower()
+        if card_type and card_type not in cls.VALID_CARD_TYPES:
+            issues.append(f"Invalid card type: {card_type}")
+            corrected["card_type"] = "credit"  # Default assumption
+        
+        # Validate probability ranges
+        for prob_field in ["success_probability"]:
+            val = response.get(prob_field, 0)
+            if isinstance(val, (int, float)):
+                if val < 0 or val > 1:
+                    issues.append(f"{prob_field} out of range: {val}")
+                    corrected[prob_field] = max(0, min(1, val))
+        
+        # Validate ai_score range
+        ai_score = response.get("ai_score", 50)
+        if isinstance(ai_score, (int, float)):
+            if ai_score < 0 or ai_score > 100:
+                issues.append(f"ai_score out of range: {ai_score}")
+                corrected["ai_score"] = max(0, min(100, ai_score))
+        
+        # Check for bank name hallucination
+        bin6 = bin_number[:6]
+        if bin6 in cls.KNOWN_BIN_BANKS:
+            expected_bank = cls.KNOWN_BIN_BANKS[bin6]
+            claimed_bank = response.get("bank_name", "")
+            if claimed_bank and expected_bank.lower() not in claimed_bank.lower():
+                hallucination_score += 0.5
+                issues.append(f"Bank mismatch: expected '{expected_bank}', got '{claimed_bank}'")
+                corrected["bank_name"] = expected_bank
+        
+        valid = len(issues) == 0
+        confidence = 1.0 - (len(issues) * 0.15) - hallucination_score
+        
+        return AIValidationResult(
+            valid=valid,
+            confidence=max(0, confidence),
+            issues=issues,
+            corrected_response=corrected if issues else None,
+            hallucination_score=hallucination_score
+        )
+    
+    @classmethod
+    def validate_target_recon(cls, response: Dict, target: str) -> AIValidationResult:
+        """Validate target reconnaissance response."""
+        issues = []
+        hallucination_score = 0.0
+        corrected = response.copy()
+        
+        # Validate fraud engine
+        engine = response.get("fraud_engine", "").lower()
+        if engine and engine not in cls.VALID_FRAUD_ENGINES:
+            issues.append(f"Unknown fraud engine: {engine}")
+            corrected["fraud_engine"] = "unknown"
+            hallucination_score += 0.3
+        
+        # Validate PSP
+        psp = response.get("payment_processor", "").lower()
+        if psp and psp not in cls.VALID_PSPS:
+            issues.append(f"Unknown PSP: {psp}")
+            corrected["payment_processor"] = "internal"
+        
+        # Validate probability ranges
+        for prob_field in ["three_ds_probability"]:
+            val = response.get(prob_field, 0)
+            if isinstance(val, (int, float)):
+                if val < 0 or val > 1:
+                    issues.append(f"{prob_field} out of range: {val}")
+                    corrected[prob_field] = max(0, min(1, val))
+        
+        valid = len(issues) == 0
+        confidence = 1.0 - (len(issues) * 0.2) - hallucination_score
+        
+        return AIValidationResult(
+            valid=valid,
+            confidence=max(0, confidence),
+            issues=issues,
+            corrected_response=corrected if issues else None,
+            hallucination_score=hallucination_score
+        )
+    
+    @classmethod
+    def validate_json_response(cls, response_text: str) -> Tuple[bool, Optional[Dict], str]:
+        """
+        Validate and parse JSON response from AI.
+        Returns: (success, parsed_dict, error_message)
+        """
+        import json
+        import re
+        
+        # Try to extract JSON from response
+        text = response_text.strip()
+        
+        # Try direct parse
+        try:
+            return True, json.loads(text), ""
+        except json.JSONDecodeError:
+            pass
+        
+        # Try to find JSON block
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+        if json_match:
+            try:
+                return True, json.loads(json_match.group()), ""
+            except json.JSONDecodeError as e:
+                return False, None, f"JSON parse error: {e}"
+        
+        # Try to find JSON in code block
+        code_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+        if code_match:
+            try:
+                return True, json.loads(code_match.group(1)), ""
+            except json.JSONDecodeError as e:
+                return False, None, f"JSON parse error in code block: {e}"
+        
+        return False, None, "No valid JSON found in response"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 UNIFIED AI ORCHESTRATOR — Parallel AI calls with result aggregation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class AIOrchestrationResult:
+    """Result of orchestrated AI operations."""
+    results: Dict[str, Any]
+    total_time_ms: float
+    parallel_tasks: int
+    cache_hits: int
+    model_used: str
+    validation_confidence: float
+
+
+class UnifiedAIOrchestrator:
+    """
+    V7.6 Unified AI Orchestrator - Coordinates multiple AI calls in parallel,
+    manages model selection, caching, and result aggregation.
+    """
+    
+    def __init__(self):
+        self.model_selector = AIModelSelector()
+        self._executor: Optional[Any] = None
+    
+    def _get_executor(self):
+        """Get or create thread pool executor."""
+        if self._executor is None:
+            from concurrent.futures import ThreadPoolExecutor
+            self._executor = ThreadPoolExecutor(max_workers=4)
+        return self._executor
+    
+    def orchestrate_operation_intel(self, bin_number: str, target: str,
+                                    amount: float, card_info: Dict = None,
+                                    urgency: str = "normal") -> AIOrchestrationResult:
+        """
+        Orchestrate full operation intelligence gathering.
+        Runs BIN analysis, target recon, 3DS strategy, and behavioral tuning
+        in parallel where possible.
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time
+        
+        t0 = time.time()
+        cache_hits = 0
+        results = {}
+        
+        # Define tasks
+        tasks = {
+            "bin_analysis": lambda: self._run_with_cache(
+                "bin_analysis", analyze_bin,
+                bin_number, target, amount, card_info
+            ),
+            "target_recon": lambda: self._run_with_cache(
+                "target_recon", recon_target, target
+            ),
+        }
+        
+        # Run first batch in parallel
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {executor.submit(task): name for name, task in tasks.items()}
+            
+            for future in as_completed(futures):
+                name = futures[future]
+                try:
+                    result, hit = future.result()
+                    results[name] = result
+                    if hit:
+                        cache_hits += 1
+                except Exception as e:
+                    logger.error(f"AI task {name} failed: {e}")
+                    results[name] = None
+        
+        # Sequential tasks that depend on previous results
+        if results.get("target_recon"):
+            fraud_engine = results["target_recon"].fraud_engine_guess
+            target_info = {
+                "fraud_engine": fraud_engine,
+                "three_ds_rate": results["target_recon"].three_ds_probability
+            }
+            
+            # 3DS strategy depends on target info
+            results["3ds_strategy"], hit = self._run_with_cache(
+                "3ds_strategy", advise_3ds,
+                bin_number, target, amount, card_info=card_info, target_info=target_info
+            )
+            if hit:
+                cache_hits += 1
+            
+            # Behavioral tuning
+            results["behavioral"], hit = self._run_with_cache(
+                "behavioral", tune_behavior, target, fraud_engine=fraud_engine
+            )
+            if hit:
+                cache_hits += 1
+        
+        elapsed_ms = (time.time() - t0) * 1000
+        
+        # Calculate validation confidence
+        confidences = []
+        for name, result in results.items():
+            if result and hasattr(result, 'ai_powered'):
+                confidences.append(0.9 if result.ai_powered else 0.6)
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.5
+        
+        return AIOrchestrationResult(
+            results=results,
+            total_time_ms=round(elapsed_ms, 1),
+            parallel_tasks=len(tasks),
+            cache_hits=cache_hits,
+            model_used=self.model_selector.select_model("operation_planning", urgency),
+            validation_confidence=round(avg_confidence, 2)
+        )
+    
+    def _run_with_cache(self, task_type: str, func: callable, *args, **kwargs) -> Tuple[Any, bool]:
+        """Run task with prompt caching."""
+        # Generate cache key
+        cache_key = AIPromptOptimizer.get_prompt_hash(
+            task_type, args=str(args), kwargs=str(kwargs)
+        )
+        
+        # Check cache
+        cached = AIPromptOptimizer.get_cached_response(cache_key)
+        if cached:
+            return cached, True
+        
+        # Run function
+        result = func(*args, **kwargs)
+        
+        # Cache result if successful
+        if result:
+            AIPromptOptimizer.cache_response(cache_key, result)
+        
+        return result, False
+    
+    def get_orchestrator_stats(self) -> Dict:
+        """Get orchestrator statistics."""
+        return {
+            "model_selector": self.model_selector.get_model_stats(),
+            "prompt_cache": AIPromptOptimizer.get_cache_stats(),
+        }
+
+
+# Global orchestrator instance
+_ai_orchestrator: Optional[UnifiedAIOrchestrator] = None
+
+
+def get_ai_orchestrator() -> UnifiedAIOrchestrator:
+    """Get or create global AI orchestrator."""
+    global _ai_orchestrator
+    if _ai_orchestrator is None:
+        _ai_orchestrator = UnifiedAIOrchestrator()
+    return _ai_orchestrator
+
+
+def orchestrate_intel(bin_number: str, target: str, amount: float,
+                      card_info: Dict = None, urgency: str = "normal") -> AIOrchestrationResult:
+    """
+    Convenience function for orchestrated intelligence gathering.
+    
+    Usage:
+        result = orchestrate_intel("421783", "eneba.com", 150)
+        print(result.results["bin_analysis"].ai_score)
+        print(result.total_time_ms, "ms")
+    """
+    return get_ai_orchestrator().orchestrate_operation_intel(
+        bin_number, target, amount, card_info, urgency
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN ENTRY POINT
+# ═══════════════════════════════════════════════════════════════════════════════
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
 
-    print("TITAN AI Intelligence Engine V7.5")
+    print("TITAN AI Intelligence Engine V7.6")
     print(f"Ollama available: {_is_ollama_available()}")
+    print()
+    
+    # Test V7.6 components
+    print("=== V7.6 Model Selector ===")
+    selector = AIModelSelector()
+    print(f"  Available models: {selector.get_model_stats()}")
+    print(f"  BIN analysis model: {selector.select_model('bin_analysis')}")
+    print(f"  3DS strategy model: {selector.select_model('3ds_strategy', 'thorough')}")
+    print()
+    
+    print("=== V7.6 Prompt Cache ===")
+    print(f"  Stats: {AIPromptOptimizer.get_cache_stats()}")
     print()
 
     if _is_ollama_available():
@@ -1110,5 +1816,13 @@ if __name__ == "__main__":
         print("=== Full Operation Plan ===")
         plan = plan_operation("421783", "eneba.com", 150)
         print(f"  {plan.executive_summary}")
+        print()
+        
+        # Test V7.6 orchestrator
+        print("=== V7.6 Orchestrated Intel ===")
+        result = orchestrate_intel("421783", "eneba.com", 150)
+        print(f"  Total time: {result.total_time_ms}ms")
+        print(f"  Cache hits: {result.cache_hits}")
+        print(f"  Model: {result.model_used}")
     else:
         print("Ollama offline — run 'ollama serve' to enable AI features")
