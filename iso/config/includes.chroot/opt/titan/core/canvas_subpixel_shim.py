@@ -314,3 +314,440 @@ if __name__ == "__main__":
     print(f"Generated {len(js)} bytes of JS shim code")
     print(f"Seed: {shim._seed}")
     print(f"Font corrections: {len(shim._corrections)} fonts")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: CANVAS IMAGE DATA PROTECTION
+# Inject noise into getImageData() to defeat canvas fingerprinting
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CanvasImageDataProtection:
+    """
+    V7.6: Protects against canvas fingerprinting via getImageData().
+    
+    Canvas fingerprinting reads pixel data after drawing operations.
+    Slight variations in rendering create unique fingerprints.
+    
+    This adds deterministic noise to pixel values, making fingerprint
+    consistent for same profile but different across profiles.
+    """
+    
+    def __init__(self, profile_uuid: str = None, noise_amplitude: int = 2):
+        import hashlib
+        
+        self._seed = int(hashlib.sha256(
+            (profile_uuid or 'titan_default').encode()
+        ).hexdigest()[:8], 16)
+        self.noise_amplitude = noise_amplitude  # Max pixel value change
+    
+    def generate_image_data_shim(self) -> str:
+        """Generate JavaScript to add noise to getImageData()."""
+        return f"""
+(function() {{
+    'use strict';
+    const _titanCanvasSeed = {self._seed};
+    const _noiseAmp = {self.noise_amplitude};
+    
+    // Seeded PRNG for consistent noise
+    function _titanNoise(seed, index) {{
+        seed = (seed * 9301 + index * 49297) % 233280;
+        return (seed % (_noiseAmp * 2 + 1)) - _noiseAmp;
+    }}
+    
+    // Override getImageData
+    const _origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+    CanvasRenderingContext2D.prototype.getImageData = function(sx, sy, sw, sh) {{
+        const imageData = _origGetImageData.call(this, sx, sy, sw, sh);
+        const data = imageData.data;
+        
+        // Add deterministic noise to RGB (skip alpha)
+        for (let i = 0; i < data.length; i += 4) {{
+            data[i] = Math.max(0, Math.min(255, data[i] + _titanNoise(_titanCanvasSeed, i)));     // R
+            data[i+1] = Math.max(0, Math.min(255, data[i+1] + _titanNoise(_titanCanvasSeed, i+1))); // G
+            data[i+2] = Math.max(0, Math.min(255, data[i+2] + _titanNoise(_titanCanvasSeed, i+2))); // B
+            // Alpha (i+3) unchanged
+        }}
+        
+        return imageData;
+    }};
+    
+    // Also override toDataURL and toBlob
+    const _origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function(type, quality) {{
+        // Force noise by reading through 2D context
+        const ctx = this.getContext('2d');
+        if (ctx) {{
+            const imageData = ctx.getImageData(0, 0, this.width, this.height);
+            ctx.putImageData(imageData, 0, 0);
+        }}
+        return _origToDataURL.call(this, type, quality);
+    }};
+    
+    const _origToBlob = HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob = function(callback, type, quality) {{
+        const ctx = this.getContext('2d');
+        if (ctx) {{
+            const imageData = ctx.getImageData(0, 0, this.width, this.height);
+            ctx.putImageData(imageData, 0, 0);
+        }}
+        return _origToBlob.call(this, callback, type, quality);
+    }};
+}})();
+"""
+    
+    def get_config(self) -> dict:
+        """Get protection configuration."""
+        return {
+            'seed': self._seed,
+            'noise_amplitude': self.noise_amplitude,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: WEBGL PARAMETER SHIM
+# Consistent WebGL parameters across sessions
+# ═══════════════════════════════════════════════════════════════════════════
+
+class WebGLParameterShim:
+    """
+    V7.6: Provides consistent WebGL parameters.
+    
+    WebGL fingerprinting targets:
+    - GL_VENDOR, GL_RENDERER strings
+    - MAX_* parameters
+    - Supported extensions
+    - Shader precision formats
+    
+    This normalizes parameters to common GPU profiles.
+    """
+    
+    # Common GPU profiles
+    GPU_PROFILES = {
+        'intel_hd': {
+            'vendor': 'Intel Inc.',
+            'renderer': 'Intel(R) UHD Graphics 620',
+            'unmaskedVendor': 'Intel Inc.',
+            'unmaskedRenderer': 'Intel(R) UHD Graphics 620',
+            'maxTextureSize': 16384,
+            'maxCubeMapTextureSize': 16384,
+            'maxViewportDims': [16384, 16384],
+            'maxRenderbufferSize': 16384,
+            'maxVertexAttribs': 16,
+            'maxVertexUniformVectors': 4096,
+            'maxFragmentUniformVectors': 1024,
+            'maxVaryingVectors': 32,
+        },
+        'nvidia_gtx': {
+            'vendor': 'NVIDIA Corporation',
+            'renderer': 'NVIDIA GeForce GTX 1660/PCIe/SSE2',
+            'unmaskedVendor': 'NVIDIA Corporation',
+            'unmaskedRenderer': 'NVIDIA GeForce GTX 1660/PCIe/SSE2',
+            'maxTextureSize': 32768,
+            'maxCubeMapTextureSize': 32768,
+            'maxViewportDims': [32768, 32768],
+            'maxRenderbufferSize': 32768,
+            'maxVertexAttribs': 16,
+            'maxVertexUniformVectors': 4096,
+            'maxFragmentUniformVectors': 4096,
+            'maxVaryingVectors': 32,
+        },
+        'amd_radeon': {
+            'vendor': 'ATI Technologies Inc.',
+            'renderer': 'AMD Radeon RX 580 Series',
+            'unmaskedVendor': 'ATI Technologies Inc.',
+            'unmaskedRenderer': 'AMD Radeon RX 580 Series',
+            'maxTextureSize': 16384,
+            'maxCubeMapTextureSize': 16384,
+            'maxViewportDims': [16384, 16384],
+            'maxRenderbufferSize': 16384,
+            'maxVertexAttribs': 16,
+            'maxVertexUniformVectors': 4096,
+            'maxFragmentUniformVectors': 4096,
+            'maxVaryingVectors': 32,
+        },
+        'apple_m1': {
+            'vendor': 'Apple Inc.',
+            'renderer': 'Apple M1',
+            'unmaskedVendor': 'Apple Inc.',
+            'unmaskedRenderer': 'Apple M1',
+            'maxTextureSize': 16384,
+            'maxCubeMapTextureSize': 16384,
+            'maxViewportDims': [16384, 16384],
+            'maxRenderbufferSize': 16384,
+            'maxVertexAttribs': 16,
+            'maxVertexUniformVectors': 1024,
+            'maxFragmentUniformVectors': 1024,
+            'maxVaryingVectors': 31,
+        },
+    }
+    
+    def __init__(self, gpu_profile: str = 'intel_hd'):
+        self.profile_name = gpu_profile
+        self.profile = self.GPU_PROFILES.get(gpu_profile, self.GPU_PROFILES['intel_hd'])
+    
+    def generate_webgl_shim(self) -> str:
+        """Generate JavaScript to spoof WebGL parameters."""
+        import json as _json
+        profile_json = _json.dumps(self.profile)
+        
+        return f"""
+(function() {{
+    'use strict';
+    const _titanGPU = {profile_json};
+    
+    // Helper to wrap getParameter
+    function wrapGetParameter(proto) {{
+        const origGetParameter = proto.getParameter;
+        proto.getParameter = function(pname) {{
+            // Intercept known fingerprinting parameters
+            switch(pname) {{
+                case 37445: // UNMASKED_VENDOR_WEBGL
+                    return _titanGPU.unmaskedVendor;
+                case 37446: // UNMASKED_RENDERER_WEBGL
+                    return _titanGPU.unmaskedRenderer;
+                case 3379: // MAX_TEXTURE_SIZE
+                    return _titanGPU.maxTextureSize;
+                case 34076: // MAX_CUBE_MAP_TEXTURE_SIZE
+                    return _titanGPU.maxCubeMapTextureSize;
+                case 3386: // MAX_VIEWPORT_DIMS
+                    return new Int32Array(_titanGPU.maxViewportDims);
+                case 34024: // MAX_RENDERBUFFER_SIZE
+                    return _titanGPU.maxRenderbufferSize;
+                case 34930: // MAX_VERTEX_ATTRIBS
+                    return _titanGPU.maxVertexAttribs;
+                case 36347: // MAX_VERTEX_UNIFORM_VECTORS
+                    return _titanGPU.maxVertexUniformVectors;
+                case 36348: // MAX_FRAGMENT_UNIFORM_VECTORS
+                    return _titanGPU.maxFragmentUniformVectors;
+                case 36349: // MAX_VARYING_VECTORS
+                    return _titanGPU.maxVaryingVectors;
+                default:
+                    return origGetParameter.call(this, pname);
+            }}
+        }};
+    }}
+    
+    // Apply to WebGL1 and WebGL2
+    if (WebGLRenderingContext) {{
+        wrapGetParameter(WebGLRenderingContext.prototype);
+    }}
+    if (typeof WebGL2RenderingContext !== 'undefined') {{
+        wrapGetParameter(WebGL2RenderingContext.prototype);
+    }}
+    
+    // Wrap getExtension for WEBGL_debug_renderer_info
+    const wrapGetExtension = function(proto) {{
+        const origGetExtension = proto.getExtension;
+        proto.getExtension = function(name) {{
+            const ext = origGetExtension.call(this, name);
+            if (name === 'WEBGL_debug_renderer_info' && ext) {{
+                // Return spoofed extension
+                return {{
+                    UNMASKED_VENDOR_WEBGL: 37445,
+                    UNMASKED_RENDERER_WEBGL: 37446,
+                }};
+            }}
+            return ext;
+        }};
+    }};
+    
+    if (WebGLRenderingContext) {{
+        wrapGetExtension(WebGLRenderingContext.prototype);
+    }}
+    if (typeof WebGL2RenderingContext !== 'undefined') {{
+        wrapGetExtension(WebGL2RenderingContext.prototype);
+    }}
+}})();
+"""
+    
+    def get_profile(self) -> dict:
+        """Get GPU profile data."""
+        return self.profile.copy()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: CLIENT RECTS RANDOMIZER
+# Randomize getBoundingClientRect() for element fingerprinting
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ClientRectsRandomizer:
+    """
+    V7.6: Randomizes element bounding rect measurements.
+    
+    Font fingerprinting measures text element dimensions via:
+    - getBoundingClientRect()
+    - getClientRects()
+    - offsetWidth/offsetHeight
+    
+    Subtle variations reveal font rendering differences.
+    This adds deterministic micro-noise to measurements.
+    """
+    
+    def __init__(self, profile_uuid: str = None, noise_range: float = 0.001):
+        import hashlib
+        
+        self._seed = int(hashlib.sha256(
+            (profile_uuid or 'titan_default').encode()
+        ).hexdigest()[:8], 16)
+        self.noise_range = noise_range  # Fractional pixel noise
+    
+    def generate_client_rects_shim(self) -> str:
+        """Generate JavaScript to randomize client rect measurements."""
+        return f"""
+(function() {{
+    'use strict';
+    const _titanRectSeed = {self._seed};
+    const _noiseRange = {self.noise_range};
+    
+    // Seeded noise function
+    function _titanRectNoise(seed, key) {{
+        const hash = (seed * 9301 + key * 49297) % 233280;
+        return ((hash / 233280) - 0.5) * 2 * _noiseRange;
+    }}
+    
+    // Get noise based on element position in DOM
+    function _getElementKey(element) {{
+        let key = 0;
+        let el = element;
+        while (el) {{
+            key = (key * 31 + (el.tagName || '').charCodeAt(0)) >>> 0;
+            el = el.parentElement;
+        }}
+        return key;
+    }}
+    
+    // Wrap getBoundingClientRect
+    const _origGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function() {{
+        const rect = _origGetBoundingClientRect.call(this);
+        const key = _getElementKey(this);
+        
+        return new DOMRect(
+            rect.x + _titanRectNoise(_titanRectSeed, key),
+            rect.y + _titanRectNoise(_titanRectSeed, key + 1),
+            rect.width + _titanRectNoise(_titanRectSeed, key + 2),
+            rect.height + _titanRectNoise(_titanRectSeed, key + 3)
+        );
+    }};
+    
+    // Wrap getClientRects
+    const _origGetClientRects = Element.prototype.getClientRects;
+    Element.prototype.getClientRects = function() {{
+        const rects = _origGetClientRects.call(this);
+        const key = _getElementKey(this);
+        const modifiedRects = [];
+        
+        for (let i = 0; i < rects.length; i++) {{
+            const rect = rects[i];
+            modifiedRects.push(new DOMRect(
+                rect.x + _titanRectNoise(_titanRectSeed, key + i * 4),
+                rect.y + _titanRectNoise(_titanRectSeed, key + i * 4 + 1),
+                rect.width + _titanRectNoise(_titanRectSeed, key + i * 4 + 2),
+                rect.height + _titanRectNoise(_titanRectSeed, key + i * 4 + 3)
+            ));
+        }}
+        
+        return modifiedRects;
+    }};
+    
+    // Override offsetWidth/offsetHeight getters
+    const _origOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    const _origOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    
+    if (_origOffsetWidth && _origOffsetWidth.get) {{
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {{
+            get: function() {{
+                const width = _origOffsetWidth.get.call(this);
+                const key = _getElementKey(this);
+                return Math.round(width + _titanRectNoise(_titanRectSeed, key + 100) * 10);
+            }}
+        }});
+    }}
+    
+    if (_origOffsetHeight && _origOffsetHeight.get) {{
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {{
+            get: function() {{
+                const height = _origOffsetHeight.get.call(this);
+                const key = _getElementKey(this);
+                return Math.round(height + _titanRectNoise(_titanRectSeed, key + 101) * 10);
+            }}
+        }});
+    }}
+}})();
+"""
+    
+    def get_config(self) -> dict:
+        """Get randomizer configuration."""
+        return {
+            'seed': self._seed,
+            'noise_range': self.noise_range,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 UNIFIED CANVAS PROTECTION
+# ═══════════════════════════════════════════════════════════════════════════
+
+class UnifiedCanvasProtection:
+    """
+    V7.6: Combines all canvas/graphics fingerprint protection.
+    """
+    
+    def __init__(self, profile_uuid: str = None, gpu_profile: str = 'intel_hd'):
+        self.profile_uuid = profile_uuid
+        
+        self.subpixel_shim = CanvasSubPixelShim(profile_uuid=profile_uuid)
+        self.image_data_protection = CanvasImageDataProtection(profile_uuid)
+        self.webgl_shim = WebGLParameterShim(gpu_profile)
+        self.client_rects = ClientRectsRandomizer(profile_uuid)
+    
+    def generate_combined_shim(self) -> str:
+        """Generate all canvas protection JavaScript."""
+        return '\n\n'.join([
+            "// TITAN V7.6 Unified Canvas Protection",
+            self.subpixel_shim.generate_js_shim(),
+            self.image_data_protection.generate_image_data_shim(),
+            self.webgl_shim.generate_webgl_shim(),
+            self.client_rects.generate_client_rects_shim(),
+        ])
+    
+    def write_shim_file(self, output_path: str = None) -> str:
+        """Write combined shim to file."""
+        if output_path is None:
+            output_path = "/opt/titan/extensions/ghost_motor/canvas_protection_v76.js"
+        
+        try:
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(output_path).write_text(self.generate_combined_shim())
+            return output_path
+        except Exception as e:
+            logger.error(f"Failed to write canvas protection: {e}")
+            return ""
+    
+    def get_config(self) -> dict:
+        """Get combined protection config."""
+        return {
+            'profile_uuid': self.profile_uuid,
+            'subpixel_seed': self.subpixel_shim._seed,
+            'image_data': self.image_data_protection.get_config(),
+            'webgl_profile': self.webgl_shim.get_profile(),
+            'client_rects': self.client_rects.get_config(),
+        }
+
+
+# V7.6 Convenience exports
+def create_image_data_protection(profile_uuid: str = None) -> CanvasImageDataProtection:
+    """V7.6: Create canvas image data protection"""
+    return CanvasImageDataProtection(profile_uuid)
+
+def create_webgl_shim(gpu_profile: str = 'intel_hd') -> WebGLParameterShim:
+    """V7.6: Create WebGL parameter shim"""
+    return WebGLParameterShim(gpu_profile)
+
+def create_client_rects_randomizer(profile_uuid: str = None) -> ClientRectsRandomizer:
+    """V7.6: Create client rects randomizer"""
+    return ClientRectsRandomizer(profile_uuid)
+
+def create_canvas_protection(profile_uuid: str = None, gpu: str = 'intel_hd') -> UnifiedCanvasProtection:
+    """V7.6: Create unified canvas protection"""
+    return UnifiedCanvasProtection(profile_uuid, gpu)
