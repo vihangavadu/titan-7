@@ -1286,7 +1286,84 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(health_tab, "HEALTH")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 6: V7.5 TRANSACTION MONITOR
+        # Tab 6: FORENSIC MONITOR — 24/7 System Analysis
+        # ═══════════════════════════════════════════════════════════════════
+        forensic_tab = QWidget()
+        forensic_layout = QVBoxLayout(forensic_tab)
+        forensic_layout.setSpacing(6)
+        
+        forensic_header = QLabel("🔍 24/7 FORENSIC MONITOR")
+        forensic_header.setFont(QFont("JetBrains Mono", 16, QFont.Weight.Bold))
+        forensic_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        forensic_header.setStyleSheet("color: #3A75C4;")
+        forensic_layout.addWidget(forensic_header)
+        
+        # Instructions
+        forensic_info = QLabel(
+            "Real-time OS analysis using LLM to detect forensic artifacts, missing components, "
+            "and detectable traces. Monitors processes, network, filesystem, logs, and Titan modules."
+        )
+        forensic_info.setWordWrap(True)
+        forensic_info.setStyleSheet("color: #888; padding: 10px; background: #1a1a1a; border-radius: 4px; margin: 5px;")
+        forensic_layout.addWidget(forensic_info)
+        
+        # Launch button
+        forensic_btn_layout = QHBoxLayout()
+        self.launch_forensic_btn = QPushButton("🔍 LAUNCH FORENSIC MONITOR")
+        self.launch_forensic_btn.setFont(QFont("Inter", 12, QFont.Weight.Bold))
+        self.launch_forensic_btn.setMinimumHeight(50)
+        self.launch_forensic_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3A75C4;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #4A8AD8;
+            }
+            QPushButton:pressed {
+                background-color: #2D5F9E;
+            }
+        """)
+        self.launch_forensic_btn.clicked.connect(self._launch_forensic_monitor)
+        forensic_btn_layout.addWidget(self.launch_forensic_btn)
+        forensic_btn_layout.addStretch()
+        forensic_layout.addLayout(forensic_btn_layout)
+        
+        # Features list
+        features_group = QGroupBox("🎯 MONITORING FEATURES")
+        features_layout = QVBoxLayout(features_group)
+        
+        features_text = QLabel(
+            "• 🧠 LLM-Powered Analysis: Intelligent threat assessment using multi-provider LLM bridge\n"
+            "• ⚡ Real-Time Scanning: Every 5 minutes comprehensive system analysis\n"
+            "• 🚨 Threat Classification: Critical/High/Medium/Low risk levels with color-coded alerts\n"
+            "• 🕵️ Forensic Detection: Identify suspicious files, processes, network activity\n"
+            "• 🛡️ Countermeasures: Automatic artifact cleanup and security recommendations\n"
+            "• 📊 Interactive Dashboard: Split-pane view with issues, instructions, and analysis\n"
+            "• 🔍 Titan Module Status: Monitor stealth components and anti-forensics capabilities\n"
+            "• 📋 Missing Components: Detect gaps in security configuration\n"
+            "• 🗑️ Cache Management: 24-hour retention with manual cleanup options\n"
+            "• 🔄 Auto-Refresh: Continuous monitoring with manual scan capability"
+        )
+        features_text.setWordWrap(True)
+        features_text.setStyleSheet("color: #ccc; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 10px;")
+        features_layout.addWidget(features_text)
+        
+        forensic_layout.addWidget(features_group)
+        
+        # Status indicator
+        self.forensic_status = QLabel("🟢 Ready to launch")
+        self.forensic_status.setStyleSheet("color: #4CAF50; font-weight: bold; padding: 10px;")
+        forensic_layout.addWidget(self.forensic_status)
+        
+        forensic_layout.addStretch()
+        self.main_tabs.addTab(forensic_tab, "FORENSIC")
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # Tab 7: V7.5 TRANSACTION MONITOR
         # ═══════════════════════════════════════════════════════════════════
         tx_tab = QWidget()
         tx_layout = QVBoxLayout(tx_tab)
@@ -2874,6 +2951,54 @@ class UnifiedOperationCenter(QMainWindow):
         except Exception as e:
             self.svc_result_text.setPlainText(f"Error: {e}")
 
+
+    def _launch_forensic_monitor(self):
+        """Launch the forensic monitor widget"""
+        try:
+            # Import the forensic widget
+            from forensic_widget import ForensicWidget
+            from PyQt6.QtWidgets import QApplication
+            
+            # Check if already running
+            for widget in QApplication.topLevelWidgets():
+                if isinstance(widget, ForensicWidget):
+                    self.forensic_status.setText("🟡 Already running")
+                    self.forensic_status.setStyleSheet("color: #FFC107;")
+                    widget.raise_()
+                    widget.activateWindow()
+                    return
+            
+            # Create and show forensic widget
+            forensic_widget = ForensicWidget()
+            forensic_widget.show()
+            
+            self.forensic_status.setText("🟢 Forensic monitor launched")
+            self.forensic_status.setStyleSheet("color: #4CAF50;")
+            
+            # Update button text
+            self.launch_forensic_btn.setText("🔍 FORENSIC MONITOR ACTIVE")
+            self.launch_forensic_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #45A049;
+                }
+                QPushButton:pressed {
+                    background-color: #3D8B40;
+                }
+            """)
+            
+        except ImportError as e:
+            self.forensic_status.setText(f"❌ Import error: {e}")
+            self.forensic_status.setStyleSheet("color: #F44336;")
+        except Exception as e:
+            self.forensic_status.setText(f"❌ Launch failed: {e}")
+            self.forensic_status.setStyleSheet("color: #F44336;")
 
     def _start_status_bar_timer(self):
         """Add a live status bar with clock and system info"""
