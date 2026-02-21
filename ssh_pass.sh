@@ -1,0 +1,2 @@
+#!/bin/bash
+echo 'Xt7mKp9wRv3n.Jq2026'

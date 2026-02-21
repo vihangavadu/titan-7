@@ -1,0 +1,245 @@
+/* ─── TITAN V7 Simulation — Cyberpunk Glassmorphism ──────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0a0e17;
+  --panel:     rgba(13, 17, 35, 0.85);
+  --border:    rgba(0, 212, 255, 0.25);
+  --cyan:      #00d4ff;
+  --green:     #00ff88;
+  --orange:    #ff6b35;
+  --purple:    #9c27b0;
+  --red:       #ff3355;
+  --amber:     #FFB74D;
+  --text:      #c8d2dc;
+  --dim:       #64748B;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px
+  );
+  pointer-events: none; z-index: 9999;
+}
+
+/* Neon glow border helper */
+.neon-border { border: 1px solid var(--border); border-radius: 8px; }
+.neon-border-cyan { border: 1px solid rgba(0,212,255,0.5); }
+.neon-border-green { border: 1px solid rgba(0,255,136,0.5); }
+
+/* ─── Header ─────────────────────────────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px;
+  background: rgba(10, 14, 23, 0.95);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+header .logo {
+  font-size: 1.3rem; font-weight: 700; letter-spacing: 4px;
+  color: var(--cyan); text-shadow: 0 0 18px rgba(0,212,255,0.6);
+}
+header .version { color: var(--dim); font-size: 0.75rem; }
+
+/* ─── Step Progress Bar ──────────────────────────────────────────────────── */
+.step-bar {
+  display: flex; gap: 0; padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.step-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 8px 4px; position: relative; cursor: pointer;
+  transition: all 0.2s;
+}
+.step-item::after {
+  content: ''; position: absolute; top: 18px; left: 50%; right: -50%;
+  height: 2px; background: var(--border);
+}
+.step-item:last-child::after { display: none; }
+.step-num {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem;
+  border: 2px solid var(--border); color: var(--dim);
+  background: var(--bg); position: relative; z-index: 1;
+  transition: all 0.3s;
+}
+.step-item.active .step-num {
+  border-color: var(--cyan); color: var(--cyan);
+  box-shadow: 0 0 12px rgba(0,212,255,0.5);
+}
+.step-item.done .step-num {
+  border-color: var(--green); background: rgba(0,255,136,0.15); color: var(--green);
+}
+.step-label { font-size: 0.68rem; color: var(--dim); text-align: center; }
+.step-item.active .step-label { color: var(--cyan); }
+.step-item.done .step-label { color: var(--green); }
+
+/* ─── Main layout ────────────────────────────────────────────────────────── */
+.main { display: flex; gap: 16px; padding: 20px 28px; min-height: calc(100vh - 160px); }
+.panel-left { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; }
+.panel-center { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+.panel-right { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; }
+
+/* ─── Cards / Panels ─────────────────────────────────────────────────────── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  backdrop-filter: blur(8px);
+}
+.card-title {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 3px;
+  color: var(--cyan); text-transform: uppercase; margin-bottom: 14px;
+  border-bottom: 1px solid var(--border); padding-bottom: 8px;
+}
+.card-title.orange { color: var(--orange); border-color: rgba(255,107,53,0.3); }
+.card-title.green  { color: var(--green);  border-color: rgba(0,255,136,0.3); }
+.card-title.purple { color: var(--purple); border-color: rgba(156,39,176,0.3); }
+
+/* ─── Form Fields ─────────────────────────────────────────────────────────── */
+.field-group { margin-bottom: 12px; }
+.field-group label { display: block; font-size: 0.7rem; color: var(--dim); margin-bottom: 4px; }
+.field-group input,
+.field-group select,
+.field-group textarea {
+  width: 100%;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.field-group input:focus,
+.field-group select:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px rgba(0,212,255,0.2);
+}
+.field-group select option { background: #0d1123; }
+
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 18px; border-radius: 6px;
+  font-family: var(--font-mono); font-size: 0.82rem; font-weight: 700;
+  cursor: pointer; border: none; transition: all 0.2s; letter-spacing: 1px;
+}
+.btn-primary {
+  background: rgba(0,212,255,0.15);
+  border: 1px solid var(--cyan); color: var(--cyan);
+}
+.btn-primary:hover { background: rgba(0,212,255,0.3); box-shadow: 0 0 14px rgba(0,212,255,0.4); }
+.btn-success {
+  background: rgba(0,255,136,0.15);
+  border: 1px solid var(--green); color: var(--green);
+}
+.btn-success:hover { background: rgba(0,255,136,0.3); }
+.btn-orange {
+  background: rgba(255,107,53,0.15);
+  border: 1px solid var(--orange); color: var(--orange);
+}
+.btn-orange:hover { background: rgba(255,107,53,0.3); }
+.btn-danger {
+  background: rgba(255,51,85,0.2);
+  border: 1px solid var(--red); color: var(--red);
+}
+.btn-danger:hover { background: rgba(255,51,85,0.4); }
+.btn-full { width: 100%; justify-content: center; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ─── Status Badges ───────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 12px; font-size: 0.68rem; font-weight: 700;
+}
+.badge-active  { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid rgba(0,255,136,0.4); }
+.badge-warning { background: rgba(255,179,77,0.15); color: var(--amber); border: 1px solid rgba(255,179,77,0.4); }
+.badge-error   { background: rgba(255,51,85,0.15);  color: var(--red);   border: 1px solid rgba(255,51,85,0.4); }
+.badge-idle    { background: rgba(100,116,139,0.15); color: var(--dim);   border: 1px solid rgba(100,116,139,0.3); }
+.pulse { animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* ─── Console output ──────────────────────────────────────────────────────── */
+.console {
+  background: rgba(0,0,0,0.6);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 0.76rem;
+  line-height: 1.7;
+  min-height: 160px;
+  max-height: 280px;
+  overflow-y: auto;
+  color: var(--green);
+}
+.console .line-err  { color: var(--red); }
+.console .line-warn { color: var(--amber); }
+.console .line-info { color: var(--cyan); }
+.console .line-dim  { color: var(--dim); }
+.console::-webkit-scrollbar { width: 5px; }
+.console::-webkit-scrollbar-track { background: transparent; }
+.console::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ─── Progress bar ────────────────────────────────────────────────────────── */
+.progress-track {
+  background: rgba(0,0,0,0.4); border-radius: 4px;
+  height: 8px; overflow: hidden; margin: 10px 0;
+}
+.progress-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  transition: width 0.6s ease;
+  box-shadow: 0 0 10px rgba(0,212,255,0.5);
+  width: 0%;
+}
+
+/* ─── Service row ─────────────────────────────────────────────────────────── */
+.svc-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.78rem;
+}
+.svc-row:last-child { border-bottom: none; }
+.svc-name { color: var(--text); }
+
+/* ─── Slider ──────────────────────────────────────────────────────────────── */
+input[type=range] {
+  -webkit-appearance: none; width: 100%; height: 4px;
+  background: var(--border); border-radius: 2px; outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px;
+  border-radius: 50%; cursor: pointer;
+  background: radial-gradient(circle at 40% 40%, #ffffff 0%, var(--cyan) 60%, #003a5a 100%);
+  box-shadow: 0 0 8px rgba(0,212,255,0.6);
+}
+
+/* ─── Step panels (shown/hidden) ──────────────────────────────────────────── */
+.step-panel { display: none; }
+.step-panel.active { display: flex; }
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .main { flex-direction: column; }
+  .panel-left, .panel-right { width: 100%; }
+}

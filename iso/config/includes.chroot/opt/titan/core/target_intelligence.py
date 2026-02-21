@@ -1,6 +1,6 @@
 """
 TITAN V7.0 SINGULARITY - Target Intelligence Database
-PSP, Fraud Engine, and Detection System Intelligence for 200+ targets
+PSP, Fraud Engine, and Detection System Intelligence for 35 core targets + expansion framework
 """
 
 from dataclasses import dataclass, field
@@ -47,6 +47,11 @@ class FraudEngine(Enum):
     STRIPE_RADAR = "stripe_radar"
     ACCERTIFY = "accertify"
     CHAINALYSIS = "chainalysis"
+    CLEARSALE = "clearsale"
+    BIOCATCH = "biocatch"
+    THREATMETRIX = "threatmetrix"
+    DATADOME = "datadome"
+    PERIMETER_X = "perimeter_x"
     INTERNAL = "internal"
     NONE = "none"
 
@@ -115,6 +120,31 @@ COUNTERMEASURES: Dict[FraudEngine, DetectionCountermeasures] = {
     FraudEngine.KOUNT: DetectionCountermeasures(
         min_profile_age_days=60, min_storage_mb=350,
         evasion_notes=["Equifax Omniscore", "AVS match important"]
+    ),
+    FraudEngine.CLEARSALE: DetectionCountermeasures(
+        min_profile_age_days=75, min_storage_mb=350,
+        require_commerce_history=True, warmup_minutes=5,
+        evasion_notes=["Chargeback focus", "Ecommerce optimized", "Device fingerprint sensitive"]
+    ),
+    FraudEngine.BIOCATCH: DetectionCountermeasures(
+        min_profile_age_days=120, min_storage_mb=500,
+        require_social_footprint=True, warmup_minutes=15,
+        evasion_notes=["Behavioral biometrics sensitive", "Typing patterns critical", "Use Ghost Motor", "Session continuity vital"]
+    ),
+    FraudEngine.THREATMETRIX: DetectionCountermeasures(
+        min_profile_age_days=90, min_storage_mb=450,
+        require_commerce_history=True, warmup_minutes=10,
+        evasion_notes=["Multi-layer device fingerprinting", "Browser and OS fingerprint match", "Legacy system - easier than BioCatch"]
+    ),
+    FraudEngine.DATADOME: DetectionCountermeasures(
+        min_profile_age_days=100, min_storage_mb=400,
+        require_social_footprint=True, require_warmup=True, warmup_minutes=20,
+        evasion_notes=["Bot detection focus", "JavaScript execution checks", "Requires human-like interactions", "Canvas fingerprint important"]
+    ),
+    FraudEngine.PERIMETER_X: DetectionCountermeasures(
+        min_profile_age_days=80, min_storage_mb=350,
+        require_commerce_history=True, warmup_minutes=8,
+        evasion_notes=["JavaScript environment checks", "Real user monitoring", "CAPTCHA frequent", "Proxy detection aggressive"]
     ),
     FraudEngine.INTERNAL: DetectionCountermeasures(
         min_profile_age_days=30, min_storage_mb=200,

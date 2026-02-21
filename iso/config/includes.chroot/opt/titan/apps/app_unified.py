@@ -266,7 +266,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.setWindowTitle("TITAN V7.5 — Unified Operations Dashboard")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#3A75C4")
+            set_titan_icon(self, "#00d4ff")
         except Exception:
             pass
         self.setMinimumSize(1100, 950)
@@ -282,7 +282,7 @@ class UnifiedOperationCenter(QMainWindow):
         header = QLabel("TITAN V7.5 SINGULARITY")
         header.setFont(QFont("Inter", 22, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #3A75C4; padding: 6px;")
+        header.setStyleSheet("color: #00d4ff; padding: 6px;")
         layout.addWidget(header)
         
         subtitle = QLabel("UNIFIED OPERATIONS DASHBOARD")
@@ -1190,7 +1190,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.hud_cpu_bar.setMinimumHeight(28)
         cpu_panel.addWidget(self.hud_cpu_bar)
         self.hud_cpu_label = QLabel("-- %")
-        self.hud_cpu_label.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
+        self.hud_cpu_label.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
         self.hud_cpu_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cpu_panel.addWidget(self.hud_cpu_label)
         res_layout.addLayout(cpu_panel)
@@ -1205,7 +1205,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.hud_mem_bar.setMinimumHeight(28)
         mem_panel.addWidget(self.hud_mem_bar)
         self.hud_mem_label = QLabel("-- / -- MB")
-        self.hud_mem_label.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
+        self.hud_mem_label.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
         self.hud_mem_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mem_panel.addWidget(self.hud_mem_label)
         res_layout.addLayout(mem_panel)
@@ -1220,7 +1220,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.hud_disk_bar.setMinimumHeight(28)
         disk_panel.addWidget(self.hud_disk_bar)
         self.hud_disk_label = QLabel("-- / -- MB")
-        self.hud_disk_label.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
+        self.hud_disk_label.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; font-size: 13px;")
         self.hud_disk_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         disk_panel.addWidget(self.hud_disk_label)
         res_layout.addLayout(disk_panel)
@@ -1356,7 +1356,7 @@ class UnifiedOperationCenter(QMainWindow):
         
         # Status indicator
         self.forensic_status = QLabel("🟢 Ready to launch")
-        self.forensic_status.setStyleSheet("color: #4CAF50; font-weight: bold; padding: 10px;")
+        self.forensic_status.setStyleSheet("color: #00ff88; font-weight: bold; padding: 10px;")
         forensic_layout.addWidget(self.forensic_status)
         
         forensic_layout.addStretch()
@@ -1382,7 +1382,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.tx_total_label.setStyleSheet("color: #40E0FF; font-size: 14px; font-weight: bold;")
         tx_stats_layout.addWidget(self.tx_total_label)
         self.tx_approved_label = QLabel("Approved: --")
-        self.tx_approved_label.setStyleSheet("color: #4CAF50; font-size: 14px; font-weight: bold;")
+        self.tx_approved_label.setStyleSheet("color: #00ff88; font-size: 14px; font-weight: bold;")
         tx_stats_layout.addWidget(self.tx_approved_label)
         self.tx_declined_label = QLabel("Declined: --")
         self.tx_declined_label.setStyleSheet("color: #EF5350; font-size: 14px; font-weight: bold;")
@@ -1690,7 +1690,7 @@ class UnifiedOperationCenter(QMainWindow):
                 self._kyc_controller.stream_image(self._kyc_source_path)
             
             self.kyc_status_indicator.setText("🟢 STREAMING")
-            self.kyc_status_indicator.setStyleSheet("color: #4CAF50;")
+            self.kyc_status_indicator.setStyleSheet("color: #00ff88;")
             self.kyc_start_btn.setEnabled(False)
             self.kyc_stop_btn.setEnabled(True)
             self.kyc_log.append(f"[+] Stream started — {self.kyc_motion_combo.currentText()} "
@@ -1762,7 +1762,7 @@ class UnifiedOperationCenter(QMainWindow):
                     active = check_fn()
                     if active:
                         badge.setText("🟢 ACTIVE")
-                        badge.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
+                        badge.setStyleSheet("color: #00ff88; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
                     else:
                         badge.setText("⚪ INACTIVE")
                         badge.setStyleSheet("color: #556; font-family: 'JetBrains Mono', monospace; font-weight: bold;")
@@ -1774,7 +1774,7 @@ class UnifiedOperationCenter(QMainWindow):
         """Apply Enterprise HRUX theme from centralized theme module."""
         try:
             from titan_enterprise_theme import apply_enterprise_theme
-            apply_enterprise_theme(self)
+            apply_enterprise_theme(self, "#00d4ff")
         except ImportError:
             pass  # Fallback: no theme applied
     
@@ -3117,7 +3117,7 @@ def main():
     # Apply enterprise theme globally at QApplication level
     try:
         from titan_enterprise_theme import apply_enterprise_theme_to_app
-        apply_enterprise_theme_to_app(app)
+        apply_enterprise_theme_to_app(app, "#00d4ff")
     except ImportError:
         pass
 

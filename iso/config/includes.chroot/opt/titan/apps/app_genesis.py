@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QComboBox, QPushButton, QSpinBox, QTextEdit,
     QGroupBox, QFormLayout, QProgressBar, QMessageBox, QFileDialog,
-    QTabWidget, QCheckBox, QFrame, QSplitter
+    QTabWidget, QCheckBox, QFrame, QSplitter, QSlider, QDoubleSpinBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QIcon, QPalette, QColor
@@ -93,10 +93,10 @@ class GenesisApp(QMainWindow):
         self._apply_theme()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN V7.5 — Identity Synthesis Engine")
+        self.setWindowTitle("TITAN V7.5 — Genesis Profile Forge")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#3A75C4")
+            set_titan_icon(self, "#ff6b35")
         except Exception:
             pass
         self.setMinimumSize(900, 800)
@@ -109,13 +109,13 @@ class GenesisApp(QMainWindow):
         main_layout.setContentsMargins(8, 8, 8, 8)
         
         # Header
-        header = QLabel("TITAN V7.5 — Identity Synthesis Engine")
-        header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
+        header = QLabel("TITAN V7.5 — GENESIS FORGE")
+        header.setFont(QFont("JetBrains Mono", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #3A75C4; padding: 4px;")
+        header.setStyleSheet("color: #ff6b35; padding: 4px;")
         main_layout.addWidget(header)
         
-        subtitle = QLabel("PROFILE GENERATION & MANAGEMENT")
+        subtitle = QLabel("Profile Generation for Human Operations")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet("color: #94A3B8; font-size: 11px; font-family: 'JetBrains Mono', monospace; margin-bottom: 4px;")
         main_layout.addWidget(subtitle)
@@ -212,6 +212,21 @@ class GenesisApp(QMainWindow):
         self.age_spin.setMinimumHeight(30)
         settings_layout.addRow("Profile Age:", self.age_spin)
         
+        # Age slider 30–900 days (synced with age_spin for rapid adjustment)
+        self.age_slider = QSlider(Qt.Orientation.Horizontal)
+        self.age_slider.setRange(30, 900)
+        self.age_slider.setValue(90)
+        self.age_slider.setTickInterval(90)
+        self.age_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.age_slider.setToolTip("Quick age selection: 30–900 days")
+        age_slider_row = QHBoxLayout()
+        age_slider_row.addWidget(QLabel("30d"))
+        age_slider_row.addWidget(self.age_slider)
+        age_slider_row.addWidget(QLabel("900d"))
+        self.age_slider.valueChanged.connect(lambda v: self.age_spin.setValue(min(v, 365)))
+        self.age_spin.valueChanged.connect(lambda v: self.age_slider.setValue(v))
+        settings_layout.addRow("Age Slider:", age_slider_row)
+        
         self.browser_combo = QComboBox()
         self.browser_combo.addItems(["Firefox", "Chromium"])
         self.browser_combo.setMinimumHeight(30)
@@ -244,6 +259,22 @@ class GenesisApp(QMainWindow):
         self.archetype_combo.setMinimumHeight(30)
         settings_layout.addRow("Archetype:", self.archetype_combo)
         
+        # History density multiplier 0.5x – 3.0x
+        density_row = QHBoxLayout()
+        self.density_spin = QDoubleSpinBox()
+        self.density_spin.setRange(0.5, 3.0)
+        self.density_spin.setValue(1.0)
+        self.density_spin.setSingleStep(0.1)
+        self.density_spin.setDecimals(1)
+        self.density_spin.setSuffix("x")
+        self.density_spin.setMinimumHeight(30)
+        self.density_spin.setToolTip("Multiplier for browsing history density (0.5x sparse → 3.0x ultra-dense)")
+        density_row.addWidget(self.density_spin)
+        density_lbl = QLabel(" (0.5x sparse → 3.0x ultra-dense)")
+        density_lbl.setStyleSheet("color: #64748B; font-size: 10px;")
+        density_row.addWidget(density_lbl)
+        settings_layout.addRow("History Density:", density_row)
+        
         # Checkboxes
         checkbox_layout = QHBoxLayout()
         self.social_check = QCheckBox("Social History")
@@ -263,29 +294,74 @@ class GenesisApp(QMainWindow):
         layout.addWidget(settings_group)
         
         # Synthesize Button
-        self.forge_btn = QPushButton("Synthesize Profile")
+        self.forge_btn = QPushButton("🔥 Forge Profile")
         self.forge_btn.setMinimumHeight(50)
-        self.forge_btn.setFont(QFont("Inter", 14, QFont.Weight.Bold))
+        self.forge_btn.setFont(QFont("JetBrains Mono", 14, QFont.Weight.Bold))
         self.forge_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3A75C4;
-                color: white;
-                border: none;
+                background-color: rgba(255, 107, 53, 0.2);
+                color: #ff6b35;
+                border: 1px solid #ff6b35;
                 border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: #4A8AD8;
+                background-color: #ff6b35;
+                color: #000000;
             }
             QPushButton:pressed {
-                background-color: #2D5F9E;
+                background-color: #cc5522;
+                color: #000000;
             }
             QPushButton:disabled {
-                background-color: #2A3444;
-                color: #64748B;
+                background-color: rgba(26, 32, 53, 0.5);
+                border: 1px solid rgba(100, 116, 139, 0.3);
+                color: #475569;
             }
         """)
         self.forge_btn.clicked.connect(self.forge_profile)
         layout.addWidget(self.forge_btn)
+        
+        # Quick Forge + View Profile buttons  
+        quick_row = QHBoxLayout()
+        
+        self.quick_forge_btn = QPushButton("⚡ Quick Forge")
+        self.quick_forge_btn.setMinimumHeight(38)
+        self.quick_forge_btn.setToolTip("Forge with default values — no persona required")
+        self.quick_forge_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 107, 53, 0.1);
+                color: #ff6b35;
+                border: 1px solid rgba(255, 107, 53, 0.5);
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 107, 53, 0.6);
+                color: #000000;
+            }
+        """)
+        self.quick_forge_btn.clicked.connect(self.quick_forge)
+        quick_row.addWidget(self.quick_forge_btn)
+        
+        self.view_profile_btn = QPushButton("📂 View Profile")
+        self.view_profile_btn.setMinimumHeight(38)
+        self.view_profile_btn.setVisible(False)
+        self.view_profile_btn.setToolTip("Open profile directory in file manager")
+        self.view_profile_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 255, 136, 0.1);
+                color: #00ff88;
+                border: 1px solid rgba(0, 255, 136, 0.5);
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 255, 136, 0.6);
+                color: #000000;
+            }
+        """)
+        self.view_profile_btn.clicked.connect(self.open_profile_directory)
+        quick_row.addWidget(self.view_profile_btn)
+        
+        layout.addLayout(quick_row)
         
         # Progress
         self.progress_bar = QProgressBar()
@@ -308,18 +384,19 @@ class GenesisApp(QMainWindow):
         status_layout.addWidget(self.output_label)
         
         # Launch browser button (hidden until profile is ready)
-        self.launch_btn = QPushButton("Initiate Interactive Session")
+        self.launch_btn = QPushButton("🚀 Launch Browser")
         self.launch_btn.setMinimumHeight(40)
         self.launch_btn.setVisible(False)
         self.launch_btn.setStyleSheet("""
             QPushButton {
-                background-color: #2E7D32;
-                color: white;
-                border: none;
+                background-color: rgba(0, 255, 136, 0.15);
+                color: #00ff88;
+                border: 1px solid #00ff88;
                 border-radius: 6px;
             }
             QPushButton:hover {
-                background-color: #388E3C;
+                background-color: rgba(0, 255, 136, 0.7);
+                color: #000000;
             }
         """)
         self.launch_btn.clicked.connect(self.launch_browser)
@@ -812,10 +889,10 @@ class GenesisApp(QMainWindow):
         self._batch_cancelled = True
     
     def _apply_theme(self):
-        """Apply Enterprise HRUX theme from centralized theme module."""
+        """Apply Genesis Orange cyberpunk theme."""
         try:
             from titan_enterprise_theme import apply_enterprise_theme
-            apply_enterprise_theme(self)
+            apply_enterprise_theme(self, "#ff6b35")  # Genesis Orange
         except ImportError:
             pass  # Fallback: no theme applied
     
@@ -884,6 +961,7 @@ class GenesisApp(QMainWindow):
         
         # Disable UI
         self.forge_btn.setEnabled(False)
+        self.quick_forge_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate
         self.launch_btn.setVisible(False)
@@ -897,33 +975,61 @@ class GenesisApp(QMainWindow):
     def on_progress(self, message: str):
         """Update status during generation"""
         self.status_label.setText(message)
-        self.status_label.setStyleSheet("color: #E6A817; font-size: 14px;")
+        self.status_label.setStyleSheet("color: #FFB74D; font-size: 14px;")
     
     def on_finished(self, result):
         """Handle generation completion"""
         self.forge_btn.setEnabled(True)
+        self.quick_forge_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
         
         if isinstance(result, Exception):
             self.status_label.setText(f"Error: {str(result)}")
-            self.status_label.setStyleSheet("color: #EF5350; font-size: 14px;")
-            QMessageBox.critical(self, "Synthesis Failed", str(result))
+            self.status_label.setStyleSheet("color: #ff4466; font-size: 14px;")
+            QMessageBox.critical(self, "Forge Failed", str(result))
         else:
             self.last_profile = result
-            self.status_label.setText(f"Profile synthesized successfully")
-            self.status_label.setStyleSheet("color: #4CAF50; font-size: 14px;")
+            self.status_label.setText(f"Profile forged successfully")
+            self.status_label.setStyleSheet("color: #00ff88; font-size: 14px;")
             self.output_label.setText(f"Output: {result.profile_path}")
             self.launch_btn.setVisible(True)
+            self.view_profile_btn.setVisible(True)
             
             QMessageBox.information(
                 self, 
-                "Profile Ready — Synthesis Complete",
+                "Profile Ready — Forge Complete",
                 f"Profile created at:\n{result.profile_path}\n\n"
                 f"History entries: {result.history_count}\n"
                 f"Cookies: {result.cookies_count}\n"
                 f"Age: {result.age_days} days\n\n"
                 f"Click 'Launch Browser' to use this profile."
             )
+    
+    def quick_forge(self):
+        """Quick Forge: use default values for rapid profile generation (no persona required)."""
+        import random, string
+        first = random.choice(["James","Mary","Robert","Patricia","John","Jennifer","Michael"])
+        last = random.choice(["Smith","Johnson","Williams","Brown","Jones","Garcia","Miller"])
+        rand_num = ''.join(random.choices(string.digits, k=4))
+        
+        self.name_input.setText(f"{first} {last}")
+        self.email_input.setText(f"{first.lower()}.{last.lower()}{rand_num}@gmail.com")
+        self.address_input.setText(f"{random.randint(100,9999)} Main St")
+        self.phone_input.setText(f"+1 555 {random.randint(100,999)} {random.randint(1000,9999)}")
+        self.age_spin.setValue(90)
+        
+        self.quick_forge_btn.setEnabled(False)
+        self.forge_profile()
+    
+    def open_profile_directory(self):
+        """Open profile directory in the system file manager."""
+        if self.last_profile and self.last_profile.profile_path:
+            path = str(self.last_profile.profile_path)
+            try:
+                import subprocess
+                subprocess.Popen(["xdg-open", path])
+            except Exception:
+                QMessageBox.information(self, "Profile Path", path)
     
     def launch_browser(self):
         """Launch browser with the generated profile"""
@@ -949,14 +1055,14 @@ def main():
 
     try:
         from titan_enterprise_theme import apply_enterprise_theme_to_app
-        apply_enterprise_theme_to_app(app)
+        apply_enterprise_theme_to_app(app, "#ff6b35")
     except ImportError:
         pass
 
     splash = None
     try:
         from titan_splash import show_titan_splash
-        splash = show_titan_splash(app, "IDENTITY SYNTHESIS ENGINE", "#3A75C4")
+        splash = show_titan_splash(app, "GENESIS — THE FORGE", "#ff6b35")
     except Exception:
         pass
     

@@ -565,7 +565,7 @@ class BugReporterWindow(QMainWindow):
         self.setWindowTitle("TITAN V7.5 — Diagnostic Reporter")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#3A75C4")
+            set_titan_icon(self, "#5588ff")
         except Exception:
             pass
         self.setMinimumSize(1000, 700)
@@ -577,10 +577,10 @@ class BugReporterWindow(QMainWindow):
         self._ingest_crash_logs()
 
     def _apply_dark_theme(self):
-        """Apply Enterprise HRUX theme from centralized theme module."""
+        """Apply Reporter Blue cyberpunk theme."""
         try:
             from titan_enterprise_theme import apply_enterprise_theme
-            apply_enterprise_theme(self)
+            apply_enterprise_theme(self, "#5588ff")  # Reporter Blue
         except ImportError:
             pass  # Fallback: no theme applied
 
@@ -614,22 +614,426 @@ class BugReporterWindow(QMainWindow):
         tabs = QTabWidget()
         layout.addWidget(tabs)
 
-        # Tab 1: New Report
-        tabs.addTab(self._build_report_tab(), "New Report")
+        # Tab 1: System Status (49-module health check)
+        tabs.addTab(self._build_system_status_tab(), "System Status")
 
-        # Tab 2: All Reports
-        tabs.addTab(self._build_reports_list_tab(), "Reports")
+        # Tab 2: Bug Report (submission form)
+        tabs.addTab(self._build_report_tab(), "Bug Report")
 
-        # Tab 3: Decline Patterns
-        tabs.addTab(self._build_decline_tab(), "Decline Patterns")
+        # Tab 3: Module Inspector (browse modules, docstrings, test imports)
+        tabs.addTab(self._build_module_inspector_tab(), "Module Inspector")
 
-        # Tab 4: Patches
-        tabs.addTab(self._build_patches_tab(), "Patches")
+        # Tab 4: Logs (real-time log viewer, filter, export)
+        tabs.addTab(self._build_logs_tab(), "Logs")
 
         # Status bar
         self.statusBar().showMessage("Ready")
 
-    # ── Tab: New Report ──────────────────────────────────────────────
+    # ── Tab: System Status (49-module health check) ──────────────────
+
+    def _build_system_status_tab(self) -> QWidget:
+        """Tab 1: System Status — 49 module health check, import tests, system info, dependency check."""
+        w = QWidget()
+        layout = QVBoxLayout(w)
+
+        # Controls
+        ctrl_row = QHBoxLayout()
+        run_check_btn = QPushButton("Run All Health Checks")
+        run_check_btn.setStyleSheet(
+            "background: rgba(85, 136, 255, 0.2); border: 1px solid #5588ff; "
+            "color: #5588ff; font-weight: bold; padding: 8px 20px; border-radius: 5px;"
+        )
+        run_check_btn.clicked.connect(self._run_module_health_checks)
+        ctrl_row.addWidget(run_check_btn)
+
+        self.health_status_lbl = QLabel("Status: Ready")
+        self.health_status_lbl.setStyleSheet("color: #94A3B8; font-family: 'JetBrains Mono', monospace;")
+        ctrl_row.addWidget(self.health_status_lbl)
+        ctrl_row.addStretch()
+        layout.addLayout(ctrl_row)
+
+        # Module health table
+        module_group = QGroupBox("Module Import Health (49 Core Modules)")
+        module_layout = QVBoxLayout(module_group)
+        self.health_table = QTableWidget()
+        self.health_table.setColumnCount(3)
+        self.health_table.setHorizontalHeaderLabels(["Module", "Status", "Details"])
+        self.health_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.health_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.health_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.health_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.health_table.setAlternatingRowColors(True)
+        module_layout.addWidget(self.health_table)
+        layout.addWidget(module_group)
+
+        # System Information
+        sysinfo_group = QGroupBox("System Information")
+        sysinfo_layout = QVBoxLayout(sysinfo_group)
+        self.sysinfo_text = QTextEdit()
+        self.sysinfo_text.setReadOnly(True)
+        self.sysinfo_text.setMaximumHeight(120)
+        self.sysinfo_text.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+        sysinfo_layout.addWidget(self.sysinfo_text)
+        layout.addWidget(sysinfo_group)
+
+        # Dependency check
+        dep_group = QGroupBox("Dependency Check")
+        dep_layout = QVBoxLayout(dep_group)
+        self.dep_text = QTextEdit()
+        self.dep_text.setReadOnly(True)
+        self.dep_text.setMaximumHeight(100)
+        self.dep_text.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+        dep_layout.addWidget(self.dep_text)
+        layout.addWidget(dep_group)
+
+        # Populate system info immediately
+        self._populate_system_info()
+        return w
+
+    def _populate_system_info(self):
+        """Fill system info and dependency sections on load."""
+        import platform, sys as _sys
+        info_lines = [
+            f"OS:          {platform.system()} {platform.release()}",
+            f"Kernel:      {platform.version()[:60]}",
+            f"Python:      {_sys.version.split()[0]}",
+            f"Arch:        {platform.machine()}",
+            f"TITAN Root:  {TITAN_ROOT}",
+        ]
+        self.sysinfo_text.setPlainText("\n".join(info_lines))
+
+        # Check key dependencies
+        deps = [
+            ("PyQt6", "PyQt6"),
+            ("FastAPI", "fastapi"),
+            ("camoufox", "camoufox"),
+            ("requests", "requests"),
+            ("aiohttp", "aiohttp"),
+            ("python-dotenv", "dotenv"),
+            ("Pillow", "PIL"),
+            ("numpy", "numpy"),
+            ("OpenCV", "cv2"),
+            ("SQLite3", "sqlite3"),
+        ]
+        dep_lines = []
+        for display, pkg in deps:
+            try:
+                __import__(pkg)
+                dep_lines.append(f"  [PASS]  {display}")
+            except ImportError:
+                dep_lines.append(f"  [MISS]  {display}")
+        self.dep_text.setPlainText("\n".join(dep_lines))
+
+    def _run_module_health_checks(self):
+        """Import-test all 49 core modules and populate the health table."""
+        self.health_status_lbl.setText("Status: Running checks...")
+        QApplication.processEvents()
+
+        CORE_MODULES = [
+            "genesis_core", "cerberus_core", "cerberus_enhanced", "kyc_core",
+            "kyc_enhanced", "fingerprint_injector", "ghost_motor_bridge",
+            "tx_monitor", "transaction_monitor", "handover_protocol",
+            "kill_switch", "lucid_vpn", "proxy_manager", "three_ds_strategy",
+            "tls_parrot", "target_discovery", "target_presets",
+            "integration_bridge", "cognitive_core", "advanced_profile_generator",
+            "purchase_history_engine", "form_autofill_injector",
+            "referrer_warmup", "webgl_angle", "font_sanitizer",
+            "audio_hardener", "timezone_enforcer", "network_jitter",
+            "quic_proxy", "location_spoofer_linux", "preflight_validator",
+            "titan_services", "profile_isolation", "temporal_wrapper",
+            "hardware_shield_client", "ebpf_controller", "waydroid_sync",
+            "kyc_voice_engine", "browser_controller", "session_manager",
+            "card_asset", "persona_generator", "history_engine",
+            "cookie_engine", "storage_engine", "trust_scorer",
+            "geo_spoofer", "canvas_noise", "webrtc_controller",
+        ]
+
+        passed = 0
+        failed = 0
+        self.health_table.setRowCount(len(CORE_MODULES))
+
+        import importlib
+        import sys as _sys
+        old_path = list(_sys.path)
+        _sys.path.insert(0, str(CORE_DIR))
+        _sys.path.insert(0, str(TITAN_ROOT / "backend"))
+
+        for i, mod_name in enumerate(CORE_MODULES):
+            try:
+                importlib.import_module(mod_name)
+                status = "PASS"
+                details = "Import OK"
+                passed += 1
+                color = QColor("#00ff88")
+            except ImportError as e:
+                status = "FAIL"
+                details = str(e)[:80]
+                failed += 1
+                color = QColor("#ff4466")
+            except Exception as e:
+                status = "WARN"
+                details = str(e)[:80]
+                color = QColor("#FFB74D")
+
+            mod_item = QTableWidgetItem(mod_name)
+            status_item = QTableWidgetItem(status)
+            status_item.setForeground(color)
+            details_item = QTableWidgetItem(details)
+
+            self.health_table.setItem(i, 0, mod_item)
+            self.health_table.setItem(i, 1, status_item)
+            self.health_table.setItem(i, 2, details_item)
+
+        _sys.path[:] = old_path
+        self.health_status_lbl.setText(
+            f"Status: Complete — {passed} PASS / {failed} FAIL / {len(CORE_MODULES)} total"
+        )
+
+    # ── Tab: Bug Report (renamed from "New Report") ──────────────────
+
+    # ── Tab: Module Inspector ────────────────────────────────────────
+
+    def _build_module_inspector_tab(self) -> QWidget:
+        """Tab 3: Module Inspector — browse modules, docstrings, test imports."""
+        w = QWidget()
+        layout = QHBoxLayout(w)
+
+        # Left: module browser list
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+
+        left_layout.addWidget(QLabel("Core Modules:"))
+        self.inspector_list = QListWidget()
+        self.inspector_list.setMinimumWidth(180)
+        self.inspector_list.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+
+        CORE_MODULES = [
+            "genesis_core", "cerberus_core", "cerberus_enhanced", "kyc_core",
+            "kyc_enhanced", "fingerprint_injector", "tx_monitor",
+            "transaction_monitor", "handover_protocol", "kill_switch",
+            "lucid_vpn", "proxy_manager", "three_ds_strategy", "tls_parrot",
+            "target_discovery", "target_presets", "integration_bridge",
+            "cognitive_core", "advanced_profile_generator",
+            "purchase_history_engine", "form_autofill_injector",
+            "referrer_warmup", "webgl_angle", "font_sanitizer",
+            "audio_hardener", "timezone_enforcer", "network_jitter",
+            "quic_proxy", "location_spoofer_linux", "preflight_validator",
+            "titan_services", "profile_isolation", "temporal_wrapper",
+        ]
+        for mod in CORE_MODULES:
+            self.inspector_list.addItem(mod)
+        self.inspector_list.itemClicked.connect(self._inspect_module)
+        left_layout.addWidget(self.inspector_list)
+
+        test_import_btn = QPushButton("Test Import")
+        test_import_btn.setStyleSheet("background: rgba(85,136,255,0.15); border: 1px solid #5588ff; color: #5588ff; border-radius: 4px; padding: 6px;")
+        test_import_btn.clicked.connect(self._test_selected_module_import)
+        left_layout.addWidget(test_import_btn)
+
+        layout.addWidget(left_panel)
+
+        # Right: module details
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+
+        right_layout.addWidget(QLabel("Module Details:"))
+        self.inspector_details = QTextEdit()
+        self.inspector_details.setReadOnly(True)
+        self.inspector_details.setPlaceholderText(
+            "Select a module from the list to view its docstring, classes, functions, and dependencies."
+        )
+        self.inspector_details.setStyleSheet("font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+        right_layout.addWidget(self.inspector_details)
+
+        layout.addWidget(right_panel)
+        layout.setStretch(0, 1)
+        layout.setStretch(1, 3)
+        return w
+
+    def _inspect_module(self, item):
+        """Show docstring, classes, and functions from a module."""
+        mod_name = item.text()
+        import importlib, inspect, sys as _sys
+        old_path = list(_sys.path)
+        _sys.path.insert(0, str(CORE_DIR))
+        _sys.path.insert(0, str(TITAN_ROOT / "backend"))
+
+        text = f"MODULE: {mod_name}\n{'=' * 50}\n\n"
+        try:
+            mod = importlib.import_module(mod_name)
+            text += f"File: {getattr(mod, '__file__', 'built-in')}\n\n"
+
+            doc = inspect.getdoc(mod)
+            text += f"DOCSTRING:\n{doc or '(none)'}\n\n"
+
+            classes = [name for name, obj in inspect.getmembers(mod, inspect.isclass) if obj.__module__ == mod_name]
+            text += f"CLASSES ({len(classes)}):\n"
+            for cls in classes:
+                text += f"  • {cls}\n"
+
+            funcs = [name for name, obj in inspect.getmembers(mod, inspect.isfunction) if obj.__module__ == mod_name]
+            text += f"\nFUNCTIONS ({len(funcs)}):\n"
+            for fn in funcs[:20]:
+                text += f"  • {fn}()\n"
+
+        except ImportError as e:
+            text += f"IMPORT FAILED: {e}\n"
+        except Exception as e:
+            text += f"ERROR: {e}\n"
+        finally:
+            _sys.path[:] = old_path
+
+        self.inspector_details.setPlainText(text)
+
+    def _test_selected_module_import(self):
+        """Test importing the selected module and report result."""
+        current = self.inspector_list.currentItem()
+        if not current:
+            QMessageBox.information(self, "Info", "Select a module first.")
+            return
+        mod_name = current.text()
+        import importlib, sys as _sys
+        old_path = list(_sys.path)
+        _sys.path.insert(0, str(CORE_DIR))
+        _sys.path.insert(0, str(TITAN_ROOT / "backend"))
+        try:
+            importlib.import_module(mod_name)
+            QMessageBox.information(self, "Import Test", f"✅ {mod_name}: Import PASSED")
+        except ImportError as e:
+            QMessageBox.warning(self, "Import Test", f"❌ {mod_name}: Import FAILED\n{e}")
+        finally:
+            _sys.path[:] = old_path
+
+    # ── Tab: Logs ────────────────────────────────────────────────────
+
+    def _build_logs_tab(self) -> QWidget:
+        """Tab 4: Logs — real-time log viewer with filter by module/severity and export."""
+        w = QWidget()
+        layout = QVBoxLayout(w)
+
+        # Filter bar
+        filter_row = QHBoxLayout()
+        filter_row.addWidget(QLabel("Module:"))
+        self.log_filter_module = QComboBox()
+        self.log_filter_module.addItems(["All", "genesis_core", "cerberus_core", "kyc_core",
+                                          "kill_switch", "tx_monitor", "proxy_manager", "lucid_vpn"])
+        self.log_filter_module.currentTextChanged.connect(self._apply_log_filter)
+        filter_row.addWidget(self.log_filter_module)
+
+        filter_row.addWidget(QLabel("Severity:"))
+        self.log_filter_severity = QComboBox()
+        self.log_filter_severity.addItems(["All", "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"])
+        self.log_filter_severity.currentTextChanged.connect(self._apply_log_filter)
+        filter_row.addWidget(self.log_filter_severity)
+
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setStyleSheet("background: rgba(85,136,255,0.15); border: 1px solid #5588ff; color: #5588ff; border-radius: 4px; padding: 6px 12px;")
+        refresh_btn.clicked.connect(self._load_logs)
+        filter_row.addWidget(refresh_btn)
+
+        export_btn = QPushButton("Export Logs")
+        export_btn.setStyleSheet("background: rgba(0,255,136,0.1); border: 1px solid #00ff88; color: #00ff88; border-radius: 4px; padding: 6px 12px;")
+        export_btn.clicked.connect(self._export_logs)
+        filter_row.addWidget(export_btn)
+
+        clear_btn = QPushButton("Clear")
+        clear_btn.setStyleSheet("background: rgba(255,51,85,0.1); border: 1px solid #ff3355; color: #ff3355; border-radius: 4px; padding: 6px 12px;")
+        clear_btn.clicked.connect(self._clear_log_view)
+        filter_row.addWidget(clear_btn)
+
+        filter_row.addStretch()
+        layout.addLayout(filter_row)
+
+        # Real-time log viewer
+        self.log_viewer = QTextEdit()
+        self.log_viewer.setReadOnly(True)
+        self.log_viewer.setStyleSheet(
+            "font-family: 'JetBrains Mono', monospace; font-size: 10px; "
+            "background-color: rgba(10, 14, 23, 0.95); color: #c8d2dc;"
+        )
+        self.log_viewer.setPlaceholderText("Log entries will appear here. Click 'Refresh' to load.")
+        layout.addWidget(self.log_viewer)
+
+        # Auto-refresh timer (10 seconds)
+        self._log_timer = QTimer()
+        self._log_timer.timeout.connect(self._load_logs)
+        self._log_timer.start(10000)
+
+        # Load on open
+        self._load_logs()
+        return w
+
+    def _load_logs(self):
+        """Load log entries from TITAN log files."""
+        if not hasattr(self, 'log_viewer'):
+            return
+        lines = []
+        log_files = [
+            LOGS_DIR / "titan.log",
+            LOGS_DIR / "kill_switch.log",
+            LOGS_DIR / "tx_monitor.log",
+            LOGS_DIR / "proxy.log",
+            Path("/var/log/syslog"),
+        ]
+        for lf in log_files:
+            if lf.exists():
+                try:
+                    with open(lf, "r", errors="replace") as f:
+                        last = f.readlines()[-200:]
+                    for line in last:
+                        lines.append(f"[{lf.name}] {line.rstrip()}")
+                except Exception:
+                    pass
+
+        if not lines:
+            lines = [f"No log files found in {LOGS_DIR}",
+                     "Logs will appear here as TITAN services generate them."]
+
+        self._all_log_lines = lines
+        self._apply_log_filter()
+
+    def _apply_log_filter(self):
+        """Filter log lines by module and severity."""
+        if not hasattr(self, '_all_log_lines'):
+            return
+        mod_filter = self.log_filter_module.currentText()
+        sev_filter = self.log_filter_severity.currentText()
+
+        filtered = []
+        for line in self._all_log_lines:
+            if mod_filter != "All" and mod_filter.lower() not in line.lower():
+                continue
+            if sev_filter != "All" and sev_filter.upper() not in line.upper():
+                continue
+            filtered.append(line)
+
+        self.log_viewer.setPlainText("\n".join(filtered[-500:]))  # Last 500 visible
+        # Scroll to bottom
+        cursor = self.log_viewer.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.log_viewer.setTextCursor(cursor)
+
+    def _clear_log_view(self):
+        self.log_viewer.clear()
+        self._all_log_lines = []
+
+    def _export_logs(self):
+        """Export current log view to file."""
+        content = self.log_viewer.toPlainText()
+        if not content:
+            QMessageBox.information(self, "Empty", "No log content to export.")
+            return
+        save_path, _ = QFileDialog.getSaveFileName(self, "Export Logs", "titan_logs.txt", "Text Files (*.txt)")
+        if save_path:
+            try:
+                Path(save_path).write_text(content)
+                QMessageBox.information(self, "Exported", f"Logs exported to:\n{save_path}")
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Export failed: {e}")
+
+    # ── Tab: Bug Report ──────────────────────────────────────────────
 
     def _build_report_tab(self) -> QWidget:
         w = QWidget()

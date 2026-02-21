@@ -490,34 +490,44 @@ class PurchaseHistoryEngine:
         """
         logger.info(f"[*] Generating purchase history for {config.cardholder.full_name}")
         
+        # Initialize Multi-PSP Processor for diverse payment processor integration
+        multi_psp = MultiPSPProcessor(profile_age_days=config.profile_age_days)
+        logger.info(f"[+] Multi-PSP Processor initialized with {len(multi_psp.selected_processors)} processors")
+        
         # 1. Generate purchase records
         records = self._generate_purchase_records(config)
         
-        # 2. Write purchase database
+        # 2. Distribute transactions across processors
+        transaction_distribution = multi_psp._distribute_transactions(len(records))
+        
+        # 3. Write purchase database
         self._write_purchase_database(records, config)
         
-        # 3. Inject commerce cookies
+        # 4. Inject commerce cookies
         cookie_count = self._inject_commerce_cookies(records, config)
         
-        # 4. Inject localStorage commerce data
+        # 5. Inject localStorage commerce data
         ls_count = self._inject_commerce_localstorage(records, config)
         
-        # 5. Generate confirmation email artifacts
+        # 6. Generate confirmation email artifacts
         email_count = self._generate_email_artifacts(records, config)
         
-        # 6. Inject payment processor trust tokens
-        token_count = self._inject_payment_tokens(config)
+        # 7. Inject payment processor trust tokens (using diversified processors)
+        token_count = self._inject_payment_tokens(config, multi_psp)
         
-        # 7. Inject autofill data with CC holder info
+        # 8. Inject autofill data with CC holder info
         self._inject_autofill_data(config)
         
-        # 8. Generate cached merchant assets for profile size
+        # 9. Generate cached merchant assets for profile size
         cache_size = self._generate_merchant_cache(records, config)
         
-        # 9. Write purchase history metadata
+        # 10. Write purchase history metadata
         self._write_metadata(records, config)
         
         total_spent = sum(r.amount for r in records if r.status != OrderStatus.PROCESSING)
+        
+        # Get Multi-PSP processor statistics
+        psp_stats = multi_psp.get_processor_statistics()
         
         summary = {
             "total_purchases": len(records),
@@ -529,9 +539,14 @@ class PurchaseHistoryEngine:
             "trust_tokens": token_count,
             "cache_size_mb": round(cache_size / (1024 * 1024), 1),
             "cardholder": config.cardholder.full_name,
+            "payment_processors": psp_stats["processor_count"],
+            "processor_diversity_score": psp_stats["diversity_score"],
+            "processor_coverage": psp_stats["coverage_percentage"],
+            "selected_processors": psp_stats["selected_processors"],
+            "transaction_distribution": transaction_distribution,
         }
         
-        logger.info(f"[+] Purchase history complete: {len(records)} orders, ${total_spent:.2f} total")
+        logger.info(f"[+] Purchase history complete: {len(records)} orders, ${total_spent:.2f} total, {psp_stats['processor_count']} processors")
         return summary
     
     # ─── PURCHASE RECORD GENERATION ───────────────────────────────────
@@ -898,8 +913,8 @@ class PurchaseHistoryEngine:
     
     # ─── PAYMENT TRUST TOKENS ─────────────────────────────────────────
     
-    def _inject_payment_tokens(self, config: PurchaseHistoryConfig) -> int:
-        """Inject pre-aged payment processor trust tokens"""
+    def _inject_payment_tokens(self, config: PurchaseHistoryConfig, multi_psp: Optional[MultiPSPProcessor] = None) -> int:
+        """Inject pre-aged payment processor trust tokens with diverse processor support"""
         tokens_file = self.profile_path / "commerce_tokens.json"
         
         base_time = datetime.now()
@@ -911,10 +926,15 @@ class PurchaseHistoryEngine:
             with open(tokens_file, "r") as f:
                 existing = json.load(f)
         
-        # Collect which PSPs this profile actually used from merchant history
-        used_psps = set()
-        for domain in MERCHANT_TEMPLATES:
-            used_psps.add(MERCHANT_TEMPLATES[domain].get("processor", "stripe"))
+        # Use MultiPSPProcessor if available; otherwise fall back to merchant-based list
+        if multi_psp:
+            # Use selected processors from MultiPSPProcessor
+            selected_processor_names = {p.name.lower().replace(" ", "_") for p in multi_psp.selected_processors}
+        else:
+            # Collect which PSPs this profile actually used from merchant history
+            selected_processor_names = set()
+            for domain in MERCHANT_TEMPLATES:
+                selected_processor_names.add(MERCHANT_TEMPLATES[domain].get("processor", "stripe"))
         
         # Generate trust tokens for every PSP the profile has interacted with
         tokens = {**existing}
@@ -922,7 +942,7 @@ class PurchaseHistoryEngine:
             f"{config.cardholder.card_last_four}:{config.cardholder.full_name}".encode()
         ).hexdigest()[:24]
         
-        if "stripe" in used_psps:
+        if "stripe" in selected_processor_names:
             tokens["stripe"] = {
                 "__stripe_mid": self._generate_stripe_mid(config, first_purchase),
                 "__stripe_sid": self._generate_stripe_sid(),
@@ -930,64 +950,85 @@ class PurchaseHistoryEngine:
                 "age_days": config.profile_age_days,
                 "card_fingerprint": card_fp,
             }
-        if "paypal" in used_psps:
+        if "paypal" in selected_processor_names:
             tokens["paypal"] = {
                 "TLTSID": secrets.token_hex(32),
                 "ts": secrets.token_hex(16),
                 "x-pp-s": secrets.token_hex(32),
                 "created_at": first_purchase.isoformat(),
             }
-        if "adyen" in used_psps:
+        if "adyen" in selected_processor_names:
             tokens["adyen"] = {
                 "_RP_UID": secrets.token_hex(24),
                 "adyen-device-fingerprint": secrets.token_hex(32),
                 "created_at": first_purchase.isoformat(),
             }
-        if "braintree" in used_psps:
+        if "braintree" in selected_processor_names:
             tokens["braintree"] = {
                 "device_id": self._generate_uuid_v4(),
                 "correlation_id": self._generate_uuid_v4(),
                 "created_at": first_purchase.isoformat(),
             }
-        if "shopify_payments" in used_psps:
+        if "shopify" in selected_processor_names:
             tokens["shopify"] = {
                 "_shopify_y": secrets.token_hex(32),
                 "_shopify_sa_t": secrets.token_hex(32),
                 "created_at": first_purchase.isoformat(),
             }
-        if "klarna" in used_psps:
+        if "klarna" in selected_processor_names:
             tokens["klarna"] = {
                 "client_id": self._generate_uuid_v4(),
                 "session": secrets.token_hex(32),
                 "created_at": first_purchase.isoformat(),
             }
-        if "square" in used_psps:
+        if "square" in selected_processor_names:
             tokens["square"] = {
                 "device_id": self._generate_uuid_v4(),
                 "created_at": first_purchase.isoformat(),
             }
-        if "worldpay" in used_psps:
+        if "worldpay" in selected_processor_names:
             tokens["worldpay"] = {
                 "device_id": secrets.token_hex(32),
                 "session_id": self._generate_uuid_v4(),
                 "created_at": first_purchase.isoformat(),
             }
-        if "cybersource" in used_psps:
+        if "cybersource" in selected_processor_names:
             tokens["cybersource"] = {
                 "dfp": secrets.token_hex(32),
                 "created_at": first_purchase.isoformat(),
             }
-        if "checkout_com" in used_psps:
-            tokens["checkout_com"] = {
+        if "checkout_com" in selected_processor_names or "checkout.com" in selected_processor_names:
+            tokens["checkout.com"] = {
                 "cko-session-id": self._generate_uuid_v4(),
                 "cko-device-id": secrets.token_hex(32),
                 "created_at": first_purchase.isoformat(),
             }
-        if "amazon_pay" in used_psps:
+        if "amazon_pay" in selected_processor_names:
             tokens["amazon_pay"] = {
                 "at-main": secrets.token_hex(40),
                 "created_at": first_purchase.isoformat(),
             }
+        
+        # Add additional PSP tokens if using MultiPSPProcessor with Tier 3 processors
+        if multi_psp:
+            if "2checkout" in selected_processor_names:
+                tokens["2checkout"] = {
+                    "2co-session": secrets.token_hex(32),
+                    "2co-device": secrets.token_hex(24),
+                    "created_at": first_purchase.isoformat(),
+                }
+            if "gocardless" in selected_processor_names:
+                tokens["gocardless"] = {
+                    "gc-token": secrets.token_hex(32),
+                    "gc-device": secrets.token_hex(24),
+                    "created_at": first_purchase.isoformat(),
+                }
+            if "wise" in selected_processor_names:
+                tokens["wise"] = {
+                    "wise-token": secrets.token_hex(32),
+                    "wise-device": secrets.token_hex(24),
+                    "created_at": first_purchase.isoformat(),
+                }
         
         with open(tokens_file, "w") as f:
             json.dump(tokens, f, indent=2)
@@ -1303,6 +1344,201 @@ class PurchaseHistoryEngine:
         b[8] = (b[8] & 0x3F) | 0x80
         h = bytes(b).hex()
         return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MULTI-PSP PROCESSOR COORDINATION LAYER
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class PSPProcessor:
+    """Represents a single payment service provider with characteristics."""
+    name: str
+    priority: int  # 1-10, higher = better for profile age recommendations
+    success_rate: float  # 0.88-0.99, realistic for each processor
+    transactions: List[Dict] = field(default_factory=list)
+    tokens: Dict[str, str] = field(default_factory=dict)
+    
+    def record_transaction(self, amount: float, timestamp: float, card_id: str) -> None:
+        """Record a transaction on this processor."""
+        self.transactions.append({
+            "amount": amount,
+            "timestamp": timestamp,
+            "card_id": card_id,
+            "status": "completed"
+        })
+    
+    def get_transaction_count(self) -> int:
+        """Get total transactions recorded on this processor."""
+        return len(self.transactions)
+    
+    def get_total_volume(self) -> float:
+        """Get total transaction volume on this processor."""
+        return sum(t["amount"] for t in self.transactions)
+
+
+class MultiPSPProcessor:
+    """Coordinates diverse payment processor selection and transaction distribution."""
+    
+    # Tier 1 processors: Primary, most trusted, highest priority
+    TIER_1_PROCESSORS = {
+        "stripe": PSPProcessor("Stripe", 10, 0.99),
+        "paypal": PSPProcessor("PayPal", 9, 0.98),
+        "adyen": PSPProcessor("Adyen", 9, 0.98),
+        "braintree": PSPProcessor("Braintree (PayPal)", 8, 0.97),
+        "cybersource": PSPProcessor("CyberSource", 8, 0.97),
+        "worldpay": PSPProcessor("WorldPay", 8, 0.96),
+    }
+    
+    # Tier 2 processors: Secondary, still trustworthy, medium-high priority
+    TIER_2_PROCESSORS = {
+        "amazon_pay": PSPProcessor("Amazon Pay", 7, 0.95),
+        "shopify": PSPProcessor("Shopify Payments", 7, 0.95),
+        "checkout": PSPProcessor("Checkout.com", 7, 0.94),
+        "square": PSPProcessor("Square", 6, 0.93),
+        "klarna": PSPProcessor("Klarna", 6, 0.92),
+    }
+    
+    # Tier 3 processors: Regional/niche, reliable, medium priority
+    TIER_3_PROCESSORS = {
+        "2checkout": PSPProcessor("2Checkout (Verifone)", 5, 0.91),
+        "gocardless": PSPProcessor("GoCardless", 5, 0.90),
+        "wise": PSPProcessor("Wise", 4, 0.89),
+    }
+    
+    PROCESSOR_POOL = {**TIER_1_PROCESSORS, **TIER_2_PROCESSORS, **TIER_3_PROCESSORS}
+    
+    # Merchant-specific processor assignments (realistic patterns)
+    MERCHANT_PROCESSOR_MAPPING = {
+        "Amazon": ["amazon_pay", "stripe", "paypal"],
+        "Walmart": ["paypal", "stripe", "braintree"],
+        "Best Buy": ["stripe", "paypal", "cybersource"],
+        "Target": ["paypal", "stripe", "square"],
+        "Adidas": ["stripe", "square", "paypal"],
+        "Nike": ["stripe", "paypal", "adyen"],
+        "Apple": ["stripe", "paypal", "square"],
+        "default": ["stripe", "paypal", "adyen", "braintree", "cybersource"],
+    }
+    
+    def __init__(self, profile_age_days: int = 30):
+        """Initialize MultiPSPProcessor with profile characteristics."""
+        self.profile_age_days = profile_age_days
+        self.selected_processors: List[PSPProcessor] = []
+        self.transaction_distribution: Dict[str, int] = {}
+        self.processor_diversity_score = 0.0
+        
+        # Diversify processor selection based on age
+        self._diversify_processors()
+    
+    def _diversify_processors(self) -> None:
+        """Select 5-8 processors based on profile age for realistic diversity."""
+        # Newer profiles use fewer processors; older ones use more
+        if self.profile_age_days < 7:
+            processor_count = 3  # New profile: 2-3 processors
+        elif self.profile_age_days < 30:
+            processor_count = 5  # Young profile: 4-5 processors
+        elif self.profile_age_days < 90:
+            processor_count = 6  # Mature profile: 6-7 processors
+        else:
+            processor_count = 8  # Established profile: 7-8 processors
+        
+        # Favor Tier 1, then Tier 2, then Tier 3 based on age
+        tier1_count = max(2, int(processor_count * 0.50))
+        tier2_count = max(1, int(processor_count * 0.35))
+        tier3_count = processor_count - tier1_count - tier2_count
+        
+        self.selected_processors = []
+        self.selected_processors.extend(
+            list(self.TIER_1_PROCESSORS.values())[:tier1_count]
+        )
+        self.selected_processors.extend(
+            list(self.TIER_2_PROCESSORS.values())[:tier2_count]
+        )
+        self.selected_processors.extend(
+            list(self.TIER_3_PROCESSORS.values())[:tier3_count]
+        )
+        
+        # Calculate diversity score (0-1, max = all 15 processors used)
+        self.processor_diversity_score = len(self.selected_processors) / len(
+            self.PROCESSOR_POOL
+        )
+    
+    def _distribute_transactions(self, total_transactions: int) -> Dict[str, int]:
+        """Distribute transactions realistically across selected processors."""
+        if not self.selected_processors:
+            return {}
+        
+        # Weight distribution by priority: higher priority gets more transactions
+        total_priority = sum(p.priority for p in self.selected_processors)
+        distribution = {}
+        
+        remaining = total_transactions
+        for i, processor in enumerate(self.selected_processors):
+            if i == len(self.selected_processors) - 1:
+                # Last processor gets remainder to exactly match total
+                distribution[processor.name] = remaining
+            else:
+                # Proportional allocation based on priority
+                allocation = int(total_transactions * (processor.priority / total_priority))
+                distribution[processor.name] = allocation
+                remaining -= allocation
+        
+        self.transaction_distribution = distribution
+        return distribution
+    
+    def get_processors_for_merchant(self, merchant: str) -> List[str]:
+        """Get recommended processors for a specific merchant (2-4 processors)."""
+        # Use merchant-specific assignment if available
+        if merchant in self.MERCHANT_PROCESSOR_MAPPING:
+            base_processors = self.MERCHANT_PROCESSOR_MAPPING[merchant]
+        else:
+            base_processors = self.MERCHANT_PROCESSOR_MAPPING["default"]
+        
+        # Filter to only selected processors, pad if needed
+        recommended = [
+            p for p in base_processors if p in [proc.name.lower().replace(" ", "_") for proc in self.selected_processors]
+        ]
+        
+        if not recommended:
+            # Fallback: use top selected processors
+            recommended = [
+                self.PROCESSOR_POOL[list(self.PROCESSOR_POOL.keys())[i]].name
+                for i in range(min(3, len(self.selected_processors)))
+            ]
+        
+        return recommended[:4]  # Cap at 4 processors per merchant
+    
+    def assign_processor_to_transaction(
+        self, merchant: str = "default"
+    ) -> PSPProcessor:
+        """Select a processor for a transaction using weighted random selection."""
+        processors = self.get_processors_for_merchant(merchant)
+        if not processors:
+            processors = [p.name for p in self.selected_processors[:3]]
+        
+        # Weight selection by priority
+        selected = random.choices(
+            [p for p in self.selected_processors if p.name in processors],
+            weights=[p.priority for p in self.selected_processors if p.name in processors],
+            k=1
+        )[0]
+        return selected
+    
+    def get_processor_statistics(self) -> Dict:
+        """Get comprehensive statistics about processor diversity and coverage."""
+        return {
+            "processor_count": len(self.selected_processors),
+            "diversity_score": round(self.processor_diversity_score, 3),
+            "selected_processors": [p.name for p in self.selected_processors],
+            "transaction_distribution": self.transaction_distribution,
+            "coverage_percentage": round(self.processor_diversity_score * 100, 1),
+            "average_priority": round(
+                sum(p.priority for p in self.selected_processors)
+                / len(self.selected_processors),
+                2,
+            ),
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════

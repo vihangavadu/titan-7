@@ -5,7 +5,7 @@
 [![Version](https://img.shields.io/badge/version-7.0.3--SINGULARITY-blue.svg)]()
 [![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Debian%2012%20%7C%20WSL-orange.svg)]()
-[![Modules](https://img.shields.io/badge/modules-48%20core%20%2B%20apps-purple.svg)]()
+[![Modules](https://img.shields.io/badge/modules-48%20core%20%2B%205%20apps-purple.svg)]()
 [![Build](https://img.shields.io/badge/ISO-2.7GB%20%7C%201505%20packages-success.svg)]()
 [![Docs](https://img.shields.io/badge/docs-25%20section%20technical%20report-informational.svg)]()
 
@@ -1073,17 +1073,18 @@ This hook runs at ISO build time to:
 
 ## 17. GUI Application — Unified Operation Center
 
-V7.0.3 consolidates all capabilities into **one app** with 7 tabs. No separate apps needed.
+V7.0.3 consolidates all capabilities into **one app** with 8 tabs. No separate apps needed.
 
-### 17.1 `app_unified.py` — 7 Tabs
+### 17.1 `app_unified.py` — 8 Tabs
 
 | Tab | What It Does |
 |-----|-------------|
-| **OPERATION** | Target selection (32 presets), proxy config, card validation (Cerberus), profile generation (Genesis), browser launch, handover protocol |
+| **OPERATION** | Target selection (35 presets), proxy config, card validation (Cerberus), profile generation (Genesis), browser launch, handover protocol |
 | **INTELLIGENCE** | 8 sub-tabs: AVS, Visa Alerts, Card Freshness, Fingerprint Tools, PayPal Defense, 3DS v2, Proxy/DNS, Target Intel |
 | **SHIELDS** | Pre-flight validator, Environment hardening (font/audio/timezone), Kill switch, OSINT/Card quality grading, Purchase history injection |
 | **KYC** | Virtual camera controller — load face image, select motion, start/stop stream to `/dev/video` |
 | **HEALTH** | Real-time system monitor (CPU/RAM/tmpfs), privacy service status (kernel module, eBPF, DNS, VPN, PulseAudio) |
+| **FORENSIC** | Real-time system forensic analysis, suspicious activity detection, privacy service deep checks |
 | **TX MONITOR** | 24/7 transaction capture via browser extension, decline code decoder, per-site/BIN analytics, live success rate stats |
 | **DISCOVERY** | 4 sub-tabs: Auto-Discovery (Google dorking + site classification), 3DS Bypass scoring, Non-VBV BIN recommendations (100+ BINs, 28 countries), Background Services management |
 

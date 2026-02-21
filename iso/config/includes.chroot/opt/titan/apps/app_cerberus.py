@@ -244,7 +244,7 @@ class CerberusApp(QMainWindow):
         self.setWindowTitle("TITAN V7.5 — Asset Validation & Risk Assessment")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#3A75C4")
+            set_titan_icon(self, "#00bcd4")
         except Exception:
             pass
         self.setMinimumSize(850, 750)
@@ -260,7 +260,7 @@ class CerberusApp(QMainWindow):
         header = QLabel("ASSET VALIDATION & RISK ASSESSMENT")
         header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #3A75C4; margin-bottom: 2px;")
+        header.setStyleSheet("color: #00bcd4; margin-bottom: 2px;")
         main_layout.addWidget(header)
         
         subtitle = QLabel("Card Validation + BIN Intelligence + Target Discovery")
@@ -1016,7 +1016,7 @@ class CerberusApp(QMainWindow):
         """Apply Enterprise HRUX theme from centralized theme module."""
         try:
             from titan_enterprise_theme import apply_enterprise_theme
-            apply_enterprise_theme(self)
+            apply_enterprise_theme(self, "#00bcd4")
         except ImportError:
             pass  # Fallback: no theme applied
     
@@ -1340,14 +1340,14 @@ def main():
 
     try:
         from titan_enterprise_theme import apply_enterprise_theme_to_app
-        apply_enterprise_theme_to_app(app)
+        apply_enterprise_theme_to_app(app, "#00bcd4")
     except ImportError:
         pass
 
     splash = None
     try:
         from titan_splash import show_titan_splash
-        splash = show_titan_splash(app, "ASSET VALIDATION ENGINE", "#3A75C4")
+        splash = show_titan_splash(app, "ASSET VALIDATION ENGINE", "#00bcd4")
     except Exception:
         pass
     

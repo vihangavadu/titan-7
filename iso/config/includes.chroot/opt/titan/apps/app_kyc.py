@@ -148,7 +148,7 @@ class KYCApp(QMainWindow):
         self.setWindowTitle("TITAN V7.5 — Verification Compliance Module")
         try:
             from titan_icon import set_titan_icon
-            set_titan_icon(self, "#3A75C4")
+            set_titan_icon(self, "#9c27b0")
         except Exception:
             pass
         self.setMinimumSize(900, 780)
@@ -164,7 +164,7 @@ class KYCApp(QMainWindow):
         header = QLabel("VERIFICATION COMPLIANCE MODULE")
         header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #3A75C4; margin-bottom: 2px;")
+        header.setStyleSheet("color: #9c27b0; margin-bottom: 2px;")
         main_layout.addWidget(header)
         
         subtitle = QLabel("Virtual Camera + Document Injection + Liveness Response + Mobile Sync")
@@ -792,7 +792,7 @@ class KYCApp(QMainWindow):
         """Apply Enterprise HRUX theme from centralized theme module."""
         try:
             from titan_enterprise_theme import apply_enterprise_theme
-            apply_enterprise_theme(self)
+            apply_enterprise_theme(self, "#9c27b0")
         except ImportError:
             pass  # Fallback: no theme applied
     
@@ -1238,14 +1238,14 @@ def main():
 
     try:
         from titan_enterprise_theme import apply_enterprise_theme_to_app
-        apply_enterprise_theme_to_app(app)
+        apply_enterprise_theme_to_app(app, "#9c27b0")
     except ImportError:
         pass
 
     splash = None
     try:
         from titan_splash import show_titan_splash
-        splash = show_titan_splash(app, "VERIFICATION COMPLIANCE", "#3A75C4")
+        splash = show_titan_splash(app, "KYC BYPASS & COMPLIANCE", "#9c27b0")
     except Exception:
         pass
     

@@ -52,6 +52,8 @@ for f in "$BRAND_DIR/desktop"/*.desktop; do
     cp -f "$f" "$DESKTOP_DIR/"
     cp -f "$f" "$HOME_DESKTOP/" 2>/dev/null
     chmod +x "$HOME_DESKTOP/$(basename "$f")" 2>/dev/null
+    # GNOME trust metadata — marks shortcut as trusted so it executes without warning dialog
+    gio set -t string "$HOME_DESKTOP/$(basename "$f")" metadata::trusted "yes" 2>/dev/null
     echo -e "  ${GREEN}✓${NC} $(basename "$f")"
 done
 
@@ -63,6 +65,8 @@ if id "user" &>/dev/null; then
         [ -f "$f" ] || continue
         cp -f "$f" "$USER_DESKTOP/"
         chmod +x "$USER_DESKTOP/$(basename "$f")" 2>/dev/null
+        # GNOME trust metadata for user
+        su - user -c "gio set -t string \"$USER_DESKTOP/$(basename \"$f\")\" metadata::trusted \"yes\"" 2>/dev/null
     done
     chown -R user:user "$USER_DESKTOP" 2>/dev/null
 fi
