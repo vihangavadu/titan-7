@@ -784,6 +784,127 @@ MERCHANT_DATABASE = SITE_DATABASE
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# DYNAMIC EXPANSION VIA OLLAMA — Expands hardcoded databases at runtime
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _expand_site_database():
+    """Expand SITE_DATABASE with Ollama-generated entries (cached)."""
+    try:
+        from dynamic_data import generate_merchant_sites, is_ollama_available
+        if not is_ollama_available():
+            return
+        
+        # Convert seed sites to dicts for the prompt
+        seed_dicts = []
+        for s in SITE_DATABASE[:10]:
+            seed_dicts.append({
+                "domain": s.domain, "name": s.name,
+                "category": s.category.value, "difficulty": s.difficulty.value,
+                "psp": s.psp.value, "three_ds": s.three_ds,
+                "fraud_engine": s.fraud_engine, "is_shopify": s.is_shopify,
+                "country_focus": s.country_focus, "max_amount": s.max_amount,
+                "success_rate": s.success_rate, "products": s.products,
+                "notes": s.notes,
+            })
+        
+        new_sites = generate_merchant_sites(seed_dicts, count=100)
+        
+        existing_domains = {s.domain.lower() for s in SITE_DATABASE}
+        added = 0
+        for site in new_sites:
+            domain = site.get("domain", "").lower().strip()
+            if not domain or domain in existing_domains:
+                continue
+            try:
+                cat = SiteCategory(site.get("category", "misc")) \
+                    if site.get("category") in [c.value for c in SiteCategory] \
+                    else SiteCategory.MISC
+                diff = SiteDifficulty(site.get("difficulty", "moderate")) \
+                    if site.get("difficulty") in [d.value for d in SiteDifficulty] \
+                    else SiteDifficulty.MODERATE
+                psp = PSP(site.get("psp", "unknown")) \
+                    if site.get("psp") in [p.value for p in PSP] \
+                    else PSP.UNKNOWN
+                
+                new_entry = MerchantSite(
+                    domain=domain,
+                    name=site.get("name", domain.split('.')[0].title()),
+                    category=cat, difficulty=diff, psp=psp,
+                    three_ds=site.get("three_ds", "conditional"),
+                    fraud_engine=site.get("fraud_engine", "unknown"),
+                    is_shopify=site.get("is_shopify", False),
+                    country_focus=site.get("country_focus", ["US"]),
+                    avs_enforced=False,
+                    max_amount=float(site.get("max_amount", 200)),
+                    cashout_rate=0.50,
+                    products=site.get("products", ""),
+                    notes=f"[Ollama-generated] {site.get('notes', '')}",
+                    status=SiteStatus.UNVERIFIED,
+                    last_verified=_ts(),
+                    success_rate=float(site.get("success_rate", 0.70)),
+                )
+                SITE_DATABASE.append(new_entry)
+                existing_domains.add(domain)
+                added += 1
+            except Exception:
+                continue
+        
+        if added:
+            # Update alias
+            global MERCHANT_DATABASE
+            MERCHANT_DATABASE = SITE_DATABASE
+            logger.info(f"Ollama expanded SITE_DATABASE: +{added} sites (total: {len(SITE_DATABASE)})")
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"Dynamic site expansion failed: {e}")
+
+
+def _expand_discovery_dorks():
+    """Expand DISCOVERY_DORKS with Ollama-generated queries (cached)."""
+    try:
+        from dynamic_data import generate_discovery_dorks, is_ollama_available
+        if not is_ollama_available():
+            return
+        
+        seed_dicts = DISCOVERY_DORKS[:5]
+        new_dorks = generate_discovery_dorks(seed_dicts, count=50)
+        
+        existing_queries = {d["query"].lower() for d in DISCOVERY_DORKS}
+        added = 0
+        for dork in new_dorks:
+            if isinstance(dork, dict) and dork.get("query"):
+                q = dork["query"].lower()
+                if q not in existing_queries:
+                    DISCOVERY_DORKS.append(dork)
+                    existing_queries.add(q)
+                    added += 1
+        
+        if added:
+            logger.info(f"Ollama expanded DISCOVERY_DORKS: +{added} queries (total: {len(DISCOVERY_DORKS)})")
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"Dynamic dork expansion failed: {e}")
+
+
+# Run expansion in background thread at import time (non-blocking)
+def _background_expand():
+    """Run all expansions in background."""
+    import threading
+    def _worker():
+        _expand_site_database()
+        _expand_discovery_dorks()
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+try:
+    _background_expand()
+except Exception:
+    pass
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # SITE AUTO-PROBE ENGINE
 # Detects PSP, 3DS, Shopify, fraud engine from live site scan
 # ═══════════════════════════════════════════════════════════════════════════

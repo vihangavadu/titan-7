@@ -687,8 +687,10 @@ def generate_preset_from_intel(target_name: str) -> Optional[TargetPreset]:
 
 def get_target_preset_auto(name: str) -> Optional[TargetPreset]:
     """
-    Get target preset by name, falling back to auto-generation from
-    target_intelligence if no manual preset exists.
+    Get target preset by name, falling back to:
+    1. Manual preset (hardcoded)
+    2. Auto-generation from target_intelligence
+    3. Ollama-powered dynamic generation for ANY domain
     """
     # Try manual preset first
     preset = get_target_preset(name)
@@ -696,7 +698,70 @@ def get_target_preset_auto(name: str) -> Optional[TargetPreset]:
         return preset
     
     # Auto-generate from intelligence data
-    return generate_preset_from_intel(name)
+    preset = generate_preset_from_intel(name)
+    if preset:
+        return preset
+    
+    # Ollama-powered generation for unknown domains
+    return _generate_preset_via_ollama(name)
+
+
+def _generate_preset_via_ollama(name_or_domain: str) -> Optional[TargetPreset]:
+    """
+    Generate a target preset for ANY domain using Ollama.
+    Falls back to None if Ollama is unavailable.
+    """
+    try:
+        from dynamic_data import generate_target_preset as ollama_gen, is_ollama_available
+        if not is_ollama_available():
+            return None
+        
+        # If name looks like a domain, use it directly; otherwise try to resolve
+        domain = name_or_domain
+        if "." not in domain:
+            domain = f"{domain}.com"
+        
+        result = ollama_gen(domain)
+        if not result:
+            return None
+        
+        # Convert Ollama result dict to TargetPreset
+        cat_map = {
+            "gaming_marketplace": TargetCategory.GAMING_MARKETPLACE,
+            "retail": TargetCategory.RETAIL,
+            "electronics": TargetCategory.ELECTRONICS,
+            "gaming_platform": TargetCategory.GAMING_PLATFORM,
+            "digital_goods": TargetCategory.DIGITAL_GOODS,
+            "subscription": TargetCategory.SUBSCRIPTION,
+            "crypto": TargetCategory.CRYPTO,
+            "financial": TargetCategory.FINANCIAL,
+        }
+        
+        preset = TargetPreset(
+            name=result.get("name", domain.split(".")[0].title()),
+            domain=domain,
+            category=cat_map.get(result.get("category", ""), TargetCategory.DIGITAL_GOODS),
+            history_domains=result.get("history_domains", [domain, "google.com", "youtube.com"]),
+            history_weight=result.get("history_weight", {}),
+            cookies=[c for c in result.get("cookies", []) if isinstance(c, dict)],
+            localstorage=result.get("localstorage", {}),
+            recommended_archetype=result.get("recommended_archetype", "casual_shopper"),
+            three_ds_rate=float(result.get("three_ds_rate", 0.25)),
+            min_age_days=int(result.get("min_age_days", 60)),
+            recommended_age_days=int(result.get("recommended_age_days", 90)),
+            warmup_searches=result.get("warmup_searches", [f"{domain} reviews"]),
+            referrer_chain=result.get("referrer_chain", ["google.com", domain]),
+        )
+        
+        # Cache it in TARGET_PRESETS so subsequent lookups are instant
+        key = name_or_domain.lower().replace(" ", "_").replace("-", "_").replace(".", "_")
+        TARGET_PRESETS[key] = preset
+        
+        return preset
+    except ImportError:
+        return None
+    except Exception:
+        return None
 
 
 def list_all_targets() -> List[Dict[str, Any]]:
