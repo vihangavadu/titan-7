@@ -1,10 +1,9 @@
-PRETTY_NAME="Titan OS V7.0.3 Singularity"
+PRETTY_NAME="Titan OS V8.0 Maximum"
 NAME="Titan OS"
-VERSION_ID="7.0.3"
-VERSION="7.0.3 (Singularity)"
-VERSION_CODENAME=singularity
+VERSION_ID="8.0"
+VERSION="8.0 (Maximum)"
+VERSION_CODENAME=maximum
 ID=titanos
-ID_LIKE=debian
 HOME_URL="https://titan-os.io"
 SUPPORT_URL="https://titan-os.io/support"
 BUG_REPORT_URL="https://titan-os.io/bugs"

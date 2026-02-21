@@ -48,7 +48,7 @@ class FontMetricCorrection:
 
 
 # Empirically measured correction factors: FreeType → DirectWrite
-# Measured at 16px font size on Debian 12 FreeType 2.13 vs Windows 11 DirectWrite
+# Measured at 16px font size on FreeType 2.13 vs Windows 11 DirectWrite
 FONT_CORRECTIONS: Dict[str, FontMetricCorrection] = {
     "Arial": FontMetricCorrection(
         font_family="Arial",

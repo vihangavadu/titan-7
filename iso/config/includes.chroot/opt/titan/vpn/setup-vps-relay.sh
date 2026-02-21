@@ -1,11 +1,11 @@
 #!/bin/bash
 # TITAN V7.0 SINGULARITY — VPS Relay Setup Script
-# Run this on your VPS (Debian 12) to configure the Xray relay server
+# Run this on your VPS to configure the Xray relay server
 #
 # Usage: bash setup-vps-relay.sh
 #
 # Prerequisites:
-#   - Fresh Debian 12 VPS (Njalla, FlokiNET, BitHost, or Rootlayer)
+#   - Fresh Linux VPS (Njalla, FlokiNET, BitHost, or Rootlayer)
 #   - Root access
 #   - Internet connectivity
 

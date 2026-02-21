@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.5 SINGULARITY — Identity Synthesis Engine
+TITAN V8.0 MAXIMUM — Identity Synthesis Engine
 
 PyQt6 Desktop Application for creating aged browser profiles.
 User selects target from dropdown, enters persona details, clicks "Synthesize".
@@ -115,7 +115,7 @@ class GenesisApp(QMainWindow):
         self._apply_theme()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN V7.5 — Genesis Profile Forge")
+        self.setWindowTitle("TITAN V8.0 — Genesis Profile Forge")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, "#ff6b35")
@@ -131,7 +131,7 @@ class GenesisApp(QMainWindow):
         main_layout.setContentsMargins(8, 8, 8, 8)
         
         # Header
-        header = QLabel("TITAN V7.5 — GENESIS FORGE")
+        header = QLabel("TITAN V8.0 — GENESIS FORGE")
         header.setFont(QFont("JetBrains Mono", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet("color: #ff6b35; padding: 4px;")
@@ -162,7 +162,7 @@ class GenesisApp(QMainWindow):
         self._build_ai_audit_tab()
         
         # Footer
-        footer = QLabel("TITAN V7.5 SINGULARITY | Identity Synthesis Engine")
+        footer = QLabel("TITAN V8.0 MAXIMUM | Identity Synthesis Engine")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setStyleSheet("color: #64748B; font-size: 10px;")
         main_layout.addWidget(footer)
@@ -172,7 +172,7 @@ class GenesisApp(QMainWindow):
         self._statusbar.setStyleSheet(
             "QStatusBar { background: #151A21; color: #64748B; border-top: 1px solid #2A3444; font-family: 'JetBrains Mono', monospace; font-size: 11px; }"
         )
-        self._sb_version = QLabel("GENESIS V7.5")
+        self._sb_version = QLabel("GENESIS V8.0")
         self._sb_version.setStyleSheet("color: #ff6b35; padding: 0 8px;")
         self._sb_ai = QLabel("AI: " + ("ONLINE" if AI_AVAILABLE else "OFFLINE"))
         self._sb_ai.setStyleSheet("color: #4CAF50; padding: 0 8px;" if AI_AVAILABLE else "color: #EF5350; padding: 0 8px;")

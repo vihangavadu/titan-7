@@ -370,7 +370,7 @@ class KillSwitch:
         This is Step 0 — must execute before browser kill to prevent
         any data leakage during the panic window.
         """
-        # Try nftables first (preferred on Debian 12), fall back to iptables
+        # Try nftables first (preferred), fall back to iptables
         # V7.5 FIX: Use shell=True for nftables commands with special chars
         nft_rules = [
             "nft add table inet titan_panic",

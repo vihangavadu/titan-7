@@ -1,6 +1,6 @@
-# TITAN V7.0.3 — Pin all packages to Bookworm stable
+# TITAN V8.0 — Pin all packages to stable release
 # Prevents dependency drift from testing/unstable/backports
-# Critical for reproducible ISO builds
+# Critical for reproducible builds
 
 Package: *
 Pin: release n=bookworm

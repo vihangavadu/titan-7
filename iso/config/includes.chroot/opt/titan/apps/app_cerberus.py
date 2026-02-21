@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.5 SINGULARITY — Asset Validation & Risk Assessment
+TITAN V8.0 MAXIMUM — Asset Validation & Risk Assessment
 Card Validation GUI
 
 PyQt6 Desktop Application for zero-touch card validation.
@@ -292,7 +292,7 @@ class CerberusApp(QMainWindow):
         self.apply_dark_theme()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN V7.5 — Asset Validation & Risk Assessment")
+        self.setWindowTitle("TITAN V8.0 — Asset Validation & Risk Assessment")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, "#00bcd4")
@@ -536,7 +536,7 @@ class CerberusApp(QMainWindow):
         layout.addLayout(stats_layout)
         
         # Footer
-        footer = QLabel("TITAN V7.5 SINGULARITY | Asset Validation Engine")
+        footer = QLabel("TITAN V8.0 MAXIMUM | Asset Validation Engine")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setStyleSheet("color: #64748B; font-size: 10px;")
         layout.addWidget(footer)

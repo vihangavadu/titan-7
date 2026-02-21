@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.5 SINGULARITY — Unified Operations Dashboard
+TITAN V8.0 MAXIMUM — Unified Operations Dashboard
 Complete GUI for end-to-end operations
 
 Integrates:
@@ -457,9 +457,9 @@ class ProfileForgeWorker(QThread):
 
 class UnifiedOperationCenter(QMainWindow):
     """
-    TITAN V7.5 Unified Operations Dashboard
+    TITAN V8.0 Unified Operations Dashboard
     
-    Complete GUI for end-to-end operations with V7.5 Intelligence Dashboard.
+    Complete GUI for end-to-end operations with Intelligence Dashboard.
     """
     
     def __init__(self):
@@ -477,7 +477,7 @@ class UnifiedOperationCenter(QMainWindow):
         self._start_status_bar_timer()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN V7.5 — Unified Operations Dashboard")
+        self.setWindowTitle("TITAN V8.0 — Unified Operations Dashboard")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, "#00d4ff")
@@ -493,7 +493,7 @@ class UnifiedOperationCenter(QMainWindow):
         layout.setContentsMargins(8, 8, 8, 8)
         
         # Header
-        header = QLabel("TITAN V7.5 SINGULARITY")
+        header = QLabel("TITAN V8.0 MAXIMUM")
         header.setFont(QFont("Inter", 22, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet("color: #00d4ff; padding: 6px;")

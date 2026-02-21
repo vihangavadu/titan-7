@@ -1,5 +1,5 @@
 #!/bin/bash
-# Titan OS V7.0.3 — Desktop Environment Setup Hook
+# Titan OS V8.0 — Desktop Environment Setup Hook
 # Configures Plymouth, wallpaper, theme, and OS identity during ISO build
 
 set -e
@@ -16,8 +16,8 @@ if [ -d /usr/share/plymouth/themes/titan ]; then
     fi
 fi
 
-# ─── 2. OS Identity Override ────────────────────────────────
-# Ensure /etc/os-release shows Titan OS, not Debian
+# ─── 2. OS Identity Override ────────────────────────────────────────
+# Ensure /etc/os-release shows Titan OS identity
 if [ -f /etc/os-release.titan ]; then
     cp /etc/os-release.titan /etc/os-release
 fi
@@ -141,14 +141,32 @@ osd.border.color: #00d4ff30
 osd.border.width: 1
 EOF
 
-# ─── 6. Remove Debian Branding Leftovers ───────────────────
-# Remove /etc/motd if it contains Debian text
-if grep -qi "debian" /etc/motd 2>/dev/null; then
+# ─── 6. Remove Base OS Branding Leftovers ─────────────────
+# Remove motd if it contains base distro text
+if grep -qi "debian\|bookworm\|GNU/Linux" /etc/motd 2>/dev/null; then
     echo "" > /etc/motd
 fi
 
-# Remove Debian desktop backgrounds
+# Remove base distro desktop backgrounds and branding
 rm -f /usr/share/desktop-base/active-theme 2>/dev/null || true
+rm -rf /usr/share/pixmaps/debian* 2>/dev/null || true
+rm -rf /usr/share/images/desktop-base/desktop-background* 2>/dev/null || true
+
+# Override dpkg vendor to prevent base distro leaking via commands
+mkdir -p /etc/dpkg/origins
+cat > /etc/dpkg/origins/titanos << 'ORIGINEOF'
+Vendor: TitanOS
+Vendor-URL: https://titan-os.io
+Bugs: https://titan-os.io/bugs
+Parent: Debian
+ORIGINEOF
+ln -sf /etc/dpkg/origins/titanos /etc/dpkg/origins/default 2>/dev/null || true
+
+# Suppress base distro from neofetch / screenfetch
+if [ -f /etc/os-release ]; then
+    # Remove any ID_LIKE line that leaks base distro
+    sed -i '/^ID_LIKE=/d' /etc/os-release 2>/dev/null || true
+fi
 
 # ─── 7. Set Openbox Autostart Executable ───────────────────
 chmod +x /etc/xdg/openbox/autostart 2>/dev/null || true

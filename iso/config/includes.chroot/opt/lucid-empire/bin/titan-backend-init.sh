@@ -85,7 +85,7 @@ else
 fi
 
 # ── 6. Set permissions for live user ──────────────────────────────────────────
-# Debian live boots as 'user' — ensure they can access Lucid Empire files
+# Live system boots as 'user' — ensure they can access Lucid Empire files
 LIVE_USER="user"
 if id "$LIVE_USER" &>/dev/null; then
     log "Setting permissions for live user: $LIVE_USER"

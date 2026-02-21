@@ -2,7 +2,7 @@
 TITAN V7.0 SINGULARITY — Immutable OS Manager & A/B Partition Controller
 Implements read-only root with OverlayFS and atomic A/B partition updates
 
-V7 Architecture: The Debian Live foundation is hardened into a pseudo-immutable
+V7 Architecture: The live system foundation is hardened into a pseudo-immutable
 system where the core filesystem (SquashFS) is mounted read-only. All runtime
 writes are directed to a temporary tmpfs overlay using OverlayFS. Changes are
 discarded on reboot, returning the system to its pristine, verified state.

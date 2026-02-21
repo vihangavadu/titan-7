@@ -74,8 +74,8 @@ def phase1_os():
     print('PHASE 1: OS INFRASTRUCTURE')
     print('='*70)
 
-    @test('P1-OS', 'Debian 12 Bookworm')
-    def t(): return 'bookworm' in open('/etc/os-release').read(), open('/etc/os-release').readline().strip()
+    @test('P1-OS', 'Titan OS V8.0 Maximum')
+    def t(): return 'titanos' in open('/etc/os-release').read(), open('/etc/os-release').readline().strip()
     t()
 
     @test('P1-OS', 'Kernel 6.1.x')

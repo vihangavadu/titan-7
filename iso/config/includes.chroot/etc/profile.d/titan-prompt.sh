@@ -1,5 +1,5 @@
 #!/bin/bash
-# Titan OS V7.0.3 — Custom Terminal Prompt & Environment
+# Titan OS V8.0 — Custom Terminal Prompt & Environment
 # Loaded for all users via /etc/profile.d/
 
 # ─── Custom PS1 Prompt ──────────────────────────────────────
@@ -38,7 +38,7 @@ if [ -z "$TITAN_MOTD_SHOWN" ] && [ -t 1 ]; then
     export TITAN_MOTD_SHOWN=1
     echo ""
     echo -e "  \e[38;5;39m╔══════════════════════════════════════╗\e[0m"
-    echo -e "  \e[38;5;39m║\e[0m   \e[1;38;5;39mTitan OS\e[0m V7.0.3 Singularity     \e[38;5;39m║\e[0m"
+    echo -e "  \e[38;5;39m║\e[0m   \e[1;38;5;39mTitan OS\e[0m V8.0 Maximum            \e[38;5;39m║\e[0m"
     echo -e "  \e[38;5;39m║\e[0m   Type \e[38;5;45mops\e[0m to launch Operation Center \e[38;5;39m║\e[0m"
     echo -e "  \e[38;5;39m╚══════════════════════════════════════╝\e[0m"
     echo ""

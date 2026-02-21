@@ -2,10 +2,10 @@
 TITAN V7.0 SINGULARITY — Phase 3.1: Font Sanitization Engine
 OS-Specific Font Injection, Linux Font Rejection, Metric Spoofing
 
-VULNERABILITY: Titan is Debian-based. Fonts like 'Liberation Sans',
-'DejaVu Sans', 'Noto Color Emoji' are Linux-exclusive. If the profile
-claims Windows 10, font enumeration via JS `document.fonts` or
-`measureText()` will reveal the true OS regardless of User-Agent.
+VULNERABILITY: The host OS includes Linux-exclusive fonts like 'Liberation Sans',
+'DejaVu Sans', 'Noto Color Emoji'. If the profile claims Windows 10, font
+enumeration via JS `document.fonts` or `measureText()` will reveal the
+true OS regardless of User-Agent.
 
 FIX:
 1. Generate /etc/fonts/local.conf with <rejectfont> for Linux-specific fonts
@@ -60,10 +60,10 @@ LINUX_EXCLUSIVE_FONTS = [
     "Nimbus Sans", "Nimbus Roman", "Nimbus Mono",
     "STIX", "Latin Modern",
     "Bitstream Vera Sans", "Bitstream Vera Serif",
-    # V7.5 FIX: Additional common Debian 12 fonts
+    # V7.5 FIX: Additional common Linux distribution fonts
     "Source Code Pro", "Hack", "Cantarell Light",
     "Noto Sans Mono", "Noto Sans Display",
-    # V7.6: Additional Linux fonts found on Debian 12 / Ubuntu 24.04
+    # V7.6: Additional Linux distribution fonts
     "Noto Sans Symbols", "Noto Sans Symbols2", "Noto Sans Math",
     "Noto Music", "Noto Sans SignWriting",
     "URW Gothic", "URW Bookman", "C059", "P052", "Z003", "D050000L",

@@ -49,10 +49,10 @@ LINUX_LEAK_FONTS = [
     "Nimbus Sans", "Nimbus Roman", "Nimbus Mono",
     "STIX", "Latin Modern",
     "Bitstream Vera Sans", "Bitstream Vera Serif",
-    # V7.5 FIX: Additional common Debian 12 fonts (synced with font_sanitizer.py)
+    # V7.5 FIX: Additional common Linux distribution fonts (synced with font_sanitizer.py)
     "Source Code Pro", "Hack", "Cantarell Light",
     "Noto Sans Mono", "Noto Sans Display",
-    # V7.6: Additional Linux fonts found on Debian 12 / Ubuntu 24.04
+    # V7.6: Additional Linux distribution fonts
     "Noto Sans Symbols", "Noto Sans Symbols2", "Noto Sans Math",
     "URW Gothic", "URW Bookman", "C059", "P052",
     "Lato", "Open Sans", "Roboto",
