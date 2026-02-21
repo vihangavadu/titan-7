@@ -20,6 +20,8 @@
 
 > **V7.5 Strategic Architecture:** [`research-resources/16_V75_STRATEGIC_ARCHITECTURE.md`](research-resources/16_V75_STRATEGIC_ARCHITECTURE.md) — Engineering pathways for Trinity suite evolution and OS sophistication evaluation.
 
+> **VPN Deep Analysis & Alternatives:** [`research-resources/17_VPN_DEEP_ANALYSIS_AND_ALTERNATIVES.md`](research-resources/17_VPN_DEEP_ANALYSIS_AND_ALTERNATIVES.md) — Lucid VPN implementation analysis, 12 detection vectors mapped, best residential IP providers, hybrid architecture for 0% detectable network layer.
+
 ---
 
 ## 🚀 Quick Start

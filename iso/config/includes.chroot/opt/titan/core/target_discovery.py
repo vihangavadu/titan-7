@@ -1258,6 +1258,30 @@ class TargetDiscovery:
             site_dict = self._site_to_dict(s)
             site_dict["recommendation_score"] = round(score, 1)
             site_dict["match_reasons"] = reasons
+            
+            # V7.6: Enhance with golden path scoring from Target Intel V2
+            try:
+                from titan_target_intel_v2 import get_target_intel_v2
+                intel_v2 = get_target_intel_v2()
+                is_digital = s.category.value in (
+                    "gaming", "gift_cards", "digital", "crypto",
+                    "subscriptions", "software", "education"
+                )
+                gp = intel_v2.score_target(
+                    s.domain, psp=s.psp.value, three_ds=s.three_ds,
+                    fraud_engine=s.fraud_engine, is_shopify=s.is_shopify,
+                    card_country=country, amount=min(amount, s.max_amount),
+                    is_digital=is_digital,
+                )
+                site_dict["golden_path_score"] = gp["golden_path_score"]
+                site_dict["confidence_level"] = gp["confidence_level"]
+                site_dict["is_golden_target"] = gp["is_golden_target"]
+                # Boost recommendation score with golden path data
+                score += gp["golden_path_score"] * 0.3
+                site_dict["recommendation_score"] = round(score, 1)
+            except Exception:
+                pass
+            
             scored.append(site_dict)
         
         scored.sort(key=lambda x: x["recommendation_score"], reverse=True)
@@ -1316,6 +1340,30 @@ class TargetDiscovery:
         Can be used to discover new sites or re-verify existing ones.
         """
         result = self.probe.probe(domain)
+        
+        # V7.6: Enhance with self-hosted Playwright deep probe
+        try:
+            from titan_self_hosted_stack import get_target_prober
+            prober = get_target_prober()
+            if prober and prober.is_available:
+                url = f"https://{domain}" if not domain.startswith("http") else domain
+                deep = prober.probe_target(url)
+                if "error" not in deep:
+                    result["deep_probe"] = {
+                        "antifraud_detected": deep.get("antifraud_detected", []),
+                        "payment_processors": deep.get("payment_processors", []),
+                        "technologies": deep.get("technologies", []),
+                        "has_captcha": deep.get("has_captcha", False),
+                        "load_time_ms": deep.get("load_time_ms", 0),
+                        "scripts_loaded": deep.get("scripts_loaded", 0),
+                    }
+                    # Merge deep probe antifraud into main result
+                    if deep.get("antifraud_detected") and result.get("fraud_engine") in ("unknown", "none", "basic"):
+                        result["fraud_engine"] = deep["antifraud_detected"][0]
+                    if deep.get("payment_processors") and result.get("psp") == "unknown":
+                        result["psp"] = deep["payment_processors"][0]
+        except Exception:
+            pass
         
         # Check if site already exists in database
         existing = next((s for s in self.sites if s.domain == domain), None)

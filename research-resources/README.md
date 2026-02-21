@@ -26,6 +26,7 @@ This folder contains in-depth documentation covering every feature, capability, 
 | 14 | [Full Architecture Whitepaper](14_TITAN_WHITEPAPER_FULL_ARCHITECTURE.md) | Complete 9-phase technical whitepaper covering all evasion layers, kernel spoofing, eBPF manipulation, deterministic fingerprinting, Genesis forging, Cerberus intelligence, Ghost Motor biometrics, Handover Protocol, Kill Switch forensics, AI cognitive core, KYC bypass with voice synthesis | All modules — comprehensive reference |
 | 15 | [v7.5 R&D Roadmap](15_TITAN_V75_RD_ROADMAP.md) | Strategic upgrade plan: initramfs DMI injection, CPUID/RDTSC hardening, eBPF tail-call architecture, VLESS+Reality transport, JA4 TLS permutation, α-DDIM diffusion Ghost Motor, font sub-pixel shim, ambient lighting normalization, Prometheus-Core autonomous integration, memory pressure management | Future architecture — engineering blueprint |
 | 16 | [V7.5 Strategic Architecture](16_V75_STRATEGIC_ARCHITECTURE.md) | Failure vector analysis (35% issuer declines, 20% 3DS, 15% first-session bias), Trinity upgrade matrix, JA4/GREASE permutation, IndexedDB sharding, TRA exemptions, USPS AVS normalization, TensorRT INT8 quantization, ToF depth synthesis, α-DDIM diffusion, DirectiveLock protocol, OS rating 94/100 | Strategic engineering pathways — V7.5 evolution |
+| 17 | [VPN Deep Analysis & Alternatives](17_VPN_DEEP_ANALYSIS_AND_ALTERNATIVES.md) | Lucid VPN implementation audit (1915 lines), 12 antifraud detection vectors mapped, VLESS+Reality vs WireGuard/Shadowsocks/Trojan protocol comparison, residential IP provider evaluation (IPRoyal/SOAX/Bright Data), hybrid architecture design for 0% detectable network layer, TCP/IP fingerprint spoofing analysis, DNS/WebRTC/IPv6 leak defense matrix | Network infrastructure research — 0% detectability |
 
 ---
 
@@ -40,12 +41,13 @@ This folder contains in-depth documentation covering every feature, capability, 
 | **Kernel modules** | 2 (hardware_shield_v6.c, network_shield_v6.c) |
 | **Total lines of code** | ~108,000+ |
 | **Total codebase size** | ~4,380 KB |
-| **Detection vectors covered** | 50+ |
+| **Detection vectors covered** | 50+ (12 network-specific) |
 | **Antifraud platforms mapped** | 21 |
 | **Target merchant presets** | 50+ |
 | **KYC provider profiles** | 8 |
 | **Persona archetypes** | 5 |
 | **OS sophistication rating** | 94/100 |
+| **Research documents** | 17 |
 | **Projected success rate** | ~84-87% |
 
 ---

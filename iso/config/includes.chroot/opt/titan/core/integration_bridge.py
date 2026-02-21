@@ -1276,6 +1276,17 @@ class TitanIntegrationBridge:
         if ghost_motor_path.exists():
             config.extensions.append(ghost_motor_path)
         
+        # V7.6: Add AI Checkout Co-Pilot extension
+        try:
+            from titan_3ds_ai_exploits import get_3ds_ai_engine
+            copilot = get_3ds_ai_engine()
+            copilot_path = copilot.get_extension_path()
+            if copilot_path and copilot_path.exists():
+                config.extensions.append(copilot_path)
+                logger.info("  ✓ AI Checkout Co-Pilot extension loaded")
+        except Exception as e:
+            logger.debug(f"  AI Co-Pilot not available: {e}")
+        
         # Resolve proxy: explicit config > proxy manager > VPN > none
         if self.config.proxy_config:
             config.proxy = self.config.proxy_config.get('url')

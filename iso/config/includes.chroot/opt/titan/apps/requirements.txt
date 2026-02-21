@@ -71,3 +71,25 @@ nltk>=3.8.0
 # Optional: Advanced AI integration
 # openai>=0.28.0  # For direct OpenAI API access
 # anthropic>=0.8.0  # For Claude integration
+
+# ── V7.6 AI Enhancement Stack ──────────────────────────────────────────
+# ChromaDB — Vector memory store for semantic search over operations/intel
+chromadb>=0.4.22
+sentence-transformers>=2.2.0  # Best embedding quality (optional, ChromaDB has default)
+
+# LangChain — Agentic LLM orchestration with tool-calling
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-ollama>=0.1.0       # Ollama integration for LangChain
+langchain-community>=0.2.0    # Community integrations
+
+# Web Intelligence — Real-time search for operational intel
+google-search-results>=2.4.0  # SerpAPI client (requires SERPAPI_KEY)
+duckduckgo-search>=5.0.0      # Free fallback search (no API key needed)
+
+# V7.6 Self-Hosted Tool Stack
+geoip2>=4.8.0                 # MaxMind GeoLite2 offline IP geolocation
+redis>=5.0.0                  # Redis client for fast inter-module state
+minio>=7.2.0                  # MinIO S3-compatible object storage client
+python-Wappalyzer>=0.3.1      # Technology stack detection on target sites
+playwright>=1.40.0            # Headless browser for automated target probing

@@ -1176,3 +1176,225 @@ def create_session_context(session_id: str = None) -> SessionContextManager:
 def create_behavioral_adapter(profile: str = 'normal') -> BehavioralAdaptationEngine:
     """V7.6: Create behavioral adaptation engine"""
     return BehavioralAdaptationEngine(profile)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 AI ENHANCEMENT INTEGRATION
+# ChromaDB Vector Memory + LangChain Agent + Web Intelligence
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_agent():
+    """V7.6: Get the LangChain-powered autonomous agent."""
+    try:
+        from titan_agent_chain import get_titan_agent
+        return get_titan_agent()
+    except ImportError:
+        logging.getLogger("TITAN-V7-BRAIN").warning(
+            "titan_agent_chain not available. Install: pip install langchain langchain-ollama"
+        )
+        return None
+
+
+def get_vector_memory():
+    """V7.6: Get the ChromaDB vector memory store."""
+    try:
+        from titan_vector_memory import get_vector_memory as _get_vm
+        return _get_vm()
+    except ImportError:
+        logging.getLogger("TITAN-V7-BRAIN").warning(
+            "titan_vector_memory not available. Install: pip install chromadb"
+        )
+        return None
+
+
+def get_web_intel():
+    """V7.6: Get the web intelligence engine."""
+    try:
+        from titan_web_intel import get_web_intel as _get_wi
+        return _get_wi()
+    except ImportError:
+        logging.getLogger("TITAN-V7-BRAIN").warning(
+            "titan_web_intel not available. Install: pip install duckduckgo-search"
+        )
+        return None
+
+
+def get_ai_enhancement_status() -> Dict:
+    """V7.6: Get status of all AI enhancements."""
+    status = {
+        "vector_memory": {"available": False},
+        "agent_chain": {"available": False},
+        "web_intel": {"available": False},
+    }
+
+    try:
+        from titan_vector_memory import get_vector_memory as _get_vm
+        mem = _get_vm()
+        status["vector_memory"] = mem.get_stats()
+    except Exception:
+        pass
+
+    try:
+        from titan_agent_chain import get_titan_agent
+        agent = get_titan_agent()
+        status["agent_chain"] = agent.get_status()
+    except Exception:
+        pass
+
+    try:
+        from titan_web_intel import get_web_intel as _get_wi
+        intel = _get_wi()
+        status["web_intel"] = intel.get_stats()
+    except Exception:
+        pass
+
+    return status
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SELF-HOSTED TOOL STACK INTEGRATION
+# GeoIP, IP Quality, Redis, Ntfy, Proxy Monitor, Target Prober, etc.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_self_hosted_stack():
+    """V7.6: Get the unified self-hosted tool stack manager."""
+    try:
+        from titan_self_hosted_stack import get_self_hosted_stack as _get_stack
+        return _get_stack()
+    except ImportError:
+        logging.getLogger("TITAN-V7-BRAIN").debug(
+            "titan_self_hosted_stack not available"
+        )
+        return None
+
+
+def get_geoip():
+    """V7.6: Get GeoIP validator for proxy geo-match checks."""
+    try:
+        from titan_self_hosted_stack import get_geoip_validator
+        return get_geoip_validator()
+    except ImportError:
+        return None
+
+
+def get_ip_checker():
+    """V7.6: Get IP quality checker for proxy reputation scoring."""
+    try:
+        from titan_self_hosted_stack import get_ip_quality_checker
+        return get_ip_quality_checker()
+    except ImportError:
+        return None
+
+
+def get_redis():
+    """V7.6: Get Redis client for fast inter-module state."""
+    try:
+        from titan_self_hosted_stack import get_redis_client
+        return get_redis_client()
+    except ImportError:
+        return None
+
+
+def get_ntfy():
+    """V7.6: Get Ntfy client for push notifications."""
+    try:
+        from titan_self_hosted_stack import get_ntfy_client
+        return get_ntfy_client()
+    except ImportError:
+        return None
+
+
+def get_target_prober():
+    """V7.6: Get Playwright-based target site prober."""
+    try:
+        from titan_self_hosted_stack import get_target_prober
+        return get_target_prober()
+    except ImportError:
+        return None
+
+
+def get_stack_status() -> Dict:
+    """V7.6: Get combined status of AI enhancements + self-hosted stack."""
+    status = get_ai_enhancement_status()
+    try:
+        from titan_self_hosted_stack import get_self_hosted_stack as _get_stack
+        stack = _get_stack()
+        status["self_hosted_stack"] = stack.get_status()
+    except Exception:
+        status["self_hosted_stack"] = {"available": False}
+    return status
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 TARGET INTELLIGENCE V2 — GOLDEN PATH SCORING
+# 8-vector analysis for 100% hit probability identification
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_target_intel_v2():
+    """V7.6: Get Target Intelligence V2 engine for golden path scoring."""
+    try:
+        from titan_target_intel_v2 import get_target_intel_v2 as _get
+        return _get()
+    except ImportError:
+        return None
+
+
+def score_target_golden(domain: str, card_country: str = "US",
+                        amount: float = 100, **kwargs) -> Dict:
+    """V7.6: Score a target across all 8 vectors for hit probability."""
+    try:
+        from titan_target_intel_v2 import get_target_intel_v2
+        return get_target_intel_v2().score_target(
+            domain, card_country=card_country, amount=amount, **kwargs
+        )
+    except ImportError:
+        return {"error": "titan_target_intel_v2 not available"}
+
+
+def find_golden_targets(card_country: str = "US", max_amount: float = 200) -> list:
+    """V7.6: Find all targets with 100% hit probability (golden path)."""
+    try:
+        from titan_target_intel_v2 import get_target_intel_v2
+        return get_target_intel_v2().find_golden_targets(
+            card_country=card_country, max_amount=max_amount
+        )
+    except ImportError:
+        return []
+
+
+def full_target_brief(domain: str, card_country: str = "US",
+                      amount: float = 100) -> Dict:
+    """V7.6: Full operational brief for a target with all intelligence."""
+    try:
+        from titan_target_intel_v2 import get_target_intel_v2
+        return get_target_intel_v2().full_target_analysis(
+            domain, card_country=card_country, amount=amount
+        )
+    except ImportError:
+        return {"error": "titan_target_intel_v2 not available"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 3DS AI-SPEED EXPLOIT ENGINE
+# Sub-human-speed techniques for 3DS avoidance
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_3ds_ai_engine():
+    """V7.6: Get 3DS AI-Speed Exploit Engine."""
+    try:
+        from titan_3ds_ai_exploits import get_3ds_ai_engine as _get
+        return _get()
+    except ImportError:
+        return None
+
+
+def get_ai_exploit_stack(domain: str = "", psp: str = "unknown",
+                         card_country: str = "US", amount: float = 100) -> Dict:
+    """V7.6: Get optimal layered exploit stack for a target."""
+    try:
+        from titan_3ds_ai_exploits import get_3ds_ai_engine
+        return get_3ds_ai_engine().get_optimal_stack(
+            domain, psp, card_country=card_country, amount=amount
+        )
+    except ImportError:
+        return {"error": "titan_3ds_ai_exploits not available"}

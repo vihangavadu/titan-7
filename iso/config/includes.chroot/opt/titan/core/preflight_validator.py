@@ -448,6 +448,23 @@ class PreFlightValidator:
         score_source = None
         details = {"ip": exit_ip}
         
+        # Method 0: Self-hosted IP Quality Checker (zero latency, no API key)
+        try:
+            from titan_self_hosted_stack import get_ip_quality_checker
+            ip_checker = get_ip_quality_checker()
+            if ip_checker and ip_checker.is_available:
+                ip_result = ip_checker.check(exit_ip)
+                if ip_result.get("risk_score") is not None:
+                    fraud_score = ip_result["risk_score"]
+                    score_source = "self-hosted-ip-checker"
+                    details["sh_risk_score"] = fraud_score
+                    details["sh_is_proxy"] = ip_result.get("is_proxy", False)
+                    details["sh_is_datacenter"] = ip_result.get("is_datacenter", False)
+                    details["sh_is_residential"] = ip_result.get("is_residential", False)
+                    details["sh_recommendation"] = ip_result.get("recommendation", "")
+        except ImportError:
+            pass
+        
         # Method 1: Scamalytics free check (no API key needed)
         try:
             result = subprocess.run(
@@ -568,11 +585,58 @@ class PreFlightValidator:
         if not proxy_check or proxy_check.status != CheckStatus.PASS:
             return
         
+        exit_ip = proxy_check.details.get("ip", "")
+        billing_state = self.billing_region.get("state", "").upper()
+        billing_country = self.billing_region.get("country", "US").upper()
+        billing_zip = self.billing_region.get("zip", "")
+        
+        # Try self-hosted GeoIP first (offline, zero-latency, detailed scoring)
+        geoip_used = False
+        try:
+            from titan_self_hosted_stack import get_geoip_validator
+            geoip = get_geoip_validator()
+            if geoip and geoip.is_available and exit_ip:
+                match_result = geoip.check_geo_match(
+                    exit_ip, card_country=billing_country,
+                    card_state=billing_state, card_zip=billing_zip
+                )
+                if "error" not in match_result:
+                    geoip_used = True
+                    score = match_result.get("score", 0)
+                    details = match_result.get("details", {})
+                    details["source"] = "self-hosted-geoip"
+                    details["score"] = score
+                    
+                    if score >= 0.8:
+                        self.report.checks.append(PreFlightCheck(
+                            name="Geo Match",
+                            status=CheckStatus.PASS,
+                            message=f"Strong geo match (score: {score}) — country+state aligned",
+                            details=details
+                        ))
+                    elif score >= 0.5:
+                        self.report.checks.append(PreFlightCheck(
+                            name="Geo Match",
+                            status=CheckStatus.PASS,
+                            message=f"Acceptable geo match (score: {score}) — country match",
+                            details=details
+                        ))
+                    else:
+                        self.report.checks.append(PreFlightCheck(
+                            name="Geo Match",
+                            status=CheckStatus.WARN,
+                            message=f"Weak geo match (score: {score}) — consider rotating proxy",
+                            critical=False,
+                            details=details
+                        ))
+                    return
+        except ImportError:
+            pass
+        
+        # Fallback: use ip-api data from proxy connection check
         ip_info = proxy_check.details
         proxy_region = ip_info.get("region", "").upper()
         proxy_city = ip_info.get("city", "").upper()
-        
-        billing_state = self.billing_region.get("state", "").upper()
         billing_city = self.billing_region.get("city", "").upper()
         
         # Check state match

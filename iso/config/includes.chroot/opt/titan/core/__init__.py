@@ -161,6 +161,60 @@ from .titan_services import (
 )
 from .bug_patch_bridge import BugPatchBridge
 
+# V7.6 Self-Hosted Tool Stack
+try:
+    from .titan_self_hosted_stack import (
+        TitanSelfHostedStack, get_self_hosted_stack,
+        GeoIPValidator, get_geoip_validator,
+        IPQualityChecker, get_ip_quality_checker,
+        ProxyHealthMonitor, get_proxy_health_monitor,
+        RedisClient, get_redis_client,
+        NtfyClient, get_ntfy_client,
+        TargetSiteProber, get_target_prober,
+        TechStackDetector, get_tech_detector,
+        MinIOClient, get_minio_client,
+    )
+except ImportError:
+    TitanSelfHostedStack = get_self_hosted_stack = None
+    GeoIPValidator = get_geoip_validator = None
+    IPQualityChecker = get_ip_quality_checker = None
+    ProxyHealthMonitor = get_proxy_health_monitor = None
+    RedisClient = get_redis_client = None
+    NtfyClient = get_ntfy_client = None
+    TargetSiteProber = get_target_prober = None
+    TechStackDetector = get_tech_detector = None
+    MinIOClient = get_minio_client = None
+
+# V7.6 Target Intelligence V2 — Golden Path Scoring
+try:
+    from .titan_target_intel_v2 import (
+        TargetIntelV2, get_target_intel_v2,
+        score_target as score_target_v2,
+        find_golden_targets, get_no_3ds_psps,
+        full_target_analysis,
+        PSP_3DS_BEHAVIOR, MCC_3DS_INTELLIGENCE,
+        GEO_3DS_ENFORCEMENT, TRANSACTION_TYPE_EXEMPTIONS,
+        CONFIRMED_NO_3DS_PATTERNS, ANTIFRAUD_GAPS,
+        GoldenPathScore,
+    )
+except ImportError:
+    TargetIntelV2 = get_target_intel_v2 = None
+    score_target_v2 = find_golden_targets = get_no_3ds_psps = full_target_analysis = None
+    PSP_3DS_BEHAVIOR = MCC_3DS_INTELLIGENCE = GEO_3DS_ENFORCEMENT = None
+    TRANSACTION_TYPE_EXEMPTIONS = CONFIRMED_NO_3DS_PATTERNS = ANTIFRAUD_GAPS = None
+    GoldenPathScore = None
+
+# V7.6 3DS AI-Speed Exploit Engine
+try:
+    from .titan_3ds_ai_exploits import (
+        ThreeDSAIEngine, get_3ds_ai_engine,
+        get_ai_techniques, get_optimal_exploit_stack,
+        generate_exploit_script,
+    )
+except ImportError:
+    ThreeDSAIEngine = get_3ds_ai_engine = None
+    get_ai_techniques = get_optimal_exploit_stack = generate_exploit_script = None
+
 # V7.5 Singularity Enhancement Modules
 from .ja4_permutation_engine import JA4PermutationEngine
 from .indexeddb_lsng_synthesis import IndexedDBShardSynthesizer, LocalStorageSynthesizer, StoragePersona, StorageShard
@@ -308,4 +362,23 @@ __all__ = [
     'FaceDepthGenerator', 'DepthQuality', 'FacialLandmarks', 'DepthMapConfig',
     'IssuerDeclineDefenseEngine', 'DeclineReason', 'AmountOptimizer',
     'FirstSessionBiasEliminator',
+    # V7.6 Self-Hosted Tool Stack
+    'TitanSelfHostedStack', 'get_self_hosted_stack',
+    'GeoIPValidator', 'get_geoip_validator',
+    'IPQualityChecker', 'get_ip_quality_checker',
+    'ProxyHealthMonitor', 'get_proxy_health_monitor',
+    'RedisClient', 'get_redis_client',
+    'NtfyClient', 'get_ntfy_client',
+    'TargetSiteProber', 'get_target_prober',
+    'TechStackDetector', 'get_tech_detector',
+    'MinIOClient', 'get_minio_client',
+    # V7.6 Target Intelligence V2 — Golden Path Scoring
+    'TargetIntelV2', 'get_target_intel_v2',
+    'score_target_v2', 'find_golden_targets', 'get_no_3ds_psps', 'full_target_analysis',
+    'PSP_3DS_BEHAVIOR', 'MCC_3DS_INTELLIGENCE', 'GEO_3DS_ENFORCEMENT',
+    'TRANSACTION_TYPE_EXEMPTIONS', 'CONFIRMED_NO_3DS_PATTERNS', 'ANTIFRAUD_GAPS',
+    'GoldenPathScore',
+    # V7.6 3DS AI-Speed Exploit Engine
+    'ThreeDSAIEngine', 'get_3ds_ai_engine',
+    'get_ai_techniques', 'get_optimal_exploit_stack', 'generate_exploit_script',
 ]

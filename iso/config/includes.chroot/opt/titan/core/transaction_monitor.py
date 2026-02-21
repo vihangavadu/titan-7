@@ -640,6 +640,21 @@ class TransactionMonitor:
             f"— ${tx.get('amount', '?')} — {decoded.get('reason', code)}"
         )
         
+        # V7.6: Push notification via self-hosted Ntfy
+        try:
+            from titan_self_hosted_stack import get_ntfy_client
+            ntfy = get_ntfy_client()
+            if ntfy and ntfy.is_available:
+                ntfy.send_operation_result({
+                    "result": status,
+                    "bin": tx.get("card_bin", ""),
+                    "target": tx["domain"],
+                    "amount": tx.get("amount", 0),
+                    "reason": decoded.get("reason", code),
+                })
+        except Exception:
+            pass
+        
         return {
             "tx_id": tx_id,
             "status": status,

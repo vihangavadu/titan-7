@@ -294,10 +294,13 @@ def analyze_bin(bin_number: str, target: str = "", amount: float = 0,
     # Inject decline history for per-BIN learning
     decline_ctx = get_enriched_bin_context(bin6)
 
+    # V7.6: Inject vector memory context for richer analysis
+    vector_ctx = _get_vector_memory_context(bin6, target, amount)
+
     prompt = BIN_ANALYSIS_PROMPT.format(
         bin_number=bin6, known_info=known_str,
         target=target or "unknown", amount=amount or "unknown"
-    ) + decline_ctx
+    ) + decline_ctx + vector_ctx
 
     result = _query_ollama_json(prompt, task_type="bin_generation",
                                 temperature=0.2, timeout=45)
@@ -327,6 +330,10 @@ def analyze_bin(bin_number: str, target: str = "", amount: float = 0,
         _bin_cache[cache_key] = analysis
         logger.info(f"AI BIN analysis: {bin6} → score={analysis.ai_score}, "
                      f"success={analysis.success_prediction:.0%}")
+
+        # V7.6: Store analysis in vector memory for future recall
+        _store_bin_to_vector_memory(analysis)
+
         return analysis
 
     # Ollama failed to parse response — use static
@@ -537,6 +544,10 @@ def recon_target(domain: str, category: str = "") -> AITargetRecon:
         logger.info(f"AI target recon: {domain_clean} → "
                      f"engine={recon.fraud_engine_guess}, "
                      f"3DS={recon.three_ds_probability:.0%}")
+
+        # V7.6: Store recon in vector memory
+        _store_target_to_vector_memory(recon)
+
         return recon
 
     # Ollama failed to respond: return static or fallback
@@ -933,7 +944,7 @@ def plan_operation(bin_number: str, target: str, amount: float,
 
     logger.info(f"AI Operation Plan: {summary}")
 
-    return AIOperationPlan(
+    plan = AIOperationPlan(
         bin_analysis=bin_analysis,
         target_recon=target_recon,
         threeds_strategy=threeds,
@@ -943,6 +954,11 @@ def plan_operation(bin_number: str, target: str, amount: float,
         executive_summary=summary,
         ai_powered=all_ai,
     )
+
+    # V7.6: Store operation plan in vector memory
+    _store_operation_to_vector_memory(plan)
+
+    return plan
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -980,6 +996,9 @@ def record_decline(bin_number: str, target: str, decline_code: str,
         del _bin_cache[k]
     
     logger.info(f"Decline recorded: BIN {bin6} → {target} [{decline_code}/{decline_category}]")
+
+    # V7.6: Store decline in vector memory for semantic pattern matching
+    _store_decline_to_vector_memory(bin6, target, decline_code, decline_category, amount)
 
 
 def get_bin_decline_pattern(bin_number: str) -> Dict:
@@ -1058,6 +1077,116 @@ def get_enriched_bin_context(bin_number: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 VECTOR MEMORY INTEGRATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_vector_memory_context(bin6: str, target: str, amount: float) -> str:
+    """Build enriched context from vector memory for LLM prompts."""
+    try:
+        from titan_vector_memory import get_vector_memory
+        mem = get_vector_memory()
+        if not mem.is_available:
+            return ""
+        return mem.build_operation_context(bin6, target, amount)
+    except ImportError:
+        return ""
+    except Exception as e:
+        logger.debug(f"Vector memory context failed: {e}")
+        return ""
+
+
+def _store_bin_to_vector_memory(analysis) -> None:
+    """Store BIN analysis result into vector memory for future recall."""
+    try:
+        from titan_vector_memory import get_vector_memory
+        mem = get_vector_memory()
+        if not mem.is_available:
+            return
+        mem.store_bin_intel(analysis.bin_number, {
+            "bank": analysis.bank_name,
+            "country": analysis.country,
+            "card_type": analysis.card_type,
+            "card_level": analysis.card_level,
+            "network": analysis.network,
+            "risk_level": analysis.risk_level.value,
+            "success_rate": f"{analysis.success_prediction:.0%}",
+            "best_targets": analysis.best_targets,
+            "notes": analysis.strategic_notes,
+        })
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.debug(f"Vector memory BIN store failed: {e}")
+
+
+def _store_target_to_vector_memory(recon) -> None:
+    """Store target recon result into vector memory."""
+    try:
+        from titan_vector_memory import get_vector_memory
+        mem = get_vector_memory()
+        if not mem.is_available:
+            return
+        mem.store_target_intel(recon.domain, {
+            "fraud_engine": recon.fraud_engine_guess,
+            "payment_processor": recon.payment_processor_guess,
+            "friction": recon.estimated_friction,
+            "three_ds_rate": recon.three_ds_probability,
+            "best_cards": recon.optimal_card_types,
+            "notes": "; ".join(recon.checkout_tips[:3]),
+        })
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.debug(f"Vector memory target store failed: {e}")
+
+
+def _store_operation_to_vector_memory(plan) -> None:
+    """Store operation plan result into vector memory."""
+    try:
+        from titan_vector_memory import get_vector_memory
+        mem = get_vector_memory()
+        if not mem.is_available:
+            return
+        mem.store_operation({
+            "bin": plan.bin_analysis.bin_number,
+            "target": plan.target_recon.domain,
+            "amount": plan.bin_analysis.optimal_amount_range[0],
+            "result": "go" if plan.go_decision else "no_go",
+            "reason": plan.executive_summary[:200],
+            "fraud_engine": plan.target_recon.fraud_engine_guess,
+            "card_type": plan.bin_analysis.card_type,
+            "card_level": plan.bin_analysis.card_level,
+            "notes": f"Score: {plan.overall_score}/100",
+        })
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.debug(f"Vector memory operation store failed: {e}")
+
+
+def _store_decline_to_vector_memory(bin_number: str, target: str,
+                                     decline_code: str, decline_category: str,
+                                     amount: float) -> None:
+    """Store decline event into vector memory."""
+    try:
+        from titan_vector_memory import get_vector_memory
+        mem = get_vector_memory()
+        if not mem.is_available:
+            return
+        mem.store_decline({
+            "bin": bin_number[:6],
+            "target": target,
+            "code": decline_code,
+            "category": decline_category,
+            "amount": amount,
+        })
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.debug(f"Vector memory decline store failed: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # CONVENIENCE EXPORTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1069,14 +1198,50 @@ def is_ai_available() -> bool:
 def get_ai_status() -> Dict:
     """Get AI engine status for GUI display."""
     available = _is_ollama_available()
-    return {
-        "available": available,
-        "provider": "ollama" if available else "none",
-        "features": [
+
+    # V7.6: Check enhanced AI capabilities
+    vector_available = False
+    agent_available = False
+    web_intel_available = False
+    try:
+        from titan_vector_memory import is_vector_memory_available
+        vector_available = is_vector_memory_available()
+    except ImportError:
+        pass
+    try:
+        from titan_agent_chain import is_agent_available
+        agent_available = is_agent_available()
+    except ImportError:
+        pass
+    try:
+        from titan_web_intel import is_web_intel_available
+        web_intel_available = is_web_intel_available()
+    except ImportError:
+        pass
+
+    features = []
+    if available:
+        features.extend([
             "bin_analysis", "preflight_advisor", "target_recon",
             "3ds_strategy", "profile_audit", "behavioral_tuning",
             "operation_planner"
-        ] if available else [],
+        ])
+    if vector_available:
+        features.append("vector_memory")
+    if agent_available:
+        features.append("agentic_reasoning")
+    if web_intel_available:
+        features.append("web_intelligence")
+
+    return {
+        "available": available,
+        "provider": "ollama" if available else "none",
+        "features": features,
+        "enhancements": {
+            "vector_memory": vector_available,
+            "agentic_chain": agent_available,
+            "web_intel": web_intel_available,
+        },
         "version": __version__,
     }
 
