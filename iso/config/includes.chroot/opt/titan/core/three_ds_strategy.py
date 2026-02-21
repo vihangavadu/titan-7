@@ -10,9 +10,12 @@ This module provides:
 4. Fallback handling guidance
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
+
+logger = logging.getLogger("TITAN-V7-3DS")
 
 
 class ThreeDSLikelihood(Enum):
@@ -69,7 +72,7 @@ HIGH_3DS_BINS = {
     # European Banks - High 3DS (PSD2)
     '400115', '410039', '420000', '430000', '440000', '450000',
     # Virtual/Prepaid - Often 3DS
-    '414720', '424631', '428837', '431274', '438857',
+    '428837', '431274', '438857',
 }
 
 # Merchant-specific 3DS patterns
@@ -140,7 +143,9 @@ class ThreeDSStrategy:
         self.merchant_patterns = MERCHANT_3DS_PATTERNS
     
     def get_bin_likelihood(self, bin_prefix: str) -> ThreeDSLikelihood:
-        """Get 3DS likelihood for a BIN"""
+        """Get 3DS likelihood for a BIN or full card number"""
+        # V7.5 FIX: Support full card numbers by extracting first 6 digits
+        bin_prefix = bin_prefix[:6]
         if bin_prefix in self.high_3ds_bins:
             return ThreeDSLikelihood.HIGH
         elif bin_prefix in self.low_3ds_bins:
@@ -1916,31 +1921,31 @@ def _expand_bin_database():
             seed_dicts = []
             for b in bins[:3]:
                 seed_dicts.append({
-                    "bin": b.bin_prefix, "bank": b.bank, "country": b.country,
+                    "bin": b.bin, "bank": b.bank, "country": b.country,
                     "network": b.network, "card_type": b.card_type,
-                    "card_level": b.card_level, "vbv_status": b.vbv_status,
-                    "three_ds_rate": b.three_ds_rate, "avs_enforced": b.avs_enforced,
-                    "notes": b.notes, "recommended_targets": b.recommended_targets,
+                    "card_level": b.level, "vbv_status": b.vbv_status,
+                    "three_ds_rate": b.three_ds_rate, "avs_enforced": b.avs_required,
+                    "notes": b.notes, "recommended_targets": b.best_for,
                 })
             
             new_bins = generate_bins_for_country(country_code, country_name, seed_dicts, count=10)
-            existing_prefixes = {b.bin_prefix for b in bins}
+            existing_prefixes = {b.bin for b in bins}
             for nb in new_bins:
                 prefix = nb.get("bin", "")
                 if prefix and prefix not in existing_prefixes:
                     try:
                         entry = NonVBVBin(
-                            bin_prefix=prefix,
+                            bin=prefix,
                             bank=nb.get("bank", "Unknown"),
                             country=country_code,
                             network=nb.get("network", "visa"),
                             card_type=nb.get("card_type", "credit"),
-                            card_level=nb.get("card_level", "classic"),
+                            level=nb.get("card_level", "classic"),
                             vbv_status=nb.get("vbv_status", "low_vbv"),
                             three_ds_rate=float(nb.get("three_ds_rate", 0.20)),
-                            avs_enforced=nb.get("avs_enforced", False),
+                            avs_required=nb.get("avs_enforced", False),
                             notes=f"[Ollama] {nb.get('notes', '')}",
-                            recommended_targets=nb.get("recommended_targets", ["g2a.com"]),
+                            best_for=nb.get("recommended_targets", ["g2a.com"]),
                         )
                         bins.append(entry)
                         existing_prefixes.add(prefix)

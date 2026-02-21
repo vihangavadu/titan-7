@@ -15,13 +15,17 @@ Datacenter IPs are instant death - residential is mandatory.
 
 import os
 import asyncio
-import aiohttp
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
 import random
 import time
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
 from enum import Enum
@@ -118,7 +122,7 @@ class ProxySession:
     session_id: str
     proxy: ProxyEndpoint
     target_domain: str
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None
     request_count: int = 0
     
@@ -126,7 +130,7 @@ class ProxySession:
     def is_expired(self) -> bool:
         if self.expires_at is None:
             return False
-        return datetime.now() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
 
 @dataclass
@@ -233,7 +237,7 @@ class ResidentialProxyManager:
                     port=entry["port"],
                     username=entry.get("username"),
                     password=entry.get("password"),
-                    proxy_type=ProxyType(entry.get("type", "residential")),
+                    proxy_type=ProxyType(entry.get("type", "residential")) if entry.get("type", "residential") in [e.value for e in ProxyType] else ProxyType.RESIDENTIAL,
                     country=entry.get("country", "US"),
                     city=entry.get("city"),
                     state=entry.get("state"),
@@ -302,6 +306,7 @@ class ResidentialProxyManager:
         
         config = self.PROVIDERS[self.provider]
         if not config["host"]:
+            logger.debug(f"Provider '{self.provider}' has no host configured")
             return None
         
         # Build geo-targeted username
@@ -344,14 +349,14 @@ class ResidentialProxyManager:
             return None
         
         session_id = hashlib.sha256(
-            f"{target_domain}:{datetime.now().isoformat()}".encode()
+            f"{target_domain}:{datetime.now(timezone.utc).isoformat()}".encode()
         ).hexdigest()[:16]
         
         session = ProxySession(
             session_id=session_id,
             proxy=proxy,
             target_domain=target_domain,
-            expires_at=datetime.now() + timedelta(minutes=duration_minutes)
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
         )
         
         self.sessions[session_id] = session
@@ -369,6 +374,10 @@ class ResidentialProxyManager:
     
     async def check_proxy_health(self, proxy: ProxyEndpoint) -> ProxyStatus:
         """Check proxy health via test request"""
+        if not AIOHTTP_AVAILABLE:
+            logger.warning("aiohttp not available — cannot check proxy health")
+            return ProxyStatus.UNKNOWN
+        
         test_url = "https://api.ipify.org?format=json"
         
         try:

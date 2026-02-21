@@ -47,7 +47,7 @@ import logging
 import subprocess
 import threading
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -152,7 +152,7 @@ class KillSwitch:
         self.monitor_thread.start()
         
         # Write armed state
-        self._write_state({"armed": True, "timestamp": datetime.now().isoformat()})
+        self._write_state({"armed": True, "timestamp": datetime.now(timezone.utc).isoformat()})
         
         logger.info("[KILLSWITCH] *** ARMED *** — Monitoring for detection signals")
         logger.info(f"[KILLSWITCH] Threshold: fraud_score < {self.config.fraud_score_threshold}")
@@ -171,7 +171,7 @@ class KillSwitch:
         if self._signal_file.exists():
             self._signal_file.unlink()
         
-        self._write_state({"armed": False, "timestamp": datetime.now().isoformat()})
+        self._write_state({"armed": False, "timestamp": datetime.now(timezone.utc).isoformat()})
         logger.info("[KILLSWITCH] Disarmed")
     
     # ═══════════════════════════════════════════════════════════════════
@@ -325,7 +325,7 @@ class KillSwitch:
         
         # Log event
         event = PanicEvent(
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             reason=reason,
             fraud_score=fraud_score or self.current_fraud_score,
             threat_level=self.threat_level,
@@ -354,16 +354,17 @@ class KillSwitch:
         any data leakage during the panic window.
         """
         # Try nftables first (preferred on Debian 12), fall back to iptables
+        # V7.5 FIX: Use shell=True for nftables commands with special chars
         nft_rules = [
             "nft add table inet titan_panic",
-            "nft add chain inet titan_panic output { type filter hook output priority 0 \\; policy drop \\; }",
+            "nft 'add chain inet titan_panic output { type filter hook output priority 0 ; policy drop ; }'",
             "nft add rule inet titan_panic output ct state established accept",
         ]
         
         try:
             for rule in nft_rules:
                 subprocess.run(
-                    rule.split(),
+                    rule, shell=True,
                     capture_output=True, timeout=2, check=True
                 )
             logger.critical("[PANIC] Network severed via nftables (all outbound DROP)")
@@ -498,7 +499,7 @@ class KillSwitch:
             stub_path = Path(self.config.state_dir) / "titan_hw_stub.json"
             stub = {
                 "action": "flush",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "new_serial": secrets.token_hex(8).upper(),
                 "new_uuid": f"{secrets.token_hex(4)}-{secrets.token_hex(2)}-{secrets.token_hex(2)}-{secrets.token_hex(2)}-{secrets.token_hex(6)}",
                 "reason": "panic_flush",
@@ -570,7 +571,8 @@ WantedBy=multi-user.target
                 logger.warning("[PANIC] Could not install boot service (no root), stub file written for manual apply")
             
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"[PANIC] HW stub write error: {e}")
             return False
     
     def _clear_session_data(self) -> bool:
@@ -612,7 +614,7 @@ WantedBy=multi-user.target
             rotate_signal = Path(self.config.state_dir) / "proxy_rotate_signal"
             rotate_signal.write_text(json.dumps({
                 "action": "rotate",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "reason": "panic",
                 "profile_uuid": self.config.profile_uuid,
             }))
@@ -657,8 +659,8 @@ WantedBy=multi-user.target
             state_file = Path(self.config.state_dir) / "killswitch_state.json"
             with open(state_file, "w") as f:
                 json.dump(state, f, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[KILLSWITCH] Failed to write state: {e}")
     
     def _log_panic_event(self, event: PanicEvent):
         """Log panic event to disk for post-mortem analysis"""
@@ -674,8 +676,8 @@ WantedBy=multi-user.target
                     "actions": event.actions_taken,
                     "duration_ms": event.duration_ms,
                 }) + "\n")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[KILLSWITCH] Failed to write panic log: {e}")
     
     # ═══════════════════════════════════════════════════════════════════
     # EXTERNAL SIGNAL API
@@ -692,9 +694,9 @@ WantedBy=multi-user.target
         # Also write to file for persistence
         try:
             with open(self._fraud_score_file, "w") as f:
-                json.dump({"score": score, "timestamp": datetime.now().isoformat()}, f)
-        except Exception:
-            pass
+                json.dump({"score": score, "timestamp": datetime.now(timezone.utc).isoformat()}, f)
+        except Exception as e:
+            logger.warning(f"[KILLSWITCH] Failed to write fraud score: {e}")
         
         if score < self.config.fraud_score_threshold and self.armed:
             self.panic(PanicReason.FRAUD_SCORE_DROP, score)

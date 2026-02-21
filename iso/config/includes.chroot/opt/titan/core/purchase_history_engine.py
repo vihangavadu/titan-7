@@ -837,32 +837,37 @@ class PurchaseHistoryEngine:
             """)
             
             # Inject merchant-specific localStorage keys
+            # V7.5 FIX: Real Firefox LSNG stores values as UTF-16LE BLOBs
             for key in template.get("localStorage_keys", []):
-                value = json.dumps({
+                value_str = json.dumps({
                     "ts": int(record.order_date.timestamp() * 1000),
                     "data": secrets.token_hex(32),
                     "version": random.randint(1, 5),
                 })
+                utf16_chars = len(value_str)
+                value_blob = struct.pack("<I", utf16_chars) + value_str.encode("utf-16-le")
                 la_time = int(datetime.now().timestamp() * 1e6)
                 cursor.execute("""
                     INSERT OR REPLACE INTO data (key, value, utf16Length, lastAccessTime)
                     VALUES (?, ?, ?, ?)
-                """, (key, value, len(value), la_time))
+                """, (key, value_blob, utf16_chars, la_time))
                 entry_count += 1
             
             # Inject purchase-specific data (use realistic key name, not synthetic)
-            order_data = json.dumps({
+            order_str = json.dumps({
                 "lastOrder": record.order_id,
                 "lastAmount": record.amount,
                 "lastDate": record.order_date.isoformat(),
                 "cardLast4": record.card_last_four,
                 "status": record.status.value,
             })
+            utf16_chars = len(order_str)
+            order_blob = struct.pack("<I", utf16_chars) + order_str.encode("utf-16-le")
             la_time = int(record.order_date.timestamp() * 1e6)
             cursor.execute("""
                 INSERT OR REPLACE INTO data (key, value, utf16Length, lastAccessTime)
                 VALUES (?, ?, ?, ?)
-            """, ("persist:orderHistory", order_data, len(order_data), la_time))
+            """, ("persist:orderHistory", order_blob, utf16_chars, la_time))
             entry_count += 1
             
             conn.commit()
@@ -1092,7 +1097,7 @@ class PurchaseHistoryEngine:
                 fieldname, value, times_used,
                 int(first_use.timestamp() * 1000000),
                 int(base_time.timestamp() * 1000000),
-                secrets.token_hex(8),
+                secrets.token_urlsafe(9)[:12],
             ))
         
         # Also write address autofill
@@ -1122,7 +1127,7 @@ class PurchaseHistoryEngine:
              timeCreated, timeLastUsed, timesUsed)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            secrets.token_hex(8),
+            secrets.token_urlsafe(9)[:12],
             ch.first_name, ch.last_name,
             ch.billing_address, ch.billing_city,
             ch.billing_state, ch.billing_zip, ch.billing_country,
@@ -1158,7 +1163,7 @@ class PurchaseHistoryEngine:
              timeCreated, timeLastUsed, timesUsed)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            secrets.token_hex(8),
+            secrets.token_urlsafe(9)[:12],
             ch.full_name, ch.card_last_four,
             exp_month, exp_year, ch.card_network,
             int(first_use.timestamp() * 1000),
@@ -1196,14 +1201,29 @@ class PurchaseHistoryEngine:
             merchant_size = 0
             
             while merchant_size < per_merchant:
-                # Simulate cached JS/CSS/image files
-                file_hash = secrets.token_hex(20)
-                file_size = random.randint(10 * 1024, 500 * 1024)
+                # V7.5 FIX: Add nsDiskCacheEntry 32-byte headers
+                url = f"https://www.{record.merchant_domain}/assets/{secrets.token_hex(8)}"
+                key_bytes = url.encode("ascii")
+                body_size = random.randint(10 * 1024, 500 * 1024)
+                base_ts = int(datetime.now().timestamp())
+                age_s = random.randint(0, 86400 * 90)
+                header = struct.pack("<IIIIIIII",
+                    3, random.randint(1, 20), base_ts - age_s,
+                    base_ts - age_s - random.randint(0, 3600),
+                    random.randint(10, 5000), base_ts + 86400 * 365,
+                    len(key_bytes), 0)
+                meta = b"request-method: GET\r\nresponse-head: HTTP/1.1 200 OK\r\n"
                 
+                file_hash = hashlib.sha1(key_bytes).hexdigest()[:40]
                 cache_file = merchant_cache / file_hash
                 with open(cache_file, "wb") as f:
-                    f.write(os.urandom(file_size))
+                    f.write(header)
+                    f.write(key_bytes)
+                    f.write(os.urandom(body_size))
+                    f.write(struct.pack("<I", len(meta)))
+                    f.write(meta)
                 
+                file_size = 32 + len(key_bytes) + body_size + 4 + len(meta)
                 merchant_size += file_size
                 total_size += file_size
                 

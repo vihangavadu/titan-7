@@ -216,6 +216,64 @@ NARRATIVE_TEMPLATES = {
             "steampowered.com", "epicgames.com", "eneba.com", "newegg.com", "amazon.com"
         ],
     },
+    "retiree": {
+        "name": "Retiree",
+        "phases": {
+            NarrativePhase.DISCOVERY: [
+                TemporalEvent("weather.com", "/", 95, 30, False, NarrativePhase.DISCOVERY),
+                TemporalEvent("webmd.com", "/drugs", 90, 15, False, NarrativePhase.DISCOVERY),
+                TemporalEvent("aarp.org", "/benefits", 85, 10, True, NarrativePhase.DISCOVERY),
+                TemporalEvent("facebook.com", "/", 80, 40, True, NarrativePhase.DISCOVERY),
+                TemporalEvent("cnn.com", "/", 75, 25, False, NarrativePhase.DISCOVERY),
+            ],
+            NarrativePhase.DEVELOPMENT: [
+                TemporalEvent("amazon.com", "/gp/goldbox", 65, 12, True, NarrativePhase.DEVELOPMENT),
+                TemporalEvent("walmart.com", "/grocery", 58, 8, True, NarrativePhase.DEVELOPMENT),
+                TemporalEvent("youtube.com", "/results?search_query=gardening", 50, 20, False, NarrativePhase.DEVELOPMENT),
+                TemporalEvent("nextdoor.com", "/news_feed", 45, 15, True, NarrativePhase.DEVELOPMENT),
+            ],
+            NarrativePhase.SEASONED: [
+                TemporalEvent("costco.com", "/checkout", 30, 5, True, NarrativePhase.SEASONED),
+                TemporalEvent("target.com", "/cart", 20, 4, True, NarrativePhase.SEASONED),
+                TemporalEvent("bestbuy.com", "/site/electronics", 10, 3, True, NarrativePhase.SEASONED),
+            ],
+        },
+        "trust_domains": [
+            "google.com", "gmail.com", "facebook.com", "youtube.com", "weather.com"
+        ],
+        "commerce_domains": [
+            "amazon.com", "walmart.com", "costco.com", "target.com", "bestbuy.com"
+        ],
+    },
+    "casual_shopper": {
+        "name": "Casual Shopper",
+        "phases": {
+            NarrativePhase.DISCOVERY: [
+                TemporalEvent("instagram.com", "/explore", 95, 35, True, NarrativePhase.DISCOVERY),
+                TemporalEvent("pinterest.com", "/ideas", 90, 20, True, NarrativePhase.DISCOVERY),
+                TemporalEvent("tiktok.com", "/foryou", 85, 50, False, NarrativePhase.DISCOVERY),
+                TemporalEvent("youtube.com", "/", 80, 30, False, NarrativePhase.DISCOVERY),
+            ],
+            NarrativePhase.DEVELOPMENT: [
+                TemporalEvent("amazon.com", "/s?k=trending", 65, 15, True, NarrativePhase.DEVELOPMENT),
+                TemporalEvent("shein.com", "/new-in", 58, 10, True, NarrativePhase.DEVELOPMENT),
+                TemporalEvent("target.com", "/deals", 50, 8, True, NarrativePhase.DEVELOPMENT),
+                TemporalEvent("etsy.com", "/featured", 45, 12, True, NarrativePhase.DEVELOPMENT),
+                TemporalEvent("walmart.com", "/browse", 40, 6, True, NarrativePhase.DEVELOPMENT),
+            ],
+            NarrativePhase.SEASONED: [
+                TemporalEvent("amazon.com", "/gp/buy", 25, 8, True, NarrativePhase.SEASONED),
+                TemporalEvent("bestbuy.com", "/cart", 15, 3, True, NarrativePhase.SEASONED),
+                TemporalEvent("eneba.com", "/store", 8, 4, True, NarrativePhase.SEASONED),
+            ],
+        },
+        "trust_domains": [
+            "google.com", "gmail.com", "youtube.com", "instagram.com", "facebook.com"
+        ],
+        "commerce_domains": [
+            "amazon.com", "target.com", "walmart.com", "bestbuy.com", "etsy.com", "eneba.com"
+        ],
+    },
 }
 
 
@@ -354,9 +412,10 @@ class AdvancedProfileGenerator:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS moz_origins (
                 id INTEGER PRIMARY KEY,
-                prefix TEXT,
-                host TEXT,
-                frecency INTEGER
+                prefix TEXT NOT NULL,
+                host TEXT NOT NULL,
+                frecency INTEGER NOT NULL,
+                UNIQUE (prefix, host)
             )
         """)
         
@@ -382,7 +441,7 @@ class AdvancedProfileGenerator:
                     url = f"https://www.{event.domain}{event.path}"
                     title = self._generate_title(event.domain, event.path)
                     rev_host = ".".join(reversed(event.domain.split("."))) + "."
-                    guid = secrets.token_hex(6)
+                    guid = secrets.token_urlsafe(9)[:12]
                     
                     cursor.execute("""
                         INSERT INTO moz_places 
@@ -416,7 +475,7 @@ class AdvancedProfileGenerator:
                 url = f"https://www.{domain}/"
                 title = f"{domain.split('.')[0].title()} - Home"
                 rev_host = ".".join(reversed(domain.split("."))) + "."
-                guid = secrets.token_hex(6)
+                guid = secrets.token_urlsafe(9)[:12]
                 cursor.execute("""
                     INSERT INTO moz_places 
                     (url, title, rev_host, visit_count, typed, last_visit_date, guid)
@@ -440,7 +499,7 @@ class AdvancedProfileGenerator:
                 url = f"https://www.{domain}/"
                 title = f"{domain.split('.')[0].title()} - Home"
                 rev_host = ".".join(reversed(domain.split("."))) + "."
-                guid = secrets.token_hex(6)
+                guid = secrets.token_urlsafe(9)[:12]
                 
                 cursor.execute("""
                     INSERT INTO moz_places 
@@ -611,12 +670,20 @@ class AdvancedProfileGenerator:
             ls_data = self._generate_domain_localstorage(domain, config)
             
             for key, value in ls_data.items():
+                # V7.5 FIX: Real Firefox LSNG stores values as UTF-16LE BLOBs
+                # with a 4-byte LE length header. utf16Length = character count.
+                value_str = value if isinstance(value, str) else str(value)
+                utf16_chars = len(value_str)
+                value_blob = value_str.encode("utf-16-le")
+                # Prepend 4-byte LE length header (character count)
+                value_with_header = struct.pack("<I", utf16_chars) + value_blob
+                
                 cursor.execute("""
                     INSERT OR REPLACE INTO data (key, value, utf16Length, lastAccessTime)
                     VALUES (?, ?, ?, ?)
-                """, (key, value, len(value), int(datetime.now().timestamp() * 1e6)))
+                """, (key, value_with_header, utf16_chars, int(datetime.now().timestamp() * 1e6)))
                 
-                current_size += len(key) + len(value)
+                current_size += len(key) + len(value_with_header)
                 entry_count += 1
             
             conn.commit()
@@ -954,27 +1021,69 @@ class AdvancedProfileGenerator:
     
     def _generate_cache(self, profile_path: Path, config: AdvancedProfileConfig,
                         narrative: Dict):
-        """Generate browser cache data"""
+        """Generate browser cache2 data with valid nsDiskCacheEntry headers.
+        
+        V7.5 FIX: Real Firefox cache2/entries files have a 32-byte
+        nsDiskCacheEntry header. Pure random bytes = instant forensic flag.
+        Header: version(4) + fetchCount(4) + lastFetched(4) + lastModified(4)
+                + frecency(4) + expirationTime(4) + keySize(4) + flags(4)
+        Followed by the key (URL) then the payload body.
+        """
         cache_dir = profile_path / "cache2" / "entries"
         cache_dir.mkdir(parents=True, exist_ok=True)
         
-        # Generate cache entries to reach target size
         target_size = config.cache_size_mb * 1024 * 1024
         current_size = 0
+        base_ts = int(datetime.now().timestamp())
         
+        all_domains = narrative.get("trust_domains", []) + narrative.get("commerce_domains", [])
+        cache_urls = []
+        for d in (all_domains or ["google.com"]):
+            for suffix in ["/", "/favicon.ico", "/style.css", "/main.js", "/logo.png"]:
+                cache_urls.append(f"https://www.{d}{suffix}")
+        
+        url_idx = 0
         while current_size < target_size:
-            # Create random cache file
-            cache_file = cache_dir / secrets.token_hex(20)
+            url = cache_urls[url_idx % len(cache_urls)]
+            url_idx += 1
+            key_bytes = url.encode("ascii")
             
-            # Random size between 10KB and 1MB
-            file_size = random.randint(10 * 1024, 1024 * 1024)
+            # nsDiskCacheEntry 32-byte header
+            version = 3
+            fetch_count = random.randint(1, 50)
+            age_secs = random.randint(0, config.profile_age_days * 86400)
+            last_fetched = base_ts - age_secs
+            last_modified = last_fetched - random.randint(0, 3600)
+            frecency = random.randint(10, 10000)
+            expiration = base_ts + random.randint(3600, 86400 * 365)
+            key_size = len(key_bytes)
+            flags = 0
+            
+            header = struct.pack("<IIIIIIII",
+                                 version, fetch_count, last_fetched, last_modified,
+                                 frecency, expiration, key_size, flags)
+            
+            body_size = random.randint(10 * 1024, 1024 * 1024)
+            body = os.urandom(body_size)
+            
+            # HTTP metadata tail (simplified)
+            meta = f"request-method: GET\r\nresponse-head: HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\n".encode()
+            meta_size = struct.pack("<I", len(meta))
+            
+            cache_hash = hashlib.sha1(key_bytes).hexdigest()[:40]
+            cache_file = cache_dir / cache_hash
             
             with open(cache_file, "wb") as f:
-                f.write(os.urandom(file_size))
+                f.write(header)
+                f.write(key_bytes)
+                f.write(body)
+                f.write(meta_size)
+                f.write(meta)
             
-            current_size += file_size
+            file_total = 32 + len(key_bytes) + body_size + 4 + len(meta)
+            current_size += file_total
         
-        logger.info(f"[+] CACHE: {current_size / (1024*1024):.1f} MB generated")
+        logger.info(f"[+] CACHE: {current_size / (1024*1024):.1f} MB generated (with nsDiskCacheEntry headers)")
     
     def _generate_service_workers(self, profile_path: Path, config: AdvancedProfileConfig,
                                    narrative: Dict):

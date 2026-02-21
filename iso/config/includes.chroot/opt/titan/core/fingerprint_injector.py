@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 # V7.0: Legacy path import guarded — never leak paths in browser-visible tracebacks
@@ -66,7 +66,7 @@ class FingerprintResult:
     audio_hash: str
     seed: int
     config: Dict[str, Any]
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class FingerprintInjector:
@@ -101,6 +101,17 @@ class FingerprintInjector:
             ("Apple Inc.", "Apple M1"),
             ("Apple Inc.", "Apple M2"),
             ("Apple Inc.", "Apple M3"),
+        ],
+        # V7.5 FIX: Linux OpenGL profiles for Titan OS (Camoufox on Linux)
+        "nvidia_linux": [
+            ("NVIDIA Corporation", "NVIDIA GeForce RTX 3060/PCIe/SSE2"),
+            ("NVIDIA Corporation", "NVIDIA GeForce RTX 3070/PCIe/SSE2"),
+            ("NVIDIA Corporation", "NVIDIA GeForce RTX 4070/PCIe/SSE2"),
+            ("NVIDIA Corporation", "NVIDIA GeForce GTX 1660/PCIe/SSE2"),
+        ],
+        "intel_linux": [
+            ("Intel", "Mesa Intel(R) UHD Graphics 630 (CFL GT2)"),
+            ("Intel", "Mesa Intel(R) Xe Graphics (TGL GT2)"),
         ],
     }
     
@@ -486,16 +497,20 @@ class FingerprintInjector:
             }
         }
         
-        # Write to distribution/ directory (Firefox enterprise policy path)
-        dist_dir = profile_path / "distribution"
-        dist_dir.mkdir(parents=True, exist_ok=True)
-        
-        policies_file = dist_dir / "policies.json"
-        with open(policies_file, "w") as f:
-            json.dump(policies, f, indent=2)
+        # V7.5 FIX: Write to BOTH profile and Camoufox install directory
+        # Firefox reads policies.json from <install_dir>/distribution/, not profile dir
+        written_path = None
+        for base_dir in [profile_path, Path("/opt/camoufox")]:
+            dist_dir = base_dir / "distribution"
+            dist_dir.mkdir(parents=True, exist_ok=True)
+            policies_file = dist_dir / "policies.json"
+            with open(policies_file, "w") as f:
+                json.dump(policies, f, indent=2)
+            if written_path is None:
+                written_path = policies_file
         
         logger.info(f"[PHASE 2.1] policies.json written: WebGL LOCKED to {webgl.get('renderer', 'N/A')[:40]}...")
-        return policies_file
+        return written_path
 
     def write_user_js(self, profile_path: Path) -> Path:
         """
@@ -698,7 +713,7 @@ class NetlinkHWBridge:
         if self.sock:
             try:
                 self.sock.close()
-            except:
+            except Exception:
                 pass
             self.sock = None
             self.connected = False

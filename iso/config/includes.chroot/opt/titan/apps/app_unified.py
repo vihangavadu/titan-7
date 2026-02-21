@@ -3542,7 +3542,7 @@ class UnifiedOperationCenter(QMainWindow):
         QApplication.processEvents()
         try:
             s = advise_3ds(
-                self.ai_3ds_bin.text().strip() or "421783",
+                self.ai_3ds_bin.text().strip(),
                 self.ai_3ds_target.text().strip() or "unknown",
                 self.ai_3ds_amount.value()
             )

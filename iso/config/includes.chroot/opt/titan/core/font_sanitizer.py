@@ -26,6 +26,7 @@ import json
 import shutil
 import subprocess
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass, field
@@ -57,6 +58,9 @@ LINUX_EXCLUSIVE_FONTS = [
     "Nimbus Sans", "Nimbus Roman", "Nimbus Mono",
     "STIX", "Latin Modern",
     "Bitstream Vera Sans", "Bitstream Vera Serif",
+    # V7.5 FIX: Additional common Debian 12 fonts
+    "Source Code Pro", "Hack", "Cantarell Light",
+    "Noto Sans Mono", "Noto Sans Display",
 ]
 
 # Fonts that MUST be present for Windows spoofing
@@ -208,7 +212,7 @@ class FontSanitizer:
 <!--
   TITAN V7.0 SINGULARITY — Font Sanitization (Phase 3.1)
   Target OS: {self.target_os.value}
-  Generated: {__import__('datetime').datetime.now().isoformat()}
+  Generated: {datetime.now(timezone.utc).isoformat()}
   
   Purpose: Hide Linux-exclusive fonts and substitute with target OS equivalents.
   This prevents font enumeration attacks from revealing the true OS.
@@ -333,7 +337,6 @@ class FontSanitizer:
             output = subprocess.check_output(
                 "fc-list : family", shell=True, timeout=10
             ).decode()
-            installed_fonts = set(output.strip().split("\n"))
             installed_flat = output
         except Exception as e:
             result["error"] = str(e)
@@ -381,9 +384,12 @@ class FontSanitizer:
         
         if profile_path:
             out = Path(profile_path) / "font_metrics.json"
-            with open(out, 'w') as f:
-                json.dump(config, f, indent=2)
-            logger.info(f"[PHASE 3.1] Font metrics written to {out}")
+            try:
+                with open(out, 'w') as f:
+                    json.dump(config, f, indent=2)
+                logger.info(f"[PHASE 3.1] Font metrics written to {out}")
+            except Exception as e:
+                logger.error(f"[PHASE 3.1] Failed to write font metrics: {e}")
         
         return config
     

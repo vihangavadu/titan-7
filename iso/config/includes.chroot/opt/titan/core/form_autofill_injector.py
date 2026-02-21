@@ -16,8 +16,9 @@ import secrets
 import hashlib
 import base64
 import os
+import random
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 import logging
@@ -110,6 +111,9 @@ class FormAutofillInjector:
         self.inject_form_history(persona, age_days)
         self.inject_autofill_profiles(persona, age_days)
         self.inject_saved_addresses(persona, age_days)
+        # V7.5 FIX: Also inject card hint if card data is present
+        if persona.card_last4:
+            self.inject_credit_card_hint(persona, age_days)
         logger.info(f"[+] Autofill data injected for {persona.full_name}")
     
     def inject_form_history(self, persona: PersonaAutofill, age_days: int = 90):
@@ -139,9 +143,15 @@ class FormAutofillInjector:
             
             CREATE INDEX IF NOT EXISTS moz_formhistory_lastused_index 
             ON moz_formhistory (lastUsed);
+            
+            CREATE TABLE IF NOT EXISTS moz_deleted_formhistory (
+                id INTEGER PRIMARY KEY,
+                timeDeleted INTEGER,
+                guid TEXT
+            );
         """)
         
-        base_time = datetime.now()
+        base_time = datetime.now(timezone.utc)
         first_used = base_time - timedelta(days=age_days)
         
         # Common form field names and values
@@ -206,7 +216,8 @@ class FormAutofillInjector:
             # Randomize timestamps
             first_ts = int((first_used + timedelta(days=random.randint(0, 30))).timestamp() * 1000000)
             last_ts = int((base_time - timedelta(days=random.randint(0, 7))).timestamp() * 1000000)
-            guid = secrets.token_hex(8)
+            # V7.5 FIX: Use URL-safe Base64 GUID to match Firefox format
+            guid = secrets.token_urlsafe(9)[:12]
             
             cursor.execute("""
                 INSERT INTO moz_formhistory 
@@ -225,11 +236,11 @@ class FormAutofillInjector:
         
         Creates autofill-profiles.json with address data.
         """
-        base_time = datetime.now()
+        base_time = datetime.now(timezone.utc)
         created = base_time - timedelta(days=age_days)
         
         profile = {
-            "guid": secrets.token_hex(12),
+            "guid": secrets.token_urlsafe(9)[:12],
             "version": 3,
             "timeCreated": int(created.timestamp() * 1000),
             "timeLastUsed": int((base_time - timedelta(days=2)).timestamp() * 1000),
@@ -284,11 +295,11 @@ class FormAutofillInjector:
         autofill_dir = storage_dir / "formautofill"
         autofill_dir.mkdir(parents=True, exist_ok=True)
         
-        base_time = datetime.now()
+        base_time = datetime.now(timezone.utc)
         created = base_time - timedelta(days=age_days)
         
         address_record = {
-            "guid": secrets.token_hex(12),
+            "guid": secrets.token_urlsafe(9)[:12],
             "version": 3,
             "timeCreated": int(created.timestamp() * 1000),
             "timeLastUsed": int((base_time - timedelta(days=1)).timestamp() * 1000),
@@ -326,7 +337,7 @@ class FormAutofillInjector:
         autofill_dir = storage_dir / "formautofill"
         autofill_dir.mkdir(parents=True, exist_ok=True)
         
-        base_time = datetime.now()
+        base_time = datetime.now(timezone.utc)
         created = base_time - timedelta(days=age_days)
         
         # Card type detection
@@ -339,7 +350,7 @@ class FormAutofillInjector:
         
         # Create card hint (masked, for display only)
         card_hint = {
-            "guid": secrets.token_hex(12),
+            "guid": secrets.token_urlsafe(9)[:12],
             "version": 4,
             "timeCreated": int(created.timestamp() * 1000),
             "timeLastUsed": int((base_time - timedelta(days=3)).timestamp() * 1000),
@@ -359,10 +370,6 @@ class FormAutofillInjector:
             json.dump({"creditCards": [card_hint]}, f, indent=2)
         
         logger.info(f"[+] Card hint injected: **** **** **** {persona.card_last4}")
-
-
-# Need random for timestamps
-import random
 
 
 def inject_autofill_to_profile(

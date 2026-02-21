@@ -618,7 +618,7 @@ def generate_preset_from_intel(target_name: str) -> Optional[TargetPreset]:
     category, fraud engine, and security posture.
     """
     try:
-        from .target_intelligence import TARGETS, TargetIntelligence
+        from target_intelligence import TARGETS, TargetIntelligence
     except ImportError:
         return None
     
@@ -662,25 +662,32 @@ def generate_preset_from_intel(target_name: str) -> Optional[TargetPreset]:
     # Build referrer chain
     referrer_chain = ["google.com", "reddit.com", intel.domain]
     
+    # V7.5 FIX: Map category to valid TargetCategory enum values
+    cat_enum_map = {
+        "gaming": TargetCategory.GAMING_MARKETPLACE,
+        "retail": TargetCategory.RETAIL,
+        "crypto": TargetCategory.CRYPTO,
+        "gift_cards": TargetCategory.DIGITAL_GOODS,
+        "digital_goods": TargetCategory.DIGITAL_GOODS,
+        "ads": TargetCategory.SUBSCRIPTION,
+    }
+    
+    # V7.5 FIX: Build history_domains from weight keys + target domain
+    history_domains = [intel.domain] + list(defaults["history_weight"].keys())
+    
     preset = TargetPreset(
         name=intel.name,
         domain=intel.domain,
-        category=TargetCategory.GAMING if cat_key == "gaming" else
-                 TargetCategory.RETAIL if cat_key == "retail" else
-                 TargetCategory.GAMING,  # fallback
-        display_name=f"{intel.name} (auto-mapped)",
+        category=cat_enum_map.get(cat_key, TargetCategory.DIGITAL_GOODS),
         three_ds_rate=intel.three_ds_rate,
-        kyc_required=getattr(intel, 'kyc_required', False),
-        hardware_archetype=defaults["hardware"],
+        recommended_hardware=defaults["hardware"],
+        history_domains=history_domains,
         history_weight=defaults["history_weight"],
         min_age_days=defaults["min_age_days"],
         recommended_age_days=defaults["recommended_age_days"],
         min_storage_mb=defaults["min_storage_mb"],
         warmup_searches=warmup_searches,
         referrer_chain=referrer_chain,
-        trust_anchors=list(defaults["history_weight"].keys())[:3],
-        required_cookies=[],
-        browser_preference="firefox",
     )
     return preset
 
@@ -773,7 +780,7 @@ def list_all_targets() -> List[Dict[str, Any]]:
     manual_ids = {t["id"] for t in all_targets}
     
     try:
-        from .target_intelligence import TARGETS
+        from target_intelligence import TARGETS
         for key, intel in TARGETS.items():
             if key not in manual_ids:
                 all_targets.append({

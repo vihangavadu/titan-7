@@ -66,7 +66,7 @@ def _query_ollama_direct(prompt: str, temperature: float = 0.3,
     import urllib.request
     try:
         payload = json.dumps({
-            "model": "qwen2.5:7b",
+            "model": "titan-mistral",
             "prompt": prompt,
             "stream": False,
             "options": {"temperature": temperature, "num_predict": max_tokens}
@@ -278,17 +278,17 @@ def analyze_bin(bin_number: str, target: str = "", amount: float = 0,
     if cache_key in _bin_cache:
         return _bin_cache[cache_key]
 
-    # Try static scoring first
+    # Get static BIN info as base context
     static_info = _get_static_bin_info(bin6)
     known_str = json.dumps(known_info or static_info, indent=2)
 
-    if not _is_ollama_available():
-        return _static_bin_fallback(bin6, target, amount, static_info)
+    # Inject decline history for per-BIN learning
+    decline_ctx = get_enriched_bin_context(bin6)
 
     prompt = BIN_ANALYSIS_PROMPT.format(
         bin_number=bin6, known_info=known_str,
         target=target or "unknown", amount=amount or "unknown"
-    )
+    ) + decline_ctx
 
     result = _query_ollama_json(prompt, task_type="bin_generation",
                                 temperature=0.2, timeout=45)
@@ -313,13 +313,17 @@ def analyze_bin(bin_number: str, target: str = "", amount: float = 0,
             timing_advice=result.get("timing_advice", "Business hours US Eastern"),
             risk_factors=result.get("risk_factors", []),
             strategic_notes=result.get("strategic_notes", ""),
+            ai_powered=True,
         )
         _bin_cache[cache_key] = analysis
         logger.info(f"AI BIN analysis: {bin6} → score={analysis.ai_score}, "
                      f"success={analysis.success_prediction:.0%}")
         return analysis
 
-    return _static_bin_fallback(bin6, target, amount, static_info)
+    # Ollama failed to parse response — use static
+    fallback = _static_bin_fallback(bin6, target, amount, static_info)
+    _bin_cache[cache_key] = fallback
+    return fallback
 
 
 def _get_static_bin_info(bin6: str) -> Dict:
@@ -402,9 +406,6 @@ def advise_preflight(checks: List[Dict], card_info: Dict = None,
         for c in checks
     )
 
-    if not _is_ollama_available():
-        return _static_preflight_fallback(checks)
-
     prompt = PREFLIGHT_PROMPT.format(
         checks_summary=checks_str,
         card_info=json.dumps(card_info or {}, indent=2),
@@ -426,6 +427,7 @@ def advise_preflight(checks: List[Dict], card_info: Dict = None,
             strategic_advice=result.get("strategic_advice", []),
             optimal_timing=result.get("optimal_timing", "Business hours"),
             abort_triggers=result.get("abort_triggers", []),
+            ai_powered=True,
         )
         logger.info(f"AI pre-flight: {'GO' if advice.go_decision else 'NO-GO'} "
                      f"(confidence={advice.confidence:.0%})")
@@ -482,43 +484,45 @@ Be realistic. Consider: the merchant's size, industry, typical fraud engine for 
 
 def recon_target(domain: str, category: str = "") -> AITargetRecon:
     """
-    AI-powered target reconnaissance for merchants NOT in the static database.
-    Generates intelligence about antifraud stack, payment processor, and strategy.
+    AI-powered target reconnaissance. Uses static DB as base data,
+    then ALWAYS enriches with Ollama for dynamic intelligence.
     """
     domain_clean = domain.lower().replace("www.", "").strip()
 
-    # Check static database first
-    static = _get_static_target(domain_clean)
-    if static:
-        return static
+    # Get static base data (used as context for Ollama, not returned directly)
+    static_base = _get_static_target(domain_clean)
 
-    # Check cache
-    if domain_clean in _target_cache:
-        return _target_cache[domain_clean]
-
-    if not _is_ollama_available():
-        return _static_target_fallback(domain_clean)
+    # Build context-aware prompt with static data if available
+    static_context = ""
+    if static_base:
+        static_context = (f"\nKnown intel: fraud_engine={static_base.fraud_engine_guess}, "
+                          f"psp={static_base.payment_processor_guess}, "
+                          f"3ds_rate={static_base.three_ds_probability:.0%}, "
+                          f"friction={static_base.estimated_friction}")
 
     prompt = TARGET_RECON_PROMPT.format(
-        domain=domain_clean, category=category or "unknown"
-    )
+        domain=domain_clean, category=category or "ecommerce"
+    ) + static_context + "\nEnrich and expand on the known intel with your analysis."
 
     result = _query_ollama_json(prompt, task_type="site_discovery",
                                 temperature=0.3, timeout=45)
 
     if result and isinstance(result, dict):
+        # Merge: AI result takes priority, static fills gaps
+        base = static_base or _static_target_fallback(domain_clean)
         recon = AITargetRecon(
             domain=domain_clean,
-            name=result.get("name", domain_clean),
-            fraud_engine_guess=result.get("fraud_engine_guess", "unknown"),
-            payment_processor_guess=result.get("payment_processor_guess", "unknown"),
-            estimated_friction=result.get("estimated_friction", "medium"),
-            three_ds_probability=float(result.get("three_ds_probability", 0.3)),
-            optimal_card_types=result.get("optimal_card_types", ["credit"]),
-            optimal_countries=result.get("optimal_countries", ["US"]),
-            warmup_strategy=result.get("warmup_strategy", []),
-            checkout_tips=result.get("checkout_tips", []),
-            risk_factors=result.get("risk_factors", []),
+            name=result.get("name", base.name),
+            fraud_engine_guess=result.get("fraud_engine_guess", base.fraud_engine_guess),
+            payment_processor_guess=result.get("payment_processor_guess", base.payment_processor_guess),
+            estimated_friction=result.get("estimated_friction", base.estimated_friction),
+            three_ds_probability=float(result.get("three_ds_probability", base.three_ds_probability)),
+            optimal_card_types=result.get("optimal_card_types", base.optimal_card_types),
+            optimal_countries=result.get("optimal_countries", base.optimal_countries),
+            warmup_strategy=result.get("warmup_strategy", base.warmup_strategy),
+            checkout_tips=result.get("checkout_tips", base.checkout_tips),
+            risk_factors=result.get("risk_factors", base.risk_factors),
+            ai_powered=True,
         )
         _target_cache[domain_clean] = recon
         logger.info(f"AI target recon: {domain_clean} → "
@@ -526,6 +530,9 @@ def recon_target(domain: str, category: str = "") -> AITargetRecon:
                      f"3DS={recon.three_ds_probability:.0%}")
         return recon
 
+    # Ollama failed to respond: return static or fallback
+    if static_base:
+        return static_base
     return _static_target_fallback(domain_clean)
 
 
@@ -609,9 +616,6 @@ def advise_3ds(bin_number: str, target: str, amount: float,
     """
     card = card_info or {}
     target_data = target_info or {}
-
-    if not _is_ollama_available():
-        return _static_3ds_fallback(amount)
 
     prompt = THREEDS_PROMPT.format(
         bin_number=bin_number[:6],
@@ -800,9 +804,6 @@ def tune_behavior(target: str, fraud_engine: str = "unknown",
     AI-tuned Ghost Motor parameters for specific target's antifraud engine.
     Generates human-realistic behavioral patterns.
     """
-    if not _is_ollama_available():
-        return _default_behavioral_tuning(target)
-
     prompt = BEHAVIORAL_PROMPT.format(
         target=target, fraud_engine=fraud_engine,
         persona=persona, device_type=device_type
@@ -932,6 +933,119 @@ def plan_operation(bin_number: str, target: str, amount: float,
         executive_summary=summary,
         ai_powered=all_ai,
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8. POST-DECLINE FEEDBACK LOOP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_decline_history: Dict[str, List[Dict]] = {}  # bin6 -> [{target, code, category, timestamp}]
+
+def record_decline(bin_number: str, target: str, decline_code: str,
+                   decline_category: str, amount: float = 0):
+    """
+    Record a decline event for per-BIN learning.
+    This data feeds back into future BIN analysis prompts so the AI
+    can learn which BINs fail on which targets and why.
+    """
+    bin6 = bin_number[:6]
+    if bin6 not in _decline_history:
+        _decline_history[bin6] = []
+    
+    import time
+    _decline_history[bin6].append({
+        "target": target,
+        "code": decline_code,
+        "category": decline_category,
+        "amount": amount,
+        "timestamp": time.time(),
+    })
+    
+    # Keep only last 50 declines per BIN to avoid memory bloat
+    if len(_decline_history[bin6]) > 50:
+        _decline_history[bin6] = _decline_history[bin6][-50:]
+    
+    # Invalidate BIN cache so next analysis includes decline history
+    keys_to_remove = [k for k in _bin_cache if k.startswith(bin6)]
+    for k in keys_to_remove:
+        del _bin_cache[k]
+    
+    logger.info(f"Decline recorded: BIN {bin6} → {target} [{decline_code}/{decline_category}]")
+
+
+def get_bin_decline_pattern(bin_number: str) -> Dict:
+    """
+    Analyze decline patterns for a BIN. Returns summary of:
+    - Total declines, unique targets, most common decline category
+    - Per-target breakdown
+    - Recommended action based on pattern
+    """
+    bin6 = bin_number[:6]
+    history = _decline_history.get(bin6, [])
+    
+    if not history:
+        return {"bin": bin6, "total_declines": 0, "pattern": "no_data",
+                "recommendation": "No decline history — proceed normally"}
+    
+    from collections import Counter
+    import time
+    
+    categories = Counter(d["category"] for d in history)
+    targets = Counter(d["target"] for d in history)
+    recent = [d for d in history if time.time() - d["timestamp"] < 3600]  # last hour
+    
+    # Determine pattern
+    top_cat = categories.most_common(1)[0] if categories else ("unknown", 0)
+    
+    if top_cat[0] in ("lost_stolen", "fraud_block"):
+        pattern = "burned"
+        recommendation = "🔴 BIN is BURNED — multiple fraud/stolen flags. Discard all cards from this BIN."
+    elif top_cat[0] == "velocity_limit" and len(recent) >= 3:
+        pattern = "velocity_hot"
+        recommendation = f"🟠 BIN is HOT — {len(recent)} declines in last hour. Wait 4-6 hours before retry."
+    elif top_cat[0] == "do_not_honor" and top_cat[1] >= 3:
+        pattern = "bank_flagged"
+        recommendation = "🟠 Bank is flagging this BIN. Try different merchant category or lower amount."
+    elif top_cat[0] in ("avs_mismatch", "cvv_mismatch"):
+        pattern = "data_quality"
+        recommendation = "🟡 Card data quality issue — verify billing address and CVV via OSINT."
+    elif top_cat[0] == "insufficient_funds":
+        pattern = "drained"
+        recommendation = "🟡 Card may be drained. Try lower amount or different card."
+    else:
+        pattern = "mixed"
+        recommendation = f"Mixed decline pattern. Top reason: {top_cat[0]} ({top_cat[1]}x)."
+    
+    return {
+        "bin": bin6,
+        "total_declines": len(history),
+        "recent_declines": len(recent),
+        "pattern": pattern,
+        "top_category": top_cat[0],
+        "top_category_count": top_cat[1],
+        "targets_tried": dict(targets.most_common(5)),
+        "categories": dict(categories.most_common()),
+        "recommendation": recommendation,
+    }
+
+
+def get_enriched_bin_context(bin_number: str) -> str:
+    """
+    Build enriched context string for BIN analysis prompts that includes
+    decline history. This makes AI analysis more accurate over time.
+    """
+    pattern = get_bin_decline_pattern(bin_number)
+    if pattern["total_declines"] == 0:
+        return ""
+    
+    ctx = f"\nDECLINE HISTORY for BIN {bin_number[:6]}:\n"
+    ctx += f"  Total declines: {pattern['total_declines']}\n"
+    ctx += f"  Recent (1h): {pattern['recent_declines']}\n"
+    ctx += f"  Pattern: {pattern['pattern']}\n"
+    ctx += f"  Top decline: {pattern['top_category']} ({pattern['top_category_count']}x)\n"
+    ctx += f"  Targets tried: {pattern['targets_tried']}\n"
+    ctx += f"  Assessment: {pattern['recommendation']}\n"
+    return ctx
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -441,6 +441,29 @@ class GenesisEngine:
         # Write hardware profile
         self._write_hardware_profile(profile_path, hardware_fp)
         
+        # V7.5: Auto-inject form autofill data (address + card hint)
+        if _AUTOFILL and config.browser == "firefox":
+            try:
+                addr = config.persona_address or {}
+                parts = config.persona_name.split(None, 1)
+                persona = PersonaAutofill(
+                    full_name=config.persona_name,
+                    first_name=parts[0] if parts else "",
+                    last_name=parts[1] if len(parts) > 1 else "",
+                    email=config.persona_email,
+                    phone=addr.get("phone", ""),
+                    address_line1=addr.get("address", addr.get("full", "")),
+                    city=addr.get("city", ""),
+                    state=addr.get("state", ""),
+                    zip_code=addr.get("zip", ""),
+                    country=addr.get("country", "US"),
+                )
+                injector = FormAutofillInjector()
+                injector.inject(profile_path, persona)
+                logger.info("[V7.5] Autofill data injected — 'Use saved card?' prompt enabled")
+            except Exception as exc:
+                logger.debug("Autofill injection skipped: %s", exc)
+        
         # Write profile metadata
         metadata = {
             "profile_id": profile_id,
@@ -1639,6 +1662,188 @@ TITAN V7.0 SINGULARITY - Zero Detect / Zero Decline
         handover_file = profile_path / "HANDOVER_PROTOCOL.txt"
         with open(handover_file, "w") as f:
             f.write(handover)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.5 UPGRADE: BIN-AWARE PROFILE GENERATION + AUTOFILL WIRING
+# Optimizes profile for the specific card being used. Wires autofill.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# BIN intelligence for profile optimization
+try:
+    from cerberus_enhanced import BINScoringEngine
+    _BIN_SCORER = True
+except ImportError:
+    _BIN_SCORER = False
+
+# Form autofill injection
+try:
+    from form_autofill_injector import FormAutofillInjector, PersonaAutofill
+    _AUTOFILL = True
+except ImportError:
+    _AUTOFILL = False
+
+
+# BIN → optimal hardware profile mapping
+_BIN_HARDWARE_MAP = {
+    # High-tier cards → high-end hardware (consistency)
+    'centurion': ['us_windows_desktop', 'us_macbook_pro'],
+    'platinum':  ['us_windows_desktop', 'us_macbook_pro', 'us_macbook_air_m2'],
+    'signature': ['us_windows_desktop', 'us_macbook_air_m2', 'eu_windows_laptop'],
+    'world_elite': ['us_windows_desktop', 'us_macbook_pro'],
+    'world':     ['us_windows_desktop', 'us_macbook_air_m2', 'eu_windows_laptop'],
+    'gold':      ['us_windows_desktop', 'us_windows_desktop_intel', 'eu_windows_laptop'],
+    'classic':   ['us_windows_desktop_intel', 'us_windows_laptop_budget', 'eu_windows_laptop'],
+    'standard':  ['us_windows_laptop_budget', 'us_windows_desktop_intel'],
+}
+
+# BIN → optimal archetype mapping
+_BIN_ARCHETYPE_MAP = {
+    'centurion': 'professional',
+    'platinum':  'professional',
+    'signature': 'professional',
+    'world_elite': 'professional',
+    'world':     'casual_shopper',
+    'gold':      'casual_shopper',
+    'classic':   'student_developer',
+    'standard':  'student_developer',
+}
+
+
+def pre_forge_validate(bin6: str, billing_address: Dict, hardware_profile: str,
+                       proxy_region: str = "") -> Dict[str, Any]:
+    """
+    Pre-forge validation — catches mismatches BEFORE wasting time forging.
+    Returns dict with pass/fail, warnings, and recommendations.
+    """
+    warnings = []
+    errors = []
+    recommendations = []
+
+    # Get BIN info
+    bin_info = {}
+    if _BIN_SCORER and bin6 and len(bin6) >= 6:
+        scorer = BINScoringEngine()
+        bin_data = scorer.BIN_DATABASE.get(bin6[:6])
+        if bin_data:
+            bin_info = bin_data
+
+    card_country = bin_info.get('country', '')
+    card_level = bin_info.get('level', 'classic')
+    billing_state = billing_address.get('state', '').upper()
+    billing_country = billing_address.get('country', 'US').upper()
+
+    # Check 1: Card country vs billing country
+    if card_country and billing_country and card_country != billing_country:
+        errors.append(f"Card country ({card_country}) ≠ billing country ({billing_country}) — AVS will fail")
+
+    # Check 2: Card level vs hardware profile consistency
+    hw_lower = hardware_profile.lower()
+    if card_level in ('centurion', 'platinum', 'signature', 'world_elite'):
+        if 'budget' in hw_lower:
+            warnings.append(f"Premium card ({card_level}) with budget hardware — fraud engines flag this mismatch")
+            recommendations.append("Use high-end hardware profile for premium cards")
+    elif card_level in ('classic', 'standard'):
+        if 'macbook_pro' in hw_lower or 'rog' in hw_lower:
+            warnings.append(f"Basic card ({card_level}) with premium hardware — unusual spending pattern")
+
+    # Check 3: Proxy region vs billing state
+    if proxy_region and billing_state:
+        proxy_state = proxy_region.split('-')[1].upper() if '-' in proxy_region else ''
+        if proxy_state and proxy_state != billing_state:
+            warnings.append(f"Proxy region ({proxy_region}) doesn't match billing state ({billing_state})")
+            recommendations.append("Match proxy exit to billing address state")
+
+    # Check 4: EU card with US hardware
+    eu_countries = {'GB', 'DE', 'FR', 'ES', 'IT', 'NL', 'BE', 'AT', 'IE', 'PT', 'SE', 'DK', 'FI', 'NO'}
+    if card_country in eu_countries and 'us_' in hw_lower:
+        warnings.append(f"EU card ({card_country}) with US hardware profile — geo mismatch")
+        recommendations.append("Use eu_windows_laptop for EU cards")
+
+    passed = len(errors) == 0
+    return {
+        "passed": passed,
+        "errors": errors,
+        "warnings": warnings,
+        "recommendations": recommendations,
+        "bin_info": bin_info,
+        "card_level": card_level,
+        "optimal_hardware": _BIN_HARDWARE_MAP.get(card_level, ['us_windows_desktop']),
+        "optimal_archetype": _BIN_ARCHETYPE_MAP.get(card_level, 'casual_shopper'),
+    }
+
+
+def score_profile_quality(profile_path: Path) -> Dict[str, Any]:
+    """
+    Score a freshly forged profile for operational readiness.
+    Returns go/no-go with detailed breakdown.
+    """
+    score = 0
+    checks = []
+
+    if not profile_path.exists():
+        return {"score": 0, "verdict": "FAIL", "checks": [("Path exists", False)]}
+
+    # Check 1: Core files exist
+    core_files = {
+        "places.sqlite": 25,
+        "cookies.sqlite": 25,
+        "prefs.js": 5,
+    }
+    for fname, points in core_files.items():
+        exists = (profile_path / fname).exists()
+        if exists:
+            score += points
+        checks.append((f"{fname} exists", exists))
+
+    # Check 2: Profile size
+    total_size = sum(f.stat().st_size for f in profile_path.rglob("*") if f.is_file())
+    size_mb = total_size / (1024 * 1024)
+    if size_mb >= 100:
+        score += 15
+        checks.append((f"Size ≥ 100MB ({size_mb:.0f}MB)", True))
+    elif size_mb >= 10:
+        score += 8
+        checks.append((f"Size ≥ 10MB ({size_mb:.0f}MB)", True))
+    else:
+        checks.append((f"Size only {size_mb:.1f}MB — too small", False))
+
+    # Check 3: Autofill data
+    has_autofill = (profile_path / "formhistory.sqlite").exists() or \
+                   (profile_path / "autofill-profiles.json").exists()
+    if has_autofill:
+        score += 15
+    checks.append(("Autofill data present", has_autofill))
+
+    # Check 4: Hardware profile
+    has_hw = (profile_path / "hardware_profile.json").exists()
+    if has_hw:
+        score += 5
+    checks.append(("Hardware profile", has_hw))
+
+    # Check 5: Metadata
+    has_meta = (profile_path / "profile_metadata.json").exists()
+    if has_meta:
+        score += 5
+    checks.append(("Metadata", has_meta))
+
+    # Check 6: File count (real profiles have 50+ files)
+    file_count = sum(1 for _ in profile_path.rglob("*") if _.is_file())
+    if file_count >= 50:
+        score += 5
+    checks.append((f"File count ({file_count})", file_count >= 20))
+
+    verdict = "GO" if score >= 70 else "CAUTION" if score >= 50 else "NO-GO"
+    icon = "🟢" if score >= 70 else "🟡" if score >= 50 else "🔴"
+
+    return {
+        "score": min(score, 100),
+        "verdict": verdict,
+        "icon": icon,
+        "checks": checks,
+        "size_mb": round(size_mb, 1),
+        "file_count": file_count,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════

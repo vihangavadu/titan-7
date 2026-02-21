@@ -61,6 +61,21 @@ try:
 except ImportError:
     VOICE_AVAILABLE = False
 
+# Cognitive core for behavioral modeling
+try:
+    from cognitive_core import CognitiveEngine, BehaviorProfile
+    COGNITIVE_AVAILABLE = True
+except ImportError:
+    COGNITIVE_AVAILABLE = False
+
+# V7.5 AI Intelligence Engine
+try:
+    from ai_intelligence_engine import get_ai_status, is_ai_available, audit_profile
+    from ghost_motor_v6 import get_forter_safe_params
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+
 
 class StreamWorker(QThread):
     """Background worker for camera streaming"""

@@ -150,6 +150,8 @@ class TitanIntegrationBridge:
         self._commerce = None
         self._fingerprint = None
         self._warming = None
+        self._tls_masquerade = None
+        self._humanization = None
         
         # V7.0 subsystem instances (auto-init from titan.env)
         self._cognitive_core = None
@@ -226,12 +228,23 @@ class TitanIntegrationBridge:
             
             def validate(self):
                 from dataclasses import dataclass
+                from enum import Enum
+                class _Status(Enum):
+                    PASS = "PASS"
+                    FAIL = "FAIL"
+                @dataclass
+                class _Check:
+                    name: str = "builtin"
+                    status: str = "PASS"
+                    def to_dict(self):
+                        return {"name": self.name, "status": self.status}
                 @dataclass
                 class PreFlightResult:
                     passed: bool = True
+                    overall_status: _Status = _Status.PASS
                     checks: list = None
                     abort_reason: str = None
-                return PreFlightResult(passed=True, checks=[])
+                return PreFlightResult(passed=True, overall_status=_Status.PASS, checks=[_Check()])
         
         return BuiltinPreFlight(self.config.profile_uuid)
     
@@ -587,10 +600,15 @@ class TitanIntegrationBridge:
         
         config.camoufox_config = camoufox_config
         
-        # Build environment variables
-        env = os.environ.copy()
-        env['MOZ_PROFILER_SESSION'] = self.config.profile_uuid
-        env['MOZ_SANDBOX_LEVEL'] = '1'
+        # V7.5 FIX: Only set needed env vars instead of copying entire os.environ
+        env = {
+            'MOZ_PROFILER_SESSION': self.config.profile_uuid,
+            'MOZ_SANDBOX_LEVEL': '1',
+            'HOME': os.environ.get('HOME', '/root'),
+            'DISPLAY': os.environ.get('DISPLAY', ':0'),
+            'PATH': os.environ.get('PATH', '/usr/local/bin:/usr/bin:/bin'),
+            'XDG_RUNTIME_DIR': os.environ.get('XDG_RUNTIME_DIR', ''),
+        }
         
         if self.config.proxy_config:
             env['MOZ_PROXY_CONFIG'] = self.config.proxy_config.get('url', '')
@@ -669,7 +687,6 @@ class TitanIntegrationBridge:
                 logger.info("  Press ENTER to close...")
                 
                 input()
-                browser.close()
             
             return True
             
@@ -681,12 +698,18 @@ class TitanIntegrationBridge:
             return False
     
     def _launch_firefox_fallback(self, target_url: Optional[str] = None) -> bool:
-        """Fallback to standard Firefox with profile"""
+        """Fallback to Camoufox/Firefox binary with profile"""
         import subprocess
+        import shutil
         
         config = self.browser_config
+        # V7.5 FIX: Try camoufox binary first (Titan OS uses Camoufox, not stock Firefox)
+        browser_bin = shutil.which("camoufox") or "/opt/camoufox/camoufox"
+        if not os.path.exists(browser_bin):
+            browser_bin = shutil.which("firefox-esr") or shutil.which("firefox") or "firefox"
+        
         cmd = [
-            "firefox",
+            browser_bin,
             "--profile", str(config.profile_path)
         ]
         

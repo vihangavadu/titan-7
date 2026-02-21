@@ -26,7 +26,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Centralized env loading
 try:
@@ -381,8 +381,8 @@ class LucidVPN:
                     data = json.load(f)
                 self.state.status = VPNStatus(data.get("status", "disconnected"))
                 self.state.mode = VPNMode(data.get("mode", "proxy"))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load VPN state: {e}")
     
     def _save_state(self):
         """Persist state to disk"""
@@ -547,7 +547,7 @@ class LucidVPN:
             self._validate_connection()
             
             self.state.status = VPNStatus.CONNECTED
-            self.state.last_check = datetime.now().isoformat()
+            self.state.last_check = datetime.now(timezone.utc).isoformat()
             self.state.error_message = None
             self._save_state()
             
@@ -667,8 +667,6 @@ table ip titan_vpn {{
     
     def _start_xray(self):
         """Start Xray client process"""
-        global XRAY_BINARY
-        
         # Kill any existing instance
         self._run_cmd(["pkill", "-f", "xray"], check=False)
         time.sleep(0.5)
@@ -676,12 +674,13 @@ table ip titan_vpn {{
         # Write config
         self.write_xray_config()
         
-        # Check binary exists
-        if not Path(XRAY_BINARY).exists():
+        # V7.5 FIX: Use instance variable instead of mutating module-level global
+        xray_bin = XRAY_BINARY
+        if not Path(xray_bin).exists():
             # Try alternative locations
             for alt in ["/usr/bin/xray", "/usr/local/bin/xray", "/opt/titan/bin/xray"]:
                 if Path(alt).exists():
-                    XRAY_BINARY = alt
+                    xray_bin = alt
                     break
             else:
                 raise FileNotFoundError(
@@ -691,7 +690,7 @@ table ip titan_vpn {{
         
         # Start Xray
         proc = subprocess.Popen(
-            [XRAY_BINARY, "run", "-c", str(XRAY_CONFIG_FILE)],
+            [xray_bin, "run", "-c", str(XRAY_CONFIG_FILE)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
@@ -802,17 +801,20 @@ server:
     
     def _validate_connection(self):
         """Validate VPN connection: IP, DNS, TCP fingerprint"""
-        # Check exit IP via SOCKS5 tunnel
+        # V7.5 FIX: urllib doesn't support socks5h:// — use curl via subprocess
         try:
-            import urllib.request
-            proxy_handler = urllib.request.ProxyHandler({
-                "http": "socks5h://127.0.0.1:10808",
-                "https": "socks5h://127.0.0.1:10808",
-            })
-            opener = urllib.request.build_opener(proxy_handler)
-            response = opener.open("https://api.ipify.org?format=json", timeout=10)
-            ip_data = json.loads(response.read())
-            self.state.exit_ip = ip_data.get("ip", "unknown")
+            result = subprocess.run(
+                ["curl", "-s", "--max-time", "10",
+                 "--socks5-hostname", "127.0.0.1:10808",
+                 "https://api.ipify.org?format=json"],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                ip_data = json.loads(result.stdout)
+                self.state.exit_ip = ip_data.get("ip", "unknown")
+            else:
+                logger.warning(f"IP check returned non-zero or empty: {result.stderr[:100]}")
+                self.state.exit_ip = "unknown"
         except Exception as e:
             logger.warning(f"Could not determine exit IP: {e}")
             self.state.exit_ip = "unknown"

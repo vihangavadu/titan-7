@@ -12,6 +12,7 @@ This module performs all critical checks BEFORE launching browser:
 """
 
 import json
+import os
 import subprocess
 import socket
 from pathlib import Path
@@ -57,6 +58,15 @@ class PreFlightReport:
     @property
     def warnings(self) -> List[PreFlightCheck]:
         return [c for c in self.checks if c.status == CheckStatus.WARN]
+    
+    @property
+    def overall_status(self) -> CheckStatus:
+        """V7.5 FIX: Compatibility property for integration_bridge"""
+        if self.critical_failures:
+            return CheckStatus.FAIL
+        if self.warnings:
+            return CheckStatus.WARN
+        return CheckStatus.PASS
     
     def to_dict(self) -> Dict:
         return {
@@ -446,15 +456,14 @@ class PreFlightValidator:
                 capture_output=True, text=True, timeout=12
             )
             if result.returncode == 0 and "Fraud Score:" in result.stdout:
-                import re as _re
-                score_match = _re.search(r'Fraud Score:\s*(\d+)', result.stdout)
+                score_match = re.search(r'Fraud Score:\s*(\d+)', result.stdout)
                 if score_match:
                     fraud_score = int(score_match.group(1))
                     score_source = "scamalytics"
                     details["scamalytics_score"] = fraud_score
                 # Check for proxy/VPN detection
                 if "vpn" in result.stdout.lower():
-                    vpn_match = _re.search(r'(VPN|Proxy)[^<]*?(Yes|No)', result.stdout, _re.IGNORECASE)
+                    vpn_match = re.search(r'(VPN|Proxy)[^<]*?(Yes|No)', result.stdout, re.IGNORECASE)
                     if vpn_match:
                         details["vpn_detected"] = vpn_match.group(2).lower()
         except Exception:
@@ -598,15 +607,34 @@ class PreFlightValidator:
             
             billing_state = self.billing_region.get("state", "").upper()
             
-            # Expected timezones by state
+            # V7.5 FIX: Expanded state timezone map (all 50 states)
             state_timezones = {
-                "TX": ["CST", "CDT", "Central"],
-                "CA": ["PST", "PDT", "Pacific"],
-                "NY": ["EST", "EDT", "Eastern"],
-                "FL": ["EST", "EDT", "Eastern"],
+                "CT": ["EST", "EDT", "Eastern"], "ME": ["EST", "EDT", "Eastern"],
+                "MA": ["EST", "EDT", "Eastern"], "NH": ["EST", "EDT", "Eastern"],
+                "RI": ["EST", "EDT", "Eastern"], "VT": ["EST", "EDT", "Eastern"],
+                "NJ": ["EST", "EDT", "Eastern"], "NY": ["EST", "EDT", "Eastern"],
+                "PA": ["EST", "EDT", "Eastern"], "DE": ["EST", "EDT", "Eastern"],
+                "MD": ["EST", "EDT", "Eastern"], "VA": ["EST", "EDT", "Eastern"],
+                "WV": ["EST", "EDT", "Eastern"], "NC": ["EST", "EDT", "Eastern"],
+                "SC": ["EST", "EDT", "Eastern"], "GA": ["EST", "EDT", "Eastern"],
+                "FL": ["EST", "EDT", "Eastern"], "DC": ["EST", "EDT", "Eastern"],
+                "OH": ["EST", "EDT", "Eastern"], "MI": ["EST", "EDT", "Eastern"],
+                "IN": ["EST", "EDT", "Eastern"], "KY": ["EST", "EDT", "Eastern"],
+                "AL": ["CST", "CDT", "Central"], "IL": ["CST", "CDT", "Central"],
+                "IA": ["CST", "CDT", "Central"], "KS": ["CST", "CDT", "Central"],
+                "LA": ["CST", "CDT", "Central"], "MN": ["CST", "CDT", "Central"],
+                "MS": ["CST", "CDT", "Central"], "MO": ["CST", "CDT", "Central"],
+                "NE": ["CST", "CDT", "Central"], "ND": ["CST", "CDT", "Central"],
+                "OK": ["CST", "CDT", "Central"], "SD": ["CST", "CDT", "Central"],
+                "TN": ["CST", "CDT", "Central"], "TX": ["CST", "CDT", "Central"],
+                "WI": ["CST", "CDT", "Central"], "AR": ["CST", "CDT", "Central"],
+                "AZ": ["MST", "Mountain"], "CO": ["MST", "MDT", "Mountain"],
+                "ID": ["MST", "MDT", "Mountain"], "MT": ["MST", "MDT", "Mountain"],
+                "NM": ["MST", "MDT", "Mountain"], "UT": ["MST", "MDT", "Mountain"],
+                "WY": ["MST", "MDT", "Mountain"], "NV": ["PST", "PDT", "Pacific"],
+                "CA": ["PST", "PDT", "Pacific"], "OR": ["PST", "PDT", "Pacific"],
                 "WA": ["PST", "PDT", "Pacific"],
-                "IL": ["CST", "CDT", "Central"],
-                "AZ": ["MST", "MDT", "Mountain"],
+                "AK": ["AKST", "AKDT", "Alaska"], "HI": ["HST", "Hawaii"],
             }
             
             expected = state_timezones.get(billing_state, [])
@@ -637,7 +665,7 @@ class PreFlightValidator:
         """Check if system locale matches billing country"""
         try:
             import locale
-            current_locale = locale.getdefaultlocale()
+            current_locale = locale.getlocale()
             
             self.report.checks.append(PreFlightCheck(
                 name="System Locale",

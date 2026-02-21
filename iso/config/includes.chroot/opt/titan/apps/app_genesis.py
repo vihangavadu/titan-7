@@ -29,6 +29,28 @@ from genesis_core import (
     GenesisEngine, ProfileConfig, TargetPreset, GeneratedProfile,
     TARGET_PRESETS, TargetCategory
 )
+from target_presets import TARGET_PRESETS as TP_PRESETS, get_target_preset, list_targets
+
+# V7.5 BIN-aware forge + quality scoring
+try:
+    from genesis_core import pre_forge_validate, score_profile_quality
+    FORGE_INTEL_AVAILABLE = True
+except ImportError:
+    FORGE_INTEL_AVAILABLE = False
+
+try:
+    from cerberus_enhanced import BINScoringEngine
+    BIN_SCORER_AVAILABLE = True
+except ImportError:
+    BIN_SCORER_AVAILABLE = False
+
+# V7.5 AI Intelligence Engine
+try:
+    from ai_intelligence_engine import audit_profile, get_ai_status, is_ai_available
+    from fingerprint_injector import create_injector
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
 
 
 class ForgeWorker(QThread):
@@ -136,11 +158,26 @@ class GenesisApp(QMainWindow):
         # ── Tab 4: BATCH SYNTHESIS ──
         self._build_batch_tab()
         
+        # ── Tab 5: AI PROFILE AUDIT ──
+        self._build_ai_audit_tab()
+        
         # Footer
         footer = QLabel("TITAN V7.5 SINGULARITY | Identity Synthesis Engine")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setStyleSheet("color: #64748B; font-size: 10px;")
         main_layout.addWidget(footer)
+        
+        # Status bar
+        self._statusbar = self.statusBar()
+        self._statusbar.setStyleSheet(
+            "QStatusBar { background: #151A21; color: #64748B; border-top: 1px solid #2A3444; font-family: 'JetBrains Mono', monospace; font-size: 11px; }"
+        )
+        self._sb_version = QLabel("GENESIS V7.5")
+        self._sb_version.setStyleSheet("color: #ff6b35; padding: 0 8px;")
+        self._sb_ai = QLabel("AI: " + ("ONLINE" if AI_AVAILABLE else "OFFLINE"))
+        self._sb_ai.setStyleSheet("color: #4CAF50; padding: 0 8px;" if AI_AVAILABLE else "color: #EF5350; padding: 0 8px;")
+        self._statusbar.addWidget(self._sb_version)
+        self._statusbar.addWidget(self._sb_ai)
     
     # ═══════════════════════════════════════════════════════════════════
     # TAB 1: SYNTHESIZE (original single-panel form)
@@ -198,6 +235,28 @@ class GenesisApp(QMainWindow):
         self.phone_input.setPlaceholderText("+1 555 123 4567")
         self.phone_input.setMinimumHeight(30)
         persona_layout.addRow("Phone:", self.phone_input)
+        
+        # V7.5: BIN input for card-aware profile optimization
+        bin_row = QHBoxLayout()
+        self.bin_input = QLineEdit()
+        self.bin_input.setPlaceholderText("e.g. 421783 (optional — optimizes profile for card)")
+        self.bin_input.setMaxLength(6)
+        self.bin_input.setMinimumHeight(30)
+        self.bin_input.setStyleSheet("QLineEdit{font-family:Consolas;font-size:13px;}")
+        bin_row.addWidget(self.bin_input)
+        self.bin_check_btn = QPushButton("Check")
+        self.bin_check_btn.setMinimumHeight(30)
+        self.bin_check_btn.setFixedWidth(70)
+        self.bin_check_btn.setStyleSheet("QPushButton{background:#ff6b35;color:#000;font-weight:bold;border:none;border-radius:4px;}QPushButton:hover{background:#ff8a50;}")
+        self.bin_check_btn.clicked.connect(self._run_pre_forge_check)
+        bin_row.addWidget(self.bin_check_btn)
+        persona_layout.addRow("Card BIN:", bin_row)
+        
+        # Pre-forge validation result
+        self.preflight_label = QLabel("")
+        self.preflight_label.setWordWrap(True)
+        self.preflight_label.setStyleSheet("color: #888; font-size: 10px; padding: 2px 0;")
+        persona_layout.addRow("", self.preflight_label)
         
         layout.addWidget(persona_group)
         
@@ -859,6 +918,14 @@ class GenesisApp(QMainWindow):
             
             self.batch_log.append(f"[{i+1}/{count}] Synthesizing: {fname} {lname} | {age}d | {browser_choice}")
             
+            # V7.5: Randomize hardware profiles for batch diversity
+            batch_hw_pool = [
+                "us_windows_desktop", "us_windows_desktop_amd", "us_windows_desktop_intel",
+                "us_macbook_pro", "us_macbook_air_m2", "eu_windows_laptop",
+                "us_windows_laptop_gaming", "us_windows_laptop_budget",
+            ]
+            batch_hw = random.choice(batch_hw_pool)
+            
             try:
                 config = ProfileConfig(
                     target=target,
@@ -869,7 +936,7 @@ class GenesisApp(QMainWindow):
                     browser=browser_choice,
                     include_social_history=True,
                     include_shopping_history=True,
-                    hardware_profile="us_windows_desktop"
+                    hardware_profile=batch_hw
                 )
                 profile = self.engine.forge_profile(config)
                 self.batch_log.append(f"  -> OK: {profile.profile_path}")
@@ -888,6 +955,132 @@ class GenesisApp(QMainWindow):
         """Cancel batch synthesis."""
         self._batch_cancelled = True
     
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 5: AI PROFILE AUDIT
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def _build_ai_audit_tab(self):
+        """AI-powered profile forensic audit."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "🧠 AI Audit")
+        
+        header = QLabel("🧠 AI PROFILE FORENSIC AUDIT")
+        header.setFont(QFont("JetBrains Mono", 14, QFont.Weight.Bold))
+        header.setStyleSheet("color: #E6A817;")
+        layout.addWidget(header)
+        layout.addWidget(QLabel("AI analyzes generated profiles for antifraud detection vectors"))
+        
+        btn_row = QHBoxLayout()
+        self.ai_audit_btn = QPushButton("🔬 AUDIT LAST PROFILE")
+        self.ai_audit_btn.setMinimumHeight(40)
+        self.ai_audit_btn.setStyleSheet("QPushButton{background:#E6A817;color:#000;font-weight:bold;font-size:13px;}")
+        self.ai_audit_btn.clicked.connect(self._run_ai_audit)
+        btn_row.addWidget(self.ai_audit_btn)
+        
+        self.ai_audit_browse = QPushButton("📁 Select Profile")
+        self.ai_audit_browse.setMinimumHeight(40)
+        self.ai_audit_browse.clicked.connect(self._browse_audit_profile)
+        btn_row.addWidget(self.ai_audit_browse)
+        
+        self.ai_inject_fp = QPushButton("🧬 Inject Fingerprint")
+        self.ai_inject_fp.setMinimumHeight(40)
+        self.ai_inject_fp.clicked.connect(self._inject_fingerprint)
+        btn_row.addWidget(self.ai_inject_fp)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+        
+        self.ai_audit_path_label = QLabel("Profile: (auto-detect from last forge)")
+        self.ai_audit_path_label.setStyleSheet("color: #64748B;")
+        layout.addWidget(self.ai_audit_path_label)
+        
+        self.ai_audit_result = QTextEdit()
+        self.ai_audit_result.setReadOnly(True)
+        self.ai_audit_result.setPlaceholderText(
+            "AI Forensic Profile Audit (Ollama-powered):\n\n"
+            "  • Timestamp consistency analysis\n"
+            "  • OS/UA mismatch detection\n"
+            "  • Cookie/history coherence check\n"
+            "  • Leak vector identification\n"
+            "  • Cleanliness score 0-100\n\n"
+            "Forge a profile first, then click AUDIT."
+        )
+        layout.addWidget(self.ai_audit_result)
+    
+    def _run_ai_audit(self):
+        """Run AI audit on the last generated profile."""
+        if not AI_AVAILABLE:
+            self.ai_audit_result.setPlainText("AI Intelligence Engine not available.")
+            return
+        profile_path = getattr(self, '_audit_profile_path', None)
+        if not profile_path and self.last_profile:
+            profile_path = str(self.last_profile.profile_path)
+        if not profile_path:
+            profiles_dir = Path("/opt/titan/profiles")
+            if profiles_dir.exists():
+                dirs = sorted(profiles_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+                if dirs:
+                    profile_path = str(dirs[0])
+        if not profile_path:
+            self.ai_audit_result.setPlainText("No profile found. Forge one first.")
+            return
+        self.ai_audit_path_label.setText(f"Profile: {profile_path}")
+        self.ai_audit_result.setPlainText(f"🔬 Auditing: {profile_path}...")
+        QApplication.processEvents()
+        try:
+            result = audit_profile(profile_path)
+            text = f"PROFILE FORENSIC AUDIT\n{'='*50}\n"
+            text += f"  Path: {profile_path}\n"
+            text += f"  Clean: {'✅ YES' if result.clean else '❌ NO'}\n"
+            text += f"  Score: {result.score}/100\n"
+            text += f"  AI Powered: {result.ai_powered}\n"
+            if result.inconsistencies:
+                text += f"\n  Inconsistencies ({len(result.inconsistencies)}):\n"
+                text += "\n".join(f"    ⚠ {i}" for i in result.inconsistencies)
+            if result.leak_vectors:
+                text += f"\n\n  Leak Vectors ({len(result.leak_vectors)}):\n"
+                text += "\n".join(f"    🔴 {v}" for v in result.leak_vectors)
+            if result.recommendations:
+                text += f"\n\n  Recommendations:\n"
+                text += "\n".join(f"    → {r}" for r in result.recommendations)
+            self.ai_audit_result.setPlainText(text)
+        except Exception as e:
+            self.ai_audit_result.setPlainText(f"Error: {e}")
+    
+    def _browse_audit_profile(self):
+        """Browse for profile to audit."""
+        path = QFileDialog.getExistingDirectory(self, "Select Profile", "/opt/titan/profiles")
+        if path:
+            self._audit_profile_path = path
+            self.ai_audit_path_label.setText(f"Profile: {path}")
+    
+    def _inject_fingerprint(self):
+        """Inject hardware fingerprint into profile."""
+        if not AI_AVAILABLE:
+            self.ai_audit_result.setPlainText("Fingerprint injector not available.")
+            return
+        profile_path = getattr(self, '_audit_profile_path', None)
+        if not profile_path and self.last_profile:
+            profile_path = str(self.last_profile.profile_path)
+        if not profile_path:
+            self.ai_audit_result.setPlainText("No profile selected.")
+            return
+        try:
+            injector = create_injector(Path(profile_path).name)
+            config = injector.generate_config()
+            text = f"FINGERPRINT INJECTED\n{'='*50}\n\n"
+            text += f"  Profile: {profile_path}\n"
+            text += f"  Parameters: {len(config)}\n\n"
+            for k, v in list(config.items())[:12]:
+                text += f"  {k}: {str(v)[:50]}\n"
+            if len(config) > 12:
+                text += f"\n  ... and {len(config) - 12} more\n"
+            self.ai_audit_result.setPlainText(text)
+        except Exception as e:
+            self.ai_audit_result.setPlainText(f"Error: {e}")
+    
     def _apply_theme(self):
         """Apply Genesis Orange cyberpunk theme."""
         try:
@@ -896,6 +1089,61 @@ class GenesisApp(QMainWindow):
         except ImportError:
             pass  # Fallback: no theme applied
     
+    def _run_pre_forge_check(self):
+        """Run pre-forge validation — check BIN vs hardware/geo/proxy consistency."""
+        bin6 = self.bin_input.text().strip().replace(" ", "")[:6]
+        if len(bin6) < 6 or not bin6.isdigit():
+            self.preflight_label.setText("Enter a valid 6-digit BIN to check")
+            self.preflight_label.setStyleSheet("color: #888; font-size: 10px;")
+            return
+
+        if not FORGE_INTEL_AVAILABLE:
+            self.preflight_label.setText("Pre-forge validation not available (missing genesis_core functions)")
+            return
+
+        hardware_map = {
+            0: "us_windows_desktop", 1: "us_windows_desktop_amd", 2: "us_windows_desktop_intel",
+            3: "us_macbook_pro", 4: "us_macbook_air_m2", 5: "us_macbook_m1",
+            6: "eu_windows_laptop", 7: "us_windows_laptop_gaming", 8: "us_windows_laptop_budget",
+            9: "linux_desktop",
+        }
+        hw = hardware_map.get(self.hardware_combo.currentIndex(), "us_windows_desktop")
+        addr_text = self.address_input.text().strip()
+        billing = {"full": addr_text, "country": "US"}
+
+        result = pre_forge_validate(bin6, billing, hw)
+
+        parts = []
+        if result.get("bin_info"):
+            bi = result["bin_info"]
+            parts.append(f"Card: {bi.get('bank','?')} {bi.get('level','?').title()} {bi.get('network','?').upper()} ({bi.get('country','?')})")
+
+        if result["errors"]:
+            for e in result["errors"]:
+                parts.append(f"<span style='color:#f44336;'>ERROR: {e}</span>")
+        if result["warnings"]:
+            for w in result["warnings"]:
+                parts.append(f"<span style='color:#ff9800;'>WARN: {w}</span>")
+        if result["recommendations"]:
+            for r in result["recommendations"]:
+                parts.append(f"<span style='color:#4fc3f7;'>TIP: {r}</span>")
+
+        optimal_hw = result.get("optimal_hardware", [])
+        if optimal_hw:
+            parts.append(f"<span style='color:#00e676;'>Optimal HW: {', '.join(optimal_hw[:3])}</span>")
+        optimal_arch = result.get("optimal_archetype", "")
+        if optimal_arch:
+            parts.append(f"<span style='color:#00e676;'>Optimal Archetype: {optimal_arch}</span>")
+
+        if result["passed"] and not result["warnings"]:
+            parts.insert(0, "<span style='color:#00e676;'>PRE-FORGE CHECK PASSED</span>")
+        elif result["passed"]:
+            parts.insert(0, "<span style='color:#ffeb3b;'>PRE-FORGE CHECK: CAUTION</span>")
+        else:
+            parts.insert(0, "<span style='color:#f44336;'>PRE-FORGE CHECK FAILED</span>")
+
+        self.preflight_label.setText("<br>".join(parts))
+
     def on_target_changed(self, index):
         """Update UI when target selection changes"""
         target_name = self.target_combo.currentData()
@@ -944,6 +1192,20 @@ class GenesisApp(QMainWindow):
             9: "linux_desktop",
         }
         
+        selected_hw = hardware_map.get(self.hardware_combo.currentIndex(), "us_windows_desktop")
+        
+        # V7.5: BIN-aware hardware optimization
+        bin6 = self.bin_input.text().strip().replace(" ", "")[:6]
+        if bin6 and len(bin6) == 6 and bin6.isdigit() and FORGE_INTEL_AVAILABLE:
+            import random as _rand
+            validation = pre_forge_validate(bin6, {"full": self.address_input.text().strip(), "country": "US"}, selected_hw)
+            optimal_hw_list = validation.get("optimal_hardware", [])
+            if optimal_hw_list and selected_hw not in optimal_hw_list:
+                selected_hw = _rand.choice(optimal_hw_list)
+                self.preflight_label.setText(
+                    f"<span style='color:#00e676;'>Auto-optimized HW to: {selected_hw} (matches {validation.get('card_level','?')} card)</span>"
+                )
+        
         config = ProfileConfig(
             target=target,
             persona_name=self.name_input.text().strip(),
@@ -956,7 +1218,7 @@ class GenesisApp(QMainWindow):
             browser=self.browser_combo.currentText().lower(),
             include_social_history=self.social_check.isChecked(),
             include_shopping_history=self.shopping_check.isChecked(),
-            hardware_profile=hardware_map.get(self.hardware_combo.currentIndex(), "us_windows_desktop")
+            hardware_profile=selected_hw
         )
         
         # Disable UI
@@ -989,11 +1251,32 @@ class GenesisApp(QMainWindow):
             QMessageBox.critical(self, "Forge Failed", str(result))
         else:
             self.last_profile = result
-            self.status_label.setText(f"Profile forged successfully")
-            self.status_label.setStyleSheet("color: #00ff88; font-size: 14px;")
-            self.output_label.setText(f"Output: {result.profile_path}")
             self.launch_btn.setVisible(True)
             self.view_profile_btn.setVisible(True)
+            
+            # V7.5: Post-forge quality score
+            quality_text = ""
+            if FORGE_INTEL_AVAILABLE:
+                try:
+                    qs = score_profile_quality(result.profile_path)
+                    quality_text = (
+                        f"\n\nQUALITY SCORE: {qs['icon']} {qs['score']}/100 — {qs['verdict']}\n"
+                        f"Size: {qs['size_mb']} MB | Files: {qs['file_count']}\n"
+                    )
+                    for check_name, check_ok in qs.get("checks", []):
+                        quality_text += f"  {'✅' if check_ok else '❌'} {check_name}\n"
+                    
+                    verdict_color = "#00ff88" if qs['verdict'] == 'GO' else "#ffeb3b" if qs['verdict'] == 'CAUTION' else "#ff4466"
+                    self.status_label.setText(f"{qs['icon']} Profile forged — {qs['verdict']} ({qs['score']}/100)")
+                    self.status_label.setStyleSheet(f"color: {verdict_color}; font-size: 14px;")
+                except Exception:
+                    self.status_label.setText("Profile forged successfully")
+                    self.status_label.setStyleSheet("color: #00ff88; font-size: 14px;")
+            else:
+                self.status_label.setText("Profile forged successfully")
+                self.status_label.setStyleSheet("color: #00ff88; font-size: 14px;")
+            
+            self.output_label.setText(f"Output: {result.profile_path}")
             
             QMessageBox.information(
                 self, 
@@ -1001,7 +1284,8 @@ class GenesisApp(QMainWindow):
                 f"Profile created at:\n{result.profile_path}\n\n"
                 f"History entries: {result.history_count}\n"
                 f"Cookies: {result.cookies_count}\n"
-                f"Age: {result.age_days} days\n\n"
+                f"Age: {result.age_days} days"
+                f"{quality_text}\n"
                 f"Click 'Launch Browser' to use this profile."
             )
     

@@ -19,6 +19,9 @@ from enum import Enum
 from typing import Optional, Dict, List, Any, Callable
 import threading
 import time
+import logging
+
+logger = logging.getLogger("TITAN-V7-KYC-CORE")
 
 
 class CameraState(Enum):
@@ -40,6 +43,7 @@ class MotionType(Enum):
     HEAD_NOD = "head_nod"
     LOOK_UP = "look_up"
     LOOK_DOWN = "look_down"
+    OPEN_MOUTH = "open_mouth"
 
 
 @dataclass
@@ -123,7 +127,7 @@ class KYCController:
                     "modprobe", "v4l2loopback",
                     f"devices=1",
                     f"video_nr={self.config.device_path.split('video')[-1]}",
-                    f"card_label='{self.config.device_name}'",
+                    f"card_label={self.config.device_name}",
                     "exclusive_caps=1"
                 ], check=True)
             
@@ -367,8 +371,9 @@ class KYCController:
                         break
                 time.sleep(0.1)
         else:
-            # Fallback mode - stream pre-recorded motion video directly
+            # V7.5 FIX: Fallback mode — stream pre-recorded motion video directly
             # Used when LivePortrait model is not installed on this system
+            logger.info("[*] LivePortrait not found, using fallback motion video mode")
             ffmpeg_cmd = [
                 "ffmpeg",
                 "-stream_loop", "-1" if config.loop else "0",
@@ -501,7 +506,7 @@ class KYCController:
                         "is_virtual": "v4l2loopback" in result.stdout or 
                                      device == self.config.device_path
                     })
-                except:
+                except Exception:
                     cameras.append({
                         "device": device,
                         "name": "Unknown",
@@ -573,6 +578,12 @@ class KYCController:
                 "type": MotionType.LOOK_DOWN,
                 "name": "Look Down",
                 "description": "Look downward",
+                "duration": "2s"
+            },
+            {
+                "type": MotionType.OPEN_MOUTH,
+                "name": "Open Mouth",
+                "description": "Open mouth (common liveness check)",
                 "duration": "2s"
             },
         ]

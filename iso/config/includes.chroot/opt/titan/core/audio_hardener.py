@@ -28,6 +28,7 @@ Usage:
 import json
 import hashlib
 import logging
+import secrets
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
@@ -122,13 +123,15 @@ class AudioHardener:
     Linux PulseAudio/PipeWire audio stack signature.
     """
     
-    CAMOUFOX_PREFS_PATH = Path("/opt/lucid-empire/camoufox/settings/defaults/pref/local-settings.js")
+    # V7.5 FIX: Use correct Camoufox install path on Titan OS
+    CAMOUFOX_PREFS_PATH = Path("/opt/camoufox/defaults/pref/local-settings.js")
     
     def __init__(self, target_os: AudioTargetOS = AudioTargetOS.WINDOWS, profile_uuid: Optional[str] = None):
         self.target_os = target_os
         self.os_profile = AUDIO_OS_PROFILES[target_os.value]
         self.profile_uuid = profile_uuid
-        self.jitter_seed = self._derive_jitter_seed(profile_uuid) if profile_uuid else 0
+        # V7.5 FIX: Generate random seed when no profile_uuid to avoid zero-noise
+        self.jitter_seed = self._derive_jitter_seed(profile_uuid) if profile_uuid else secrets.randbits(64)
     
     @staticmethod
     def _derive_jitter_seed(profile_uuid: str) -> int:
@@ -171,6 +174,14 @@ class AudioHardener:
         lines = self.generate_user_js_prefs()
         
         try:
+            # V7.5 FIX: Check for existing audio prefs to avoid duplicates
+            existing = ""
+            if user_js.exists():
+                existing = user_js.read_text()
+            if "Phase 3.2: Audio Stack Nullification" in existing:
+                logger.debug("[PHASE 3.2] Audio prefs already present in user.js, skipping")
+                return True
+            
             with open(user_js, "a") as f:
                 f.write("\n".join(lines) + "\n")
             logger.info(f"[PHASE 3.2] {len(lines)-3} audio prefs appended to user.js")
@@ -187,6 +198,12 @@ class AudioHardener:
         if not self.CAMOUFOX_PREFS_PATH.exists():
             logger.warning(f"[PHASE 3.2] Camoufox prefs not found at {self.CAMOUFOX_PREFS_PATH}")
             return False
+        
+        # V7.5 FIX: Check for existing audio prefs to avoid duplicates
+        existing = self.CAMOUFOX_PREFS_PATH.read_text()
+        if "Phase 3.2: Audio Stack Nullification" in existing:
+            logger.debug("[PHASE 3.2] Audio prefs already present in Camoufox prefs, skipping")
+            return True
         
         lines = [
             "",

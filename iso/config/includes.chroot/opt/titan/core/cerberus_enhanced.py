@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, Dict, List, Any, Tuple
+from datetime import timezone as _tz
 import logging
 
 # Centralized env loading
@@ -561,7 +562,9 @@ class BINScoringEngine:
         network = 'visa'
         if bin6.startswith('4'):
             network = 'visa'
-        elif bin6[:2] in ('51', '52', '53', '54', '55') or bin6[:2] in ('22', '23', '24', '25', '26', '27'):
+        elif bin6[:2] in ('51', '52', '53', '54', '55'):
+            network = 'mastercard'
+        elif len(bin6) >= 4 and 2221 <= int(bin6[:4]) <= 2720:
             network = 'mastercard'
         elif bin6[:2] in ('34', '37'):
             network = 'amex'
@@ -650,7 +653,7 @@ class SilentValidationEngine:
         is_relaxed = bank in self.ALERT_RELAXED_BANKS
         
         # Current hour (UTC)
-        current_hour = datetime.utcnow().hour
+        current_hour = datetime.now(_tz.utc).hour
         in_quiet_window = any(start <= current_hour < end for start, end in self.QUIET_WINDOWS)
         
         strategies = []
@@ -1928,8 +1931,11 @@ class MaxDrainEngine:
     
     def _select_warmup_target(self, categories, country):
         """Select best low-friction target for warmup purchase"""
-        # Prefer gaming keys for warmup — instant delivery, low friction
-        for cat in ["gaming_keys", "gift_cards"]:
+        # V7.5 FIX: Respect preferred categories, fallback to gaming_keys/gift_cards
+        warmup_cats = [c for c in categories if c in ("gaming_keys", "gift_cards")]
+        if not warmup_cats:
+            warmup_cats = ["gaming_keys", "gift_cards"]
+        for cat in warmup_cats:
             if cat in self.DRAIN_TARGETS:
                 targets = self.DRAIN_TARGETS[cat]["targets"]
                 # Sort by lowest 3DS rate
@@ -2062,7 +2068,7 @@ def predict_bank_pattern(bin_number, merchant, amount, time_hour_utc=None):
 def generate_drain_plan(bin_number, amount_limit=None, preferred_categories=None, country=None):
     """V7.0.2: Generate optimal drain strategy for a validated card"""
     from datetime import datetime
-    hour_utc = datetime.utcnow().hour
+    hour_utc = datetime.now(_tz.utc).hour
     return MaxDrainEngine().generate_plan(
         bin_number, amount_limit=amount_limit,
         preferred_categories=preferred_categories,
@@ -2104,9 +2110,10 @@ class AVSPreCheckEngine:
         range(206, 220): "MD", range(220, 247): "VA",
         range(247, 269): "WV", range(270, 290): "NC",
         range(290, 300): "SC", range(300, 320): "GA",
-        range(320, 340): "FL", range(350, 370): "AL",
+        range(320, 350): "FL", range(350, 370): "AL",
         range(370, 386): "TN", range(386, 398): "MS",
-        range(400, 428): "KY", range(430, 459): "OH",
+        range(398, 400): "GA", range(400, 428): "KY",
+        range(428, 430): "KY", range(430, 459): "OH",
         range(460, 480): "IN", range(480, 500): "MI",
         range(500, 529): "IA", range(530, 550): "WI",
         range(550, 568): "MN", range(570, 578): "SD",
@@ -2115,9 +2122,10 @@ class AVSPreCheckEngine:
         range(660, 680): "KS", range(680, 694): "NE",
         range(700, 715): "LA", range(716, 730): "AR",
         range(730, 750): "OK", range(750, 800): "TX",
-        range(800, 816): "CO", range(820, 832): "WY",
-        range(832, 839): "ID", range(840, 848): "UT",
-        range(850, 866): "AZ", range(870, 885): "NM",
+        range(800, 816): "CO", range(816, 820): "CO",
+        range(820, 832): "WY", range(832, 839): "ID",
+        range(840, 848): "UT", range(850, 866): "AZ",
+        range(870, 885): "NM", range(885, 886): "TX",
         range(889, 900): "NV", range(900, 966): "CA",
         range(967, 969): "HI", range(970, 980): "OR",
         range(980, 995): "WA", range(995, 1000): "AK",

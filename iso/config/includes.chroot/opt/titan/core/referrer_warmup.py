@@ -119,7 +119,9 @@ class ReferrerWarmup:
         """Get appropriate search query for domain"""
         queries = self.SEARCH_QUERIES.get(domain, self.SEARCH_QUERIES["default"])
         query = random.choice(queries)
-        return query.format(domain=domain.replace(".com", "").replace(".co.uk", ""))
+        # V7.5 FIX: Strip any TLD, not just .com/.co.uk
+        domain_name = domain.split(".")[0]
+        return query.format(domain=domain_name)
     
     def _humanize_delay(self, base_seconds: float) -> float:
         """Add human-like randomness to timing"""
@@ -230,12 +232,14 @@ class ReferrerWarmup:
                     search_box = page.locator('textarea[name="q"], input[name="q"]').first
                     if search_box:
                         search_box.click()
-                        for char in step.search_query:
-                            search_box.press(char)
-                            time.sleep(random.uniform(0.05, 0.15))
+                        # V7.5 FIX: Use type() for characters, press() is for key names
+                        search_box.type(step.search_query, delay=random.uniform(50, 150))
                         time.sleep(random.uniform(0.3, 0.8))
                         search_box.press("Enter")
                         page.wait_for_load_state("domcontentloaded")
+                    else:
+                        # Fallback: use direct search URL
+                        page.goto(step.url, wait_until="domcontentloaded")
                 
                 elif step.action == "click":
                     # Click an actual organic search result link on the SERP
@@ -267,6 +271,11 @@ class ReferrerWarmup:
                         # Last resort: direct navigation (no referrer, but continues flow)
                         logger.warning(f"Could not click organic result, falling back to direct nav")
                         page.goto(step.url, wait_until="domcontentloaded")
+                
+                elif step.action == "scroll":
+                    # V7.5 FIX: Handle scroll action
+                    scroll_amount = random.randint(300, 800)
+                    page.evaluate(f"window.scrollBy(0, {scroll_amount})")
                 
                 # Wait between steps
                 time.sleep(step.wait_seconds)

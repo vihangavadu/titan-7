@@ -220,7 +220,7 @@ class GhostMotorDiffusion:
         )
         
         # ONNX model for learned denoising (optional)
-        self.onnx_session: Optional[ort.InferenceSession] = None
+        self.onnx_session = None
         self._load_model()
         
         # Apply persona entropy
@@ -236,7 +236,7 @@ class GhostMotorDiffusion:
         model_path = "/opt/titan/models/dmtg_denoiser.onnx"
         try:
             self.onnx_session = ort.InferenceSession(model_path)
-        except:
+        except Exception:
             # Model not found - use analytical denoising
             pass
     
@@ -390,12 +390,13 @@ class GhostMotorDiffusion:
     
     def _model_predict(self, path: np.ndarray, t: int) -> np.ndarray:
         """Use ONNX model for noise prediction"""
+        # V7.5 FIX: Add batch dimension for ONNX runtime
         inputs = {
-            'input': path.astype(np.float32),
+            'input': np.expand_dims(path.astype(np.float32), axis=0),
             'timestep': np.array([t], dtype=np.int64)
         }
         outputs = self.onnx_session.run(None, inputs)
-        return outputs[0]
+        return outputs[0].squeeze(0)
     
     def _scale_to_screen(self,
                          path: np.ndarray,
@@ -507,7 +508,7 @@ class GhostMotorDiffusion:
             smoothed = np.column_stack(splev(u_new, tck))
             
             return smoothed
-        except:
+        except Exception:
             return path
     
     def _generate_timestamps(self, 
@@ -936,6 +937,12 @@ class GhostMotorV7(GhostMotorDiffusion):
         self._session_start = time.time()
         self._trajectory_count = 0
         self._fatigue_enabled = True
+
+    def generate_path(self, start_pos: Tuple[float, float],
+                      end_pos: Tuple[float, float],
+                      duration_ms: Optional[float] = None) -> GeneratedTrajectory:
+        """V7.5 FIX: Override to use DDIM by default for 5x speedup."""
+        return self.generate_path_ddim(start_pos, end_pos, duration_ms)
 
     def generate_path_ddim(self, start_pos: Tuple[float, float],
                            end_pos: Tuple[float, float],

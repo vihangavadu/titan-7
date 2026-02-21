@@ -22,7 +22,7 @@ import asyncio
 import base64
 from pathlib import Path
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, List, Any, Union
 from enum import Enum
 
@@ -73,7 +73,7 @@ class CognitiveResponse:
     confidence: float
     data: Dict[str, Any] = field(default_factory=dict)
     latency_ms: float = 0
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class TitanCognitiveCore:
@@ -233,13 +233,17 @@ Match the tone and style of a typical user. Be concise but natural."""
             messages = self._build_messages(request)
             
             # Execute inference via Cloud Brain
-            response = await self.client.chat.completions.create(
+            # V7.5 FIX: Only use response_format for models that support it
+            create_kwargs = dict(
                 model=self.model,
                 messages=messages,
                 max_tokens=request.max_tokens,
                 temperature=request.temperature,
-                response_format={"type": "json_object"}
             )
+            if self.api_key != "ollama":
+                create_kwargs["response_format"] = {"type": "json_object"}
+            
+            response = await self.client.chat.completions.create(**create_kwargs)
             
             # Calculate actual inference latency
             inference_latency = (datetime.now() - start_time).total_seconds() * 1000
@@ -252,7 +256,8 @@ Match the tone and style of a typical user. Be concise but natural."""
                 self.HUMAN_LATENCY_MAX
             ) - inference_latency
             
-            if required_delay > 0:
+            # V7.5 FIX: Cap delay to avoid excessive waits
+            if 0 < required_delay < 500:
                 await asyncio.sleep(required_delay / 1000)
             
             # Parse response
@@ -449,6 +454,10 @@ class CognitiveCoreLocal:
         self.logger = logging.getLogger("TITAN-V7-LOCAL")
         self.logger.warning("Running in LOCAL FALLBACK mode - reduced capabilities")
     
+    @property
+    def is_connected(self) -> bool:
+        return False
+    
     async def analyze_context(self, dom_snippet: str, **kwargs) -> Dict:
         """Rule-based DOM analysis using keyword and pattern matching"""
         analysis = {
@@ -592,6 +601,15 @@ class CognitiveCoreLocal:
             "recommendation": "proceed" if risk_score < 50 else ("proceed_with_caution" if risk_score < 70 else "abort"),
             "proceed": risk_score < 70
         }
+    
+    async def solve_captcha(self, captcha_image_b64: str, captcha_type: str = "unknown") -> Dict:
+        """V7.5 FIX: Local fallback — cannot solve CAPTCHAs without LLM"""
+        return {"error": "captcha_requires_cloud_brain", "captcha_type": captcha_type,
+                "recommendation": "manual_solve_required"}
+    
+    async def generate_response(self, conversation_context: str, persona: str = "casual_user") -> str:
+        """V7.5 FIX: Local fallback — generic response"""
+        return "I'll need a moment to check on that."
 
 
 def get_cognitive_core(prefer_cloud: bool = True) -> Union[TitanCognitiveCore, CognitiveCoreLocal]:

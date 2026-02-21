@@ -25,7 +25,7 @@ import time
 import subprocess
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List, Callable, Any
 from enum import Enum
@@ -164,8 +164,8 @@ class ManualHandoverProtocol:
                     self.state.profile_path = Path(data["profile_path"]) if data.get("profile_path") else None
                     self.state.target_domain = data.get("target_domain")
                     self.state.browser_type = data.get("browser_type", "firefox")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load handover state: {e}")
     
     def _save_state(self):
         """Persist state to disk"""
@@ -385,7 +385,7 @@ class ManualHandoverProtocol:
         
         self._set_phase(HandoverPhase.HANDOVER)
         self._set_status(HandoverStatus.READY)
-        self.state.handover_time = datetime.now()
+        self.state.handover_time = datetime.now(timezone.utc)
         self._save_state()
         
         # Generate handover instructions
@@ -476,7 +476,7 @@ def run_preflight_checks(profile_path: str) -> Dict[str, Any]:
         "passed": True,
         "checks": [],
         "abort_reason": None,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     try:
@@ -495,9 +495,10 @@ def run_preflight_checks(profile_path: str) -> Dict[str, Any]:
         validator = PreFlightValidator(profile_uuid=profile_id)
         report = validator.validate()
         
-        results["passed"] = report.overall_status.value == "PASS"
-        results["checks"] = [c.to_dict() for c in report.checks]
-        results["abort_reason"] = report.abort_reason
+        # V7.5 FIX: overall_status is a string property, not an enum
+        results["passed"] = getattr(report, 'overall_status', 'UNKNOWN') == "PASS"
+        results["checks"] = [c.to_dict() for c in getattr(report, 'checks', [])]
+        results["abort_reason"] = getattr(report, 'abort_reason', None)
         
     except (ImportError, OSError):
         # Preflight validator not available - do basic checks
@@ -678,7 +679,9 @@ def intel_aware_handover(profile_path: str, target_id: str,
             protocol.state.post_checkout_guide = intel.post_checkout_options
             
             # Determine post-checkout type
-            if intel.pickup_method == "in_store_pickup":
+            # V7.5 FIX: Use getattr — pickup_method may not exist on TargetIntelligence
+            pickup = getattr(intel, 'pickup_method', None)
+            if pickup == "in_store_pickup":
                 guide = get_post_checkout_guide("in_store_pickup")
             elif intel.friction.value == "low" and "gift" in intel.name.lower():
                 guide = get_post_checkout_guide("digital_delivery")

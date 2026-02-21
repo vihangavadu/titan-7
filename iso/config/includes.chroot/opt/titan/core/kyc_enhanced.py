@@ -302,7 +302,12 @@ class KYCEnhancedController:
         self.TEMP_PATH.mkdir(parents=True, exist_ok=True)
     
     def _log(self, message: str, level: str = "info"):
-        logger.info(message) if level == "info" else logger.warning(message)
+        if level == "error":
+            logger.error(message)
+        elif level == "warn":
+            logger.warning(message)
+        else:
+            logger.info(message)
         if self.on_log:
             self.on_log(message, level)
     
@@ -350,7 +355,7 @@ class KYCEnhancedController:
                     "modprobe", "v4l2loopback",
                     "devices=1",
                     f"video_nr={video_nr}",
-                    f"card_label='{config.camera_label}'",
+                    f"card_label={config.camera_label}",
                     "exclusive_caps=1"
                 ], check=True)
             
@@ -405,7 +410,12 @@ class KYCEnhancedController:
             filter_chain.insert(1, f"noise=alls={int(cfg.noise_level * 100)}:allf=t")
         
         if cfg.add_lighting_variation:
-            filter_chain.insert(1, "curves=lighter")
+            # V7.5 FIX: Use AmbientLightingNormalizer for realistic color temperature
+            try:
+                normalizer = AmbientLightingNormalizer()
+                filter_chain.insert(1, normalizer.get_v4l2_filter_chain())
+            except Exception:
+                filter_chain.insert(1, "curves=lighter")
         
         try:
             cmd = [
@@ -487,7 +497,7 @@ class KYCEnhancedController:
             LivenessChallenge.NOD_YES: "head_nod",
             LivenessChallenge.LOOK_UP: "look_up",
             LivenessChallenge.LOOK_DOWN: "look_down",
-            LivenessChallenge.OPEN_MOUTH: "smile",        # Use smile as fallback
+            LivenessChallenge.OPEN_MOUTH: "open_mouth",    # V7.5 FIX: dedicated motion asset
             LivenessChallenge.RAISE_EYEBROWS: "look_up",  # Use look_up as fallback
             LivenessChallenge.TILT_HEAD: "head_left",      # Use head_left as fallback
             LivenessChallenge.MOVE_CLOSER: "move_closer",
@@ -550,6 +560,9 @@ class KYCEnhancedController:
         except OSError:
             self._log("Failed to create pipe for reenactment", "error")
             return False
+        
+        # V7.5 FIX: Clear stop event before starting new processes
+        self._stop_event.clear()
         
         try:
             # Start ffmpeg reader

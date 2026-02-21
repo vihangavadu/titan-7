@@ -276,18 +276,36 @@ class LinuxLocationSpoofer:
             state_cities = {
                 "ny": "us_new_york",
                 "new york": "us_new_york",
+                "nj": "us_new_york",
+                "ct": "us_new_york",
                 "ca": "us_los_angeles",
                 "california": "us_los_angeles",
                 "il": "us_chicago",
                 "illinois": "us_chicago",
+                "in": "us_chicago",
+                "wi": "us_chicago",
                 "tx": "us_houston",
                 "texas": "us_houston",
                 "az": "us_phoenix",
                 "arizona": "us_phoenix",
+                "nm": "us_phoenix",
                 "wa": "us_seattle",
                 "washington": "us_seattle",
+                "or": "us_seattle",
                 "fl": "us_miami",
                 "florida": "us_miami",
+                "ga": "us_miami",
+                "sc": "us_miami",
+                "nc": "us_miami",
+                "pa": "us_new_york",
+                "ma": "us_new_york",
+                "oh": "us_chicago",
+                "mi": "us_chicago",
+                "mn": "us_chicago",
+                "co": "us_phoenix",
+                "va": "us_new_york",
+                "md": "us_new_york",
+                "dc": "us_new_york",
             }
             if state in state_cities:
                 return self.database[state_cities[state]]
@@ -330,8 +348,8 @@ class LinuxLocationSpoofer:
         # Firefox geolocation preferences
         prefs = [
             f'user_pref("geo.provider.network.url", "data:application/json,{{\\"location\\": {{\\"lat\\": {location.coordinates.latitude}, \\"lng\\": {location.coordinates.longitude}}}, \\"accuracy\\": {location.coordinates.accuracy}}}");',
-            'user_pref("geo.provider.ms-windows-location", false);',
-            'user_pref("geo.provider.use_corelocation", false);',
+            # V7.5 FIX: Use Linux-specific prefs, not Windows/macOS
+            'user_pref("geo.provider.use_geoclue", false);',
             'user_pref("geo.provider.use_gpsd", false);',
             'user_pref("geo.provider.testing", true);',
             f'user_pref("intl.accept_languages", "{location.language}");',
@@ -339,7 +357,14 @@ class LinuxLocationSpoofer:
         ]
         
         try:
-            # Append to existing user.js or create new
+            # V7.5 FIX: Check for existing location prefs to avoid duplicates
+            existing = ""
+            if user_js.exists():
+                existing = user_js.read_text()
+            if "TITAN Location Spoofing" in existing:
+                logger.debug("Location prefs already present in user.js, skipping")
+                return True
+            
             with open(user_js, "a") as f:
                 f.write("\n// TITAN Location Spoofing\n")
                 for pref in prefs:
@@ -390,7 +415,8 @@ class LinuxLocationSpoofer:
             result = subprocess.run(
                 ["timedatectl", "set-timezone", timezone],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=10
             )
             
             if result.returncode == 0:

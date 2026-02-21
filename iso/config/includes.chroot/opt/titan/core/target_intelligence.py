@@ -4,7 +4,7 @@ PSP, Fraud Engine, and Detection System Intelligence for 35 core targets + expan
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from enum import Enum
 import logging
 
@@ -145,6 +145,21 @@ COUNTERMEASURES: Dict[FraudEngine, DetectionCountermeasures] = {
         min_profile_age_days=80, min_storage_mb=350,
         require_commerce_history=True, warmup_minutes=8,
         evasion_notes=["JavaScript environment checks", "Real user monitoring", "CAPTCHA frequent", "Proxy detection aggressive"]
+    ),
+    FraudEngine.ACCERTIFY: DetectionCountermeasures(
+        min_profile_age_days=60, min_storage_mb=300,
+        require_commerce_history=True, warmup_minutes=5,
+        evasion_notes=["AmEx consortium data", "Device fingerprint persistence", "Use accounts with existing trust"]
+    ),
+    FraudEngine.CHAINALYSIS: DetectionCountermeasures(
+        min_profile_age_days=0, min_storage_mb=0,
+        require_warmup=False, require_residential_proxy=False,
+        evasion_notes=["Blockchain analytics only", "Clean crypto wallets required", "No browser profile needed"]
+    ),
+    FraudEngine.NONE: DetectionCountermeasures(
+        min_profile_age_days=0, min_storage_mb=0,
+        require_warmup=False, require_residential_proxy=False,
+        evasion_notes=["No fraud engine detected"]
     ),
     FraudEngine.INTERNAL: DetectionCountermeasures(
         min_profile_age_days=30, min_storage_mb=200,
@@ -533,9 +548,17 @@ TARGETS: Dict[str, TargetIntelligence] = {
 
 
 def get_target_intel(name: str) -> Optional[TargetIntelligence]:
-    """Get intelligence for a target by name"""
+    """Get intelligence for a target by name or domain"""
     key = name.lower().replace(" ", "_").replace("-", "_")
-    return TARGETS.get(key)
+    result = TARGETS.get(key)
+    if result:
+        return result
+    # V7.5 FIX: Fallback to domain-based lookup
+    domain_clean = name.lower().replace("www.", "")
+    for t in TARGETS.values():
+        if t.domain == domain_clean:
+            return t
+    return None
 
 
 def list_targets() -> List[Dict]:
@@ -915,6 +938,34 @@ PROCESSOR_PROFILES: Dict[str, ProcessorProfile] = {
         operator_guidance=["Study target-specific behavior", "Check operator playbook per target"],
         weak_points=["Custom implementations may have gaps"],
     ),
+    "g2a_pay": ProcessorProfile(
+        name="G2A Pay",
+        three_ds_behavior="Merchant-controlled, generally low 3DS for US cards",
+        security_level="MEDIUM",
+        operator_guidance=["G2A's own payment system", "Supports multiple payment methods"],
+        weak_points=["Lower 3DS enforcement than Stripe/Adyen"],
+    ),
+    "skrill": ProcessorProfile(
+        name="Skrill (Paysafe)",
+        three_ds_behavior="Mandatory 3DS for EU, optional for US",
+        security_level="MEDIUM",
+        operator_guidance=["Account-based system", "Wallet funding has separate checks"],
+        weak_points=["Wallet-to-wallet transfers less scrutinized"],
+    ),
+    "hipay": ProcessorProfile(
+        name="HiPay",
+        three_ds_behavior="Configurable per merchant, EU-focused",
+        security_level="MEDIUM",
+        operator_guidance=["EU-focused PSP", "3DS configurable per merchant"],
+        weak_points=["Smaller network = less cross-merchant intelligence"],
+    ),
+    "bitpay": ProcessorProfile(
+        name="BitPay",
+        three_ds_behavior="No 3DS - crypto payments only",
+        security_level="LOW",
+        operator_guidance=["Crypto-only processor", "No card-based 3DS", "Chainalysis KYT for blockchain monitoring"],
+        weak_points=["No traditional card fraud checks", "Blockchain analysis is the main risk"],
+    ),
 }
 
 
@@ -963,7 +1014,7 @@ SEON_SCORING_RULES: Dict[str, int] = {
 SEON_PASS_THRESHOLD = 50
 
 
-def estimate_seon_score(flags: Dict[str, bool]) -> Dict[str, any]:
+def estimate_seon_score(flags: Dict[str, bool]) -> Dict[str, Any]:
     """Estimate SEON fraud score based on active flags. Operator decision support."""
     total = 0
     breakdown = []
