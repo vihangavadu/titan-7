@@ -23,15 +23,21 @@ logger = logging.getLogger("TITAN-DYNAMIC-DATA")
 try:
     from ollama_bridge import (
         generate_with_cache, is_ollama_available, query_ollama_json,
-        invalidate_cache, get_cache_stats
+        query_llm_json, invalidate_cache, get_cache_stats,
+        get_provider_status, resolve_provider_for_task,
     )
-    OLLAMA_AVAILABLE = True
+    LLM_AVAILABLE = True
 except ImportError:
-    OLLAMA_AVAILABLE = False
+    LLM_AVAILABLE = False
     def generate_with_cache(cache_key, prompt, fallback=None, **kw):
         return fallback
     def is_ollama_available():
         return False
+    def resolve_provider_for_task(task_type="default"):
+        return None
+
+# Backward compat alias
+OLLAMA_AVAILABLE = LLM_AVAILABLE
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -95,7 +101,8 @@ def generate_merchant_sites(seed_sites: List[Dict], count: int = 100) -> List[Di
         fallback=[],
         temperature=0.4,
         max_tokens=16384,
-        timeout=300
+        timeout=300,
+        task_type="site_discovery"
     )
     
     if isinstance(result, list):
@@ -162,7 +169,8 @@ def generate_target_preset(domain: str) -> Optional[Dict]:
         fallback=None,
         temperature=0.3,
         max_tokens=4096,
-        timeout=120
+        timeout=120,
+        task_type="preset_generation"
     )
     
     if isinstance(result, dict) and "domain" in result:
@@ -244,7 +252,8 @@ def generate_bins_for_country(country: str, country_name: str,
         fallback=[],
         temperature=0.3,
         max_tokens=8192,
-        timeout=180
+        timeout=180,
+        task_type="bin_generation"
     )
     
     if isinstance(result, list):
@@ -313,7 +322,8 @@ def generate_country_profiles(country_codes: List[str],
         fallback=[],
         temperature=0.3,
         max_tokens=8192,
-        timeout=180
+        timeout=180,
+        task_type="country_profiles"
     )
     
     if isinstance(result, list):
@@ -373,7 +383,8 @@ def generate_discovery_dorks(seed_dorks: List[Dict], count: int = 50) -> List[Di
         fallback=[],
         temperature=0.5,
         max_tokens=8192,
-        timeout=180
+        timeout=180,
+        task_type="dork_generation"
     )
     
     if isinstance(result, list):
@@ -415,7 +426,8 @@ def generate_warmup_searches(domain: str, count: int = 10) -> List[str]:
         fallback=[],
         temperature=0.5,
         max_tokens=2048,
-        timeout=60
+        timeout=60,
+        task_type="warmup_searches"
     )
     
     if isinstance(result, list):
@@ -438,12 +450,13 @@ def expand_all_databases(site_seeds: List[Dict] = None,
     Returns dict with expansion results/stats.
     """
     stats = {
-        "ollama_available": is_ollama_available() if OLLAMA_AVAILABLE else False,
+        "llm_available": is_ollama_available() if LLM_AVAILABLE else False,
+        "provider_status": get_provider_status() if LLM_AVAILABLE else {},
         "expansions": {}
     }
     
-    if not stats["ollama_available"]:
-        logger.warning("Ollama not available — using seed data only")
+    if not stats["llm_available"]:
+        logger.warning("No LLM provider available — using seed data only")
         return stats
     
     # Expand merchant sites

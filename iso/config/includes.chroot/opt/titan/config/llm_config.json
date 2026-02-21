@@ -1,0 +1,106 @@
+{
+  "_comment": "TITAN V7.5 — Multi-Provider LLM Configuration",
+  "_doc": "Priority order: providers are tried top-to-bottom per task. First available provider wins.",
+
+  "providers": {
+    "openai": {
+      "enabled": true,
+      "api_key": "",
+      "base_url": "https://api.openai.com/v1",
+      "default_model": "gpt-4o-mini",
+      "max_retries": 2,
+      "timeout": 120
+    },
+    "anthropic": {
+      "enabled": true,
+      "api_key": "",
+      "base_url": "https://api.anthropic.com/v1",
+      "default_model": "claude-3-5-sonnet-20241022",
+      "max_retries": 2,
+      "timeout": 120
+    },
+    "groq": {
+      "enabled": true,
+      "api_key": "",
+      "base_url": "https://api.groq.com/openai/v1",
+      "default_model": "llama-3.1-70b-versatile",
+      "max_retries": 2,
+      "timeout": 60
+    },
+    "openrouter": {
+      "enabled": true,
+      "api_key": "",
+      "base_url": "https://openrouter.ai/api/v1",
+      "default_model": "meta-llama/llama-3.1-70b-instruct",
+      "max_retries": 2,
+      "timeout": 120
+    },
+    "ollama": {
+      "enabled": true,
+      "api_key": "",
+      "base_url": "http://127.0.0.1:11434",
+      "default_model": "llama3.1",
+      "max_retries": 1,
+      "timeout": 180
+    }
+  },
+
+  "task_routing": {
+    "_doc": "Maps task types to preferred provider+model combos. Tried in order; first available wins.",
+    "bin_generation": [
+      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
+      {"provider": "openai",     "model": "gpt-4o-mini"},
+      {"provider": "openrouter", "model": "meta-llama/llama-3.1-70b-instruct"},
+      {"provider": "ollama",     "model": "llama3.1"}
+    ],
+    "site_discovery": [
+      {"provider": "openai",     "model": "gpt-4o-mini"},
+      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
+      {"provider": "anthropic",  "model": "claude-3-5-sonnet-20241022"},
+      {"provider": "ollama",     "model": "llama3.1"}
+    ],
+    "preset_generation": [
+      {"provider": "anthropic",  "model": "claude-3-5-sonnet-20241022"},
+      {"provider": "openai",     "model": "gpt-4o"},
+      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
+      {"provider": "ollama",     "model": "llama3.1"}
+    ],
+    "country_profiles": [
+      {"provider": "openai",     "model": "gpt-4o-mini"},
+      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
+      {"provider": "anthropic",  "model": "claude-3-5-sonnet-20241022"},
+      {"provider": "ollama",     "model": "llama3.1"}
+    ],
+    "dork_generation": [
+      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
+      {"provider": "openai",     "model": "gpt-4o-mini"},
+      {"provider": "openrouter", "model": "meta-llama/llama-3.1-70b-instruct"},
+      {"provider": "ollama",     "model": "llama3.1"}
+    ],
+    "warmup_searches": [
+      {"provider": "groq",       "model": "llama-3.1-8b-instant"},
+      {"provider": "openai",     "model": "gpt-4o-mini"},
+      {"provider": "ollama",     "model": "llama3.1"}
+    ],
+    "default": [
+      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
+      {"provider": "openai",     "model": "gpt-4o-mini"},
+      {"provider": "anthropic",  "model": "claude-3-5-sonnet-20241022"},
+      {"provider": "openrouter", "model": "meta-llama/llama-3.1-70b-instruct"},
+      {"provider": "ollama",     "model": "llama3.1"}
+    ]
+  },
+
+  "cache": {
+    "enabled": true,
+    "directory": "/opt/titan/data/llm_cache",
+    "ttl_hours": 24
+  },
+
+  "global": {
+    "default_temperature": 0.3,
+    "default_max_tokens": 8192,
+    "log_prompts": false,
+    "log_responses": false
+  }
+}
