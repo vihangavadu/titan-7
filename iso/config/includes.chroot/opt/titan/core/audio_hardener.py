@@ -75,6 +75,20 @@ AUDIO_OS_PROFILES = {
         "context_sample_rate": 48000,
         "destination_channels": 2,
     },
+    "windows_10_22h2": {
+        "default_sample_rate": 44100,     # Win10 22H2 still defaults to 44.1kHz
+        "channel_count": 2,
+        "channel_layout": "stereo",
+        "base_latency": 0.01,
+        "output_latency": 0.032,          # Slightly higher than Win11
+        "max_channel_count": 2,
+        "state": "running",
+        "noise_floor_db": -88,
+        "timing_jitter_ms": 3.2,          # Higher jitter than Win11
+        "oscillator_detune_range": 153600,
+        "context_sample_rate": 44100,
+        "destination_channels": 2,
+    },
     "macos": {
         "default_sample_rate": 44100,
         "channel_count": 2,

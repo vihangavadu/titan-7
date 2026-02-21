@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
-__version__ = "7.6.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
 
 logger = logging.getLogger("TITAN-VECTOR")

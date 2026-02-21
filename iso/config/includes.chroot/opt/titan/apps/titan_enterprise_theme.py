@@ -138,11 +138,11 @@ class Fonts:
 class Nomenclature:
     """Cyberpunk module identity labels."""
 
-    APP_UNIFIED = "TITAN V7.5 — Unified Operation Center"
-    APP_GENESIS = "TITAN V7.5 — Genesis Profile Forge"
-    APP_CERBERUS = "TITAN V7.5 — Cerberus Card Intelligence"
-    APP_KYC = "TITAN V7.5 — KYC Bypass & Identity Compliance"
-    APP_BUG_REPORTER = "TITAN V7.5 — Diagnostic Reporter"
+    APP_UNIFIED = "TITAN V8.0 — Unified Operation Center"
+    APP_GENESIS = "TITAN V8.0 — Genesis Profile Forge"
+    APP_CERBERUS = "TITAN V8.0 — Cerberus Card Intelligence"
+    APP_KYC = "TITAN V8.0 — KYC Bypass & Identity Compliance"
+    APP_BUG_REPORTER = "TITAN V8.0 — Diagnostic Reporter"
     APP_MISSION_CONTROL = "System Control Panel"
 
     MOD_GENESIS = "Genesis — The Forge"
@@ -187,7 +187,7 @@ def generate_cyberpunk_stylesheet(accent: str = "#00d4ff") -> str:
 
     return f"""
     /* ═══════════════════════════════════════════════════════════════════
-       TITAN V7.5 — Cyberpunk Glassmorphism Theme
+       TITAN V8.0 — Cyberpunk Glassmorphism Theme
        Deep Midnight Base + Neon Accent: {accent}
        ═══════════════════════════════════════════════════════════════════ */
 

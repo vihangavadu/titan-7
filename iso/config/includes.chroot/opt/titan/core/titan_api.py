@@ -36,7 +36,7 @@ Usage:
     result = api.generate_ja4_fingerprint("chrome_131", "windows_11")
 
 Author: Dva.12
-Version: 7.6.0
+Version: 8.0.0
 """
 
 import os
@@ -117,6 +117,8 @@ MODULES_AVAILABLE = {
     "transaction_monitor": False,
     "waydroid_sync": False,
     "windows_font_prov": False,
+    # V8.0 Autonomous Engine
+    "autonomous_engine": False,
 }
 
 # Import modules with availability tracking
@@ -481,6 +483,16 @@ try:
 except ImportError:
     pass
 
+# V8.0 Autonomous Engine
+try:
+    from titan_autonomous_engine import (
+        AutonomousEngine, get_autonomous_engine, start_autonomous,
+        stop_autonomous, get_autonomous_status
+    )
+    MODULES_AVAILABLE["autonomous_engine"] = True
+except ImportError:
+    pass
+
 
 @dataclass
 class APIResponse:
@@ -503,13 +515,13 @@ class APIResponse:
 
 class TitanAPI:
     """
-    TITAN V7.6 Unified API
+    TITAN V8.0 Unified API
     
     Provides programmatic access to all TITAN modules.
     Can be used standalone or integrated with Flask/FastAPI.
     """
     
-    VERSION = "7.6.0"
+    VERSION = "8.0.0"
     
     def __init__(self, profile_uuid: str = None):
         """
@@ -1392,6 +1404,54 @@ class TitanAPI:
         except Exception as e:
             return APIResponse(success=False, error=str(e))
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # V8.0 AUTONOMOUS ENGINE ENDPOINTS
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def autonomous_status(self) -> APIResponse:
+        """Get autonomous engine status."""
+        if not MODULES_AVAILABLE["autonomous_engine"]:
+            return APIResponse(success=False, error="Autonomous engine not available")
+        try:
+            status = get_autonomous_status()
+            return APIResponse(success=True, data=status)
+        except Exception as e:
+            return APIResponse(success=False, error=str(e))
+    
+    def autonomous_start(self, task_dir: str = "/opt/titan/tasks") -> APIResponse:
+        """Start the autonomous engine."""
+        if not MODULES_AVAILABLE["autonomous_engine"]:
+            return APIResponse(success=False, error="Autonomous engine not available")
+        try:
+            engine = start_autonomous(task_dir)
+            return APIResponse(success=True, data={
+                "status": "started",
+                "tasks_queued": engine.task_queue.pending_count(),
+            })
+        except Exception as e:
+            return APIResponse(success=False, error=str(e))
+    
+    def autonomous_stop(self) -> APIResponse:
+        """Stop the autonomous engine."""
+        if not MODULES_AVAILABLE["autonomous_engine"]:
+            return APIResponse(success=False, error="Autonomous engine not available")
+        try:
+            stop_autonomous()
+            return APIResponse(success=True, data={"status": "stopped"})
+        except Exception as e:
+            return APIResponse(success=False, error=str(e))
+    
+    def autonomous_report(self) -> APIResponse:
+        """Get autonomous engine daily report."""
+        if not MODULES_AVAILABLE["autonomous_engine"]:
+            return APIResponse(success=False, error="Autonomous engine not available")
+        try:
+            engine = get_autonomous_engine()
+            report = engine.get_daily_report()
+            return APIResponse(success=True, data=report)
+        except Exception as e:
+            return APIResponse(success=False, error=str(e))
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FLASK/FASTAPI INTEGRATION
@@ -1490,6 +1550,26 @@ def create_flask_app():
             quality=data.get("quality", "high"),
         ).to_dict())
     
+    # V8.0 Autonomous Engine Routes
+    @app.route("/api/v1/autonomous/status", methods=["GET"])
+    def autonomous_status():
+        return jsonify(api.autonomous_status().to_dict())
+    
+    @app.route("/api/v1/autonomous/start", methods=["POST"])
+    def autonomous_start():
+        data = request.get_json() or {}
+        return jsonify(api.autonomous_start(
+            task_dir=data.get("task_dir", "/opt/titan/tasks"),
+        ).to_dict())
+    
+    @app.route("/api/v1/autonomous/stop", methods=["POST"])
+    def autonomous_stop():
+        return jsonify(api.autonomous_stop().to_dict())
+    
+    @app.route("/api/v1/autonomous/report", methods=["GET"])
+    def autonomous_report():
+        return jsonify(api.autonomous_report().to_dict())
+    
     return app
 
 
@@ -1501,14 +1581,14 @@ def main():
     """Main CLI entry point."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="TITAN V7.6 API Server")
+    parser = argparse.ArgumentParser(description="TITAN V8.0 API Server")
     parser.add_argument("--port", type=int, default=8443, help="Server port")
     parser.add_argument("--host", default="0.0.0.0", help="Server host")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     args = parser.parse_args()
     
     print("=" * 70)
-    print("  TITAN V7.6 SINGULARITY — Unified REST API")
+    print("  TITAN V8.0 MAXIMUM LEVEL — Unified REST API")
     print("=" * 70)
     
     app = create_flask_app()

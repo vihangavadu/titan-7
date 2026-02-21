@@ -2254,7 +2254,7 @@ class TitanDevHub:
     """
     
     def __init__(self):
-        self.version = "7.6.0"  # V7.6 SINGULARITY - Full AI Integration
+        self.version = "8.0.0"  # V8.0 MAXIMUM LEVEL - Full AI Integration
         self.titan_root = Path(__file__).parent.parent  # Fixed: Go up to /opt/titan
         self.config_file = self.titan_root / "config" / "dev_hub_config.json"
         self.chat_history: List[ChatMessage] = []

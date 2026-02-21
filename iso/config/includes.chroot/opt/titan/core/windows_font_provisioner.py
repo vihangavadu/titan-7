@@ -26,7 +26,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-__version__ = "7.5.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
 
 logger = logging.getLogger("TITAN-V7.5")

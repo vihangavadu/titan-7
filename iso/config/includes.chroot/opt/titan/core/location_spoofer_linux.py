@@ -325,24 +325,30 @@ class LinuxLocationSpoofer:
         """Get location profile by key"""
         return self.database.get(key)
     
-    def get_profile_for_address(self, address: Dict[str, str]) -> Optional[LocationProfile]:
+    def get_profile_for_address(self, address: Dict[str, str],
+                                profile_seed: int = None) -> Optional[LocationProfile]:
         """
         Get location profile matching billing address.
         
         Args:
             address: Dict with country, city, state, zip
+            profile_seed: Optional seed for coordinate jitter (use profile UUID hash)
             
         Returns:
-            Best matching LocationProfile
+            Best matching LocationProfile with per-profile coordinate jitter
         """
         country = address.get("country", "US").upper()
         city = address.get("city", "").lower().replace(" ", "_")
         state = address.get("state", "").lower()
         
+        # Helper for jitter
+        def _maybe_jitter(p):
+            return self._apply_coordinate_jitter(p, profile_seed) if profile_seed else p
+        
         # Try exact city match
         key = f"{country.lower()}_{city}"
         if key in self.database:
-            return self.database[key]
+            return _maybe_jitter(self.database[key])
         
         # Try state-based match for US
         if country == "US":
@@ -381,7 +387,7 @@ class LinuxLocationSpoofer:
                 "dc": "us_new_york",
             }
             if state in state_cities:
-                return self.database[state_cities[state]]
+                return _maybe_jitter(self.database[state_cities[state]])
         
         # Try country match
         country_defaults = {
@@ -395,10 +401,44 @@ class LinuxLocationSpoofer:
             "NL": "nl_amsterdam",
         }
         if country in country_defaults:
-            return self.database[country_defaults[country]]
+            return _maybe_jitter(self.database[country_defaults[country]])
         
         # Default to New York
-        return self.database["us_new_york"]
+        profile = self.database["us_new_york"]
+        return self._apply_coordinate_jitter(profile, profile_seed) if profile_seed else profile
+    
+    def _apply_coordinate_jitter(self, profile: LocationProfile,
+                                  seed: int) -> LocationProfile:
+        """
+        V7.6 V12-FIX: Apply per-profile coordinate jitter to prevent
+        all profiles in the same city from reporting identical GPS coords.
+        
+        Adds a seeded random offset within ~2km radius — realistic for
+        residential addresses within a metro area.
+        """
+        import random as _rng
+        rng = _rng.Random(seed)
+        # ~0.018 degrees ≈ 2km at equator
+        lat_jitter = rng.gauss(0, 0.008)
+        lng_jitter = rng.gauss(0, 0.008)
+        accuracy_jitter = rng.uniform(50, 200)
+        
+        jittered_coords = GeoCoordinates(
+            latitude=round(profile.coordinates.latitude + lat_jitter, 6),
+            longitude=round(profile.coordinates.longitude + lng_jitter, 6),
+            accuracy=accuracy_jitter,
+        )
+        
+        return LocationProfile(
+            coordinates=jittered_coords,
+            timezone=profile.timezone,
+            locale=profile.locale,
+            language=profile.language,
+            country_code=profile.country_code,
+            region=profile.region,
+            city=profile.city,
+            postal_code=profile.postal_code,
+        )
     
     def apply_to_firefox_profile(self, profile_path: str, location: LocationProfile) -> bool:
         """

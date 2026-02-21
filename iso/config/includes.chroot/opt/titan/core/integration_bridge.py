@@ -576,6 +576,9 @@ class TitanIntegrationBridge:
         self._issuer_defense = None
         self._tof_synthesizer = None
         
+        # V7.6 AI Operations Guard
+        self._operations_guard = None
+        
         # State
         self.preflight_report: Optional[PreFlightReport] = None
         self.browser_config: Optional[BrowserLaunchConfig] = None
@@ -619,6 +622,7 @@ class TitanIntegrationBridge:
             self._init_lsng_synthesizer()
             self._init_issuer_defense()
             self._init_tof_synthesizer()
+            self._init_operations_guard()
             
             # Log V7.6 module status
             v76_status = self.get_v76_module_status()
@@ -873,6 +877,17 @@ class TitanIntegrationBridge:
             self._tof_synthesizer = None
             logger.warning(f"  ✗ ToF Depth Synthesizer not available: {e}")
     
+    def _init_operations_guard(self):
+        """Initialize AI Operations Guard (Ollama-powered lifecycle monitor)"""
+        try:
+            from titan_ai_operations_guard import get_operations_guard
+            self._operations_guard = get_operations_guard()
+            mode = "AI-enhanced" if self._operations_guard._ollama_available else "rule-based"
+            logger.info(f"  ✓ AI Operations Guard loaded ({mode})")
+        except Exception as e:
+            self._operations_guard = None
+            logger.warning(f"  ✗ AI Operations Guard not available: {e}")
+    
     # ═══════════════════════════════════════════════════════════════════════════
     # V7.6 ARCHITECTURAL MODULE API METHODS
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1003,6 +1018,9 @@ class TitanIntegrationBridge:
             "proxy_manager": PROXY_MANAGER_AVAILABLE,
             "ai_intelligence_engine": AI_ENGINE_AVAILABLE,
             "genesis_core": GENESIS_CORE_AVAILABLE,
+            # V7.6 AI Co-Pilot & Operations Guard
+            "ai_copilot": self._operations_guard is not None or True,  # Content script always available
+            "ai_operations_guard": self._operations_guard is not None,
         }
     
     def get_all_module_count(self) -> Dict[str, int]:
@@ -1345,6 +1363,9 @@ class TitanIntegrationBridge:
             with Camoufox(**camoufox_kwargs) as browser:
                 page = browser.new_page(viewport=config.viewport)
                 
+                # V7.6 V1-FIX: Inject ALL fingerprint protection shims
+                self._inject_fingerprint_shims(page)
+                
                 if target_url:
                     page.goto(target_url, wait_until="domcontentloaded")
                     logger.info(f"  Navigated to: {target_url}")
@@ -1363,6 +1384,94 @@ class TitanIntegrationBridge:
         except Exception as e:
             logger.error(f"Browser launch failed: {e}")
             return False
+    
+    def _inject_fingerprint_shims(self, page):
+        """
+        V7.6 V1-FIX: Inject ALL fingerprint protection shims into the browser page.
+        
+        Without this, the browser launches essentially NAKED — antifraud systems
+        can fingerprint real canvas, audio, fonts, and WebRTC to detect automation.
+        
+        Shims injected (in order):
+        1. Canvas subpixel rendering normalization
+        2. Audio context fingerprint hardening
+        3. Font sub-pixel measurement correction
+        4. WebRTC IP spoof (enhanced beyond Camoufox's basic block)
+        5. Client Hints (UA-CH) spoofing
+        """
+        profile_seed = hash(self.config.profile_uuid) & 0xFFFFFFFF
+        shims_injected = 0
+        
+        # 1. Canvas subpixel shim
+        if CANVAS_SHIM_AVAILABLE:
+            try:
+                shim = CanvasSubpixelShim(seed=profile_seed)
+                if hasattr(shim, 'generate_shim_script'):
+                    page.add_init_script(shim.generate_shim_script())
+                    shims_injected += 1
+                    logger.debug("  ✓ Canvas subpixel shim injected")
+            except Exception as e:
+                logger.debug(f"  Canvas shim skipped: {e}")
+        
+        # 2. Audio hardener
+        if AUDIO_HARDENER_AVAILABLE:
+            try:
+                hardener = AudioHardener(seed=profile_seed)
+                if hasattr(hardener, 'generate_shim_script'):
+                    page.add_init_script(hardener.generate_shim_script())
+                    shims_injected += 1
+                    logger.debug("  ✓ Audio hardener shim injected")
+                elif hasattr(hardener, 'get_injection_script'):
+                    page.add_init_script(hardener.get_injection_script())
+                    shims_injected += 1
+                    logger.debug("  ✓ Audio hardener shim injected")
+            except Exception as e:
+                logger.debug(f"  Audio shim skipped: {e}")
+        
+        # 3. Font sub-pixel shim
+        if FINGERPRINT_INJECTOR_AVAILABLE:
+            try:
+                from fingerprint_injector import FontSubPixelShim
+                font_shim = FontSubPixelShim(profile_seed=profile_seed, target_os="windows_11")
+                page.add_init_script(font_shim.generate_shim_script())
+                shims_injected += 1
+                logger.debug("  ✓ Font subpixel shim injected")
+            except Exception as e:
+                logger.debug(f"  Font shim skipped: {e}")
+            
+            # 4. WebRTC enhanced spoof (beyond Camoufox's basic block)
+            try:
+                from fingerprint_injector import WebRTCLeakPrevention
+                proxy_ip = self.browser_config.proxy.split('@')[-1].split(':')[0] if self.browser_config and self.browser_config.proxy and '@' in self.browser_config.proxy else None
+                webrtc = WebRTCLeakPrevention(
+                    fake_public_ip=proxy_ip,
+                    block_mode='spoof'
+                )
+                page.add_init_script(webrtc.generate_webrtc_shim())
+                shims_injected += 1
+                logger.debug("  ✓ WebRTC enhanced spoof injected")
+            except Exception as e:
+                logger.debug(f"  WebRTC shim skipped: {e}")
+            
+            # 5. Client Hints (UA-CH) spoofing
+            try:
+                from fingerprint_injector import ClientHintsSpoofing
+                ua_spoof = ClientHintsSpoofing(profile_seed=profile_seed)
+                if hasattr(ua_spoof, 'generate_shim_script'):
+                    page.add_init_script(ua_spoof.generate_shim_script())
+                    shims_injected += 1
+                    logger.debug("  ✓ Client Hints spoof injected")
+                elif hasattr(ua_spoof, 'generate_ua_ch_shim'):
+                    page.add_init_script(ua_spoof.generate_ua_ch_shim())
+                    shims_injected += 1
+                    logger.debug("  ✓ Client Hints spoof injected")
+            except Exception as e:
+                logger.debug(f"  Client Hints shim skipped: {e}")
+        
+        if shims_injected > 0:
+            logger.info(f"  ✓ {shims_injected} fingerprint shims injected into browser")
+        else:
+            logger.warning("  ⚠ NO fingerprint shims injected — browser is unprotected!")
     
     def _launch_firefox_fallback(self, target_url: Optional[str] = None) -> bool:
         """Fallback to Camoufox/Firefox binary with profile"""
@@ -1421,6 +1530,226 @@ class TitanIntegrationBridge:
         if not report.is_ready:
             logger.error(f"Pre-flight failed: {report.abort_reason}")
             return False
+        
+        # V7.6: AI Operations Guard — pre-operation check
+        if self._operations_guard:
+            try:
+                country = billing_address.get("country", "US")
+                state = billing_address.get("state", "")
+                verdict = self._operations_guard.pre_operation_check(
+                    target=target_domain,
+                    card_country=country,
+                    billing_state=state,
+                    proxy_country=country,  # Assumed matched by proxy manager
+                )
+                if verdict.risk_level.value == "red":
+                    for issue in verdict.issues:
+                        logger.warning(f"  ⚠ Guard: {issue['message']}")
+                    logger.warning("  AI Guard: RED risk — review issues before proceeding")
+                elif verdict.risk_level.value == "yellow":
+                    for issue in verdict.issues:
+                        logger.info(f"  ℹ Guard: {issue['message']}")
+                for rec in verdict.recommendations:
+                    logger.info(f"  → {rec}")
+            except Exception as e:
+                logger.debug(f"  Guard pre-op check skipped: {e}")
+        
+        # V7.6 P0-4: Referrer warmup — build a realistic referrer trail before browser launch
+        if REFERRER_WARMUP_AVAILABLE and target_domain:
+            try:
+                warmup_config = WarmupConfig(target_domain=target_domain)
+                warmup = ReferrerWarmupEngine(warmup_config)
+                trail = warmup.generate_trail() if hasattr(warmup, 'generate_trail') else None
+                if trail:
+                    logger.info(f"  ✓ Referrer trail generated: {len(trail) if isinstance(trail, list) else 1} hops")
+            except Exception as e:
+                logger.debug(f"  Referrer warmup skipped: {e}")
+        
+        # V7.6 P0-5: Form autofill — pre-load autofill profile into browser config
+        if FORM_AUTOFILL_AVAILABLE and billing_address:
+            try:
+                autofill_profile = AutofillProfile(
+                    name=billing_address.get("name", ""),
+                    address_line1=billing_address.get("address1", billing_address.get("street", "")),
+                    city=billing_address.get("city", ""),
+                    state=billing_address.get("state", ""),
+                    zip_code=billing_address.get("zip", billing_address.get("postal_code", "")),
+                    country=billing_address.get("country", "US"),
+                    phone=billing_address.get("phone", ""),
+                    email=billing_address.get("email", ""),
+                )
+                self._autofill_profile = autofill_profile
+                logger.info("  ✓ Form autofill profile loaded for browser session")
+            except Exception as e:
+                logger.debug(f"  Form autofill setup skipped: {e}")
+        
+        # V7.6 P0-6: Network jitter — apply realistic network timing patterns
+        if NETWORK_JITTER_AVAILABLE:
+            try:
+                jitter_profile = JitterProfile()
+                jitter_engine = NetworkJitterEngine(jitter_profile)
+                if hasattr(jitter_engine, 'activate') and callable(jitter_engine.activate):
+                    jitter_engine.activate()
+                    logger.info("  ✓ Network jitter active — realistic latency patterns applied")
+                elif hasattr(jitter_engine, 'start') and callable(jitter_engine.start):
+                    jitter_engine.start()
+                    logger.info("  ✓ Network jitter active")
+            except Exception as e:
+                logger.debug(f"  Network jitter skipped: {e}")
+        
+        # V7.6 V4-FIX: Enforce timezone to match billing address BEFORE browser launch
+        state = billing_address.get("state", "")
+        country = billing_address.get("country", "US")
+        try:
+            from timezone_enforcer import TimezoneEnforcer, TimezoneConfig, STATE_TIMEZONES
+            if state and country == "US" and state.upper() in STATE_TIMEZONES:
+                tz = STATE_TIMEZONES[state.upper()]
+                tz_config = TimezoneConfig(
+                    target_timezone=tz,
+                    target_city=billing_address.get("city", ""),
+                    target_state=state,
+                )
+                enforcer = TimezoneEnforcer(tz_config)
+                if hasattr(enforcer, 'enforce') and callable(enforcer.enforce):
+                    enforcer.enforce()
+                    logger.info(f"  ✓ Timezone enforced: {tz} (matching {state})")
+                elif hasattr(enforcer, 'set_timezone') and callable(enforcer.set_timezone):
+                    enforcer.set_timezone(tz)
+                    logger.info(f"  ✓ Timezone set: {tz}")
+            elif country != "US":
+                # For non-US, try country-level timezone
+                logger.debug(f"  Timezone: non-US country {country} — skipping state-based enforcement")
+        except ImportError:
+            logger.debug("  Timezone enforcer not available")
+        except Exception as e:
+            logger.debug(f"  Timezone enforcement skipped: {e}")
+        
+        # V7.6 V2-FIX: Verify proxy health before building browser config
+        if self._proxy_manager and billing_address:
+            try:
+                from proxy_manager import GeoTarget, ProxyStatus
+                geo = GeoTarget.from_billing_address(billing_address)
+                proxy = self._proxy_manager.get_proxy_for_geo(geo)
+                if proxy and proxy.status == ProxyStatus.DEAD:
+                    logger.warning(f"  ⚠ Proxy {proxy.host} is DEAD — attempting rotation")
+                    # Try to get a different healthy proxy
+                    for p in self._proxy_manager.pool:
+                        if p.status != ProxyStatus.DEAD and p.country == geo.country:
+                            proxy = p
+                            logger.info(f"  ✓ Rotated to healthy proxy: {p.host}:{p.port}")
+                            break
+                elif proxy is None:
+                    logger.warning("  ⚠ No proxy available for billing geo — browser will use direct connection")
+            except ImportError:
+                pass
+            except Exception as e:
+                logger.debug(f"  Proxy health check skipped: {e}")
+        
+        # V7.6 V5-FIX: Generate and inject commerce trust tokens into profile
+        try:
+            tokens = self.generate_commerce_tokens(age_days=60)
+            if tokens and self.config.profile_path:
+                profile_path = Path(self.config.profile_path) if not isinstance(self.config.profile_path, Path) else self.config.profile_path
+                token_file = profile_path / ".titan" / "commerce_tokens.json"
+                token_file.parent.mkdir(parents=True, exist_ok=True)
+                import json as _json
+                token_file.write_text(_json.dumps(tokens, indent=2))
+                logger.info(f"  ✓ Commerce tokens written to profile ({len(tokens)} providers)")
+        except Exception as e:
+            logger.debug(f"  Commerce token injection skipped: {e}")
+        
+        # V8 U16-FIX: Configure DNS-over-HTTPS to prevent DNS leak
+        try:
+            profile_path = Path(self.config.profile_path) if self.config.profile_path else None
+            if profile_path and profile_path.exists():
+                user_js = profile_path / "user.js"
+                doh_prefs = [
+                    '\n// V8 DNS-over-HTTPS — prevents DNS leak through system resolver',
+                    'user_pref("network.trr.mode", 3);',           # 3 = DoH only, no fallback
+                    'user_pref("network.trr.uri", "https://mozilla.cloudflare-dns.com/dns-query");',
+                    'user_pref("network.trr.bootstrapAddr", "1.1.1.1");',
+                    'user_pref("network.dns.disablePrefetch", true);',
+                    'user_pref("network.dns.disableIPv6", true);',
+                ]
+                existing = user_js.read_text() if user_js.exists() else ""
+                if "network.trr.mode" not in existing:
+                    with open(user_js, "a") as f:
+                        for pref in doh_prefs:
+                            f.write(pref + "\n")
+                    logger.info("  ✓ DNS-over-HTTPS configured (mode=3, Cloudflare)")
+                else:
+                    logger.debug("  DoH already configured in user.js")
+        except Exception as e:
+            logger.debug(f"  DoH configuration skipped: {e}")
+        
+        # V8 U2-FIX: Auto-load eBPF network shield for TCP/IP masquerade
+        try:
+            from network_shield_loader import NetworkShield, Persona
+            shield = NetworkShield()
+            if shield.is_available():
+                shield.switch_persona(Persona.WINDOWS)
+                logger.info("  ✓ eBPF network shield loaded (Windows TCP/IP persona)")
+            elif hasattr(shield, 'load') and callable(shield.load):
+                shield.load()
+                shield.switch_persona(Persona.WINDOWS)
+                logger.info("  ✓ eBPF network shield compiled & loaded")
+            else:
+                logger.debug("  eBPF shield: not available (requires root + kernel support)")
+        except ImportError:
+            logger.debug("  eBPF shield module not available")
+        except Exception as e:
+            logger.debug(f"  eBPF shield skipped: {e}")
+        
+        # V8 U3-FIX: Apply CPUID/RDTSC hardening to suppress KVM markers
+        try:
+            from cpuid_rdtsc_shield import CPUIDRDTSCShield
+            cpu_shield = CPUIDRDTSCShield()
+            findings = cpu_shield.detect_hypervisor()
+            if findings.get("hypervisor_detected"):
+                results = cpu_shield.apply_all()
+                overrides_ok = sum(1 for v in results.get("sysfs_overrides", {}).values() if v)
+                logger.info(f"  ✓ CPUID/RDTSC shield applied ({overrides_ok} DMI overrides)")
+            else:
+                logger.debug("  CPUID shield: no hypervisor detected, skipping")
+        except ImportError:
+            logger.debug("  CPUID/RDTSC shield module not available")
+        except Exception as e:
+            logger.debug(f"  CPUID/RDTSC shield skipped: {e}")
+        
+        # V8 U27-FIX: Profile validation before launch (V6 fail vector)
+        try:
+            if self.config.profile_path:
+                profile_path = Path(self.config.profile_path) if not isinstance(self.config.profile_path, Path) else self.config.profile_path
+                required_files = ["places.sqlite", "prefs.js", "compatibility.ini"]
+                missing = [f for f in required_files if not (profile_path / f).exists()]
+                if missing:
+                    logger.warning(f"  ⚠️ Profile missing {len(missing)} required files: {', '.join(missing)}")
+                else:
+                    logger.info(f"  ✓ Profile validated ({len(required_files)} required files present)")
+        except Exception as e:
+            logger.debug(f"  Profile validation skipped: {e}")
+        
+        # V8 U27-FIX: Start session IP monitor during operation
+        try:
+            from proxy_manager import SessionIPMonitor
+            proxy_url = getattr(self.config, 'proxy', None)
+            self._session_ip_monitor = SessionIPMonitor(proxy_url=proxy_url)
+            self._session_ip_monitor.start()
+        except ImportError:
+            logger.debug("  Session IP monitor not available")
+        except Exception as e:
+            logger.debug(f"  Session IP monitor skipped: {e}")
+        
+        # V8 U27-FIX: Auto-start transaction monitor
+        try:
+            from transaction_monitor import TransactionMonitor
+            self._tx_monitor = TransactionMonitor()
+            self._tx_monitor.start()
+            logger.info("  ✓ Transaction monitor active on :7443")
+        except ImportError:
+            logger.debug("  Transaction monitor not available")
+        except Exception as e:
+            logger.debug(f"  Transaction monitor skipped: {e}")
         
         # Build config
         self.get_browser_config()

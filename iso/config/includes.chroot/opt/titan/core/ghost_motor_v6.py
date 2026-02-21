@@ -82,6 +82,9 @@ class TrajectoryConfig:
     
     # Persona presets
     persona: PersonaType = PersonaType.CASUAL
+    
+    # V8 FIX: Profile seed for deterministic trajectories per profile
+    profile_seed: Optional[int] = None
 
 
 @dataclass
@@ -219,6 +222,15 @@ class GhostMotorDiffusion:
             self.config.noise_schedule
         )
         
+        # V8 FIX: Seeded RNG for deterministic trajectories per profile
+        # Prevents behavioral fingerprint drift across sessions
+        if self.config.profile_seed is not None:
+            self._rng = random.Random(self.config.profile_seed)
+            self._np_rng = np.random.RandomState(self.config.profile_seed & 0xFFFFFFFF)
+        else:
+            self._rng = random.Random()
+            self._np_rng = np.random.RandomState()
+        
         # ONNX model for learned denoising (optional)
         self.onnx_session = None
         self._load_model()
@@ -229,16 +241,28 @@ class GhostMotorDiffusion:
         )
     
     def _load_model(self):
-        """Load ONNX model if available"""
+        """Load ONNX model if available — V8: multi-path fallback"""
         if not ONNX_AVAILABLE:
             return
         
-        model_path = "/opt/titan/models/dmtg_denoiser.onnx"
-        try:
-            self.onnx_session = ort.InferenceSession(model_path)
-        except Exception:
-            # Model not found - use analytical denoising
-            pass
+        # V8 V7-FIX: Try multiple paths instead of single hardcoded path
+        import os as _os
+        model_paths = [
+            _os.environ.get("TITAN_GHOST_MOTOR_MODEL", ""),
+            "/opt/titan/models/dmtg_denoiser.onnx",
+            "/opt/titan/data/models/dmtg_denoiser.onnx",
+            str(Path.home() / ".titan" / "models" / "dmtg_denoiser.onnx"),
+        ]
+        
+        for model_path in model_paths:
+            if not model_path:
+                continue
+            try:
+                self.onnx_session = ort.InferenceSession(model_path)
+                return  # Successfully loaded
+            except Exception:
+                continue
+        # All paths failed — use analytical denoising (no error needed)
     
     def generate_path(self,
                       start_pos: Tuple[float, float],
@@ -265,7 +289,7 @@ class GhostMotorDiffusion:
             # Fitts' Law approximation: T = a + b * log2(D/W + 1)
             # Simplified: longer distance = longer time, with variance
             base_duration = 100 + distance * 0.8
-            duration_ms = base_duration * random.uniform(0.8, 1.2)
+            duration_ms = base_duration * self._rng.uniform(0.8, 1.2)
             duration_ms = np.clip(
                 duration_ms,
                 self.config.min_duration_ms,
@@ -275,13 +299,13 @@ class GhostMotorDiffusion:
         # Number of points based on duration (60 FPS equivalent)
         num_points = max(10, int(duration_ms / 16))
         
-        # Initialize with Gaussian noise
-        path = np.random.randn(num_points, 2) * self.config.entropy_scale
+        # Initialize with Gaussian noise (V8: seeded)
+        path = self._np_rng.randn(num_points, 2) * self.config.entropy_scale
         
         # Reverse diffusion loop
         for t in reversed(range(self.config.num_diffusion_steps)):
             # Inject biological entropy
-            z = np.random.randn(*path.shape) * self.config.entropy_scale if t > 0 else 0
+            z = self._np_rng.randn(*path.shape) * self.config.entropy_scale if t > 0 else 0
             
             # Predict noise (use model or analytical)
             if self.onnx_session:
@@ -302,11 +326,11 @@ class GhostMotorDiffusion:
         path = self._add_micro_tremors(path)
         
         # Maybe add overshoot
-        if random.random() < self.config.overshoot_probability:
+        if self._rng.random() < self.config.overshoot_probability:
             path = self._add_overshoot(path, end_pos)
         
         # Maybe add mid-path correction
-        if random.random() < self.config.correction_probability:
+        if self._rng.random() < self.config.correction_probability:
             path = self._add_correction(path)
         
         # Smooth with spline interpolation
@@ -352,10 +376,10 @@ class GhostMotorDiffusion:
         
         # Multi-segment cubic Bezier with 2 randomized control points
         # Provides natural S-curve or C-curve variation per trajectory
-        cp1_x = random.uniform(0.2, 0.4)
-        cp1_y = random.uniform(-0.25, 0.25)
-        cp2_x = random.uniform(0.6, 0.8)
-        cp2_y = random.uniform(-0.25, 0.25)
+        cp1_x = self._rng.uniform(0.2, 0.4)
+        cp1_y = self._rng.uniform(-0.25, 0.25)
+        cp2_x = self._rng.uniform(0.6, 0.8)
+        cp2_y = self._rng.uniform(-0.25, 0.25)
         
         # Cubic Bezier: B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
         t_param = cumulative
@@ -372,10 +396,10 @@ class GhostMotorDiffusion:
                    t_param**3 * 1.0)
         
         # Add subtle per-point Perlin-like noise for micro-variability
-        freq = random.uniform(2.0, 5.0)
+        freq = self._rng.uniform(2.0, 5.0)
         amplitude = 0.02 * self.config.entropy_scale
-        micro_noise_x = amplitude * np.sin(freq * np.pi * s + random.uniform(0, 2*np.pi))
-        micro_noise_y = amplitude * np.sin(freq * 1.3 * np.pi * s + random.uniform(0, 2*np.pi))
+        micro_noise_x = amplitude * np.sin(freq * np.pi * s + self._rng.uniform(0, 2*np.pi))
+        micro_noise_y = amplitude * np.sin(freq * 1.3 * np.pi * s + self._rng.uniform(0, 2*np.pi))
         
         base_trajectory = np.column_stack([
             base_x + micro_noise_x,
@@ -471,7 +495,7 @@ class GhostMotorDiffusion:
         if direction_norm > 0:
             direction = direction / direction_norm
         
-        overshoot_dist = random.uniform(3, self.config.overshoot_max_distance)
+        overshoot_dist = self._rng.uniform(3, self.config.overshoot_max_distance)
         overshoot_point = path[-1] + direction * overshoot_dist
         
         # Add overshoot and correction points
@@ -486,10 +510,10 @@ class GhostMotorDiffusion:
             return path
         
         # Insert correction at random point in middle third
-        insert_idx = random.randint(len(path) // 3, 2 * len(path) // 3)
+        insert_idx = self._rng.randint(len(path) // 3, 2 * len(path) // 3)
         
         # Small deviation and return
-        deviation = np.random.randn(2) * 3 * self.config.entropy_scale
+        deviation = self._np_rng.randn(2) * 3 * self.config.entropy_scale
         correction_point = path[insert_idx] + deviation
         
         # Insert correction
@@ -519,7 +543,7 @@ class GhostMotorDiffusion:
         timestamps = np.linspace(0, total_duration, num_points)
         
         # Add timing variance (humans don't move at constant speed)
-        variance = np.random.randn(num_points) * (total_duration * 0.05)
+        variance = self._np_rng.randn(num_points) * (total_duration * 0.05)
         variance[0] = 0  # Start at 0
         variance[-1] = 0  # End at total_duration
         
@@ -607,7 +631,7 @@ class GhostMotorDiffusion:
                 "type": "doubleclick",
                 "x": int(target_pos[0]),
                 "y": int(target_pos[1]),
-                "delay_between_ms": random.uniform(80, 150)
+                "delay_between_ms": self._rng.uniform(80, 150)
             }
         else:
             # Single click with human-like hold duration
@@ -615,7 +639,7 @@ class GhostMotorDiffusion:
                 "type": "click",
                 "x": int(target_pos[0]),
                 "y": int(target_pos[1]),
-                "hold_ms": random.uniform(50, 120)
+                "hold_ms": self._rng.uniform(50, 120)
             }
         
         return trajectory, click_event

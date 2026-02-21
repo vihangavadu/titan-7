@@ -59,7 +59,7 @@ class HandoverState:
     profile_id: Optional[str] = None
     profile_path: Optional[Path] = None
     target_domain: Optional[str] = None
-    browser_type: str = "firefox"
+    browser_type: str = "camoufox"
     automation_pids: List[int] = field(default_factory=list)
     genesis_complete: bool = False
     freeze_verified: bool = False

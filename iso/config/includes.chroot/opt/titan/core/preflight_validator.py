@@ -140,6 +140,9 @@ class PreFlightValidator:
         self._check_timezone()
         self._check_system_locale()
         
+        # V8 U14-FIX: Fingerprint readiness check
+        self._check_fingerprint_readiness()
+        
         # Determine overall status
         if self.report.critical_failures:
             self.report.passed = False
@@ -743,6 +746,50 @@ class PreFlightValidator:
                 status=CheckStatus.WARN,
                 message=f"Could not check locale: {e}",
                 critical=False
+            ))
+    
+    def _check_fingerprint_readiness(self):
+        """V8 U14-FIX: Check if fingerprint shim modules are available for injection"""
+        shim_modules = {
+            "canvas_subpixel_shim": "Canvas sub-pixel rendering correction",
+            "audio_hardener": "Audio stack nullification",
+            "font_sanitizer": "Font sanitization",
+            "fingerprint_injector": "Fingerprint injector (WebRTC, ClientHints)",
+            "cpuid_rdtsc_shield": "CPUID/RDTSC VM marker suppression",
+        }
+        available = []
+        missing = []
+        
+        for mod_name, description in shim_modules.items():
+            try:
+                __import__(mod_name)
+                available.append(mod_name)
+            except ImportError:
+                missing.append(f"{mod_name} ({description})")
+        
+        # Check eBPF availability
+        ebpf_ready = False
+        try:
+            from network_shield_loader import NetworkShield
+            ns = NetworkShield()
+            ebpf_ready = hasattr(ns, 'is_available') and ns.is_available()
+        except Exception:
+            pass
+        
+        if missing:
+            self.report.checks.append(PreFlightCheck(
+                name="Fingerprint Readiness",
+                status=CheckStatus.WARN,
+                message=f"{len(available)}/{len(shim_modules)} shims available, missing: {', '.join(missing)}",
+                critical=False,
+                details={"available": available, "missing": missing, "ebpf_ready": ebpf_ready}
+            ))
+        else:
+            self.report.checks.append(PreFlightCheck(
+                name="Fingerprint Readiness",
+                status=CheckStatus.PASS,
+                message=f"All {len(available)} fingerprint shims available, eBPF: {'ready' if ebpf_ready else 'unavailable'}",
+                details={"available": available, "ebpf_ready": ebpf_ready}
             ))
     
     # ═══════════════════════════════════════════════════════════════════════
@@ -1486,12 +1533,53 @@ class PreflightScheduler:
     def _callback_rotate_proxy(self, result: OrchestratedResult):
         """Rotate proxy on IP-related failure"""
         logger.warning("PREFLIGHT FAILURE - Requesting proxy rotation")
-        # Would integrate with proxy manager
+        try:
+            from proxy_manager import ResidentialProxyManager
+            pm = ResidentialProxyManager()
+            old_proxy = getattr(result, 'details', {}).get('proxy', 'unknown')
+            if hasattr(pm, 'rotate') and callable(pm.rotate):
+                new_proxy = pm.rotate()
+            elif hasattr(pm, 'get_next_proxy') and callable(pm.get_next_proxy):
+                new_proxy = pm.get_next_proxy()
+            elif hasattr(pm, 'blacklist_and_rotate'):
+                new_proxy = pm.blacklist_and_rotate(old_proxy)
+            else:
+                new_proxy = None
+            if new_proxy:
+                logger.info(f"PREFLIGHT: Proxy rotated → {getattr(new_proxy, 'host', new_proxy)}")
+            else:
+                logger.warning("PREFLIGHT: Proxy rotation returned None — manual rotation needed")
+        except ImportError:
+            logger.warning("PREFLIGHT: proxy_manager not available — rotate proxy manually")
+        except Exception as e:
+            logger.error(f"PREFLIGHT: Proxy rotation failed: {e}")
     
     def _callback_reconnect_vpn(self, result: OrchestratedResult):
         """Reconnect VPN on tunnel failure"""
         logger.warning("PREFLIGHT FAILURE - Requesting VPN reconnection")
-        # Would integrate with Lucid VPN
+        try:
+            from lucid_vpn import LucidVPN, VPNConfig
+            vpn_config = VPNConfig.from_env()
+            if vpn_config.vps_address:
+                vpn = LucidVPN(vpn_config)
+                if hasattr(vpn, 'reconnect') and callable(vpn.reconnect):
+                    success = vpn.reconnect()
+                elif hasattr(vpn, 'restart') and callable(vpn.restart):
+                    success = vpn.restart()
+                elif hasattr(vpn, 'connect') and callable(vpn.connect):
+                    success = vpn.connect()
+                else:
+                    success = False
+                if success:
+                    logger.info("PREFLIGHT: VPN reconnected successfully")
+                else:
+                    logger.warning("PREFLIGHT: VPN reconnect returned False — check VPN config")
+            else:
+                logger.warning("PREFLIGHT: VPN not configured in titan.env")
+        except ImportError:
+            logger.warning("PREFLIGHT: lucid_vpn not available — reconnect VPN manually")
+        except Exception as e:
+            logger.error(f"PREFLIGHT: VPN reconnection failed: {e}")
     
     def get_schedule_status(self) -> Dict[str, Dict]:
         """Get status of all schedules"""

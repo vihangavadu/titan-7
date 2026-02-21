@@ -69,7 +69,7 @@ from urllib.parse import urlparse
 import base64
 import zlib
 
-__version__ = "7.5.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
 
 

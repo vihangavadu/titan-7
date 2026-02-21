@@ -234,7 +234,13 @@ class ResidentialProxyManager:
         """Load proxy pool from JSON file"""
         path = Path(pool_file)
         if not path.exists():
-            logger.warning(f"Pool file not found: {pool_file}")
+            # V8 U19-FIX: Auto-create empty pool file to prevent crash
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps({"proxies": [], "_note": "Add proxies here or use TITAN_PROXY_PROVIDER"}, indent=2))
+                logger.warning(f"Pool file created (empty): {pool_file} — add proxies before operations")
+            except Exception as e:
+                logger.warning(f"Pool file not found and cannot create: {pool_file} ({e})")
             return
         
         try:
@@ -1057,6 +1063,132 @@ class ProxyGeoVerifier:
         return None
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# V8 U18-FIX: MID-SESSION IP CONSISTENCY MONITOR
+# Background thread checks exit IP every 30s during active operation.
+# Alerts if proxy silently rotates mid-session (detection vector V10).
+# ═══════════════════════════════════════════════════════════════════════════
+
+import threading
+import urllib.request
+
+class SessionIPMonitor:
+    """
+    Monitors exit IP stability during active operations.
+    Detects silent proxy rotation that could expose different IPs
+    to antifraud systems mid-checkout.
+    """
+    
+    CHECK_INTERVAL = 30  # seconds between IP checks
+    IP_CHECK_URLS = [
+        "https://api.ipify.org",
+        "https://ifconfig.me/ip",
+        "https://icanhazip.com",
+    ]
+    
+    def __init__(self, proxy_url: str = None, on_ip_change: callable = None):
+        self.proxy_url = proxy_url
+        self.on_ip_change = on_ip_change
+        self._initial_ip = None
+        self._current_ip = None
+        self._running = False
+        self._thread = None
+        self._check_count = 0
+        self._ip_changes = 0
+        self._lock = threading.Lock()
+    
+    def start(self, initial_ip: str = None) -> str:
+        """Start monitoring. Returns initial exit IP."""
+        if self._running:
+            return self._initial_ip
+        
+        self._initial_ip = initial_ip or self._fetch_exit_ip()
+        self._current_ip = self._initial_ip
+        self._running = True
+        self._check_count = 0
+        self._ip_changes = 0
+        
+        self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self._thread.start()
+        
+        logger.info(f"  ✓ Session IP monitor started (exit IP: {self._initial_ip})")
+        return self._initial_ip
+    
+    def stop(self) -> Dict:
+        """Stop monitoring. Returns session stability report."""
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=5)
+        
+        return {
+            "initial_ip": self._initial_ip,
+            "final_ip": self._current_ip,
+            "checks": self._check_count,
+            "ip_changes": self._ip_changes,
+            "stable": self._ip_changes == 0,
+        }
+    
+    def _monitor_loop(self):
+        """Background loop that checks IP periodically."""
+        while self._running:
+            time.sleep(self.CHECK_INTERVAL)
+            if not self._running:
+                break
+            
+            try:
+                new_ip = self._fetch_exit_ip()
+                self._check_count += 1
+                
+                if new_ip and new_ip != self._current_ip:
+                    self._ip_changes += 1
+                    old_ip = self._current_ip
+                    self._current_ip = new_ip
+                    
+                    logger.warning(
+                        f"⚠️ SESSION IP CHANGED: {old_ip} → {new_ip} "
+                        f"(change #{self._ip_changes} after {self._check_count} checks)"
+                    )
+                    
+                    if self.on_ip_change:
+                        try:
+                            self.on_ip_change(old_ip, new_ip, self._ip_changes)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+    
+    def _fetch_exit_ip(self) -> Optional[str]:
+        """Fetch current exit IP via external service."""
+        for url in self.IP_CHECK_URLS:
+            try:
+                if self.proxy_url:
+                    proxy_handler = urllib.request.ProxyHandler({
+                        'http': self.proxy_url,
+                        'https': self.proxy_url,
+                    })
+                    opener = urllib.request.build_opener(proxy_handler)
+                else:
+                    opener = urllib.request.build_opener()
+                
+                req = urllib.request.Request(url, headers={"User-Agent": "curl/8.0"})
+                with opener.open(req, timeout=10) as resp:
+                    ip = resp.read().decode().strip()
+                    if ip and len(ip) < 46:  # Valid IPv4/IPv6 length
+                        return ip
+            except Exception:
+                continue
+        return None
+    
+    @property
+    def is_stable(self) -> bool:
+        """Check if IP has remained consistent."""
+        return self._ip_changes == 0
+    
+    @property
+    def current_ip(self) -> Optional[str]:
+        return self._current_ip
+
+
 # V7.6 Convenience exports
 def create_proxy_health_checker(manager: ResidentialProxyManager = None) -> ProxyHealthChecker:
     """V7.6: Create proxy health checker"""
@@ -1069,3 +1201,7 @@ def create_ip_intelligence() -> ProxyIPIntelligence:
 def create_geo_verifier() -> ProxyGeoVerifier:
     """V7.6: Create geo location verifier"""
     return ProxyGeoVerifier()
+
+def create_session_ip_monitor(proxy_url: str = None) -> SessionIPMonitor:
+    """V8: Create session IP consistency monitor"""
+    return SessionIPMonitor(proxy_url=proxy_url)

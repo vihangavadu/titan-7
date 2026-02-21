@@ -29,7 +29,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-__version__ = "7.0.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
 
 

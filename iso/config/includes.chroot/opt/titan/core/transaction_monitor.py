@@ -655,6 +655,29 @@ class TransactionMonitor:
         except Exception:
             pass
         
+        # V8 U12-FIX: Feed transaction result to AI Operations Guard for learning
+        try:
+            from titan_ai_operations_guard import get_operations_guard
+            guard = get_operations_guard()
+            if guard:
+                guard_result = {
+                    "target_domain": tx["domain"],
+                    "card_bin": tx.get("card_bin", ""),
+                    "amount": tx.get("amount", 0),
+                    "currency": tx.get("currency", "USD"),
+                    "status": status,
+                    "decline_code": code,
+                    "decline_category": decoded.get("category", ""),
+                    "psp": decoded.get("psp", psp),
+                    "three_ds_triggered": bool(tx.get("three_ds_triggered")),
+                }
+                guard.post_operation_analysis(guard_result)
+                logger.debug(f"  Fed TX #{tx_id} to Operations Guard for learning")
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"  Operations Guard feed skipped: {e}")
+        
         return {
             "tx_id": tx_id,
             "status": status,

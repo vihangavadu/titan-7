@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.6 AUTO-PATCHER
+TITAN V8.0 AUTO-PATCHER
 ========================
 Automatic patching system based on detection research feedback.
 

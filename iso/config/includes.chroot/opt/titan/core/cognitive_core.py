@@ -1390,11 +1390,84 @@ def get_3ds_ai_engine():
 
 def get_ai_exploit_stack(domain: str = "", psp: str = "unknown",
                          card_country: str = "US", amount: float = 100) -> Dict:
-    """V7.6: Get optimal layered exploit stack for a target."""
+    """V7.6: Get co-pilot config for a target."""
     try:
         from titan_3ds_ai_exploits import get_3ds_ai_engine
-        return get_3ds_ai_engine().get_optimal_stack(
-            domain, psp, card_country=card_country, amount=amount
+        return get_3ds_ai_engine().get_copilot_config(
+            psp=psp, card_country=card_country, amount=amount
         )
     except ImportError:
         return {"error": "titan_3ds_ai_exploits not available"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 AI OPERATIONS GUARD
+# Silent Ollama-powered operation lifecycle monitor
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_operations_guard():
+    """V7.6: Get AI Operations Guard (Ollama-powered operation lifecycle monitor)."""
+    try:
+        from titan_ai_operations_guard import get_operations_guard as _get
+        return _get()
+    except ImportError:
+        return None
+
+
+def guard_pre_op(target: str, card_bin: str = "", card_country: str = "US",
+                 proxy_country: str = "", billing_state: str = "",
+                 amount: float = 100, **kwargs) -> Dict:
+    """V7.6: Pre-operation check — catches issues before you commit."""
+    try:
+        from titan_ai_operations_guard import get_operations_guard
+        guard = get_operations_guard()
+        verdict = guard.pre_operation_check(
+            target=target, card_bin=card_bin, card_country=card_country,
+            proxy_country=proxy_country, billing_state=billing_state,
+            amount=amount, **kwargs
+        )
+        return {
+            "risk_level": verdict.risk_level.value,
+            "proceed": verdict.proceed,
+            "issues": verdict.issues,
+            "recommendations": verdict.recommendations,
+            "ai_reasoning": verdict.ai_reasoning,
+        }
+    except ImportError:
+        return {"error": "titan_ai_operations_guard not available"}
+
+
+def guard_session_health(**kwargs) -> Dict:
+    """V7.6: Check active session health."""
+    try:
+        from titan_ai_operations_guard import get_operations_guard
+        guard = get_operations_guard()
+        verdict = guard.check_session_health(**kwargs)
+        return {
+            "risk_level": verdict.risk_level.value,
+            "proceed": verdict.proceed,
+            "issues": verdict.issues,
+            "recommendations": verdict.recommendations,
+        }
+    except ImportError:
+        return {"error": "titan_ai_operations_guard not available"}
+
+
+def guard_post_op(target: str, result: str, decline_code: str = "",
+                  card_bin: str = "", amount: float = 0, **kwargs) -> Dict:
+    """V7.6: Post-operation analysis — learn from results."""
+    try:
+        from titan_ai_operations_guard import get_operations_guard
+        guard = get_operations_guard()
+        verdict = guard.post_operation_analysis(
+            target=target, result=result, decline_code=decline_code,
+            card_bin=card_bin, amount=amount, **kwargs
+        )
+        return {
+            "risk_level": verdict.risk_level.value,
+            "issues": verdict.issues,
+            "recommendations": verdict.recommendations,
+            "ai_reasoning": verdict.ai_reasoning,
+        }
+    except ImportError:
+        return {"error": "titan_ai_operations_guard not available"}

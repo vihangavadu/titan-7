@@ -1,6 +1,24 @@
 """
-TITAN V7.6 SINGULARITY - Core Library
-Reality Synthesis Suite - Shared Components
+TITAN V8.0 SINGULARITY - Core Library
+Reality Synthesis Suite - Maximum Level
+
+V8.0 Upgrades (Maximum Level):
+- Ghost Motor seeded RNG (deterministic trajectories per profile)
+- DNS-over-HTTPS (DoH mode=3, Cloudflare) prevents DNS leak
+- eBPF network shield auto-loaded in full_prepare()
+- CPUID/RDTSC shield auto-applied for KVM marker suppression
+- Transaction monitor → Operations Guard live feedback loop
+- Mid-session IP consistency monitor (30s polling)
+- Profile validation before launch (required files check)
+- Transaction monitor auto-start on operation
+- Handover protocol defaults to camoufox browser
+- Proxy pool auto-creation on first run
+- Win10 22H2 audio profile added
+- Autonomous Self-Improving Engine (24/7 operation loop with self-patching)
+- Task queue ingestion, adaptive scheduling, detection analysis
+- End-of-day self-patch cycle (analyze failures → adjust params → retry)
+- MetricsDB (SQLite) for persistent operation tracking
+- 28+ upgrade opportunities identified and patched
 
 V7.6 Upgrades (AI Integration + P0 Critical):
 - AI Intelligence Engine with Ollama LLM integration
@@ -48,10 +66,10 @@ This module provides the core logic for the Trinity Apps:
 - KYC (Identity Mask)
 """
 
-__version__ = "7.6.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
-__status__ = "SINGULARITY_V76"
-__codename__ = "REALITY_SYNTHESIS"
+__status__ = "SINGULARITY_V8"
+__codename__ = "MAXIMUM_LEVEL"
 
 from .genesis_core import GenesisEngine, ProfileConfig, TargetPreset
 from .cerberus_core import CerberusValidator, CardAsset, ValidationResult
@@ -64,7 +82,7 @@ from .ghost_motor_v6 import GhostMotorDiffusion, TrajectoryConfig, PersonaType
 from .quic_proxy import TitanQUICProxy, ProxyConfig, BrowserProfile
 from .handover_protocol import ManualHandoverProtocol, HandoverPhase, HandoverStatus
 from .integration_bridge import TitanIntegrationBridge, BridgeConfig, create_bridge
-from .proxy_manager import ResidentialProxyManager, ProxyEndpoint, GeoTarget, get_active_connection
+from .proxy_manager import ResidentialProxyManager, ProxyEndpoint, GeoTarget, get_active_connection, SessionIPMonitor, create_session_ip_monitor
 from .lucid_vpn import LucidVPN, VPNConfig, VPNMode, VPNStatus
 from .purchase_history_engine import PurchaseHistoryEngine, CardHolderData, PurchaseHistoryConfig, inject_purchase_history
 from .cerberus_enhanced import AVSEngine, BINScoringEngine, SilentValidationEngine, GeoMatchChecker, check_avs, score_bin, get_silent_strategy, check_geo
@@ -215,6 +233,18 @@ except ImportError:
     ThreeDSAIEngine = get_3ds_ai_engine = None
     get_ai_techniques = get_optimal_exploit_stack = generate_exploit_script = None
 
+# V7.6 AI Operations Guard — Silent Ollama-powered operation lifecycle monitor
+try:
+    from .titan_ai_operations_guard import (
+        AIOperationsGuard, get_operations_guard,
+        pre_op_check, session_health, checkout_assist, post_op_analysis,
+        GuardVerdict, OperationPhase, RiskLevel,
+    )
+except ImportError:
+    AIOperationsGuard = get_operations_guard = None
+    pre_op_check = session_health = checkout_assist = post_op_analysis = None
+    GuardVerdict = OperationPhase = RiskLevel = None
+
 # V7.5 Singularity Enhancement Modules
 from .ja4_permutation_engine import JA4PermutationEngine
 from .indexeddb_lsng_synthesis import IndexedDBShardSynthesizer, LocalStorageSynthesizer, StoragePersona, StorageShard
@@ -222,6 +252,18 @@ from .tra_exemption_engine import ExemptionType, CardholderProfile, IssuerBehavi
 from .tof_depth_synthesis import FaceDepthGenerator, DepthQuality, FacialLandmarks, DepthMapConfig
 from .issuer_algo_defense import IssuerDeclineDefenseEngine, DeclineReason, AmountOptimizer
 from .first_session_bias_eliminator import FirstSessionBiasEliminator
+
+# V8.0 Autonomous Self-Improving Engine
+try:
+    from .titan_autonomous_engine import (
+        AutonomousEngine, get_autonomous_engine, start_autonomous, stop_autonomous,
+        get_autonomous_status, TaskQueue, TaskInput, MetricsDB, DetectionAnalyzer,
+        SelfPatcher, AdaptiveScheduler, CycleMetrics
+    )
+except ImportError:
+    AutonomousEngine = get_autonomous_engine = start_autonomous = stop_autonomous = None
+    get_autonomous_status = TaskQueue = TaskInput = MetricsDB = None
+    DetectionAnalyzer = SelfPatcher = AdaptiveScheduler = CycleMetrics = None
 
 __all__ = [
     # Trinity Apps Core
@@ -381,4 +423,14 @@ __all__ = [
     # V7.6 3DS AI-Speed Exploit Engine
     'ThreeDSAIEngine', 'get_3ds_ai_engine',
     'get_ai_techniques', 'get_optimal_exploit_stack', 'generate_exploit_script',
+    # V7.6 AI Operations Guard
+    'AIOperationsGuard', 'get_operations_guard',
+    'pre_op_check', 'session_health', 'checkout_assist', 'post_op_analysis',
+    'GuardVerdict', 'OperationPhase', 'RiskLevel',
+    # V8.0 Maximum Level Upgrades
+    'SessionIPMonitor', 'create_session_ip_monitor',
+    # V8.0 Autonomous Self-Improving Engine (24/7)
+    'AutonomousEngine', 'get_autonomous_engine', 'start_autonomous', 'stop_autonomous',
+    'get_autonomous_status', 'TaskQueue', 'TaskInput', 'MetricsDB',
+    'DetectionAnalyzer', 'SelfPatcher', 'AdaptiveScheduler', 'CycleMetrics',
 ]

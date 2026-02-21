@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
-__version__ = "7.5.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
 
 

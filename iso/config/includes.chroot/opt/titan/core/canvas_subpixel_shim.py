@@ -32,7 +32,7 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger("TITAN-CANVAS-SHIM")
 
-__version__ = "7.5.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
 
 

@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 from enum import Enum
 
-__version__ = "7.5.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
 
 logger = logging.getLogger("TITAN-AI")

@@ -1,5 +1,5 @@
 """
-TITAN V7.5 SINGULARITY — Service Orchestrator
+TITAN V8.0 MAXIMUM LEVEL — Service Orchestrator
 Auto-starts and manages all background services:
   - Transaction Monitor (24/7 capture on port 7443)
   - Daily Auto-Discovery (finds new easy targets once per day)
@@ -533,6 +533,7 @@ class TitanServiceManager:
         self.discovery_scheduler = None
         self.feedback_loop = None
         self.memory_pressure = None
+        self.autonomous_engine = None
         self._started = False
     
     def start_all(self, tx_port: int = None, discovery_hour: int = None) -> Dict:
@@ -592,6 +593,20 @@ class TitanServiceManager:
             results["memory_pressure"] = {"status": "error", "error": str(e)}
             logger.error(f"Memory Pressure Manager failed: {e}")
 
+        # 5. V8.0 Autonomous Self-Improving Engine (24/7)
+        if get_config("TITAN_AUTONOMOUS_AUTOSTART", "0") == "1":
+            try:
+                from titan_autonomous_engine import AutonomousEngine
+                self.autonomous_engine = AutonomousEngine()
+                self.autonomous_engine.load_tasks()
+                self.autonomous_engine.start()
+                results["autonomous_engine"] = {"status": "started", "tasks": self.autonomous_engine.task_queue.pending_count()}
+            except Exception as e:
+                results["autonomous_engine"] = {"status": "error", "error": str(e)}
+                logger.error(f"Autonomous Engine failed: {e}")
+        else:
+            results["autonomous_engine"] = {"status": "disabled_by_config"}
+
         self._started = True
         logger.info("All TITAN services started")
         return results
@@ -605,6 +620,8 @@ class TitanServiceManager:
             self.feedback_loop.stop()
         if self.memory_pressure:
             self.memory_pressure.stop()
+        if self.autonomous_engine:
+            self.autonomous_engine.stop()
         self._started = False
         logger.info("All TITAN services stopped")
     
@@ -615,6 +632,7 @@ class TitanServiceManager:
             "discovery_scheduler": self.discovery_scheduler.get_status() if self.discovery_scheduler else {"status": "not started"},
             "feedback_loop": self.feedback_loop.get_status() if self.feedback_loop else {"status": "not started"},
             "memory_pressure": self.memory_pressure.get_status() if self.memory_pressure else {"status": "not started"},
+            "autonomous_engine": self.autonomous_engine.get_status() if self.autonomous_engine else {"status": "not started"},
         }
     
     def run_discovery_now(self) -> Dict:

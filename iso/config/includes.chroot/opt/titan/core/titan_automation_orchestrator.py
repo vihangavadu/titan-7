@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.6 AUTOMATION ORCHESTRATOR
+TITAN V8.0 AUTOMATION ORCHESTRATOR
 ===================================
 End-to-end operation automation with comprehensive logging,
 detection research, and auto-patching feedback loop.
@@ -171,7 +171,7 @@ class OperationConfig:
     
     # Options
     profile_age_days: int = 90
-    browser_type: str = "firefox"
+    browser_type: str = "camoufox"
     headless: bool = False
     use_vpn: bool = True
     use_proxy: bool = True
