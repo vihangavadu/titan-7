@@ -94,13 +94,26 @@ try:
     from audio_hardener import AudioHardener, AudioTargetOS
     from timezone_enforcer import TimezoneEnforcer, TimezoneConfig, get_timezone_for_state
     from kill_switch import KillSwitch, KillSwitchConfig
-    from cerberus_enhanced import OSINTVerifier, CardQualityGrader, CardQualityGrade
+    from cerberus_enhanced import OSINTVerifier, CardQualityGrader, CardQualityGrade, score_bin, BINScoringEngine
     from purchase_history_engine import PurchaseHistoryEngine, CardHolderData
     from preflight_validator import PreFlightValidator
     HARDENING_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: V7.5 Hardening modules not available: {e}")
     HARDENING_AVAILABLE = False
+
+# V7.5 AI Intelligence Engine
+try:
+    from ai_intelligence_engine import (
+        is_ai_available, get_ai_status, analyze_bin, recon_target,
+        advise_3ds, advise_preflight, tune_behavior, audit_profile,
+        plan_operation, AIOperationPlan, RiskLevel,
+    )
+    from tls_parrot import TLSParrotEngine, ParrotTarget
+    AI_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: AI Intelligence Engine not available: {e}")
+    AI_AVAILABLE = False
 
 
 class ProxyTestWorker(QThread):
@@ -908,14 +921,67 @@ class UnifiedOperationCenter(QMainWindow):
         env_btn_row.addWidget(self.tz_enforce_btn)
         env_btn_row.addStretch()
         env_form.addRow("Actions:", env_btn_row)
+        
+        # V7.5 Extended hardening row
+        env_btn_row2 = QHBoxLayout()
+        self.canvas_shim_btn = QPushButton("🖼️ Canvas Shim")
+        self.canvas_shim_btn.setToolTip("V7.5: Sub-pixel measureText() correction for Windows consistency")
+        self.canvas_shim_btn.clicked.connect(self._run_canvas_shim)
+        env_btn_row2.addWidget(self.canvas_shim_btn)
+        
+        self.cpuid_shield_btn = QPushButton("🔒 CPUID Shield")
+        self.cpuid_shield_btn.setToolTip("V7.5: DMI bind-mount overrides + hypervisor suppression")
+        self.cpuid_shield_btn.clicked.connect(self._run_cpuid_shield)
+        env_btn_row2.addWidget(self.cpuid_shield_btn)
+        
+        self.font_prov_btn = QPushButton("📦 Font Provision")
+        self.font_prov_btn.setToolTip("V7.5: Install Windows fonts + block Linux fonts + alias Segoe UI")
+        self.font_prov_btn.clicked.connect(self._run_font_provisioner)
+        env_btn_row2.addWidget(self.font_prov_btn)
+        
+        self.immutable_btn = QPushButton("🛡️ Immutable OS")
+        self.immutable_btn.setToolTip("Lock down OS: immutable resolv.conf, sysctl hardening")
+        self.immutable_btn.clicked.connect(self._run_immutable_os)
+        env_btn_row2.addWidget(self.immutable_btn)
+        env_btn_row2.addStretch()
+        env_form.addRow("V7.5:", env_btn_row2)
+        
+        # Ghost Motor + Fingerprint row
+        env_btn_row3 = QHBoxLayout()
+        self.ghost_motor_btn = QPushButton("👻 Ghost Motor")
+        self.ghost_motor_btn.setToolTip("Diffusion-based human trajectory generation for Forter/BioCatch evasion")
+        self.ghost_motor_btn.clicked.connect(self._run_ghost_motor_test)
+        env_btn_row3.addWidget(self.ghost_motor_btn)
+        
+        self.fp_inject_btn = QPushButton("🧬 Inject Fingerprint")
+        self.fp_inject_btn.setToolTip("Inject hardware fingerprint into browser profile via Netlink bridge")
+        self.fp_inject_btn.clicked.connect(self._run_fingerprint_inject)
+        env_btn_row3.addWidget(self.fp_inject_btn)
+        
+        self.run_all_shields_btn = QPushButton("⚡ RUN ALL SHIELDS")
+        self.run_all_shields_btn.setStyleSheet("QPushButton{background:#E6A817;color:#000;font-weight:bold;}")
+        self.run_all_shields_btn.setToolTip("Run all V7.5 hardening in sequence")
+        self.run_all_shields_btn.clicked.connect(self._run_all_shields)
+        env_btn_row3.addWidget(self.run_all_shields_btn)
+        env_btn_row3.addStretch()
+        env_form.addRow("Shields:", env_btn_row3)
+        
         env_layout.addLayout(env_form)
         
         self.env_result_text = QTextEdit()
         self.env_result_text.setReadOnly(True)
         self.env_result_text.setPlaceholderText(
-            "Phase 3.1 — Font Purge: Rejects Linux fonts (Liberation, DejaVu, Noto), injects Windows/macOS core fonts\n"
-            "Phase 3.2 — Audio Harden: Forces 44100Hz sample rate, injects noise into AudioBuffer, masks PulseAudio latency\n"
-            "Phase 3.3 — Timezone Sync: SIGKILL browsers → timedatectl set-timezone → NTP sync → verify"
+            "V7.5 Environment Hardening:\n"
+            "  Phase 3.1 — Font Purge: Reject Linux fonts, inject Windows core fonts\n"
+            "  Phase 3.2 — Audio Harden: 44100Hz + noise injection + PulseAudio mask\n"
+            "  Phase 3.3 — Timezone Sync: Kill browsers → set TZ → NTP sync\n"
+            "  Phase 3.4 — Canvas Shim: Sub-pixel measureText() correction (8 fonts)\n"
+            "  Phase 3.5 — CPUID Shield: DMI overrides + /sys/hypervisor suppression\n"
+            "  Phase 3.6 — Font Provision: 352 Windows fonts + 39 Linux fonts blocked\n"
+            "  Phase 3.7 — Immutable OS: resolv.conf lock + sysctl hardening\n"
+            "  Phase 3.8 — Ghost Motor: Diffusion trajectory generation\n"
+            "  Phase 3.9 — Fingerprint Inject: HW fingerprint → browser profile\n\n"
+            "Click RUN ALL SHIELDS to execute everything in sequence."
         )
         env_layout.addWidget(self.env_result_text)
         self.shields_tabs.addTab(env_widget, "Environment")
@@ -1614,6 +1680,202 @@ class UnifiedOperationCenter(QMainWindow):
         self.disc_tabs.addTab(svc_w, "Services")
         
         self.main_tabs.addTab(disc_tab, "DISCOVERY")
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # Tab 9: AI INTELLIGENCE — Ollama-Powered Operations
+        # ═══════════════════════════════════════════════════════════════════
+        ai_tab = QWidget()
+        ai_layout = QVBoxLayout(ai_tab)
+        ai_layout.setSpacing(4)
+        
+        self.ai_tabs = QTabWidget()
+        self.ai_tabs.setTabPosition(QTabWidget.TabPosition.West)
+        self.ai_tabs.setStyleSheet("""
+            QTabBar::tab { padding: 10px 6px; min-width: 30px; background: #1C2330; color: #64748B; }
+            QTabBar::tab:selected { background: #1A2D4A; color: #E6A817; font-weight: bold; border-left: 2px solid #E6A817; }
+            QTabBar::tab:hover { background: #232B3A; color: #E2E8F0; }
+        """)
+        ai_layout.addWidget(self.ai_tabs)
+        
+        # --- AI Operation Planner Sub-Tab ---
+        ai_plan_w = QWidget()
+        ai_plan_l = QVBoxLayout(ai_plan_w)
+        ai_plan_header = QLabel("🧠 AI OPERATION PLANNER")
+        ai_plan_header.setFont(QFont("JetBrains Mono", 14, QFont.Weight.Bold))
+        ai_plan_header.setStyleSheet("color: #E6A817;")
+        ai_plan_l.addWidget(ai_plan_header)
+        ai_plan_l.addWidget(QLabel("Full AI analysis: BIN + Target + 3DS + Behavioral tuning in one call"))
+        
+        ai_plan_form = QFormLayout()
+        self.ai_bin_input = QLineEdit()
+        self.ai_bin_input.setPlaceholderText("Enter BIN (first 6 digits, e.g. 421783)")
+        ai_plan_form.addRow("Card BIN:", self.ai_bin_input)
+        self.ai_target_input = QLineEdit()
+        self.ai_target_input.setPlaceholderText("Target domain (e.g. eneba.com)")
+        ai_plan_form.addRow("Target:", self.ai_target_input)
+        self.ai_amount_input = QSpinBox()
+        self.ai_amount_input.setRange(1, 50000)
+        self.ai_amount_input.setValue(150)
+        self.ai_amount_input.setPrefix("$")
+        ai_plan_form.addRow("Amount:", self.ai_amount_input)
+        ai_plan_l.addLayout(ai_plan_form)
+        
+        ai_plan_btn_row = QHBoxLayout()
+        ai_plan_btn = QPushButton("🧠 RUN FULL AI PLAN")
+        ai_plan_btn.setStyleSheet("QPushButton{background:#E6A817;color:#000;font-weight:bold;padding:10px;font-size:14px;}")
+        ai_plan_btn.clicked.connect(self._ai_run_plan)
+        ai_plan_btn_row.addWidget(ai_plan_btn)
+        ai_bin_btn = QPushButton("🔍 BIN ONLY")
+        ai_bin_btn.clicked.connect(self._ai_analyze_bin)
+        ai_plan_btn_row.addWidget(ai_bin_btn)
+        ai_target_btn = QPushButton("🎯 TARGET ONLY")
+        ai_target_btn.clicked.connect(self._ai_recon_target)
+        ai_plan_btn_row.addWidget(ai_target_btn)
+        ai_plan_btn_row.addStretch()
+        ai_plan_l.addLayout(ai_plan_btn_row)
+        
+        self.ai_plan_result = QTextEdit()
+        self.ai_plan_result.setReadOnly(True)
+        self.ai_plan_result.setPlaceholderText(
+            "AI Operation Planner — Powered by local Ollama (qwen2.5:7b + mistral:7b)\n\n"
+            "Enter a BIN + Target + Amount and click RUN FULL AI PLAN.\n"
+            "The AI will analyze:\n"
+            "  • BIN risk scoring & bank intelligence\n"
+            "  • Target antifraud engine detection\n"
+            "  • 3DS bypass probability & strategy\n"
+            "  • Ghost Motor behavioral tuning\n"
+            "  • GO/NO-GO decision with confidence score\n\n"
+            "All inference runs LOCALLY — zero external API calls."
+        )
+        ai_plan_l.addWidget(self.ai_plan_result)
+        self.ai_tabs.addTab(ai_plan_w, "Op Planner")
+        
+        # --- AI 3DS Advisor Sub-Tab ---
+        ai_3ds_w = QWidget()
+        ai_3ds_l = QVBoxLayout(ai_3ds_w)
+        ai_3ds_l.addWidget(QLabel("🛡️ AI 3DS BYPASS ADVISOR"))
+        ai_3ds_form = QFormLayout()
+        self.ai_3ds_bin = QLineEdit()
+        self.ai_3ds_bin.setPlaceholderText("BIN (e.g. 421783)")
+        ai_3ds_form.addRow("BIN:", self.ai_3ds_bin)
+        self.ai_3ds_target = QLineEdit()
+        self.ai_3ds_target.setPlaceholderText("Target (e.g. eneba.com)")
+        ai_3ds_form.addRow("Target:", self.ai_3ds_target)
+        self.ai_3ds_amount = QSpinBox()
+        self.ai_3ds_amount.setRange(1, 50000)
+        self.ai_3ds_amount.setValue(100)
+        self.ai_3ds_amount.setPrefix("$")
+        ai_3ds_form.addRow("Amount:", self.ai_3ds_amount)
+        ai_3ds_l.addLayout(ai_3ds_form)
+        ai_3ds_btn = QPushButton("🛡️ GET 3DS STRATEGY")
+        ai_3ds_btn.setStyleSheet("QPushButton{background:#1A2D4A;color:#4A8AD8;font-weight:bold;padding:8px;}")
+        ai_3ds_btn.clicked.connect(self._ai_3ds_advise)
+        ai_3ds_l.addWidget(ai_3ds_btn)
+        self.ai_3ds_result = QTextEdit()
+        self.ai_3ds_result.setReadOnly(True)
+        self.ai_3ds_result.setPlaceholderText("AI will recommend optimal 3DS bypass strategy for your card+target+amount combination.")
+        ai_3ds_l.addWidget(self.ai_3ds_result)
+        self.ai_tabs.addTab(ai_3ds_w, "3DS Advisor")
+        
+        # --- AI Behavioral Tuning Sub-Tab ---
+        ai_beh_w = QWidget()
+        ai_beh_l = QVBoxLayout(ai_beh_w)
+        ai_beh_l.addWidget(QLabel("🎭 AI BEHAVIORAL TUNING (Ghost Motor)"))
+        ai_beh_form = QFormLayout()
+        self.ai_beh_target = QLineEdit()
+        self.ai_beh_target.setPlaceholderText("Target (e.g. amazon.com)")
+        ai_beh_form.addRow("Target:", self.ai_beh_target)
+        self.ai_beh_engine = QComboBox()
+        self.ai_beh_engine.addItems(["auto-detect", "forter", "riskified", "sift", "kount", "seon", "signifyd", "none"])
+        ai_beh_form.addRow("Fraud Engine:", self.ai_beh_engine)
+        self.ai_beh_persona = QLineEdit()
+        self.ai_beh_persona.setPlaceholderText("e.g. US adult 30-45, casual shopper")
+        self.ai_beh_persona.setText("US adult, casual online shopper")
+        ai_beh_form.addRow("Persona:", self.ai_beh_persona)
+        ai_beh_l.addLayout(ai_beh_form)
+        ai_beh_btn = QPushButton("🎭 GENERATE BEHAVIORAL PROFILE")
+        ai_beh_btn.setStyleSheet("QPushButton{background:#1A2D4A;color:#4A8AD8;font-weight:bold;padding:8px;}")
+        ai_beh_btn.clicked.connect(self._ai_tune_behavior)
+        ai_beh_l.addWidget(ai_beh_btn)
+        self.ai_beh_result = QTextEdit()
+        self.ai_beh_result.setReadOnly(True)
+        self.ai_beh_result.setPlaceholderText(
+            "AI generates per-target Ghost Motor parameters:\n"
+            "  • Mouse speed & click delays\n"
+            "  • Typing WPM & error rate\n"
+            "  • Scroll behavior & page dwell time\n"
+            "  • Form fill strategy\n"
+            "  • Idle patterns\n\n"
+            "Tuned specifically for the target's antifraud engine."
+        )
+        ai_beh_l.addWidget(self.ai_beh_result)
+        self.ai_tabs.addTab(ai_beh_w, "Behavioral")
+        
+        # --- AI Profile Audit Sub-Tab ---
+        ai_prof_w = QWidget()
+        ai_prof_l = QVBoxLayout(ai_prof_w)
+        ai_prof_l.addWidget(QLabel("🔬 AI PROFILE FORENSIC AUDIT"))
+        ai_prof_btn_row = QHBoxLayout()
+        ai_prof_btn = QPushButton("🔬 AUDIT CURRENT PROFILE")
+        ai_prof_btn.setStyleSheet("QPushButton{background:#1A2D4A;color:#4A8AD8;font-weight:bold;padding:8px;}")
+        ai_prof_btn.clicked.connect(self._ai_audit_profile)
+        ai_prof_btn_row.addWidget(ai_prof_btn)
+        ai_prof_browse = QPushButton("📁 SELECT PROFILE")
+        ai_prof_browse.clicked.connect(self._ai_browse_profile)
+        ai_prof_btn_row.addWidget(ai_prof_browse)
+        ai_prof_btn_row.addStretch()
+        ai_prof_l.addLayout(ai_prof_btn_row)
+        self.ai_prof_path = QLabel("Profile: (auto-detect from Genesis output)")
+        self.ai_prof_path.setStyleSheet("color: #64748B;")
+        ai_prof_l.addWidget(self.ai_prof_path)
+        self.ai_prof_result = QTextEdit()
+        self.ai_prof_result.setReadOnly(True)
+        self.ai_prof_result.setPlaceholderText(
+            "AI Forensic Profile Audit:\n"
+            "  • Checks for timestamp inconsistencies\n"
+            "  • Detects OS/UA mismatches\n"
+            "  • Validates cookie/history consistency\n"
+            "  • Identifies leak vectors antifraud would catch\n"
+            "  • Scores profile cleanliness 0-100\n\n"
+            "Click AUDIT to scan the generated profile."
+        )
+        ai_prof_l.addWidget(self.ai_prof_result)
+        self.ai_tabs.addTab(ai_prof_w, "Profile Audit")
+        
+        # --- TLS Parrot Status Sub-Tab ---
+        ai_tls_w = QWidget()
+        ai_tls_l = QVBoxLayout(ai_tls_w)
+        ai_tls_l.addWidget(QLabel("🔒 TLS PARROT ENGINE STATUS"))
+        ai_tls_btn = QPushButton("🔒 CHECK TLS STATUS")
+        ai_tls_btn.setStyleSheet("QPushButton{background:#1A2D4A;color:#4A8AD8;font-weight:bold;padding:8px;}")
+        ai_tls_btn.clicked.connect(self._ai_tls_status)
+        ai_tls_l.addWidget(ai_tls_btn)
+        self.ai_tls_result = QTextEdit()
+        self.ai_tls_result.setReadOnly(True)
+        self.ai_tls_result.setPlaceholderText(
+            "TLS Parrot Engine V7.5:\n"
+            "  • JA4+ fingerprint parroting\n"
+            "  • Per-session cipher/extension shuffling\n"
+            "  • Dynamic GREASE rotation\n"
+            "  • Chrome/Firefox/Edge/Safari templates\n\n"
+            "Click CHECK to verify TLS configuration."
+        )
+        ai_tls_l.addWidget(self.ai_tls_result)
+        self.ai_tabs.addTab(ai_tls_w, "TLS Parrot")
+        
+        # --- AI Status Sub-Tab ---
+        ai_status_w = QWidget()
+        ai_status_l = QVBoxLayout(ai_status_w)
+        ai_status_l.addWidget(QLabel("⚡ AI ENGINE STATUS"))
+        ai_status_btn = QPushButton("⚡ REFRESH STATUS")
+        ai_status_btn.clicked.connect(self._ai_refresh_status)
+        ai_status_l.addWidget(ai_status_btn)
+        self.ai_status_result = QTextEdit()
+        self.ai_status_result.setReadOnly(True)
+        ai_status_l.addWidget(self.ai_status_result)
+        self.ai_tabs.addTab(ai_status_w, "AI Status")
+        
+        self.main_tabs.addTab(ai_tab, "🧠 AI INTEL")
         
         # Start HUD auto-refresh timer (every 5 seconds)
         self._hud_timer = QTimer(self)
@@ -2951,6 +3213,479 @@ class UnifiedOperationCenter(QMainWindow):
         except Exception as e:
             self.svc_result_text.setPlainText(f"Error: {e}")
 
+
+    # ─── V7.5 EXTENDED SHIELD HANDLERS ───────────────────────────────
+
+    def _run_canvas_shim(self):
+        """Generate and deploy Canvas sub-pixel correction shim"""
+        try:
+            from canvas_subpixel_shim import CanvasSubPixelShim
+            shim = CanvasSubPixelShim(profile_uuid=getattr(self, '_last_profile_uuid', 'default'))
+            js = shim.generate_js_shim()
+            path = shim.write_shim_file()
+            self.env_result_text.setPlainText(
+                f"CANVAS SUB-PIXEL SHIM\n{'='*50}\n\n"
+                f"  JS shim generated: {len(js)} bytes\n"
+                f"  Written to: {path}\n"
+                f"  Seed: {shim._seed}\n"
+                f"  Font corrections: {len(shim._corrections)} fonts\n"
+                f"    (Arial, Times New Roman, Courier New, Verdana,\n"
+                f"     Georgia, Segoe UI, Tahoma, Calibri)\n\n"
+                f"  The shim intercepts measureText() and corrects\n"
+                f"  FreeType→DirectWrite sub-pixel discrepancies.\n"
+                f"  Injected via Ghost Motor extension on browser launch."
+            )
+        except Exception as e:
+            self.env_result_text.setPlainText(f"Canvas Shim Error: {e}")
+
+    def _run_cpuid_shield(self):
+        """Apply CPUID/RDTSC hardening"""
+        try:
+            from cpuid_rdtsc_shield import CPUIDRDTSCShield
+            shield = CPUIDRDTSCShield()
+            report = shield.apply_all()
+            pre = report['pre_scan']
+            post = report['post_scan']
+            text = f"CPUID/RDTSC SHIELD\n{'='*50}\n\n"
+            text += f"  Pre-scan leaks:  {len(pre['leak_vectors'])}\n"
+            text += f"  Post-scan leaks: {len(post['leak_vectors'])}\n"
+            text += f"  Leaks fixed:     {report['leaks_fixed']}\n\n"
+            text += f"  DMI Overrides:\n"
+            for path, ok in report.get('sysfs_overrides', {}).items():
+                text += f"    {'✅' if ok else '❌'} {path.split('/')[-1]}\n"
+            text += f"\n  Hypervisor suppressed: {'✅' if report['hypervisor_suppressed'] else '❌'}\n"
+            text += f"  ACPI suppressed: {'✅' if report['acpi_suppressed'] else '❌'}\n"
+            text += f"  RDTSC smoothed: {'✅' if report['rdtsc_smoothed'] else '❌'}\n"
+            if post['leak_vectors']:
+                text += f"\n  Remaining leaks:\n"
+                for v in post['leak_vectors']:
+                    text += f"    ⚠️ {v[:80]}\n"
+            self.env_result_text.setPlainText(text)
+        except Exception as e:
+            self.env_result_text.setPlainText(f"CPUID Shield Error: {e}")
+
+    def _run_font_provisioner(self):
+        """Run Windows font provisioner"""
+        try:
+            from windows_font_provisioner import WindowsFontProvisioner
+            self.env_result_text.setPlainText("📦 Provisioning Windows fonts... (may take 30s)")
+            QApplication.processEvents()
+            prov = WindowsFontProvisioner()
+            report = prov.provision()
+            v = report['verification']
+            text = f"WINDOWS FONT PROVISIONER\n{'='*50}\n\n"
+            text += f"  Packages: {sum(1 for x in report['packages'].values() if x)}/{len(report['packages'])}\n"
+            text += f"  Fonts staged: {report['fonts_staged']}\n"
+            text += f"  Fonts rejected: {report['rejected_count']}\n"
+            text += f"  Fonts aliased: {report['aliased_count']}\n"
+            text += f"  Fontconfig written: {'✅' if report['fontconfig_written'] else '❌'}\n\n"
+            text += f"  Windows fonts available: {v['windows_fonts_available']}\n"
+            text += f"  Linux fonts leaking: {len(v['linux_fonts_leaking'])}\n"
+            if v['linux_fonts_leaking']:
+                for f in v['linux_fonts_leaking']:
+                    text += f"    ⚠️ {f}\n"
+            if v.get('windows_fonts_missing'):
+                text += f"\n  Missing Windows fonts:\n"
+                for f in v['windows_fonts_missing']:
+                    text += f"    ❌ {f}\n"
+            self.env_result_text.setPlainText(text)
+        except Exception as e:
+            self.env_result_text.setPlainText(f"Font Provisioner Error: {e}")
+
+    def _run_immutable_os(self):
+        """Apply immutable OS hardening"""
+        try:
+            from immutable_os import ImmutableOS
+            ios = ImmutableOS()
+            result = ios.apply()
+            text = f"IMMUTABLE OS HARDENING\n{'='*50}\n\n"
+            if isinstance(result, dict):
+                for k, v in result.items():
+                    text += f"  {'✅' if v else '❌'} {k}\n"
+            else:
+                text += f"  Result: {result}\n"
+            self.env_result_text.setPlainText(text)
+        except ImportError:
+            # Fallback: run sysctl + chattr directly
+            import subprocess
+            cmds = [
+                ("sysctl -w net.ipv4.ip_default_ttl=128", "TTL=128"),
+                ("chattr +i /etc/resolv.conf", "resolv.conf immutable"),
+            ]
+            text = f"IMMUTABLE OS (direct mode)\n{'='*50}\n\n"
+            for cmd, desc in cmds:
+                try:
+                    r = subprocess.run(cmd.split(), capture_output=True, timeout=5)
+                    text += f"  {'✅' if r.returncode == 0 else '⚠️'} {desc}\n"
+                except Exception as e:
+                    text += f"  ❌ {desc}: {e}\n"
+            self.env_result_text.setPlainText(text)
+        except Exception as e:
+            self.env_result_text.setPlainText(f"Immutable OS Error: {e}")
+
+    def _run_ghost_motor_test(self):
+        """Test Ghost Motor diffusion trajectory generation"""
+        try:
+            from ghost_motor_v6 import (
+                GhostMotorDiffusion, PersonaType,
+                get_forter_safe_params, get_biocatch_evasion_guide, get_warmup_pattern
+            )
+            motor = GhostMotorDiffusion()
+            traj = motor.generate((100, 100), (500, 400), persona=PersonaType.CASUAL_SHOPPER)
+            forter = get_forter_safe_params()
+            warmup = get_warmup_pattern()
+            text = f"GHOST MOTOR V7.5 — DIFFUSION TRAJECTORY\n{'='*50}\n\n"
+            text += f"  Trajectory points: {len(traj.points)}\n"
+            text += f"  Duration: {traj.total_duration_ms:.0f}ms\n"
+            text += f"  Persona: CASUAL_SHOPPER\n"
+            text += f"  Start: (100, 100) → End: (500, 400)\n\n"
+            text += f"  Forter-Safe Parameters:\n"
+            for k, v in forter.items():
+                text += f"    {k}: {v}\n"
+            text += f"\n  Warmup Pattern:\n"
+            for k, v in list(warmup.items())[:8]:
+                text += f"    {k}: {v}\n"
+            text += f"\n  BioCatch Evasion:\n"
+            biocatch = get_biocatch_evasion_guide()
+            for k, v in list(biocatch.items())[:5]:
+                text += f"    {k}: {v}\n"
+            self.env_result_text.setPlainText(text)
+        except Exception as e:
+            self.env_result_text.setPlainText(f"Ghost Motor Error: {e}")
+
+    def _run_fingerprint_inject(self):
+        """Inject hardware fingerprint into current profile"""
+        try:
+            from fingerprint_injector import FingerprintInjector, create_injector
+            profile_uuid = getattr(self, '_last_profile_uuid', 'default-profile')
+            injector = create_injector(profile_uuid)
+            config = injector.generate_config()
+            text = f"FINGERPRINT INJECTOR\n{'='*50}\n\n"
+            text += f"  Profile UUID: {profile_uuid}\n"
+            text += f"  Config generated: {len(config)} parameters\n\n"
+            for k, v in list(config.items())[:15]:
+                val_str = str(v)[:60]
+                text += f"  {k}: {val_str}\n"
+            if len(config) > 15:
+                text += f"\n  ... and {len(config) - 15} more parameters\n"
+            text += f"\n  Fingerprint will be injected on browser launch."
+            self.env_result_text.setPlainText(text)
+        except Exception as e:
+            self.env_result_text.setPlainText(f"Fingerprint Injector Error: {e}")
+
+    def _run_all_shields(self):
+        """Run all V7.5 shields in sequence"""
+        self.env_result_text.setPlainText("⚡ RUNNING ALL V7.5 SHIELDS...\n")
+        QApplication.processEvents()
+        results = []
+        steps = [
+            ("Font Purge", self._run_font_purge),
+            ("Audio Harden", self._run_audio_harden),
+            ("Timezone Sync", self._run_tz_enforce),
+            ("Canvas Shim", self._run_canvas_shim),
+            ("CPUID Shield", self._run_cpuid_shield),
+            ("Font Provision", self._run_font_provisioner),
+            ("Immutable OS", self._run_immutable_os),
+            ("Ghost Motor", self._run_ghost_motor_test),
+            ("Fingerprint Inject", self._run_fingerprint_inject),
+        ]
+        text = f"⚡ ALL V7.5 SHIELDS — SEQUENTIAL RUN\n{'='*50}\n\n"
+        for name, func in steps:
+            try:
+                func()
+                # Capture what was written to env_result_text
+                result_text = self.env_result_text.toPlainText()
+                has_error = "Error" in result_text and "✅" not in result_text[:100]
+                results.append((name, not has_error))
+                text += f"  {'✅' if not has_error else '⚠️'} {name}\n"
+            except Exception as e:
+                results.append((name, False))
+                text += f"  ❌ {name}: {e}\n"
+            QApplication.processEvents()
+        
+        passed = sum(1 for _, ok in results if ok)
+        text += f"\n{'='*50}\n"
+        text += f"  Result: {passed}/{len(results)} shields active\n"
+        text += f"  Status: {'✅ ALL SHIELDS UP' if passed == len(results) else '⚠️ PARTIAL'}\n"
+        self.env_result_text.setPlainText(text)
+
+    # ─── AI INTELLIGENCE HANDLERS ────────────────────────────────────
+
+    def _ai_run_plan(self):
+        """Run full AI operation plan"""
+        if not AI_AVAILABLE:
+            self.ai_plan_result.setPlainText("AI Intelligence Engine not available.\nCheck that ai_intelligence_engine.py is in /opt/titan/core/")
+            return
+        bin_num = self.ai_bin_input.text().strip()
+        target = self.ai_target_input.text().strip()
+        amount = self.ai_amount_input.value()
+        if not bin_num or not target:
+            self.ai_plan_result.setPlainText("Enter BIN and Target to run AI plan.")
+            return
+        self.ai_plan_result.setPlainText("🧠 Running AI Operation Plan... (15-40s)\nAnalyzing BIN + Target + 3DS + Behavioral...")
+        QApplication.processEvents()
+        try:
+            plan = plan_operation(bin_num, target, amount)
+            text = f"{'='*60}\n  AI OPERATION PLAN\n{'='*60}\n\n"
+            text += f"  Decision: {'✅ GO' if plan.go_decision else '❌ NO-GO'}\n"
+            text += f"  Overall Score: {plan.overall_score}/100\n"
+            text += f"  AI Powered: {'Full' if plan.ai_powered else 'Partial (some fallbacks)'}\n\n"
+            text += f"{'─'*60}\n  BIN ANALYSIS\n{'─'*60}\n"
+            b = plan.bin_analysis
+            text += f"  Bank: {b.bank_name} | Country: {b.country}\n"
+            text += f"  Type: {b.card_type} {b.card_level} ({b.network})\n"
+            text += f"  AI Score: {b.ai_score}/100 | Success: {b.success_prediction:.0%}\n"
+            text += f"  Risk: {b.risk_level.value} | Amount: ${b.optimal_amount_range[0]:.0f}-${b.optimal_amount_range[1]:.0f}\n"
+            text += f"  Timing: {b.timing_advice}\n"
+            text += f"  Best targets: {', '.join(b.best_targets[:3])}\n"
+            if b.risk_factors:
+                text += f"  Risk factors: {'; '.join(b.risk_factors[:3])}\n"
+            text += f"  Strategy: {b.strategic_notes}\n\n"
+            text += f"{'─'*60}\n  TARGET RECON\n{'─'*60}\n"
+            t = plan.target_recon
+            text += f"  Target: {t.name} ({t.domain})\n"
+            text += f"  Fraud Engine: {t.fraud_engine_guess}\n"
+            text += f"  Payment PSP: {t.payment_processor_guess}\n"
+            text += f"  Friction: {t.estimated_friction} | 3DS: {t.three_ds_probability:.0%}\n"
+            if t.checkout_tips:
+                text += f"  Tips: {'; '.join(t.checkout_tips[:2])}\n"
+            text += f"\n{'─'*60}\n  3DS STRATEGY\n{'─'*60}\n"
+            s = plan.threeds_strategy
+            text += f"  Approach: {s.recommended_approach}\n"
+            text += f"  Success: {s.success_probability:.0%}\n"
+            text += f"  Timing: {s.timing_window}\n"
+            text += f"  Amount: {s.amount_strategy}\n"
+            if s.checkout_flow:
+                text += f"  Flow: {' → '.join(s.checkout_flow[:4])}\n"
+            text += f"  Fallback: {s.fallback_plan}\n"
+            text += f"\n{'─'*60}\n  BEHAVIORAL TUNING (Ghost Motor)\n{'─'*60}\n"
+            bh = plan.behavioral_tuning
+            text += f"  Mouse: {bh.mouse_speed_range[0]:.0f}-{bh.mouse_speed_range[1]:.0f} px/s\n"
+            text += f"  Click delay: {bh.click_delay_ms[0]}-{bh.click_delay_ms[1]}ms\n"
+            text += f"  Typing: {bh.typing_wpm_range[0]}-{bh.typing_wpm_range[1]} WPM (error: {bh.typing_error_rate:.1%})\n"
+            text += f"  Scroll: {bh.scroll_behavior}\n"
+            text += f"  Page dwell: {bh.page_dwell_seconds[0]}-{bh.page_dwell_seconds[1]}s\n"
+            text += f"  Form fill: {bh.form_fill_strategy}\n"
+            text += f"\n{'='*60}\n  {plan.executive_summary}\n{'='*60}\n"
+            self.ai_plan_result.setPlainText(text)
+        except Exception as e:
+            self.ai_plan_result.setPlainText(f"Error: {e}")
+
+    def _ai_analyze_bin(self):
+        """AI BIN-only analysis"""
+        if not AI_AVAILABLE:
+            self.ai_plan_result.setPlainText("AI not available")
+            return
+        bin_num = self.ai_bin_input.text().strip()
+        if not bin_num:
+            self.ai_plan_result.setPlainText("Enter a BIN number.")
+            return
+        self.ai_plan_result.setPlainText(f"🔍 Analyzing BIN {bin_num}...")
+        QApplication.processEvents()
+        try:
+            b = analyze_bin(bin_num, self.ai_target_input.text().strip(), self.ai_amount_input.value())
+            text = f"BIN ANALYSIS: {b.bin_number}\n{'='*50}\n"
+            text += f"  Bank: {b.bank_name} | Country: {b.country}\n"
+            text += f"  Type: {b.card_type} {b.card_level} ({b.network})\n"
+            text += f"  AI Score: {b.ai_score}/100 | Success: {b.success_prediction:.0%}\n"
+            text += f"  Risk: {b.risk_level.value}\n"
+            text += f"  Optimal: ${b.optimal_amount_range[0]:.0f}-${b.optimal_amount_range[1]:.0f}\n"
+            text += f"  Timing: {b.timing_advice}\n"
+            text += f"  Best: {', '.join(b.best_targets[:5])}\n"
+            text += f"  Avoid: {', '.join(b.avoid_targets[:3])}\n"
+            if b.risk_factors:
+                text += f"\n  Risk factors:\n" + "\n".join(f"    • {r}" for r in b.risk_factors)
+            text += f"\n\n  {b.strategic_notes}\n"
+            text += f"\n  AI Powered: {b.ai_powered}"
+            self.ai_plan_result.setPlainText(text)
+        except Exception as e:
+            self.ai_plan_result.setPlainText(f"Error: {e}")
+
+    def _ai_recon_target(self):
+        """AI target-only recon"""
+        if not AI_AVAILABLE:
+            self.ai_plan_result.setPlainText("AI not available")
+            return
+        target = self.ai_target_input.text().strip()
+        if not target:
+            self.ai_plan_result.setPlainText("Enter a target domain.")
+            return
+        self.ai_plan_result.setPlainText(f"🎯 Recon on {target}...")
+        QApplication.processEvents()
+        try:
+            t = recon_target(target)
+            text = f"TARGET RECON: {t.domain}\n{'='*50}\n"
+            text += f"  Name: {t.name}\n"
+            text += f"  Fraud Engine: {t.fraud_engine_guess}\n"
+            text += f"  Payment PSP: {t.payment_processor_guess}\n"
+            text += f"  Friction: {t.estimated_friction}\n"
+            text += f"  3DS Probability: {t.three_ds_probability:.0%}\n"
+            text += f"  Best cards: {', '.join(t.optimal_card_types)}\n"
+            text += f"  Best countries: {', '.join(t.optimal_countries)}\n"
+            if t.warmup_strategy:
+                text += f"\n  Warmup:\n" + "\n".join(f"    {i+1}. {s}" for i, s in enumerate(t.warmup_strategy[:5]))
+            if t.checkout_tips:
+                text += f"\n\n  Tips:\n" + "\n".join(f"    • {tip}" for tip in t.checkout_tips[:5])
+            if t.risk_factors:
+                text += f"\n\n  Risks:\n" + "\n".join(f"    ⚠ {r}" for r in t.risk_factors[:5])
+            text += f"\n\n  AI Powered: {t.ai_powered}"
+            self.ai_plan_result.setPlainText(text)
+        except Exception as e:
+            self.ai_plan_result.setPlainText(f"Error: {e}")
+
+    def _ai_3ds_advise(self):
+        """AI 3DS bypass strategy"""
+        if not AI_AVAILABLE:
+            self.ai_3ds_result.setPlainText("AI not available")
+            return
+        self.ai_3ds_result.setPlainText("🛡️ Generating 3DS strategy...")
+        QApplication.processEvents()
+        try:
+            s = advise_3ds(
+                self.ai_3ds_bin.text().strip() or "421783",
+                self.ai_3ds_target.text().strip() or "unknown",
+                self.ai_3ds_amount.value()
+            )
+            text = f"3DS BYPASS STRATEGY\n{'='*50}\n"
+            text += f"  Approach: {s.recommended_approach}\n"
+            text += f"  Success Probability: {s.success_probability:.0%}\n"
+            text += f"  Timing: {s.timing_window}\n"
+            text += f"  Amount Strategy: {s.amount_strategy}\n"
+            text += f"  Card Preference: {s.card_type_preference}\n"
+            if s.checkout_flow:
+                text += f"\n  Checkout Flow:\n" + "\n".join(f"    {i+1}. {step}" for i, step in enumerate(s.checkout_flow))
+            text += f"\n\n  Fallback: {s.fallback_plan}\n"
+            if s.risk_factors:
+                text += f"\n  Risks:\n" + "\n".join(f"    ⚠ {r}" for r in s.risk_factors)
+            text += f"\n\n  AI Powered: {s.ai_powered}"
+            self.ai_3ds_result.setPlainText(text)
+        except Exception as e:
+            self.ai_3ds_result.setPlainText(f"Error: {e}")
+
+    def _ai_tune_behavior(self):
+        """AI behavioral tuning for Ghost Motor"""
+        if not AI_AVAILABLE:
+            self.ai_beh_result.setPlainText("AI not available")
+            return
+        self.ai_beh_result.setPlainText("🎭 Generating behavioral profile...")
+        QApplication.processEvents()
+        try:
+            engine = self.ai_beh_engine.currentText()
+            if engine == "auto-detect":
+                engine = "unknown"
+            bh = tune_behavior(
+                self.ai_beh_target.text().strip() or "unknown",
+                fraud_engine=engine,
+                persona=self.ai_beh_persona.text().strip()
+            )
+            text = f"GHOST MOTOR BEHAVIORAL PROFILE\n{'='*50}\n"
+            text += f"  Target: {bh.target}\n\n"
+            text += f"  Mouse Speed:    {bh.mouse_speed_range[0]:.0f} - {bh.mouse_speed_range[1]:.0f} px/s\n"
+            text += f"  Click Delay:    {bh.click_delay_ms[0]} - {bh.click_delay_ms[1]} ms\n"
+            text += f"  Scroll:         {bh.scroll_behavior}\n"
+            text += f"  Typing Speed:   {bh.typing_wpm_range[0]} - {bh.typing_wpm_range[1]} WPM\n"
+            text += f"  Typing Errors:  {bh.typing_error_rate:.1%}\n"
+            text += f"  Page Dwell:     {bh.page_dwell_seconds[0]} - {bh.page_dwell_seconds[1]} seconds\n"
+            text += f"  Idle Pattern:   {bh.idle_pattern}\n"
+            text += f"  Form Fill:      {bh.form_fill_strategy}\n"
+            text += f"\n  AI Powered: {bh.ai_powered}"
+            self.ai_beh_result.setPlainText(text)
+        except Exception as e:
+            self.ai_beh_result.setPlainText(f"Error: {e}")
+
+    def _ai_audit_profile(self):
+        """AI profile forensic audit"""
+        if not AI_AVAILABLE:
+            self.ai_prof_result.setPlainText("AI not available")
+            return
+        profile_path = getattr(self, '_ai_selected_profile', None)
+        if not profile_path:
+            profiles_dir = Path("/opt/titan/profiles")
+            if profiles_dir.exists():
+                dirs = sorted(profiles_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+                if dirs:
+                    profile_path = str(dirs[0])
+        if not profile_path:
+            self.ai_prof_result.setPlainText("No profile found. Generate one with Genesis first, or click SELECT PROFILE.")
+            return
+        self.ai_prof_path.setText(f"Profile: {profile_path}")
+        self.ai_prof_result.setPlainText(f"🔬 Auditing profile: {profile_path}...")
+        QApplication.processEvents()
+        try:
+            result = audit_profile(profile_path)
+            text = f"PROFILE FORENSIC AUDIT\n{'='*50}\n"
+            text += f"  Path: {profile_path}\n"
+            text += f"  Clean: {'✅ YES' if result.clean else '❌ NO'}\n"
+            text += f"  Score: {result.score}/100\n"
+            text += f"  AI Powered: {result.ai_powered}\n"
+            if result.inconsistencies:
+                text += f"\n  Inconsistencies ({len(result.inconsistencies)}):\n"
+                text += "\n".join(f"    ⚠ {i}" for i in result.inconsistencies)
+            if result.leak_vectors:
+                text += f"\n\n  Leak Vectors ({len(result.leak_vectors)}):\n"
+                text += "\n".join(f"    🔴 {v}" for v in result.leak_vectors)
+            if result.recommendations:
+                text += f"\n\n  Recommendations:\n"
+                text += "\n".join(f"    → {r}" for r in result.recommendations)
+            self.ai_prof_result.setPlainText(text)
+        except Exception as e:
+            self.ai_prof_result.setPlainText(f"Error: {e}")
+
+    def _ai_browse_profile(self):
+        """Browse for profile directory"""
+        path = QFileDialog.getExistingDirectory(self, "Select Profile Directory", "/opt/titan/profiles")
+        if path:
+            self._ai_selected_profile = path
+            self.ai_prof_path.setText(f"Profile: {path}")
+
+    def _ai_tls_status(self):
+        """Show TLS Parrot engine status"""
+        try:
+            if not AI_AVAILABLE:
+                self.ai_tls_result.setPlainText("TLS Parrot module not available")
+                return
+            engine = TLSParrotEngine()
+            text = f"TLS PARROT ENGINE V7.5\n{'='*50}\n\n"
+            text += f"  Templates loaded: {len(engine.templates)}\n\n"
+            for target, tmpl in engine.templates.items():
+                text += f"  {target.value}:\n"
+                text += f"    JA3: {tmpl.ja3_hash[:20]}...\n"
+                text += f"    JA4: {tmpl.ja4_hash}\n"
+                text += f"    Ciphers: {len(tmpl.cipher_suites)} | Extensions: {len(tmpl.extensions)}\n"
+                text += f"    GREASE: {'✅' if tmpl.grease_enabled else '❌'} | ECH: {'✅' if tmpl.encrypted_client_hello else '❌'}\n\n"
+            text += f"{'─'*50}\n  JA4+ Permutation Test:\n"
+            p1 = engine.ja4_permutation(ParrotTarget.CHROME_131_WIN11, "test.com")
+            p2 = engine.ja4_permutation(ParrotTarget.CHROME_131_WIN11, "test.com")
+            text += f"    Session 1 ciphers: {p1['cipher_suites'][:3]}...\n"
+            text += f"    Session 2 ciphers: {p2['cipher_suites'][:3]}...\n"
+            text += f"    Different order: {'✅ YES' if p1['cipher_suites'] != p2['cipher_suites'] else '⚠ SAME'}\n"
+            text += f"    JA4 hash stable: {'✅ YES' if p1['ja4_computed'] == p2['ja4_computed'] else '❌ NO'}\n"
+            self.ai_tls_result.setPlainText(text)
+        except Exception as e:
+            self.ai_tls_result.setPlainText(f"Error: {e}")
+
+    def _ai_refresh_status(self):
+        """Refresh AI engine status"""
+        try:
+            if AI_AVAILABLE:
+                status = get_ai_status()
+                text = f"AI INTELLIGENCE ENGINE STATUS\n{'='*50}\n\n"
+                text += f"  Available: {'✅ ONLINE' if status['available'] else '❌ OFFLINE'}\n"
+                text += f"  Provider: {status['provider']}\n"
+                text += f"  Version: {status['version']}\n\n"
+                if status['features']:
+                    text += f"  Features ({len(status['features'])}):\n"
+                    for f in status['features']:
+                        text += f"    ✅ {f}\n"
+                else:
+                    text += "  No features available (Ollama offline?)\n"
+                    text += "\n  To start Ollama: systemctl start ollama\n"
+            else:
+                text = "AI Intelligence Engine not imported.\n"
+                text += "Check /opt/titan/core/ai_intelligence_engine.py exists."
+            self.ai_status_result.setPlainText(text)
+        except Exception as e:
+            self.ai_status_result.setPlainText(f"Error: {e}")
 
     def _launch_forensic_monitor(self):
         """Launch the forensic monitor widget"""
