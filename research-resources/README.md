@@ -1,8 +1,8 @@
-# TITAN V7.0.3 SINGULARITY — Research Resources
+# TITAN V7.6 SINGULARITY — Research Resources
 
 ## Complete Technical Documentation of the Entire Codebase
 
-This folder contains in-depth documentation covering every feature, capability, technique, and operational workflow in TITAN OS. Each document is derived directly from the source code (50 core modules, 6 GUI apps, 14 backend modules, 2 browser extensions, 2 kernel modules).
+This folder contains in-depth documentation covering every feature, capability, technique, and operational workflow in TITAN OS. Each document is derived directly from the source code (56 core modules, 14 GUI/app modules, 2 browser extensions, 2 kernel modules).
 
 ---
 
@@ -25,6 +25,7 @@ This folder contains in-depth documentation covering every feature, capability, 
 | 13 | [Cognitive AI Engine](13_COGNITIVE_AI_ENGINE.md) | Cloud vLLM brain, CAPTCHA solving, risk assessment, decision making, conversation generation, human latency injection, local Ollama fallback, rule-based fallback | `cognitive_core.py` |
 | 14 | [Full Architecture Whitepaper](14_TITAN_WHITEPAPER_FULL_ARCHITECTURE.md) | Complete 9-phase technical whitepaper covering all evasion layers, kernel spoofing, eBPF manipulation, deterministic fingerprinting, Genesis forging, Cerberus intelligence, Ghost Motor biometrics, Handover Protocol, Kill Switch forensics, AI cognitive core, KYC bypass with voice synthesis | All modules — comprehensive reference |
 | 15 | [v7.5 R&D Roadmap](15_TITAN_V75_RD_ROADMAP.md) | Strategic upgrade plan: initramfs DMI injection, CPUID/RDTSC hardening, eBPF tail-call architecture, VLESS+Reality transport, JA4 TLS permutation, α-DDIM diffusion Ghost Motor, font sub-pixel shim, ambient lighting normalization, Prometheus-Core autonomous integration, memory pressure management | Future architecture — engineering blueprint |
+| 16 | [V7.5 Strategic Architecture](16_V75_STRATEGIC_ARCHITECTURE.md) | Failure vector analysis (35% issuer declines, 20% 3DS, 15% first-session bias), Trinity upgrade matrix, JA4/GREASE permutation, IndexedDB sharding, TRA exemptions, USPS AVS normalization, TensorRT INT8 quantization, ToF depth synthesis, α-DDIM diffusion, DirectiveLock protocol, OS rating 94/100 | Strategic engineering pathways — V7.5 evolution |
 
 ---
 
@@ -32,18 +33,20 @@ This folder contains in-depth documentation covering every feature, capability, 
 
 | Metric | Value |
 |--------|-------|
-| **Total core modules** | 50 Python files |
-| **Total GUI apps** | 6 PyQt6 applications |
-| **Total backend modules** | 14 Python files |
+| **Total core modules** | 56 Python files |
+| **Total app modules** | 14 Python files |
+| **Total loadable modules** | 87 |
 | **Browser extensions** | 2 (Ghost Motor, TX Monitor) |
 | **Kernel modules** | 2 (hardware_shield_v6.c, network_shield_v6.c) |
-| **Shell scripts** | 6 (titan-browser, titan-launcher, etc.) |
-| **Total lines of code** | ~25,000+ |
+| **Total lines of code** | ~108,000+ |
+| **Total codebase size** | ~4,380 KB |
 | **Detection vectors covered** | 50+ |
-| **Antifraud platforms mapped** | 12 |
+| **Antifraud platforms mapped** | 21 |
 | **Target merchant presets** | 50+ |
 | **KYC provider profiles** | 8 |
 | **Persona archetypes** | 5 |
+| **OS sophistication rating** | 94/100 |
+| **Projected success rate** | ~84-87% |
 
 ---
 
