@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.0.3 — DOCKER DESKTOP POWERSHELL SCRIPT
+# TITAN V8.1 — DOCKER DESKTOP POWERSHELL SCRIPT
 # AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 # PURPOSE: Build Titan ISO using Docker Desktop on Windows
 #
@@ -38,7 +38,7 @@ function Write-ColorOutput {
 }
 
 function Show-Help {
-    Write-ColorOutput "TITAN V7.0.3 Docker Build Script" "Cyan"
+    Write-ColorOutput "TITAN V8.1 Docker Build Script" "Cyan"
     Write-ColorOutput ""
     Write-ColorOutput "Usage:" "White"
     Write-ColorOutput "  .\build_docker.ps1 [options]" "White"
@@ -61,7 +61,7 @@ if ($Help) {
 
 # Show header
 Write-ColorOutput "╔══════════════════════════════════════════════════════════════╗" "Cyan"
-Write-ColorOutput "║  TITAN V7.0.3 SINGULARITY — Docker Desktop Build        ║" "Cyan"
+Write-ColorOutput "║  TITAN V8.1 SINGULARITY — Docker Desktop Build           ║" "Cyan"
 Write-ColorOutput "║  Authority: Dva.12 | Status: OBLIVION_ACTIVE               ║" "Cyan"
 Write-ColorOutput "╚══════════════════════════════════════════════════════════════╝" "Cyan"
 Write-ColorOutput ""
@@ -299,4 +299,4 @@ if (Test-Path $ISOFile) {
 }
 
 Write-ColorOutput ""
-Write-ColorOutput "TITAN V7.0.3 Docker Desktop build complete!" "Green"
+Write-ColorOutput "TITAN V8.1 Docker Desktop build complete!" "Green"

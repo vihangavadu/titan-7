@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 — KYC Motion Asset Generator
+TITAN V7.5 — KYC Motion Asset Generator
 Generates synthetic motion driving videos for liveness challenge bypass.
 
 Usage:
@@ -193,7 +193,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print("  TITAN V7.0.3 — KYC Motion Asset Generator")
+    print("  TITAN V7.5 — KYC Motion Asset Generator")
     print("=" * 60)
 
     method = args.method

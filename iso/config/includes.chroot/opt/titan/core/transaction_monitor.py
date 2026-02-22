@@ -1,5 +1,5 @@
 """
-TITAN V7.0.3 SINGULARITY — Transaction Monitor
+TITAN V7.5 SINGULARITY — Transaction Monitor
 24/7 real-time capture and analysis of all purchase attempts.
 
 Architecture:
@@ -34,7 +34,7 @@ import sqlite3
 import logging
 import threading
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -235,6 +235,31 @@ class DeclineDecoder:
         "adyen": ADYEN_DECLINE_CODES,
         "authorize_net": AUTHNET_RESPONSE_CODES,
         "iso8583": ISO_RESPONSE_CODES,
+        "checkout_com": {
+            "20005": {"reason": "Do not honor", "category": DeclineCategory.DO_NOT_HONOR, "action": "Generic bank decline. Try different amount/time."},
+            "20051": {"reason": "Insufficient funds", "category": DeclineCategory.INSUFFICIENT_FUNDS, "action": "Lower amount or different card."},
+            "20054": {"reason": "Expired card", "category": DeclineCategory.CARD_ISSUE, "action": "Card expired."},
+            "20055": {"reason": "Incorrect PIN", "category": DeclineCategory.CARD_ISSUE, "action": "PIN required — use credit card instead."},
+            "20059": {"reason": "Suspected fraud", "category": DeclineCategory.FRAUD_BLOCK, "action": "Issuer fraud flag. Card is hot."},
+            "20014": {"reason": "Invalid card number", "category": DeclineCategory.CARD_ISSUE, "action": "Bad card number."},
+            "20082": {"reason": "CVV mismatch", "category": DeclineCategory.CVV_MISMATCH, "action": "Wrong CVV."},
+            "20087": {"reason": "3DS authentication failed", "category": DeclineCategory.THREE_DS_FAIL, "action": "3DS failed. Use bypass or different card."},
+            "20068": {"reason": "Response received too late", "category": DeclineCategory.PROCESSOR_ERROR, "action": "Timeout. Retry."},
+            "200N7": {"reason": "CVV2 mismatch", "category": DeclineCategory.CVV_MISMATCH, "action": "CVV code incorrect."},
+        },
+        "braintree": {
+            "2000": {"reason": "Do not honor", "category": DeclineCategory.DO_NOT_HONOR, "action": "Generic decline. Try different params."},
+            "2001": {"reason": "Insufficient funds", "category": DeclineCategory.INSUFFICIENT_FUNDS, "action": "Lower amount."},
+            "2002": {"reason": "Limit exceeded", "category": DeclineCategory.VELOCITY_LIMIT, "action": "Daily limit. Wait 24h."},
+            "2003": {"reason": "Cardholder activity limit exceeded", "category": DeclineCategory.VELOCITY_LIMIT, "action": "Too many txns. Wait."},
+            "2004": {"reason": "Expired card", "category": DeclineCategory.CARD_ISSUE, "action": "Card expired."},
+            "2005": {"reason": "Invalid card number", "category": DeclineCategory.CARD_ISSUE, "action": "Bad card number."},
+            "2006": {"reason": "Invalid expiry", "category": DeclineCategory.CARD_ISSUE, "action": "Wrong expiry date."},
+            "2010": {"reason": "Card issuer declined CVV", "category": DeclineCategory.CVV_MISMATCH, "action": "Wrong CVV."},
+            "2038": {"reason": "Processor declined", "category": DeclineCategory.DO_NOT_HONOR, "action": "PayPal backend declined. Try different approach."},
+            "2046": {"reason": "Declined — fraud", "category": DeclineCategory.FRAUD_BLOCK, "action": "Fraud flag. Card burned."},
+            "2059": {"reason": "AVS mismatch", "category": DeclineCategory.AVS_MISMATCH, "action": "Fix billing address."},
+        },
     }
     
     @classmethod
@@ -347,6 +372,26 @@ class TransactionDB:
         """)
         self.conn.commit()
     
+    def cleanup_old_records(self, retention_days: int = 30) -> int:
+        """
+        P2-2 FIX: Delete transaction records older than retention_days.
+        Prevents unbounded SQLite growth on long-running systems.
+        Returns number of rows deleted.
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+        with self._lock:
+            cursor = self.conn.execute(
+                "DELETE FROM transactions WHERE timestamp < ?", (cutoff,)
+            )
+            deleted = cursor.rowcount
+            if deleted > 0:
+                self.conn.execute("VACUUM")
+                self.conn.commit()
+                logging.getLogger("TITAN-TX").info(
+                    f"DB cleanup: removed {deleted} records older than {retention_days}d"
+                )
+            return deleted
+
     def insert(self, tx: Dict) -> int:
         with self._lock:
             cursor = self.conn.execute("""
@@ -358,7 +403,7 @@ class TransactionDB:
                  user_agent, notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                tx.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+                tx.get("timestamp", datetime.now(timezone.utc).isoformat()),
                 tx.get("domain", "unknown"),
                 tx.get("url", ""),
                 tx.get("amount"),
@@ -392,7 +437,7 @@ class TransactionDB:
             return [dict(row) for row in cursor.fetchall()]
     
     def get_stats(self, hours: int = 24) -> Dict:
-        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat() + "Z"
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
         with self._lock:
             total = self.conn.execute(
                 "SELECT COUNT(*) FROM transactions WHERE timestamp > ?", (cutoff,)
@@ -465,7 +510,7 @@ class TxMonitorHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._respond(400, {"error": str(e)})
         elif self.path == "/api/heartbeat":
-            self._respond(200, {"status": "alive", "timestamp": datetime.utcnow().isoformat()})
+            self._respond(200, {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()})
         else:
             self._respond(404, {"error": "not found"})
     
@@ -581,7 +626,7 @@ class TransactionMonitor:
         
         # Build transaction record
         tx = {
-            "timestamp": data.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            "timestamp": data.get("timestamp", datetime.now(timezone.utc).isoformat()),
             "domain": data.get("domain", "unknown"),
             "url": data.get("url", ""),
             "amount": data.get("amount"),
@@ -615,6 +660,44 @@ class TransactionMonitor:
             f"— ${tx.get('amount', '?')} — {decoded.get('reason', code)}"
         )
         
+        # V7.6: Push notification via self-hosted Ntfy
+        try:
+            from titan_self_hosted_stack import get_ntfy_client
+            ntfy = get_ntfy_client()
+            if ntfy and ntfy.is_available:
+                ntfy.send_operation_result({
+                    "result": status,
+                    "bin": tx.get("card_bin", ""),
+                    "target": tx["domain"],
+                    "amount": tx.get("amount", 0),
+                    "reason": decoded.get("reason", code),
+                })
+        except Exception:
+            pass
+        
+        # V8 U12-FIX: Feed transaction result to AI Operations Guard for learning
+        try:
+            from titan_ai_operations_guard import get_operations_guard
+            guard = get_operations_guard()
+            if guard:
+                guard_result = {
+                    "target_domain": tx["domain"],
+                    "card_bin": tx.get("card_bin", ""),
+                    "amount": tx.get("amount", 0),
+                    "currency": tx.get("currency", "USD"),
+                    "status": status,
+                    "decline_code": code,
+                    "decline_category": decoded.get("category", ""),
+                    "psp": decoded.get("psp", psp),
+                    "three_ds_triggered": bool(tx.get("three_ds_triggered")),
+                }
+                guard.post_operation_analysis(guard_result)
+                logger.debug(f"  Fed TX #{tx_id} to Operations Guard for learning")
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"  Operations Guard feed skipped: {e}")
+        
         return {
             "tx_id": tx_id,
             "status": status,
@@ -637,12 +720,12 @@ class TransactionMonitor:
     
     def get_history(self, last_hours: int = 24, limit: int = 100) -> List[Dict]:
         """Get recent transaction history"""
-        cutoff = (datetime.utcnow() - timedelta(hours=last_hours)).isoformat() + "Z"
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=last_hours)).isoformat()
         return self.db.query("timestamp > ?", (cutoff,), limit)
     
     def get_declines(self, last_hours: int = 24, limit: int = 50) -> List[Dict]:
         """Get recent declined transactions"""
-        cutoff = (datetime.utcnow() - timedelta(hours=last_hours)).isoformat() + "Z"
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=last_hours)).isoformat()
         return self.db.query("timestamp > ? AND status = 'declined'", (cutoff,), limit)
     
     def get_stats(self, hours: int = 24) -> Dict:
@@ -676,3 +759,687 @@ def start_tx_monitor(port=7443):
     """Quick: start the transaction monitor"""
     m = TransactionMonitor()
     return m.start(port)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL ENHANCEMENTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TransactionAnalytics:
+    """
+    V7.6 P0: Advanced analytics and pattern detection for transactions.
+    
+    Provides deep analytics, trend detection, anomaly identification,
+    and predictive insights for transaction patterns.
+    """
+    
+    _instance = None
+    
+    def __init__(self, db: TransactionDB = None):
+        self.db = db or TransactionDB()
+        self.analytics_cache: Dict[str, Dict] = {}
+        self.cache_ttl = 300  # 5 minutes
+        self.logger = logging.getLogger("TITAN-TX.Analytics")
+    
+    def get_hourly_pattern(self, days: int = 7) -> Dict:
+        """Analyze success rate by hour of day."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        
+        with self.db._lock:
+            rows = self.db.conn.execute("""
+                SELECT 
+                    CAST(strftime('%H', timestamp) AS INTEGER) as hour,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status='approved' THEN 1 ELSE 0 END) as approved
+                FROM transactions
+                WHERE timestamp > ?
+                GROUP BY hour
+                ORDER BY hour
+            """, (cutoff,)).fetchall()
+        
+        hourly = {}
+        for row in rows:
+            hour = row[0]
+            total = row[1]
+            approved = row[2]
+            hourly[hour] = {
+                "total": total,
+                "approved": approved,
+                "rate": round(approved / max(total, 1) * 100, 1)
+            }
+        
+        # Find best hours
+        best_hours = sorted(hourly.items(), key=lambda x: x[1]["rate"], reverse=True)[:5]
+        
+        return {
+            "period_days": days,
+            "hourly_breakdown": hourly,
+            "best_hours": [{"hour": h, **d} for h, d in best_hours],
+            "recommendation": f"Best hours for transactions: {', '.join(f'{h}:00' for h, _ in best_hours[:3])}"
+        }
+    
+    def get_site_analysis(self, min_transactions: int = 3) -> Dict:
+        """Deep analysis of site performance."""
+        stats = self.db.get_stats(hours=168)  # 7 days
+        by_site = stats.get("by_site", {})
+        
+        analysis = {
+            "sites_analyzed": len(by_site),
+            "high_success": [],
+            "low_success": [],
+            "velocity_limited": [],
+            "fraud_blocked": []
+        }
+        
+        for domain, data in by_site.items():
+            if data["total"] < min_transactions:
+                continue
+            
+            rate = data["rate"]
+            if rate >= 70:
+                analysis["high_success"].append({"domain": domain, **data})
+            elif rate < 30:
+                analysis["low_success"].append({"domain": domain, **data})
+        
+        # Check for velocity-limited sites
+        with self.db._lock:
+            velocity_rows = self.db.conn.execute("""
+                SELECT domain, COUNT(*) as cnt
+                FROM transactions
+                WHERE decline_category = 'velocity_limit'
+                AND timestamp > datetime('now', '-7 days')
+                GROUP BY domain
+                HAVING cnt >= 2
+                ORDER BY cnt DESC
+            """).fetchall()
+        
+        for row in velocity_rows:
+            analysis["velocity_limited"].append({"domain": row[0], "velocity_declines": row[1]})
+        
+        # Check for fraud-blocked sites
+        with self.db._lock:
+            fraud_rows = self.db.conn.execute("""
+                SELECT domain, COUNT(*) as cnt
+                FROM transactions
+                WHERE decline_category IN ('fraud_block', 'risk_decline')
+                AND timestamp > datetime('now', '-7 days')
+                GROUP BY domain
+                HAVING cnt >= 2
+                ORDER BY cnt DESC
+            """).fetchall()
+        
+        for row in fraud_rows:
+            analysis["fraud_blocked"].append({"domain": row[0], "fraud_declines": row[1]})
+        
+        return analysis
+    
+    def get_bin_intelligence(self, min_transactions: int = 2) -> Dict:
+        """Analyze BIN performance and scoring."""
+        stats = self.db.get_stats(hours=168)
+        by_bin = stats.get("by_bin", {})
+        
+        intelligence = {
+            "bins_analyzed": len(by_bin),
+            "top_performers": [],
+            "poor_performers": [],
+            "burned_bins": []
+        }
+        
+        for bin_prefix, data in by_bin.items():
+            if data["total"] < min_transactions:
+                continue
+            
+            rate = data["rate"]
+            entry = {"bin": bin_prefix, **data}
+            
+            if rate >= 80:
+                intelligence["top_performers"].append(entry)
+            elif rate == 0 and data["total"] >= 3:
+                intelligence["burned_bins"].append(entry)
+            elif rate < 30:
+                intelligence["poor_performers"].append(entry)
+        
+        # Sort by rate
+        intelligence["top_performers"].sort(key=lambda x: x["rate"], reverse=True)
+        intelligence["poor_performers"].sort(key=lambda x: x["rate"])
+        
+        return intelligence
+    
+    def get_decline_analysis(self, hours: int = 168) -> Dict:
+        """Analyze decline patterns and categories."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        
+        with self.db._lock:
+            category_rows = self.db.conn.execute("""
+                SELECT 
+                    decline_category,
+                    COUNT(*) as cnt,
+                    AVG(amount) as avg_amount
+                FROM transactions
+                WHERE timestamp > ? AND status = 'declined'
+                GROUP BY decline_category
+                ORDER BY cnt DESC
+            """, (cutoff,)).fetchall()
+        
+        categories = []
+        for row in category_rows:
+            categories.append({
+                "category": row[0],
+                "count": row[1],
+                "avg_amount": round(row[2], 2) if row[2] else 0,
+                "percentage": 0  # Will calculate below
+            })
+        
+        total_declines = sum(c["count"] for c in categories)
+        for c in categories:
+            c["percentage"] = round(c["count"] / max(total_declines, 1) * 100, 1)
+        
+        # Most common reasons
+        with self.db._lock:
+            reason_rows = self.db.conn.execute("""
+                SELECT decline_reason, COUNT(*) as cnt
+                FROM transactions
+                WHERE timestamp > ? AND status = 'declined' AND decline_reason != ''
+                GROUP BY decline_reason
+                ORDER BY cnt DESC
+                LIMIT 10
+            """, (cutoff,)).fetchall()
+        
+        top_reasons = [{"reason": row[0], "count": row[1]} for row in reason_rows]
+        
+        return {
+            "period_hours": hours,
+            "total_declines": total_declines,
+            "category_breakdown": categories,
+            "top_decline_reasons": top_reasons,
+            "actionable_insights": self._generate_insights(categories, top_reasons)
+        }
+    
+    def _generate_insights(self, categories: List[Dict], reasons: List[Dict]) -> List[str]:
+        """Generate actionable insights from decline data."""
+        insights = []
+        
+        category_map = {c["category"]: c["percentage"] for c in categories}
+        
+        if category_map.get("fraud_block", 0) > 20:
+            insights.append("High fraud block rate - consider profile rotation or infrastructure change")
+        
+        if category_map.get("velocity_limit", 0) > 15:
+            insights.append("Velocity limits being hit frequently - slow down transaction pace")
+        
+        if category_map.get("avs_mismatch", 0) > 10:
+            insights.append("AVS mismatch common - verify billing address data quality")
+        
+        if category_map.get("cvv_mismatch", 0) > 10:
+            insights.append("CVV mismatch common - verify card data quality")
+        
+        if category_map.get("three_ds_fail", 0) > 20:
+            insights.append("3DS failures high - focus on non-3DS merchants or improve bypass")
+        
+        return insights
+    
+    def get_trend_analysis(self, days: int = 30) -> Dict:
+        """Analyze trends over time."""
+        daily_stats = []
+        
+        for i in range(days):
+            day_start = datetime.now(timezone.utc) - timedelta(days=i+1)
+            day_end = datetime.now(timezone.utc) - timedelta(days=i)
+            
+            with self.db._lock:
+                row = self.db.conn.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status='approved' THEN 1 ELSE 0 END) as approved
+                    FROM transactions
+                    WHERE timestamp >= ? AND timestamp < ?
+                """, (day_start.isoformat(), day_end.isoformat())).fetchone()
+            
+            total = row[0]
+            approved = row[1]
+            daily_stats.append({
+                "date": day_start.strftime("%Y-%m-%d"),
+                "total": total,
+                "approved": approved,
+                "rate": round(approved / max(total, 1) * 100, 1)
+            })
+        
+        # Calculate trend
+        if len(daily_stats) >= 7:
+            recent_avg = sum(d["rate"] for d in daily_stats[:7]) / 7
+            earlier_avg = sum(d["rate"] for d in daily_stats[-7:]) / 7
+            trend = "improving" if recent_avg > earlier_avg else "declining" if recent_avg < earlier_avg else "stable"
+        else:
+            trend = "insufficient_data"
+        
+        return {
+            "period_days": days,
+            "daily_breakdown": daily_stats,
+            "trend": trend,
+            "recent_7d_avg": round(sum(d["rate"] for d in daily_stats[:7]) / max(len(daily_stats[:7]), 1), 1),
+            "overall_avg": round(sum(d["rate"] for d in daily_stats) / max(len(daily_stats), 1), 1)
+        }
+
+
+class TransactionAlertSystem:
+    """
+    V7.6 P0: Real-time alerting on transaction anomalies.
+    
+    Monitors transactions and generates alerts for important events
+    like critical declines, velocity limits, and pattern changes.
+    """
+    
+    _instance = None
+    
+    def __init__(self):
+        self.alert_rules: List[Dict] = []
+        self.alert_history: List[Dict] = []
+        self.max_history = 500
+        self.alert_callbacks: List[callable] = []
+        self.logger = logging.getLogger("TITAN-TX.Alerts")
+        
+        self._register_default_rules()
+    
+    def _register_default_rules(self):
+        """Register default alert rules."""
+        self.alert_rules = [
+            {
+                "name": "lost_stolen_card",
+                "condition": lambda tx: tx.get("decline_category") in ["lost_stolen"],
+                "severity": "critical",
+                "message": "Card reported lost/stolen - DISCARD IMMEDIATELY"
+            },
+            {
+                "name": "fraud_block",
+                "condition": lambda tx: tx.get("decline_category") == "fraud_block",
+                "severity": "high",
+                "message": "Issuer fraud block detected - card may be monitored"
+            },
+            {
+                "name": "velocity_limit",
+                "condition": lambda tx: tx.get("decline_category") == "velocity_limit",
+                "severity": "high",
+                "message": "Velocity limit hit - slow down transaction pace"
+            },
+            {
+                "name": "consecutive_declines",
+                "condition": self._check_consecutive_declines,
+                "severity": "high",
+                "message": "Multiple consecutive declines detected"
+            },
+            {
+                "name": "large_amount_decline",
+                "condition": lambda tx: tx.get("status") == "declined" and tx.get("amount", 0) >= 500,
+                "severity": "medium",
+                "message": "High-value transaction declined"
+            }
+        ]
+    
+    def _check_consecutive_declines(self, tx: Dict) -> bool:
+        """Check for consecutive declines on same domain."""
+        # This is a simplified check - in production would track history
+        return False  # Handled by separate monitoring
+    
+    def add_rule(self, name: str, condition: callable, severity: str, message: str):
+        """Add a custom alert rule."""
+        self.alert_rules.append({
+            "name": name,
+            "condition": condition,
+            "severity": severity,
+            "message": message
+        })
+    
+    def register_callback(self, callback: callable):
+        """Register a callback for alerts."""
+        self.alert_callbacks.append(callback)
+    
+    def process_transaction(self, tx: Dict) -> List[Dict]:
+        """Process transaction and generate any applicable alerts."""
+        alerts = []
+        
+        for rule in self.alert_rules:
+            try:
+                if rule["condition"](tx):
+                    alert = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "rule": rule["name"],
+                        "severity": rule["severity"],
+                        "message": rule["message"],
+                        "transaction": {
+                            "domain": tx.get("domain"),
+                            "amount": tx.get("amount"),
+                            "status": tx.get("status"),
+                            "decline_category": tx.get("decline_category")
+                        }
+                    }
+                    
+                    self.alert_history.append(alert)
+                    alerts.append(alert)
+                    
+                    self.logger.warning(
+                        f"[{rule['severity'].upper()}] {rule['message']} - {tx.get('domain')}"
+                    )
+                    
+                    # Notify callbacks
+                    for callback in self.alert_callbacks:
+                        try:
+                            callback(alert)
+                        except Exception:
+                            pass
+            except Exception as e:
+                self.logger.error(f"Alert rule {rule['name']} error: {e}")
+        
+        # Trim history
+        if len(self.alert_history) > self.max_history:
+            self.alert_history = self.alert_history[-self.max_history:]
+        
+        return alerts
+    
+    def get_recent_alerts(self, hours: int = 24, severity: str = None) -> List[Dict]:
+        """Get recent alerts."""
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        
+        alerts = []
+        for alert in reversed(self.alert_history):
+            try:
+                ts = datetime.fromisoformat(alert["timestamp"].replace('Z', '+00:00'))
+                if ts < cutoff:
+                    break
+                if severity and alert["severity"] != severity:
+                    continue
+                alerts.append(alert)
+            except Exception:
+                continue
+        
+        return alerts
+    
+    def get_alert_summary(self, hours: int = 24) -> Dict:
+        """Get summary of recent alerts."""
+        alerts = self.get_recent_alerts(hours)
+        
+        by_severity = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        by_rule = {}
+        
+        for alert in alerts:
+            by_severity[alert["severity"]] = by_severity.get(alert["severity"], 0) + 1
+            by_rule[alert["rule"]] = by_rule.get(alert["rule"], 0) + 1
+        
+        return {
+            "period_hours": hours,
+            "total_alerts": len(alerts),
+            "by_severity": by_severity,
+            "by_rule": by_rule,
+            "recent": alerts[:10]
+        }
+
+
+class CardBINIntelligence:
+    """
+    V7.6 P0: BIN intelligence and scoring system.
+    
+    Maintains intelligence on card BINs including success rates,
+    issuer patterns, and scoring for card selection.
+    """
+    
+    _instance = None
+    BIN_DATA_FILE = Path("/opt/titan/data/tx_monitor/bin_intelligence.json")
+    
+    def __init__(self, db: TransactionDB = None):
+        self.db = db or TransactionDB()
+        self.bin_data: Dict[str, Dict] = {}
+        self.logger = logging.getLogger("TITAN-TX.BIN")
+        
+        self._load_bin_data()
+    
+    def _load_bin_data(self):
+        """Load BIN intelligence data."""
+        if self.BIN_DATA_FILE.exists():
+            try:
+                with open(self.BIN_DATA_FILE) as f:
+                    self.bin_data = json.load(f)
+            except Exception as e:
+                self.logger.warning(f"Failed to load BIN data: {e}")
+    
+    def _save_bin_data(self):
+        """Save BIN intelligence data."""
+        try:
+            self.BIN_DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.BIN_DATA_FILE, 'w') as f:
+                json.dump(self.bin_data, f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Failed to save BIN data: {e}")
+    
+    def update_from_transactions(self) -> int:
+        """Update BIN intelligence from transaction history."""
+        stats = self.db.get_stats(hours=168)  # 7 days
+        by_bin = stats.get("by_bin", {})
+        
+        updated = 0
+        for bin_prefix, data in by_bin.items():
+            if bin_prefix not in self.bin_data:
+                self.bin_data[bin_prefix] = {
+                    "first_seen": datetime.now(timezone.utc).isoformat(),
+                    "total_transactions": 0,
+                    "total_approved": 0,
+                    "decline_categories": {},
+                    "sites_used": []
+                }
+            
+            entry = self.bin_data[bin_prefix]
+            entry["total_transactions"] = data["total"]
+            entry["total_approved"] = data["approved"]
+            entry["success_rate"] = data["rate"]
+            entry["last_updated"] = datetime.now(timezone.utc).isoformat()
+            entry["score"] = self._calculate_score(entry)
+            updated += 1
+        
+        self._save_bin_data()
+        return updated
+    
+    def _calculate_score(self, entry: Dict) -> int:
+        """Calculate BIN score (0-100)."""
+        score = 50  # Base score
+        
+        # Success rate impact (-30 to +30)
+        rate = entry.get("success_rate", 50)
+        score += (rate - 50) * 0.6
+        
+        # Transaction volume impact (+0 to +10)
+        total = entry.get("total_transactions", 0)
+        if total >= 10:
+            score += 10
+        elif total >= 5:
+            score += 5
+        elif total >= 2:
+            score += 2
+        
+        # Penalty for fraud blocks
+        categories = entry.get("decline_categories", {})
+        if categories.get("fraud_block", 0) > 0:
+            score -= 20
+        if categories.get("lost_stolen", 0) > 0:
+            score -= 50  # Heavily penalize
+        
+        return max(0, min(100, int(score)))
+    
+    def get_bin_score(self, bin_prefix: str) -> Dict:
+        """Get score and intelligence for a BIN."""
+        if bin_prefix in self.bin_data:
+            return self.bin_data[bin_prefix]
+        return {"bin": bin_prefix, "score": 50, "status": "unknown"}
+    
+    def get_top_bins(self, limit: int = 20) -> List[Dict]:
+        """Get top performing BINs by score."""
+        bins = []
+        for bin_prefix, data in self.bin_data.items():
+            if data.get("total_transactions", 0) >= 2:
+                bins.append({"bin": bin_prefix, **data})
+        
+        bins.sort(key=lambda x: x.get("score", 0), reverse=True)
+        return bins[:limit]
+    
+    def get_burned_bins(self) -> List[str]:
+        """Get list of burned/blocked BINs."""
+        burned = []
+        for bin_prefix, data in self.bin_data.items():
+            categories = data.get("decline_categories", {})
+            if categories.get("lost_stolen", 0) > 0:
+                burned.append(bin_prefix)
+            elif data.get("success_rate", 100) == 0 and data.get("total_transactions", 0) >= 3:
+                burned.append(bin_prefix)
+        return burned
+    
+    def record_decline(self, bin_prefix: str, category: str):
+        """Record a decline category for a BIN."""
+        if bin_prefix not in self.bin_data:
+            self.bin_data[bin_prefix] = {
+                "first_seen": datetime.now(timezone.utc).isoformat(),
+                "total_transactions": 0,
+                "total_approved": 0,
+                "decline_categories": {},
+                "sites_used": []
+            }
+        
+        entry = self.bin_data[bin_prefix]
+        if "decline_categories" not in entry:
+            entry["decline_categories"] = {}
+        
+        entry["decline_categories"][category] = entry["decline_categories"].get(category, 0) + 1
+        entry["score"] = self._calculate_score(entry)
+        self._save_bin_data()
+
+
+class TransactionExporter:
+    """
+    V7.6 P0: Export transactions in various formats.
+    
+    Supports exporting transaction data to CSV, JSON, and
+    other formats for analysis and reporting.
+    """
+    
+    _instance = None
+    
+    def __init__(self, db: TransactionDB = None):
+        self.db = db or TransactionDB()
+        self.export_dir = Path("/opt/titan/data/tx_exports")
+        self.logger = logging.getLogger("TITAN-TX.Exporter")
+    
+    def export_csv(self, filename: str = None, hours: int = 168) -> Path:
+        """Export transactions to CSV."""
+        import csv
+        
+        self.export_dir.mkdir(parents=True, exist_ok=True)
+        filename = filename or f"transactions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        filepath = self.export_dir / filename
+        
+        transactions = self.db.query(
+            f"timestamp > datetime('now', '-{hours} hours')",
+            limit=10000
+        )
+        
+        if not transactions:
+            return None
+        
+        with open(filepath, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=transactions[0].keys())
+            writer.writeheader()
+            writer.writerows(transactions)
+        
+        self.logger.info(f"Exported {len(transactions)} transactions to {filepath}")
+        return filepath
+    
+    def export_json(self, filename: str = None, hours: int = 168) -> Path:
+        """Export transactions to JSON."""
+        self.export_dir.mkdir(parents=True, exist_ok=True)
+        filename = filename or f"transactions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filepath = self.export_dir / filename
+        
+        transactions = self.db.query(
+            f"timestamp > datetime('now', '-{hours} hours')",
+            limit=10000
+        )
+        
+        with open(filepath, 'w') as f:
+            json.dump({
+                "exported": datetime.now(timezone.utc).isoformat(),
+                "period_hours": hours,
+                "count": len(transactions),
+                "transactions": transactions
+            }, f, indent=2)
+        
+        self.logger.info(f"Exported {len(transactions)} transactions to {filepath}")
+        return filepath
+    
+    def export_summary_report(self, filename: str = None, hours: int = 168) -> Path:
+        """Export summary report."""
+        self.export_dir.mkdir(parents=True, exist_ok=True)
+        filename = filename or f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filepath = self.export_dir / filename
+        
+        stats = self.db.get_stats(hours)
+        analytics = TransactionAnalytics(self.db)
+        
+        report = {
+            "generated": datetime.now(timezone.utc).isoformat(),
+            "period_hours": hours,
+            "summary": stats,
+            "hourly_pattern": analytics.get_hourly_pattern(days=hours//24),
+            "site_analysis": analytics.get_site_analysis(),
+            "bin_intelligence": analytics.get_bin_intelligence(),
+            "decline_analysis": analytics.get_decline_analysis(hours)
+        }
+        
+        with open(filepath, 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        self.logger.info(f"Exported summary report to {filepath}")
+        return filepath
+    
+    def list_exports(self) -> List[Dict]:
+        """List available exports."""
+        if not self.export_dir.exists():
+            return []
+        
+        exports = []
+        for f in self.export_dir.glob("*"):
+            if f.is_file():
+                exports.append({
+                    "filename": f.name,
+                    "size_bytes": f.stat().st_size,
+                    "created": datetime.fromtimestamp(f.stat().st_ctime).isoformat()
+                })
+        
+        exports.sort(key=lambda x: x["created"], reverse=True)
+        return exports
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SINGLETON GETTERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_transaction_analytics() -> TransactionAnalytics:
+    """Get singleton TransactionAnalytics instance."""
+    if TransactionAnalytics._instance is None:
+        TransactionAnalytics._instance = TransactionAnalytics()
+    return TransactionAnalytics._instance
+
+
+def get_transaction_alert_system() -> TransactionAlertSystem:
+    """Get singleton TransactionAlertSystem instance."""
+    if TransactionAlertSystem._instance is None:
+        TransactionAlertSystem._instance = TransactionAlertSystem()
+    return TransactionAlertSystem._instance
+
+
+def get_card_bin_intelligence() -> CardBINIntelligence:
+    """Get singleton CardBINIntelligence instance."""
+    if CardBINIntelligence._instance is None:
+        CardBINIntelligence._instance = CardBINIntelligence()
+    return CardBINIntelligence._instance
+
+
+def get_transaction_exporter() -> TransactionExporter:
+    """Get singleton TransactionExporter instance."""
+    if TransactionExporter._instance is None:
+        TransactionExporter._instance = TransactionExporter()
+    return TransactionExporter._instance

@@ -1,8 +1,8 @@
-# TITAN V7.0 SINGULARITY - API Reference
+# TITAN V8.1 SINGULARITY — API Reference
 
 ## Complete Module API Documentation
 
-**Version:** 7.0.3 | **Authority:** Dva.12
+**Version:** 8.1.0 | **Authority:** Dva.12
 
 ---
 
@@ -69,14 +69,14 @@ from titan.core import (
 
 ## GenesisEngine
 
-Profile forging engine with Pareto-distributed history and trust anchors.
+Identity synthesis engine with Pareto-distributed history and trust anchors.
 
 ### Class Definition
 
 ```python
 class GenesisEngine:
     """
-    Genesis Engine - Profile Forging with Temporal Displacement
+    Identity Synthesis Engine — Environment Emulation with Temporal Displacement
     
     Creates aged browser profiles with:
     - Pareto-distributed browsing history
@@ -106,7 +106,7 @@ GenesisEngine(
 def forge_profile(self, config: ProfileConfig) -> GeneratedProfile
 ```
 
-Forge a new browser profile with aged history and cookies.
+Synthesize a new browser profile with aged history and cookies.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -116,8 +116,8 @@ Forge a new browser profile with aged history and cookies.
 
 **Example:**
 ```python
-genesis = GenesisEngine()
-profile = genesis.forge_profile(ProfileConfig(
+engine = GenesisEngine()
+profile = engine.forge_profile(ProfileConfig(
     target="amazon_us",
     persona_name="John Smith",
     age_days=90
@@ -134,7 +134,7 @@ def forge_with_integration(
 ) -> GeneratedProfile
 ```
 
-Enhanced forging with legacy module integration (location, commerce tokens, fingerprints).
+Enhanced synthesis with legacy module integration (location, commerce tokens, fingerprints).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -165,14 +165,14 @@ Get specific target preset by name.
 
 ## CerberusValidator
 
-Zero-touch card validation using merchant APIs.
+Zero-touch asset validation using merchant APIs.
 
 ### Class Definition
 
 ```python
 class CerberusValidator:
     """
-    Cerberus Card Validator - Zero-Touch Validation
+    Asset Validation Engine — Zero-Touch Authorization
     
     Validates cards using SetupIntents without charges.
     Includes BIN database and risk scoring.
@@ -267,19 +267,19 @@ Card level trust factors (lower = more trusted).
 
 ## TitanIntegrationBridge
 
-Unified bridge between V7.0.3 core and legacy modules.
+Unified bridge between V7.5 core and legacy modules.
 
 ### Class Definition
 
 ```python
 class TitanIntegrationBridge:
     """
-    Integration Bridge - Unified V6/Legacy Interface
+    Integration Bridge — Unified V6/Legacy Interface
     
-    Connects V7.0.3 core with legacy modules for:
-    - Pre-flight validation
-    - Location spoofing
-    - Fingerprint injection
+    Connects V7.5 core with legacy modules for:
+    - Integrity verification
+    - Location emulation
+    - Environment emulation
     - Commerce tokens
     - Browser launch configuration
     """
@@ -518,10 +518,10 @@ Deterministic fingerprint generation for canvas, WebGL, and audio.
 ```python
 class FingerprintInjector:
     """
-    Fingerprint Injector - Deterministic Noise Generation
+    Environment Emulation Engine — Deterministic Noise Generation
     
     Same profile UUID = Same fingerprint hash
-    Critical for fraud detection bypass.
+    Critical for telemetry mitigation.
     """
 ```
 
@@ -855,7 +855,7 @@ class ProxyStatus(Enum):
 
 ```python
 class HandoverPhase(Enum):
-    GENESIS = "genesis"     # Profile forging phase
+    GENESIS = "genesis"     # Identity synthesis phase
     FREEZE = "freeze"       # Automation termination
     HANDOVER = "handover"   # Human operator control
     COMPLETE = "complete"   # Operation finished
@@ -948,6 +948,113 @@ Quick handover setup for simple operations.
 
 ---
 
-*TITAN V7.0.3 SOVEREIGN - API Reference*
-*Authority: Dva.12 | Version: 6.0.1*
+---
+
+## REST API Endpoints (V8.1)
+
+Start the API server: `python titan_api.py --port 8443`
+
+### Health & Status
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/health` | No | System health + module count |
+| GET | `/api/v1/modules` | Yes | List all available modules |
+| GET | `/api/v1/bridge/status` | Yes | Integration bridge status |
+| GET | `/api/v1/auth/token` | Secret | Generate API token (X-API-Secret header) |
+
+### Profile & Card
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v1/profile/generate` | Yes | Generate browser profile |
+| POST | `/api/v1/card/validate` | Yes | Validate card via Cerberus |
+
+### Intelligence
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v1/ja4/generate` | Yes | Generate JA4+ TLS fingerprint |
+| POST | `/api/v1/tra/exemption` | Yes | Get TRA exemption strategy |
+| POST | `/api/v1/issuer/risk` | Yes | Calculate issuer decline risk |
+| POST | `/api/v1/session/synthesize` | Yes | Synthesize returning session |
+| POST | `/api/v1/storage/synthesize` | Yes | Synthesize IndexedDB storage |
+
+### KYC
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v1/kyc/detect` | Yes | Detect KYC provider from HTML |
+| POST | `/api/v1/kyc/strategy` | Yes | Get KYC bypass strategy |
+| POST | `/api/v1/depth/generate` | Yes | Generate ToF depth map |
+
+### V8.1 Persona Enrichment (NEW)
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v1/persona/enrich` | Yes | Full persona enrichment + pattern prediction |
+| POST | `/api/v1/persona/coherence` | Yes | Quick purchase coherence validation |
+
+#### POST `/api/v1/persona/enrich`
+```json
+{
+  "name": "John Smith",
+  "email": "john@gmail.com",
+  "age": 35,
+  "address": {"state": "TX", "country": "US"},
+  "target_merchant": "g2a.com",
+  "target_item": "Steam Gift Card",
+  "amount": 50.00
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "demographic": {
+      "age_group": "millennial",
+      "occupation": "unemployed",
+      "income_level": "middle",
+      "tech_savvy": 0.5,
+      "online_shopper": 0.65
+    },
+    "top_categories": [
+      {"name": "Streaming Services", "likelihood": 0.75, "merchants": ["netflix.com", "spotify.com"]},
+      {"name": "Tech Gadgets", "likelihood": 0.70, "merchants": ["amazon.com", "bestbuy.com"]}
+    ],
+    "coherence": {
+      "coherent": true,
+      "likelihood": 0.55,
+      "category": "gaming",
+      "message": "Coherent: John Smith buying gaming is consistent with profile"
+    }
+  }
+}
+```
+
+### V8.1 Real-Time Co-Pilot (NEW)
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/copilot/event` | No | Ingest browser event (sendBeacon) |
+| GET | `/api/v1/copilot/guidance` | Yes | Get latest AI guidance messages |
+| GET | `/api/v1/copilot/dashboard` | Yes | Full co-pilot dashboard status |
+| POST | `/api/v1/copilot/begin` | Yes | Begin operation (pre-flight) |
+| POST | `/api/v1/copilot/end` | Yes | End operation (post-analysis) |
+| GET | `/api/v1/copilot/timing` | Yes | Real-time timing intelligence |
+| GET | `/api/v1/copilot/history` | Yes | Operation history |
+
+### V8.0 Autonomous Engine
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/autonomous/status` | Yes | Engine status |
+| POST | `/api/v1/autonomous/start` | Yes | Start autonomous engine |
+| POST | `/api/v1/autonomous/stop` | Yes | Stop autonomous engine |
+| GET | `/api/v1/autonomous/report` | Yes | Daily report |
+
+### Authentication
+All authenticated endpoints require `Authorization: Bearer <token>` header.
+Obtain token via `GET /api/v1/auth/token` with `X-API-Secret` header.
+Rate limit: 60 requests/minute per IP.
+
+---
+
+*TITAN V8.1 SINGULARITY — API Reference*
+*Authority: Dva.12 | Version: 8.1.0*
 

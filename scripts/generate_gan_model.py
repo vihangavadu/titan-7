@@ -147,7 +147,7 @@ def create_ghost_motor_model(output_path: str = "assets/models/ghost_motor_v5.on
         graph,
         opset_imports=[helper.make_opsetid('', 13)],
         producer_name='LUCID EMPIRE',
-        producer_version='7.0.0',
+        producer_version='8.1.0',
         doc_string='GAN-style mouse trajectory generator for anti-detect browser'
     )
     

@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Cloud Cognitive Core
+TITAN V8.1 SINGULARITY - Cloud Cognitive Core
 Replaces v5.2 Local Ollama with Cloud vLLM Integration
 
 The Cloud Brain provides:
@@ -20,11 +20,105 @@ import logging
 import random
 import asyncio
 import base64
+import time as _time
+import threading
 from pathlib import Path
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, Dict, List, Any, Union
+from datetime import datetime, timezone
+from typing import Optional, Dict, List, Any, Union, Tuple
 from enum import Enum
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# R4-FIX: Circuit Breaker — prevents hammering dead LLM endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CircuitBreaker:
+    """
+    R4-FIX: Circuit breaker for cognitive core LLM calls.
+    
+    States:
+        CLOSED  — normal operation, requests pass through
+        OPEN    — tripped after N failures, rejects immediately
+        HALF    — after cooldown, allows ONE probe request
+    
+    Prevents:
+        - Hammering a dead vLLM/Ollama endpoint
+        - Blocking the operation pipeline on network timeouts
+        - Silent accumulation of errors without operator awareness
+    """
+    
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+    
+    def __init__(self, failure_threshold: int = 5, cooldown_seconds: int = 60,
+                 hard_timeout_seconds: float = 15.0):
+        self.failure_threshold = failure_threshold
+        self.cooldown_seconds = cooldown_seconds
+        self.hard_timeout_seconds = hard_timeout_seconds
+        self._state = self.CLOSED
+        self._consecutive_failures = 0
+        self._last_failure_time = 0.0
+        self._total_trips = 0
+        self._lock = threading.Lock()
+        self._logger = logging.getLogger("TITAN-CIRCUIT-BREAKER")
+    
+    @property
+    def state(self) -> str:
+        with self._lock:
+            if self._state == self.OPEN:
+                # Check if cooldown has elapsed → transition to HALF_OPEN
+                if _time.time() - self._last_failure_time > self.cooldown_seconds:
+                    self._state = self.HALF_OPEN
+                    self._logger.info("[CIRCUIT-BREAKER] OPEN → HALF_OPEN (cooldown elapsed)")
+            return self._state
+    
+    def allow_request(self) -> bool:
+        """Check if a request should be allowed through."""
+        current = self.state  # triggers cooldown check
+        if current == self.CLOSED:
+            return True
+        if current == self.HALF_OPEN:
+            return True  # Allow one probe request
+        return False  # OPEN — reject
+    
+    def record_success(self):
+        """Record a successful request — resets the breaker."""
+        with self._lock:
+            if self._state == self.HALF_OPEN:
+                self._logger.info("[CIRCUIT-BREAKER] HALF_OPEN → CLOSED (probe succeeded)")
+            self._consecutive_failures = 0
+            self._state = self.CLOSED
+    
+    def record_failure(self):
+        """Record a failed request — may trip the breaker."""
+        with self._lock:
+            self._consecutive_failures += 1
+            self._last_failure_time = _time.time()
+            
+            if self._state == self.HALF_OPEN:
+                # Probe failed — go back to OPEN
+                self._state = self.OPEN
+                self._logger.warning("[CIRCUIT-BREAKER] HALF_OPEN → OPEN (probe failed)")
+            elif self._consecutive_failures >= self.failure_threshold:
+                if self._state != self.OPEN:
+                    self._state = self.OPEN
+                    self._total_trips += 1
+                    self._logger.error(
+                        f"[CIRCUIT-BREAKER] TRIPPED after {self._consecutive_failures} failures "
+                        f"(trip #{self._total_trips}, cooldown={self.cooldown_seconds}s)"
+                    )
+    
+    def get_stats(self) -> Dict:
+        """Get circuit breaker statistics."""
+        return {
+            "state": self.state,
+            "consecutive_failures": self._consecutive_failures,
+            "total_trips": self._total_trips,
+            "cooldown_seconds": self.cooldown_seconds,
+            "hard_timeout_seconds": self.hard_timeout_seconds,
+        }
 
 # Load titan.env if present (populates os.environ for all TITAN_ vars)
 _TITAN_ENV = Path("/opt/titan/config/titan.env")
@@ -73,7 +167,7 @@ class CognitiveResponse:
     confidence: float
     data: Dict[str, Any] = field(default_factory=dict)
     latency_ms: float = 0
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class TitanCognitiveCore:
@@ -159,6 +253,13 @@ Match the tone and style of a typical user. Be concise but natural."""
         self.total_latency_ms = 0
         self.errors = 0
         
+        # R4-FIX: Circuit breaker — trips after 5 consecutive failures, 60s cooldown
+        self._circuit_breaker = CircuitBreaker(
+            failure_threshold=5,
+            cooldown_seconds=60,
+            hard_timeout_seconds=15.0
+        )
+        
         self._init_client()
     
     def _init_client(self):
@@ -212,6 +313,8 @@ Match the tone and style of a typical user. Be concise but natural."""
         """
         Process a cognitive request through the Cloud Brain.
         
+        R4-FIX: Now protected by circuit breaker + hard timeout.
+        
         Args:
             request: CognitiveRequest with mode, context, optional screenshot
             
@@ -226,6 +329,22 @@ Match the tone and style of a typical user. Be concise but natural."""
                 confidence=0
             )
         
+        # R4-FIX: Circuit breaker gate — reject immediately if breaker is OPEN
+        if not self._circuit_breaker.allow_request():
+            cb_stats = self._circuit_breaker.get_stats()
+            self.logger.warning(
+                f"[CIRCUIT-BREAKER] Request REJECTED (state={cb_stats['state']}, "
+                f"failures={cb_stats['consecutive_failures']}, trips={cb_stats['total_trips']})"
+            )
+            return CognitiveResponse(
+                success=False,
+                action="hold",
+                reasoning=f"circuit_breaker_open: {cb_stats['consecutive_failures']} consecutive failures, "
+                          f"cooldown {cb_stats['cooldown_seconds']}s",
+                confidence=0,
+                data={"circuit_breaker": cb_stats}
+            )
+        
         start_time = datetime.now()
         
         try:
@@ -233,12 +352,20 @@ Match the tone and style of a typical user. Be concise but natural."""
             messages = self._build_messages(request)
             
             # Execute inference via Cloud Brain
-            response = await self.client.chat.completions.create(
+            # V7.5 FIX: Only use response_format for models that support it
+            create_kwargs = dict(
                 model=self.model,
                 messages=messages,
                 max_tokens=request.max_tokens,
                 temperature=request.temperature,
-                response_format={"type": "json_object"}
+            )
+            if self.api_key != "ollama":
+                create_kwargs["response_format"] = {"type": "json_object"}
+            
+            # R4-FIX: Hard timeout — never wait longer than circuit breaker timeout
+            response = await asyncio.wait_for(
+                self.client.chat.completions.create(**create_kwargs),
+                timeout=self._circuit_breaker.hard_timeout_seconds
             )
             
             # Calculate actual inference latency
@@ -246,13 +373,14 @@ Match the tone and style of a typical user. Be concise but natural."""
             
             # CRITICAL: Enforce Human Cognitive Latency
             # vLLM responds in ~150ms, but humans take 200-450ms
-            # We must inject delay to avoid bot detection
+            # We must inject delay to match human timing
             required_delay = random.uniform(
                 self.HUMAN_LATENCY_MIN, 
                 self.HUMAN_LATENCY_MAX
             ) - inference_latency
             
-            if required_delay > 0:
+            # V7.5 FIX: Cap delay to avoid excessive waits
+            if 0 < required_delay < 500:
                 await asyncio.sleep(required_delay / 1000)
             
             # Parse response
@@ -265,6 +393,9 @@ Match the tone and style of a typical user. Be concise but natural."""
             self.total_requests += 1
             self.total_latency_ms += total_latency
             
+            # R4-FIX: Record success — resets circuit breaker
+            self._circuit_breaker.record_success()
+            
             return CognitiveResponse(
                 success=True,
                 action=parsed.get("action", "proceed"),
@@ -274,8 +405,21 @@ Match the tone and style of a typical user. Be concise but natural."""
                 latency_ms=total_latency
             )
             
+        except asyncio.TimeoutError:
+            self.errors += 1
+            self._circuit_breaker.record_failure()
+            timeout_s = self._circuit_breaker.hard_timeout_seconds
+            self.logger.error(f"[R4] Hard timeout ({timeout_s}s) exceeded for {request.mode.value} request")
+            return CognitiveResponse(
+                success=False,
+                action="hold",
+                reasoning=f"hard_timeout_{timeout_s}s",
+                confidence=0,
+                data={"circuit_breaker": self._circuit_breaker.get_stats()}
+            )
         except json.JSONDecodeError as e:
             self.errors += 1
+            # JSON parse errors are NOT circuit breaker failures (endpoint is alive)
             self.logger.error(f"JSON parse error: {e}")
             return CognitiveResponse(
                 success=False,
@@ -285,12 +429,14 @@ Match the tone and style of a typical user. Be concise but natural."""
             )
         except Exception as e:
             self.errors += 1
+            self._circuit_breaker.record_failure()
             self.logger.error(f"Cognitive fault: {e}")
             return CognitiveResponse(
                 success=False,
                 action="hold",
                 reasoning=f"cognitive_error: {str(e)}",
-                confidence=0
+                confidence=0,
+                data={"circuit_breaker": self._circuit_breaker.get_stats()}
             )
     
     def _build_messages(self, request: CognitiveRequest) -> List[Dict]:
@@ -449,6 +595,10 @@ class CognitiveCoreLocal:
         self.logger = logging.getLogger("TITAN-V7-LOCAL")
         self.logger.warning("Running in LOCAL FALLBACK mode - reduced capabilities")
     
+    @property
+    def is_connected(self) -> bool:
+        return False
+    
     async def analyze_context(self, dom_snippet: str, **kwargs) -> Dict:
         """Rule-based DOM analysis using keyword and pattern matching"""
         analysis = {
@@ -592,6 +742,15 @@ class CognitiveCoreLocal:
             "recommendation": "proceed" if risk_score < 50 else ("proceed_with_caution" if risk_score < 70 else "abort"),
             "proceed": risk_score < 70
         }
+    
+    async def solve_captcha(self, captcha_image_b64: str, captcha_type: str = "unknown") -> Dict:
+        """V7.5 FIX: Local fallback — cannot solve CAPTCHAs without LLM"""
+        return {"error": "captcha_requires_cloud_brain", "captcha_type": captcha_type,
+                "recommendation": "manual_solve_required"}
+    
+    async def generate_response(self, conversation_context: str, persona: str = "casual_user") -> str:
+        """V7.5 FIX: Local fallback — generic response"""
+        return "I'll need a moment to check on that."
 
 
 def get_cognitive_core(prefer_cloud: bool = True) -> Union[TitanCognitiveCore, CognitiveCoreLocal]:
@@ -610,3 +769,923 @@ def get_cognitive_core(prefer_cloud: bool = True) -> Union[TitanCognitiveCore, C
             return core
     
     return CognitiveCoreLocal()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: ANTIFRAUD PATTERN RECOGNIZER
+# Recognize and adapt to antifraud detection patterns
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AntifraudPatternRecognizer:
+    """
+    V7.6: Recognizes antifraud system patterns and suggests evasion strategies.
+    
+    Detects:
+    - Forter/Riskified/Signifyd fingerprint collection
+    - Device intelligence scripts (ThreatMetrix, Iovation)
+    - Session recording (FullStory, Hotjar)
+    - Bot detection (PerimeterX, DataDome, Kasada)
+    
+    This allows pre-emptive counter-measures before transaction.
+    """
+    
+    # Detection signatures per antifraud vendor
+    SIGNATURES = {
+        'forter': {
+            'scripts': ['forter.com', 'forter.min.js', 'forterToken'],
+            'cookies': ['forterToken', 'ftr_blst', 'ftr_ncd'],
+            'dom': ['data-forter', 'forter-snippet'],
+            'threat_level': 'high',
+        },
+        'riskified': {
+            'scripts': ['beacon-v2', 'riskified.com', 'RISKX'],
+            'cookies': ['riskified_session', 'rCookie'],
+            'dom': ['riskified-beacon', 'riskx'],
+            'threat_level': 'high',
+        },
+        'signifyd': {
+            'scripts': ['signifyd.com', 'sig-api.js', 'deviceFingerprint'],
+            'cookies': ['signifyd_session'],
+            'dom': ['signifyd-device', 'sig_deviceId'],
+            'threat_level': 'medium',
+        },
+        'sift': {
+            'scripts': ['cdn.sift.com', 'sift.js', 's.siftscience'],
+            'cookies': ['_sift_session'],
+            'dom': ['data-sift', 'sift-beacon'],
+            'threat_level': 'high',
+        },
+        'threatmetrix': {
+            'scripts': ['h.online-metrix.net', 'tmx_', 'threatmetrix'],
+            'cookies': ['tmx_', 'online-metrix'],
+            'dom': ['tmx_profiling'],
+            'threat_level': 'high',
+        },
+        'iovation': {
+            'scripts': ['iovation.com', 'ioBlackBox', 'iobb'],
+            'cookies': ['io_token', 'iovation'],
+            'dom': ['ioBlackBox', 'io-beacon'],
+            'threat_level': 'medium',
+        },
+        'perimeterx': {
+            'scripts': ['px-client', 'perimeterx', '_pxmvid'],
+            'cookies': ['_pxvid', '_pxff_', '_pxmvid'],
+            'dom': ['px-captcha', '_px'],
+            'threat_level': 'very_high',
+        },
+        'datadome': {
+            'scripts': ['datadome.co', 'dd.js', 'ddjskey'],
+            'cookies': ['datadome', 'dd_cookie'],
+            'dom': ['datadome-captcha'],
+            'threat_level': 'very_high',
+        },
+        'kasada': {
+            'scripts': ['kasada', 'cd-kogmv'],
+            'cookies': ['cd-kogmv', 'x-kpsdk'],
+            'dom': ['kasada-challenge'],
+            'threat_level': 'very_high',
+        },
+        'fullstory': {
+            'scripts': ['fullstory.com', 'fs.js', '_fs_'],
+            'cookies': ['fs_uid', '_fs_'],
+            'dom': ['fs-highlight'],
+            'threat_level': 'low',  # Session recording, not blocking
+        },
+    }
+    
+    # Counter-measures per threat level
+    COUNTERMEASURES = {
+        'very_high': {
+            'delay_range': (3000, 8000),
+            'human_simulation': 'extensive',
+            'fingerprint_stability': 'critical',
+            'retry_limit': 1,
+            'abort_on_challenge': True,
+        },
+        'high': {
+            'delay_range': (2000, 5000),
+            'human_simulation': 'moderate',
+            'fingerprint_stability': 'high',
+            'retry_limit': 2,
+            'abort_on_challenge': False,
+        },
+        'medium': {
+            'delay_range': (1000, 3000),
+            'human_simulation': 'basic',
+            'fingerprint_stability': 'moderate',
+            'retry_limit': 3,
+            'abort_on_challenge': False,
+        },
+        'low': {
+            'delay_range': (500, 2000),
+            'human_simulation': 'minimal',
+            'fingerprint_stability': 'low',
+            'retry_limit': 5,
+            'abort_on_challenge': False,
+        },
+    }
+    
+    def __init__(self):
+        self._detected_vendors = []
+        self._threat_level = 'low'
+        self._detection_cache = {}
+    
+    def analyze_page(self, html_content: str, cookies: Dict = None, 
+                      network_requests: List[str] = None) -> Dict:
+        """
+        Analyze page for antifraud presence.
+        
+        Args:
+            html_content: Page HTML
+            cookies: Current cookies dict
+            network_requests: List of request URLs
+        """
+        html_lower = html_content.lower()
+        cookies = cookies or {}
+        network_requests = network_requests or []
+        
+        detected = []
+        highest_threat = 'low'
+        
+        for vendor, sig in self.SIGNATURES.items():
+            score = 0
+            
+            # Check scripts in HTML
+            for script_sig in sig['scripts']:
+                if script_sig.lower() in html_lower:
+                    score += 2
+                # Check network requests
+                for req in network_requests:
+                    if script_sig.lower() in req.lower():
+                        score += 3
+            
+            # Check cookies
+            for cookie_sig in sig['cookies']:
+                if any(cookie_sig.lower() in k.lower() for k in cookies.keys()):
+                    score += 2
+            
+            # Check DOM elements
+            for dom_sig in sig['dom']:
+                if dom_sig.lower() in html_lower:
+                    score += 1
+            
+            if score >= 2:
+                detected.append({
+                    'vendor': vendor,
+                    'confidence': min(score / 5, 1.0),
+                    'threat_level': sig['threat_level'],
+                })
+                
+                # Track highest threat
+                threat_order = ['low', 'medium', 'high', 'very_high']
+                if threat_order.index(sig['threat_level']) > threat_order.index(highest_threat):
+                    highest_threat = sig['threat_level']
+        
+        self._detected_vendors = detected
+        self._threat_level = highest_threat
+        
+        return {
+            'vendors_detected': detected,
+            'threat_level': highest_threat,
+            'countermeasures': self.COUNTERMEASURES[highest_threat],
+            'evasion_strategy': self._generate_evasion_strategy(detected),
+        }
+    
+    def _generate_evasion_strategy(self, detected: List[Dict]) -> Dict:
+        """Generate specific evasion strategy for detected vendors."""
+        strategy = {
+            'recommendations': [],
+            'required_modules': [],
+            'timing_profile': 'normal',
+        }
+        
+        vendors = [d['vendor'] for d in detected]
+        
+        if any(v in vendors for v in ['perimeterx', 'datadome', 'kasada']):
+            strategy['recommendations'].append('Use residential proxy with clean IP')
+            strategy['recommendations'].append('Enable full GhostMotor human simulation')
+            strategy['required_modules'].append('ghost_motor_v6')
+            strategy['timing_profile'] = 'very_slow'
+        
+        if any(v in vendors for v in ['forter', 'riskified', 'sift']):
+            strategy['recommendations'].append('Use aged profile with history')
+            strategy['recommendations'].append('Warm card with small transactions first')
+            strategy['required_modules'].append('genesis_core')
+            strategy['timing_profile'] = 'natural'
+        
+        if any(v in vendors for v in ['threatmetrix', 'iovation']):
+            strategy['recommendations'].append('Ensure fingerprint consistency')
+            strategy['required_modules'].append('fingerprint_injector')
+            strategy['timing_profile'] = 'normal'
+        
+        if 'fullstory' in vendors:
+            strategy['recommendations'].append('Avoid erratic mouse movements')
+            strategy['timing_profile'] = 'natural'
+        
+        return strategy
+    
+    def get_current_threat_level(self) -> str:
+        """Get current assessed threat level."""
+        return self._threat_level
+    
+    def get_detected_vendors(self) -> List[Dict]:
+        """Get list of detected antifraud vendors."""
+        return self._detected_vendors
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: SESSION CONTEXT MANAGER
+# Track session context across multiple AI decisions
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SessionContextManager:
+    """
+    V7.6: Manages session context for consistent AI decision-making.
+    
+    Tracks:
+    - Page navigation history
+    - Action history and outcomes
+    - Detected antifraud systems
+    - Profile state (logged in, cart contents, etc.)
+    - Error/retry patterns
+    
+    This context improves AI decision accuracy over session lifetime.
+    """
+    
+    def __init__(self, session_id: str = None):
+        import uuid
+        import time
+        
+        self.session_id = session_id or str(uuid.uuid4())[:8]
+        self.created_at = time.time()
+        
+        self._page_history = []
+        self._action_history = []
+        self._context = {
+            'logged_in': False,
+            'cart_items': 0,
+            'cart_value': 0.0,
+            'checkout_stage': None,
+            'errors_count': 0,
+            'retries_count': 0,
+        }
+        self._antifraud = None
+        self._flags = set()
+    
+    def record_page_visit(self, url: str, title: str = '', 
+                          dom_snapshot: str = None):
+        """Record a page visit."""
+        import time
+        
+        self._page_history.append({
+            'timestamp': time.time(),
+            'url': url,
+            'title': title,
+            'dom_length': len(dom_snapshot) if dom_snapshot else 0,
+        })
+        
+        # Auto-detect context from URL/title
+        self._auto_update_context(url, title)
+        
+        # Limit history size
+        if len(self._page_history) > 50:
+            self._page_history = self._page_history[-50:]
+    
+    def record_action(self, action: str, result: str, 
+                       details: Dict = None):
+        """Record an action and its outcome."""
+        import time
+        
+        self._action_history.append({
+            'timestamp': time.time(),
+            'action': action,
+            'result': result,
+            'details': details or {},
+        })
+        
+        # Update error/retry counters
+        if result in ('error', 'failed'):
+            self._context['errors_count'] += 1
+        if action.startswith('retry'):
+            self._context['retries_count'] += 1
+        
+        # Limit history size
+        if len(self._action_history) > 100:
+            self._action_history = self._action_history[-100:]
+    
+    def _auto_update_context(self, url: str, title: str):
+        """Auto-update context based on page URL/title."""
+        url_lower = url.lower()
+        title_lower = title.lower()
+        combined = f"{url_lower} {title_lower}"
+        
+        # Checkout stage detection
+        if 'cart' in combined:
+            self._context['checkout_stage'] = 'cart'
+        elif 'shipping' in combined or 'delivery' in combined:
+            self._context['checkout_stage'] = 'shipping'
+        elif 'payment' in combined or 'billing' in combined:
+            self._context['checkout_stage'] = 'payment'
+        elif 'review' in combined or 'confirm' in combined:
+            self._context['checkout_stage'] = 'review'
+        elif 'success' in combined or 'thank' in combined:
+            self._context['checkout_stage'] = 'complete'
+        
+        # Login state
+        if 'login' in combined or 'sign in' in combined:
+            self._context['logged_in'] = False
+        elif 'account' in combined or 'profile' in combined:
+            self._context['logged_in'] = True
+    
+    def set_context(self, key: str, value):
+        """Set a context value."""
+        self._context[key] = value
+    
+    def get_context(self, key: str = None):
+        """Get context value or full context."""
+        if key:
+            return self._context.get(key)
+        return self._context.copy()
+    
+    def set_antifraud_analysis(self, analysis: Dict):
+        """Store antifraud analysis results."""
+        self._antifraud = analysis
+    
+    def add_flag(self, flag: str):
+        """Add a warning flag (e.g., 'rate_limited', 'suspicious')."""
+        self._flags.add(flag)
+    
+    def has_flag(self, flag: str) -> bool:
+        """Check if flag is set."""
+        return flag in self._flags
+    
+    def get_summary(self) -> Dict:
+        """Get session summary for AI context."""
+        import time
+        
+        return {
+            'session_id': self.session_id,
+            'duration_seconds': round(time.time() - self.created_at, 1),
+            'pages_visited': len(self._page_history),
+            'actions_taken': len(self._action_history),
+            'current_context': self._context,
+            'antifraud_detected': bool(self._antifraud),
+            'threat_level': self._antifraud.get('threat_level') if self._antifraud else 'unknown',
+            'flags': list(self._flags),
+            'recent_pages': [p['url'] for p in self._page_history[-5:]],
+            'recent_actions': [
+                {'action': a['action'], 'result': a['result']} 
+                for a in self._action_history[-5:]
+            ],
+        }
+    
+    def get_ai_context_prompt(self) -> str:
+        """Generate context prompt for AI decision-making."""
+        summary = self.get_summary()
+        
+        prompt = f"""Session Context:
+- Duration: {summary['duration_seconds']}s
+- Checkout Stage: {self._context.get('checkout_stage', 'browsing')}
+- Cart: {self._context.get('cart_items', 0)} items, ${self._context.get('cart_value', 0):.2f}
+- Logged In: {self._context.get('logged_in', False)}
+- Errors: {self._context.get('errors_count', 0)}, Retries: {self._context.get('retries_count', 0)}
+- Antifraud: {summary['threat_level']}
+- Flags: {', '.join(summary['flags']) or 'none'}
+
+Recent Actions:
+"""
+        for action in summary['recent_actions'][-3:]:
+            prompt += f"- {action['action']}: {action['result']}\n"
+        
+        return prompt
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: BEHAVIORAL ADAPTATION ENGINE
+# Adapt behavior based on AI analysis and session state
+# ═══════════════════════════════════════════════════════════════════════════
+
+class BehavioralAdaptationEngine:
+    """
+    V7.6: Adapts automation behavior based on real-time analysis.
+    
+    Adjusts:
+    - Action timing (delays, typing speed)
+    - Mouse movement patterns
+    - Retry strategies
+    - Abort conditions
+    
+    Based on detected antifraud systems and session state.
+    """
+    
+    # Behavior profiles
+    PROFILES = {
+        'stealth': {
+            'delay_multiplier': 2.5,
+            'typing_speed_wpm': 35,
+            'mouse_smoothness': 0.9,
+            'thinking_pauses': True,
+            'scroll_before_action': True,
+        },
+        'normal': {
+            'delay_multiplier': 1.0,
+            'typing_speed_wpm': 65,
+            'mouse_smoothness': 0.7,
+            'thinking_pauses': False,
+            'scroll_before_action': False,
+        },
+        'fast': {
+            'delay_multiplier': 0.5,
+            'typing_speed_wpm': 120,
+            'mouse_smoothness': 0.4,
+            'thinking_pauses': False,
+            'scroll_before_action': False,
+        },
+        'recovery': {
+            'delay_multiplier': 3.0,
+            'typing_speed_wpm': 25,
+            'mouse_smoothness': 0.95,
+            'thinking_pauses': True,
+            'scroll_before_action': True,
+        },
+    }
+    
+    def __init__(self, initial_profile: str = 'normal'):
+        import random
+        self._random = random.Random()
+        self._profile_name = initial_profile
+        self._profile = self.PROFILES[initial_profile].copy()
+        self._adaptations = []
+    
+    def adapt_to_threat_level(self, threat_level: str):
+        """Adapt behavior based on antifraud threat level."""
+        mapping = {
+            'very_high': 'stealth',
+            'high': 'stealth',
+            'medium': 'normal',
+            'low': 'normal',
+        }
+        
+        new_profile = mapping.get(threat_level, 'normal')
+        if new_profile != self._profile_name:
+            self._profile_name = new_profile
+            self._profile = self.PROFILES[new_profile].copy()
+            self._adaptations.append(f'threat_level_{threat_level}')
+    
+    def adapt_to_errors(self, error_count: int):
+        """Adapt behavior based on error frequency."""
+        if error_count >= 3:
+            self._profile_name = 'recovery'
+            self._profile = self.PROFILES['recovery'].copy()
+            self._adaptations.append('recovery_mode')
+        elif error_count >= 1:
+            self._profile['delay_multiplier'] *= 1.5
+            self._adaptations.append('increased_delays')
+    
+    def get_delay(self, base_delay_ms: int) -> int:
+        """Get adapted delay with variance."""
+        multiplier = self._profile['delay_multiplier']
+        variance = self._random.uniform(0.8, 1.2)
+        return int(base_delay_ms * multiplier * variance)
+    
+    def get_typing_delay(self, char_count: int) -> int:
+        """Get time to type N characters in milliseconds."""
+        wpm = self._profile['typing_speed_wpm']
+        cpm = wpm * 5  # Average 5 chars per word
+        base_ms = (char_count / cpm) * 60 * 1000
+        
+        # Add variance
+        variance = self._random.uniform(0.85, 1.15)
+        return int(base_ms * variance)
+    
+    def should_add_thinking_pause(self) -> bool:
+        """Should we add a thinking pause before action?"""
+        if not self._profile['thinking_pauses']:
+            return False
+        return self._random.random() < 0.3
+    
+    def get_thinking_pause_ms(self) -> int:
+        """Get duration of thinking pause."""
+        return self._random.randint(800, 2500)
+    
+    def should_scroll_before_action(self) -> bool:
+        """Should we scroll element into view before clicking?"""
+        return self._profile['scroll_before_action']
+    
+    def get_mouse_smoothness(self) -> float:
+        """Get mouse movement smoothness (0-1)."""
+        return self._profile['mouse_smoothness']
+    
+    def get_current_profile(self) -> Dict:
+        """Get current behavior profile."""
+        return {
+            'name': self._profile_name,
+            'settings': self._profile.copy(),
+            'adaptations': self._adaptations.copy(),
+        }
+    
+    def should_abort(self, session_context: SessionContextManager) -> Tuple[bool, str]:
+        """Determine if session should abort."""
+        ctx = session_context.get_context()
+        flags = session_context._flags
+        
+        # Hard abort conditions
+        if ctx.get('errors_count', 0) >= 5:
+            return True, 'too_many_errors'
+        
+        if 'rate_limited' in flags:
+            return True, 'rate_limited'
+        
+        if 'fraud_detected' in flags:
+            return True, 'fraud_detected'
+        
+        if ctx.get('retries_count', 0) >= 10:
+            return True, 'excessive_retries'
+        
+        return False, ''
+
+
+# V7.6 Convenience exports
+def create_antifraud_recognizer() -> AntifraudPatternRecognizer:
+    """V7.6: Create antifraud pattern recognizer"""
+    return AntifraudPatternRecognizer()
+
+def create_session_context(session_id: str = None) -> SessionContextManager:
+    """V7.6: Create session context manager"""
+    return SessionContextManager(session_id)
+
+def create_behavioral_adapter(profile: str = 'normal') -> BehavioralAdaptationEngine:
+    """V7.6: Create behavioral adaptation engine"""
+    return BehavioralAdaptationEngine(profile)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 AI ENHANCEMENT INTEGRATION
+# ChromaDB Vector Memory + LangChain Agent + Web Intelligence
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_agent():
+    """V7.6: Get the LangChain-powered autonomous agent."""
+    try:
+        from titan_agent_chain import get_titan_agent
+        return get_titan_agent()
+    except ImportError:
+        logging.getLogger("TITAN-V7-BRAIN").warning(
+            "titan_agent_chain not available. Install: pip install langchain langchain-ollama"
+        )
+        return None
+
+
+def get_vector_memory():
+    """V7.6: Get the ChromaDB vector memory store."""
+    try:
+        from titan_vector_memory import get_vector_memory as _get_vm
+        return _get_vm()
+    except ImportError:
+        logging.getLogger("TITAN-V7-BRAIN").warning(
+            "titan_vector_memory not available. Install: pip install chromadb"
+        )
+        return None
+
+
+def get_web_intel():
+    """V7.6: Get the web intelligence engine."""
+    try:
+        from titan_web_intel import get_web_intel as _get_wi
+        return _get_wi()
+    except ImportError:
+        logging.getLogger("TITAN-V7-BRAIN").warning(
+            "titan_web_intel not available. Install: pip install duckduckgo-search"
+        )
+        return None
+
+
+def get_ai_enhancement_status() -> Dict:
+    """V7.6: Get status of all AI enhancements."""
+    status = {
+        "vector_memory": {"available": False},
+        "agent_chain": {"available": False},
+        "web_intel": {"available": False},
+    }
+
+    _log = logging.getLogger("TITAN-V7-BRAIN")
+
+    try:
+        from titan_vector_memory import get_vector_memory as _get_vm
+        mem = _get_vm()
+        status["vector_memory"] = mem.get_stats()
+    except ImportError:
+        status["vector_memory"] = {"available": False, "reason": "not_installed"}
+    except Exception as e:
+        status["vector_memory"] = {"available": False, "reason": "crashed", "error": str(e)}
+        _log.warning(f"vector_memory crashed during init: {e}")
+
+    try:
+        from titan_agent_chain import get_titan_agent
+        agent = get_titan_agent()
+        status["agent_chain"] = agent.get_status()
+    except ImportError:
+        status["agent_chain"] = {"available": False, "reason": "not_installed"}
+    except Exception as e:
+        status["agent_chain"] = {"available": False, "reason": "crashed", "error": str(e)}
+        _log.warning(f"agent_chain crashed during init: {e}")
+
+    try:
+        from titan_web_intel import get_web_intel as _get_wi
+        intel = _get_wi()
+        status["web_intel"] = intel.get_stats()
+    except ImportError:
+        status["web_intel"] = {"available": False, "reason": "not_installed"}
+    except Exception as e:
+        status["web_intel"] = {"available": False, "reason": "crashed", "error": str(e)}
+        _log.warning(f"web_intel crashed during init: {e}")
+
+    return status
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SELF-HOSTED TOOL STACK INTEGRATION
+# GeoIP, IP Quality, Redis, Ntfy, Proxy Monitor, Target Prober, etc.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_self_hosted_stack():
+    """V7.6: Get the unified self-hosted tool stack manager."""
+    try:
+        from titan_self_hosted_stack import get_self_hosted_stack as _get_stack
+        return _get_stack()
+    except ImportError:
+        logging.getLogger("TITAN-V7-BRAIN").debug(
+            "titan_self_hosted_stack not available"
+        )
+        return None
+
+
+def get_geoip():
+    """V7.6: Get GeoIP validator for proxy geo-match checks."""
+    try:
+        from titan_self_hosted_stack import get_geoip_validator
+        return get_geoip_validator()
+    except ImportError:
+        return None
+
+
+def get_ip_checker():
+    """V7.6: Get IP quality checker for proxy reputation scoring."""
+    try:
+        from titan_self_hosted_stack import get_ip_quality_checker
+        return get_ip_quality_checker()
+    except ImportError:
+        return None
+
+
+def get_redis():
+    """V7.6: Get Redis client for fast inter-module state."""
+    try:
+        from titan_self_hosted_stack import get_redis_client
+        return get_redis_client()
+    except ImportError:
+        return None
+
+
+def get_ntfy():
+    """V7.6: Get Ntfy client for push notifications."""
+    try:
+        from titan_self_hosted_stack import get_ntfy_client
+        return get_ntfy_client()
+    except ImportError:
+        return None
+
+
+def get_target_prober():
+    """V7.6: Get Playwright-based target site prober."""
+    try:
+        from titan_self_hosted_stack import get_target_prober
+        return get_target_prober()
+    except ImportError:
+        return None
+
+
+def get_stack_status() -> Dict:
+    """V7.6: Get combined status of AI enhancements + self-hosted stack."""
+    status = get_ai_enhancement_status()
+    try:
+        from titan_self_hosted_stack import get_self_hosted_stack as _get_stack
+        stack = _get_stack()
+        status["self_hosted_stack"] = stack.get_status()
+    except Exception:
+        status["self_hosted_stack"] = {"available": False}
+    return status
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 TARGET INTELLIGENCE V2 — GOLDEN PATH SCORING
+# 8-vector analysis for 100% hit probability identification
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_target_intel_v2():
+    """V7.6: Get Target Intelligence V2 engine for golden path scoring."""
+    try:
+        from titan_target_intel_v2 import get_target_intel_v2 as _get
+        return _get()
+    except ImportError:
+        return None
+
+
+def score_target_golden(domain: str, card_country: str = "US",
+                        amount: float = 100, **kwargs) -> Dict:
+    """V7.6: Score a target across all 8 vectors for hit probability."""
+    try:
+        from titan_target_intel_v2 import get_target_intel_v2
+        return get_target_intel_v2().score_target(
+            domain, card_country=card_country, amount=amount, **kwargs
+        )
+    except ImportError:
+        return {"error": "titan_target_intel_v2 not available"}
+
+
+def find_golden_targets(card_country: str = "US", max_amount: float = 200) -> list:
+    """V7.6: Find all targets with 100% hit probability (golden path)."""
+    try:
+        from titan_target_intel_v2 import get_target_intel_v2
+        return get_target_intel_v2().find_golden_targets(
+            card_country=card_country, max_amount=max_amount
+        )
+    except ImportError:
+        return []
+
+
+def full_target_brief(domain: str, card_country: str = "US",
+                      amount: float = 100) -> Dict:
+    """V7.6: Full operational brief for a target with all intelligence."""
+    try:
+        from titan_target_intel_v2 import get_target_intel_v2
+        return get_target_intel_v2().full_target_analysis(
+            domain, card_country=card_country, amount=amount
+        )
+    except ImportError:
+        return {"error": "titan_target_intel_v2 not available"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 3DS AI-SPEED EXPLOIT ENGINE
+# Sub-human-speed techniques for 3DS avoidance
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_3ds_ai_engine():
+    """V7.6: Get 3DS AI-Speed Exploit Engine."""
+    try:
+        from titan_3ds_ai_exploits import get_3ds_ai_engine as _get
+        return _get()
+    except ImportError:
+        return None
+
+
+def get_ai_exploit_stack(domain: str = "", psp: str = "unknown",
+                         card_country: str = "US", amount: float = 100) -> Dict:
+    """V7.6: Get co-pilot config for a target."""
+    try:
+        from titan_3ds_ai_exploits import get_3ds_ai_engine
+        return get_3ds_ai_engine().get_copilot_config(
+            psp=psp, card_country=card_country, amount=amount
+        )
+    except ImportError:
+        return {"error": "titan_3ds_ai_exploits not available"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 AI OPERATIONS GUARD
+# Silent Ollama-powered operation lifecycle monitor
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_operations_guard():
+    """V7.6: Get AI Operations Guard (Ollama-powered operation lifecycle monitor)."""
+    try:
+        from titan_ai_operations_guard import get_operations_guard as _get
+        return _get()
+    except ImportError:
+        return None
+
+
+def guard_pre_op(target: str, card_bin: str = "", card_country: str = "US",
+                 proxy_country: str = "", billing_state: str = "",
+                 amount: float = 100, **kwargs) -> Dict:
+    """V7.6: Pre-operation check — catches issues before you commit."""
+    try:
+        from titan_ai_operations_guard import get_operations_guard
+        guard = get_operations_guard()
+        verdict = guard.pre_operation_check(
+            target=target, card_bin=card_bin, card_country=card_country,
+            proxy_country=proxy_country, billing_state=billing_state,
+            amount=amount, **kwargs
+        )
+        return {
+            "risk_level": verdict.risk_level.value,
+            "proceed": verdict.proceed,
+            "issues": verdict.issues,
+            "recommendations": verdict.recommendations,
+            "ai_reasoning": verdict.ai_reasoning,
+        }
+    except ImportError:
+        return {"error": "titan_ai_operations_guard not available"}
+
+
+def guard_session_health(**kwargs) -> Dict:
+    """V7.6: Check active session health."""
+    try:
+        from titan_ai_operations_guard import get_operations_guard
+        guard = get_operations_guard()
+        verdict = guard.check_session_health(**kwargs)
+        return {
+            "risk_level": verdict.risk_level.value,
+            "proceed": verdict.proceed,
+            "issues": verdict.issues,
+            "recommendations": verdict.recommendations,
+        }
+    except ImportError:
+        return {"error": "titan_ai_operations_guard not available"}
+
+
+def guard_post_op(target: str, result: str, decline_code: str = "",
+                  card_bin: str = "", amount: float = 0, **kwargs) -> Dict:
+    """V7.6: Post-operation analysis — learn from results."""
+    try:
+        from titan_ai_operations_guard import get_operations_guard
+        guard = get_operations_guard()
+        verdict = guard.post_operation_analysis(
+            target=target, result=result, decline_code=decline_code,
+            card_bin=card_bin, amount=amount, **kwargs
+        )
+        return {
+            "risk_level": verdict.risk_level.value,
+            "issues": verdict.issues,
+            "recommendations": verdict.recommendations,
+            "ai_reasoning": verdict.ai_reasoning,
+        }
+    except ImportError:
+        return {"error": "titan_ai_operations_guard not available"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# P0-2 FIX: Module Health Reporter
+# Distinguishes "not installed" vs "crashed during init" vs "healthy"
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_module_health() -> Dict:
+    """
+    P0-2 FIX: Report health of all modules that cognitive_core wraps.
+    
+    Returns dict with status for each module:
+        "healthy"        — module imported and initialized successfully
+        "not_installed"  — ImportError (dependency missing)
+        "crashed"        — module exists but crashed during init
+    
+    This lets callers distinguish between "feature not available because
+    the pip package isn't installed" vs "feature crashed and needs debugging".
+    """
+    _log = logging.getLogger("TITAN-V7-BRAIN")
+    modules = {}
+
+    checks = [
+        ("vector_memory", "titan_vector_memory", "get_vector_memory"),
+        ("agent_chain", "titan_agent_chain", "get_titan_agent"),
+        ("web_intel", "titan_web_intel", "get_web_intel"),
+        ("self_hosted_stack", "titan_self_hosted_stack", "get_self_hosted_stack"),
+        ("operations_guard", "titan_ai_operations_guard", "get_operations_guard"),
+        ("target_intel_v2", "titan_target_intel_v2", "get_target_intel_v2"),
+        ("3ds_ai_engine", "titan_3ds_ai_exploits", "get_3ds_ai_engine"),
+        ("realtime_copilot", "titan_realtime_copilot", "get_realtime_copilot"),
+    ]
+
+    for name, module_path, factory_func in checks:
+        try:
+            mod = __import__(module_path)
+            factory = getattr(mod, factory_func, None)
+            if factory:
+                instance = factory()
+                modules[name] = {
+                    "status": "healthy",
+                    "has_instance": instance is not None,
+                }
+            else:
+                modules[name] = {"status": "healthy", "has_instance": False}
+        except ImportError:
+            modules[name] = {"status": "not_installed"}
+        except Exception as e:
+            modules[name] = {"status": "crashed", "error": str(e)}
+            _log.warning(f"Module '{name}' ({module_path}) crashed: {e}")
+
+    # Summary
+    healthy = sum(1 for m in modules.values() if m["status"] == "healthy")
+    crashed = sum(1 for m in modules.values() if m["status"] == "crashed")
+    missing = sum(1 for m in modules.values() if m["status"] == "not_installed")
+
+    return {
+        "modules": modules,
+        "summary": {
+            "total": len(modules),
+            "healthy": healthy,
+            "crashed": crashed,
+            "not_installed": missing,
+        },
+        "all_healthy": crashed == 0,
+    }

@@ -1,5 +1,0 @@
-# Cerberus data directory
-# This directory stores:
-# - bins.csv: BIN database for offline card analysis
-# - merchant_keys.json: Harvested API keys
-# - harvest_urls.txt: Target URLs for key harvesting

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Bug Reporter
+GenericName=Bug Reporter + Auto-Patcher
+Comment=Report issues and auto-patch via Windsurf IDE
+Exec=python3 /opt/titan/apps/app_bug_reporter.py
+Icon=dialog-error
+Terminal=false
+Categories=System;Development;
+Keywords=bug;report;patch;fix;
+StartupNotify=true

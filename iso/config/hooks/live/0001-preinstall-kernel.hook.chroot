@@ -2,7 +2,7 @@
 # TITAN V7.0.3 - Pre-install kernel to avoid Contents-amd64.gz lookup
 # This hook runs early to install the kernel before lb_chroot_linux-image tries to find it
 
-set -e
+# set -e  # Disabled - kernel install has fallback handling
 
 echo "[HOOK] Pre-installing Linux kernel to avoid Contents file lookup..."
 

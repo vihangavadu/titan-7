@@ -86,7 +86,7 @@ jobs:
             live-build debootstrap squashfs-tools xorriso \
             syslinux-utils syslinux-common isolinux \
             dosfstools mtools genisoimage \
-            gcc gcc-multilib clang llvm make bc \
+            gcc clang llvm make bc \
             libbpf-dev libelf-dev zlib1g-dev \
             dkms python3 python3-pip python3-venv \
             git curl wget rsync cpio gettext file \
@@ -258,7 +258,7 @@ jobs:
             sudo mkdir -p iso/config/includes.chroot/opt/titan/ebpf
             sudo mkdir -p iso/config/includes.chroot/opt/lucid-empire/ebpf
             pushd "$(dirname "$EBPF_SRC")" > /dev/null
-            if clang -O2 -g -target bpf -I/usr/include/x86_64-linux-gnu -D__TARGET_ARCH_x86 -c "$(basename "$EBPF_SRC")" -o network_shield.o 2>&1; then
+            if clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c "$(basename "$EBPF_SRC")" -o network_shield.o 2>&1; then
               echo "    [+] network_shield.o compiled successfully"
               sudo cp network_shield.o ../../iso/config/includes.chroot/opt/titan/ebpf/ 2>/dev/null || true
               sudo cp network_shield.o ../../iso/config/includes.chroot/opt/lucid-empire/ebpf/ 2>/dev/null || true
@@ -368,6 +368,7 @@ jobs:
               --mirror-binary http://deb.debian.org/debian \
               --mirror-binary-security http://deb.debian.org/debian-security \
               --keyring-packages debian-archive-keyring \
+              --debootstrap-options "--keyring=/etc/apt/keyrings/debian-archive-bookworm.gpg" \
               --archive-areas "main contrib non-free non-free-firmware" \
               --architectures amd64 \
               --linux-packages "linux-image linux-headers" \

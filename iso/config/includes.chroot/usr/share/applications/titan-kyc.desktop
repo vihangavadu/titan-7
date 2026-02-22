@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=KYC Module
+GenericName=Virtual Camera Controller
+Comment=Virtual camera controller for identity verification
+Exec=python3 /opt/titan/apps/app_kyc.py
+Icon=camera-web
+Terminal=false
+Categories=System;Security;
+Keywords=kyc;camera;virtual;
+StartupNotify=true

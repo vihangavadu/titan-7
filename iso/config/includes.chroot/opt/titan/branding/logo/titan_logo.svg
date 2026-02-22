@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Main gradient - deep midnight to dark blue -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e17;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#0d1525;stop-opacity:1"/>
+    </linearGradient>
+    <!-- Cyan neon glow -->
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1"/>
+      <stop offset="50%" style="stop-color:#00a8cc;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#0088aa;stop-opacity:1"/>
+    </linearGradient>
+    <!-- Orange accent gradient -->
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b35;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#ff4500;stop-opacity:1"/>
+    </linearGradient>
+    <!-- Glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="glowStrong" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <!-- Outer ring glow -->
+    <filter id="ringGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="250" fill="url(#bgGrad)" stroke="#0d1a2a" stroke-width="2"/>
+
+  <!-- Outer hex ring -->
+  <polygon points="256,30 443,138 443,374 256,482 69,374 69,138"
+           fill="none" stroke="url(#cyanGrad)" stroke-width="2.5" opacity="0.4" filter="url(#ringGlow)"/>
+
+  <!-- Inner hex ring -->
+  <polygon points="256,65 415,155 415,357 256,447 97,357 97,155"
+           fill="none" stroke="url(#cyanGrad)" stroke-width="1.5" opacity="0.25"/>
+
+  <!-- Shield shape (main icon body) -->
+  <path d="M256,80 L400,160 L400,340 L256,440 L112,340 L112,160 Z"
+        fill="none" stroke="url(#cyanGrad)" stroke-width="3" filter="url(#glow)" opacity="0.8"/>
+
+  <!-- Inner shield fill with glassmorphism -->
+  <path d="M256,95 L388,168 L388,332 L256,425 L124,332 L124,168 Z"
+        fill="#0a0e17" fill-opacity="0.6" stroke="url(#cyanGrad)" stroke-width="1" opacity="0.3"/>
+
+  <!-- T letterform - main stroke -->
+  <g filter="url(#glowStrong)">
+    <!-- T horizontal bar -->
+    <rect x="156" y="155" width="200" height="28" rx="4" fill="url(#cyanGrad)"/>
+    <!-- T vertical bar -->
+    <rect x="238" y="155" width="36" height="200" rx="4" fill="url(#cyanGrad)"/>
+  </g>
+
+  <!-- Circuit lines emanating from T -->
+  <g stroke="url(#cyanGrad)" stroke-width="1.5" fill="none" opacity="0.5">
+    <!-- Left circuits -->
+    <path d="M156,169 L120,169 L120,220 L140,220"/>
+    <circle cx="140" cy="220" r="3" fill="#00d4ff"/>
+    <path d="M156,169 L130,145 L130,120"/>
+    <circle cx="130" cy="120" r="3" fill="#00d4ff"/>
+
+    <!-- Right circuits -->
+    <path d="M356,169 L392,169 L392,220 L372,220"/>
+    <circle cx="372" cy="220" r="3" fill="#00d4ff"/>
+    <path d="M356,169 L382,145 L382,120"/>
+    <circle cx="382" cy="120" r="3" fill="#00d4ff"/>
+
+    <!-- Bottom circuits -->
+    <path d="M256,355 L256,390 L220,390 L220,370"/>
+    <circle cx="220" cy="370" r="3" fill="#00d4ff"/>
+    <path d="M256,355 L256,390 L292,390 L292,370"/>
+    <circle cx="292" cy="370" r="3" fill="#00d4ff"/>
+  </g>
+
+  <!-- Accent dots (orange) -->
+  <circle cx="256" cy="145" r="5" fill="url(#orangeGrad)" filter="url(#glow)"/>
+  <circle cx="160" cy="365" r="4" fill="url(#orangeGrad)" opacity="0.7"/>
+  <circle cx="352" cy="365" r="4" fill="url(#orangeGrad)" opacity="0.7"/>
+
+  <!-- Version badge -->
+  <rect x="196" y="390" width="120" height="22" rx="11" fill="#0d1a2a" stroke="#00d4ff" stroke-width="1" opacity="0.8"/>
+  <text x="256" y="405" text-anchor="middle" font-family="JetBrains Mono, Consolas, monospace" font-size="11" fill="#00d4ff" font-weight="bold">V7.0 SINGULARITY</text>
+
+  <!-- Scan lines overlay (subtle) -->
+  <g opacity="0.03">
+    <line x1="0" y1="100" x2="512" y2="100" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="200" x2="512" y2="200" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="300" x2="512" y2="300" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="400" x2="512" y2="400" stroke="white" stroke-width="1"/>
+  </g>
+</svg>

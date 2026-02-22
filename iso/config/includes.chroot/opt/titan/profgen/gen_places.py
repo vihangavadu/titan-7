@@ -234,7 +234,7 @@ def generate(profile_path):
             day += random.randint(2, 4)
 
     # ── Redirect chains (real browsers always have these) ──
-    # V7.0.3 PATCH: Real browsing generates HTTP 301/302 redirect entries.
+    # V7.5 PATCH: Real browsing generates HTTP 301/302 redirect entries.
     # Firefox records the redirect source as hidden=1, visit_type=5 or 6,
     # and chains it via from_visit to the final destination.
     # Having ZERO redirect entries is a strong synthetic detection vector
@@ -394,7 +394,7 @@ def generate(profile_path):
     c.execute("INSERT INTO moz_meta VALUES('origin_frecency_sum',?)", (ofs,))
     c.execute("INSERT INTO moz_meta VALUES('origin_frecency_sum_of_squares',?)", (ofss,))
 
-    # ── V7.0.3 PATCH: moz_places_metadata table ──
+    # ── V7.5 PATCH: moz_places_metadata table ──
     # Firefox 118+ creates this table for Places metadata (visit types, etc.)
     # Missing table = forensic detection vector on newer Firefox builds.
     c.executescript("""
@@ -424,7 +424,7 @@ def generate(profile_path):
             ON moz_places_metadata(place_id, created_at);
     """)
     # Populate with realistic metadata for top places
-    # V7.0.3 PATCH: Use heavy-tailed (log-normal) distributions instead of
+    # V7.5 PATCH: Use heavy-tailed (log-normal) distributions instead of
     # uniform random.  Real user engagement follows a power-law: most pages
     # are glanced at for 5-15s, a few are read for 1-5 min, and rare pages
     # get 10+ min (e.g. long articles, videos).  Uniform random(5000,300000)

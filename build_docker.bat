@@ -1,17 +1,17 @@
 @echo off
 REM ═══════════════════════════════════════════════════════════════════════════
-REM TITAN V7.0.3 — DOCKER DESKTOP BATCH SCRIPT
+REM TITAN V8.1 — DOCKER DESKTOP BATCH SCRIPT
 REM AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 REM PURPOSE: Quick Docker build for Windows cmd users
 REM
 REM Usage: build_docker.bat
 REM ═══════════════════════════════════════════════════════════════════════════
 
-title TITAN V7.0.3 Docker Build
+title TITAN V8.1 Docker Build
 
 echo.
 echo ╔══════════════════════════════════════════════════════════════╗
-echo ║  TITAN V7.0.3 SINGULARITY — Docker Desktop Build        ║
+echo ║  TITAN V8.1 SINGULARITY — Docker Desktop Build           ║
 echo ║  Authority: Dva.12 | Status: OBLIVION_ACTIVE               ║
 echo ╚══════════════════════════════════════════════════════════════╝
 echo.
@@ -139,6 +139,6 @@ if exist "iso\titan-v7.0.3-singularity.iso" (
 )
 
 echo.
-echo TITAN V7.0.3 Docker build complete!
+echo TITAN V8.1 Docker build complete!
 echo.
 pause

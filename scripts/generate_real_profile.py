@@ -1,5 +1,5 @@
 """
-TITAN V7.0 — Forensically Clean Firefox Profile Generator
+TITAN V8.1 — Forensically Clean Firefox Profile Generator
 Produces a genuine Firefox profile directory with NO antidetect artifacts.
 All files match standard Firefox profile format exactly.
 """
@@ -16,7 +16,7 @@ OUTPUT = Path(__file__).parent / "profiles" / PROFILE_UUID
 
 def main():
     print("=" * 50)
-    print("TITAN V7.0 — FORENSICALLY CLEAN PROFILE GENERATOR")
+    print("TITAN V8.1 — FORENSICALLY CLEAN PROFILE GENERATOR")
     print(f"UUID: {PROFILE_UUID}")
     print(f"Persona: {PERSONA_NAME}")
     print(f"Age: {AGE_DAYS} days | Target: {STORAGE_MB}MB+")

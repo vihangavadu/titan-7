@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 PSP Sandbox - Payment Service Provider Emulators
+TITAN V8.1 PSP Sandbox - Payment Service Provider Emulators
 
 Emulates real PSP APIs for testing without hitting production endpoints.
 Implements realistic decline logic, fraud detection, and 3DS challenges.
@@ -23,7 +23,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
@@ -86,7 +86,7 @@ class PSPResponse:
     risk_signals: List[str] = field(default_factory=list)
     raw_response: Dict[str, Any] = field(default_factory=dict)
     latency_ms: float = 0.0
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -234,7 +234,7 @@ class PSPSandbox(ABC):
     
     def _check_velocity(self, identifier: str) -> bool:
         """Check if velocity limit exceeded"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         window_start = now - timedelta(minutes=self.velocity_window_minutes)
         
         if identifier not in self.velocity_tracker:

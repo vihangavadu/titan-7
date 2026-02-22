@@ -45,8 +45,25 @@
 char LICENSE[] SEC("license") = "GPL";
 
 /* Version info */
-#define TITAN_NET_VERSION "7.0.0"
+#define TITAN_NET_VERSION "7.5.0"
 #define TITAN_NET_CODENAME "SINGULARITY"
+
+/* V7.5: SSH bypass port — never rewrite SSH packets */
+#define SSH_PORT 22
+
+/* V7.5: Tail-call program array for modular eBPF architecture */
+struct {
+    __uint(type, BPF_MAP_TYPE_PROG_ARRAY);
+    __uint(max_entries, 8);
+    __type(key, __u32);
+    __type(value, __u32);
+} titan_tailcall_map SEC(".maps");
+
+/* V7.5: Tail-call program indices */
+#define TC_IDX_TCP_FLAGS_MOD     0
+#define TC_IDX_TCP_OPTS_REORDER  1
+#define TC_IDX_IP_ID_RANDOM      2
+#define TC_IDX_QUIC_HANDLER      3
 
 /*
  * Socket map for QUIC redirection
@@ -332,6 +349,12 @@ int titan_xdp_filter(struct xdp_md *ctx)
         if ((void *)(tcp + 1) > data_end)
             return XDP_PASS;
 
+        /* V7.5: SSH bypass — never touch SSH traffic (prevents lockout) */
+        __u16 tcp_dst = bpf_ntohs(tcp->dest);
+        __u16 tcp_src = bpf_ntohs(tcp->source);
+        if (tcp_dst == SSH_PORT || tcp_src == SSH_PORT)
+            return XDP_PASS;
+
         /* TCP fingerprint modification handled in TC egress */
         update_stats(pkt_size, 0, 0, 0);
     }
@@ -416,6 +439,14 @@ int titan_tc_egress(struct __sk_buff *skb)
     struct tcphdr *tcp = (void *)ip + (ip->ihl * 4);
     if ((void *)(tcp + 1) > data_end)
         return TC_ACT_OK;
+
+    /* V7.5: SSH bypass — never modify SSH packets */
+    {
+        __u16 tcp_dst = bpf_ntohs(tcp->dest);
+        __u16 tcp_src = bpf_ntohs(tcp->source);
+        if (tcp_dst == SSH_PORT || tcp_src == SSH_PORT)
+            return TC_ACT_OK;
+    }
 
     /* ── TCP LAYER: SYN packet fingerprint rewrite ─────────── */
     /* SYN packets carry the full TCP fingerprint in options     */

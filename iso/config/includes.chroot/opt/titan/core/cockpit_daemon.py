@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — Cockpit Middleware Daemon
+TITAN V8.1 SINGULARITY — Cockpit Middleware Daemon
 Privileged backend daemon for zero-terminal GUI operations
 
 The Cockpit daemon implements the Principle of Least Privilege:
@@ -45,7 +45,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-__version__ = "7.0.0"
+__version__ = "8.0.0"
 __author__ = "Dva.12"
 
 SOCKET_PATH = "/run/titan/cockpit.sock"
@@ -258,7 +258,8 @@ class CockpitDaemon:
             "uptime": time.time(),
             "kernel_module_loaded": os.path.exists("/sys/module/titan_hw"),
             "ebpf_active": os.path.exists("/sys/fs/bpf/titan_xdp"),
-            "overlay_active": "overlay" in open("/proc/mounts").read() if os.path.exists("/proc/mounts") else False,
+            # V7.5 FIX: Use context manager to avoid file handle leak
+            "overlay_active": "overlay" in Path("/proc/mounts").read_text() if os.path.exists("/proc/mounts") else False,
         }
         return CommandResult(success=True, action="get_status", data=status)
 
@@ -608,5 +609,517 @@ if __name__ == "__main__":
         action = sys.argv[2] if len(sys.argv) > 2 else "get_status"
         print(json.dumps(client.send_command(action), indent=2))
     else:
+        print("TITAN V7.6 Cockpit Daemon")
+        print("=" * 40)
         daemon = CockpitDaemon()
         daemon.start()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 COMMAND QUEUE — Retry logic and command queuing
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class QueuedCommand:
+    """A command waiting in queue."""
+    queue_id: str
+    action: str
+    params: Dict
+    priority: int  # 1=critical, 2=high, 3=normal
+    created_at: float
+    attempts: int = 0
+    max_attempts: int = 3
+    last_error: str = ""
+
+
+class CommandQueue:
+    """
+    V7.6 Command Queue - Manages command queuing with retry logic,
+    priority scheduling, and failure tracking.
+    """
+    
+    def __init__(self):
+        self._queue: List[QueuedCommand] = []
+        self._processing: Optional[QueuedCommand] = None
+        self._completed: List[QueuedCommand] = []
+        self._failed: List[QueuedCommand] = []
+        self._lock = threading.Lock()
+    
+    def enqueue(self, action: str, params: Dict = None,
+                priority: int = 3, max_attempts: int = 3) -> str:
+        """
+        Add a command to the queue.
+        
+        Returns:
+            Queue ID for tracking
+        """
+        with self._lock:
+            queue_id = hashlib.md5(
+                f"{action}:{time.time()}:{id(params)}".encode()
+            ).hexdigest()[:12]
+            
+            cmd = QueuedCommand(
+                queue_id=queue_id,
+                action=action,
+                params=params or {},
+                priority=priority,
+                created_at=time.time(),
+                max_attempts=max_attempts
+            )
+            
+            self._queue.append(cmd)
+            self._sort_queue()
+            return queue_id
+    
+    def _sort_queue(self):
+        """Sort by priority, then by creation time."""
+        self._queue.sort(key=lambda c: (c.priority, c.created_at))
+    
+    def get_next(self) -> Optional[QueuedCommand]:
+        """Get next command to process."""
+        with self._lock:
+            if self._processing:
+                return None
+            
+            for cmd in self._queue:
+                if cmd.attempts < cmd.max_attempts:
+                    cmd.attempts += 1
+                    self._processing = cmd
+                    return cmd
+            
+            return None
+    
+    def complete(self, queue_id: str, success: bool, error: str = ""):
+        """Mark a command as complete or failed."""
+        with self._lock:
+            if self._processing and self._processing.queue_id == queue_id:
+                cmd = self._processing
+                self._processing = None
+                
+                if success:
+                    self._completed.append(cmd)
+                    self._queue.remove(cmd)
+                else:
+                    cmd.last_error = error
+                    if cmd.attempts >= cmd.max_attempts:
+                        self._failed.append(cmd)
+                        self._queue.remove(cmd)
+                    # Else: leave in queue for retry
+    
+    def get_status(self) -> Dict:
+        """Get queue status."""
+        with self._lock:
+            return {
+                "pending": len(self._queue),
+                "processing": 1 if self._processing else 0,
+                "completed": len(self._completed),
+                "failed": len(self._failed),
+                "current": self._processing.action if self._processing else None,
+            }
+    
+    def clear_completed(self):
+        """Clear completed commands."""
+        with self._lock:
+            self._completed.clear()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 DAEMON HEALTH MONITOR — Self-monitoring and auto-recovery
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class DaemonHealthStatus:
+    """Daemon health status."""
+    healthy: bool
+    uptime_seconds: float
+    commands_processed: int
+    errors_last_hour: int
+    memory_mb: float
+    socket_connected: bool
+    last_command_time: Optional[float]
+
+
+class DaemonHealthMonitor:
+    """
+    V7.6 Daemon Health Monitor - Monitors daemon health,
+    tracks metrics, and triggers auto-recovery on failures.
+    """
+    
+    def __init__(self):
+        self._start_time = time.time()
+        self._commands_processed = 0
+        self._errors: List[float] = []  # Timestamps of errors
+        self._last_command_time: Optional[float] = None
+        self._lock = threading.Lock()
+    
+    def record_command(self, success: bool):
+        """Record a command execution."""
+        with self._lock:
+            self._commands_processed += 1
+            self._last_command_time = time.time()
+            
+            if not success:
+                self._errors.append(time.time())
+            
+            # Cleanup old errors (keep last hour)
+            cutoff = time.time() - 3600
+            self._errors = [e for e in self._errors if e > cutoff]
+    
+    def get_health_status(self) -> DaemonHealthStatus:
+        """Get current health status."""
+        import psutil
+        
+        with self._lock:
+            errors_last_hour = len(self._errors)
+            
+            # Get memory usage
+            try:
+                process = psutil.Process()
+                memory_mb = process.memory_info().rss / (1024 * 1024)
+            except Exception:
+                memory_mb = 0.0
+            
+            # Check socket
+            socket_connected = os.path.exists(SOCKET_PATH)
+            
+            # Determine health
+            healthy = (
+                errors_last_hour < 50 and
+                socket_connected and
+                memory_mb < 500  # Alert if > 500MB
+            )
+            
+            return DaemonHealthStatus(
+                healthy=healthy,
+                uptime_seconds=time.time() - self._start_time,
+                commands_processed=self._commands_processed,
+                errors_last_hour=errors_last_hour,
+                memory_mb=round(memory_mb, 1),
+                socket_connected=socket_connected,
+                last_command_time=self._last_command_time
+            )
+    
+    def should_restart(self) -> Tuple[bool, str]:
+        """Check if daemon should restart."""
+        status = self.get_health_status()
+        
+        if status.errors_last_hour > 100:
+            return True, "Too many errors in last hour"
+        
+        if status.memory_mb > 500:
+            return True, "Memory usage too high"
+        
+        if not status.socket_connected:
+            return True, "Socket not available"
+        
+        return False, ""
+    
+    def get_metrics(self) -> Dict:
+        """Get metrics for monitoring."""
+        status = self.get_health_status()
+        return {
+            "titan_cockpit_uptime_seconds": status.uptime_seconds,
+            "titan_cockpit_commands_total": status.commands_processed,
+            "titan_cockpit_errors_hour": status.errors_last_hour,
+            "titan_cockpit_memory_mb": status.memory_mb,
+            "titan_cockpit_healthy": 1 if status.healthy else 0,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 COMMAND AUDIT ANALYZER — Analyze audit logs for anomalies
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class AuditAnomaly:
+    """An anomaly detected in audit logs."""
+    anomaly_type: str
+    description: str
+    severity: str  # info, warning, critical
+    timestamp: float
+    context: Dict
+
+
+class CommandAuditAnalyzer:
+    """
+    V7.6 Audit Analyzer - Analyzes audit logs for anomalies,
+    suspicious patterns, and potential security issues.
+    """
+    
+    # Anomaly detection thresholds
+    THRESHOLDS = {
+        "commands_per_minute": 30,  # Max commands per minute
+        "kill_switch_triggers": 3,   # Max kill switch in 5 mins
+        "failed_signatures": 5,      # Max failed signature attempts
+        "unknown_actions": 10,       # Max unknown action attempts
+    }
+    
+    def __init__(self):
+        self._events: List[Dict] = []
+        self._anomalies: List[AuditAnomaly] = []
+        self._lock = threading.Lock()
+    
+    def record_event(self, action: str, success: bool,
+                     signature_valid: bool = True, extra: Dict = None):
+        """Record an audit event."""
+        with self._lock:
+            event = {
+                "action": action,
+                "success": success,
+                "signature_valid": signature_valid,
+                "timestamp": time.time(),
+                "extra": extra or {}
+            }
+            self._events.append(event)
+            
+            # Keep last 10000 events
+            if len(self._events) > 10000:
+                self._events = self._events[-10000:]
+            
+            # Run anomaly detection
+            self._detect_anomalies(event)
+    
+    def _detect_anomalies(self, latest_event: Dict):
+        """Detect anomalies based on latest event."""
+        now = time.time()
+        minute_ago = now - 60
+        five_mins_ago = now - 300
+        
+        # Get recent events
+        recent_minute = [e for e in self._events if e["timestamp"] > minute_ago]
+        recent_5min = [e for e in self._events if e["timestamp"] > five_mins_ago]
+        
+        # Check command rate
+        if len(recent_minute) > self.THRESHOLDS["commands_per_minute"]:
+            self._add_anomaly(
+                "high_command_rate",
+                f"Unusually high command rate: {len(recent_minute)}/min",
+                "warning"
+            )
+        
+        # Check kill switch abuse
+        kill_switches = [e for e in recent_5min if "kill_switch" in e["action"]]
+        if len(kill_switches) > self.THRESHOLDS["kill_switch_triggers"]:
+            self._add_anomaly(
+                "kill_switch_abuse",
+                f"Multiple kill switch triggers: {len(kill_switches)} in 5 mins",
+                "critical"
+            )
+        
+        # Check failed signatures
+        failed_sigs = [e for e in recent_5min if not e["signature_valid"]]
+        if len(failed_sigs) > self.THRESHOLDS["failed_signatures"]:
+            self._add_anomaly(
+                "signature_attacks",
+                f"Multiple failed signatures: {len(failed_sigs)} attempts",
+                "critical"
+            )
+        
+        # Check unknown actions
+        unknown = [e for e in recent_5min if not e["success"] and "unknown" in str(e.get("extra", {}))]
+        if len(unknown) > self.THRESHOLDS["unknown_actions"]:
+            self._add_anomaly(
+                "unknown_actions",
+                f"Multiple unknown action attempts: {len(unknown)}",
+                "warning"
+            )
+    
+    def _add_anomaly(self, anomaly_type: str, description: str, severity: str):
+        """Add an anomaly if not duplicate."""
+        now = time.time()
+        
+        # Check for recent duplicate
+        for existing in self._anomalies[-10:]:
+            if (existing.anomaly_type == anomaly_type and
+                now - existing.timestamp < 300):  # 5 min dedup
+                return
+        
+        anomaly = AuditAnomaly(
+            anomaly_type=anomaly_type,
+            description=description,
+            severity=severity,
+            timestamp=now,
+            context={}
+        )
+        self._anomalies.append(anomaly)
+        
+        # Log critical anomalies
+        if severity == "critical":
+            logging.getLogger("titan.cockpit").warning(f"ANOMALY: {description}")
+    
+    def get_anomalies(self, since_hours: float = 24) -> List[AuditAnomaly]:
+        """Get anomalies from last N hours."""
+        cutoff = time.time() - (since_hours * 3600)
+        with self._lock:
+            return [a for a in self._anomalies if a.timestamp > cutoff]
+    
+    def get_stats(self) -> Dict:
+        """Get audit statistics."""
+        with self._lock:
+            if not self._events:
+                return {"total_events": 0, "success_rate": 0}
+            
+            success = sum(1 for e in self._events if e["success"])
+            return {
+                "total_events": len(self._events),
+                "success_rate": round(success / len(self._events), 2),
+                "anomalies_24h": len(self.get_anomalies(24)),
+                "critical_anomalies": len([a for a in self._anomalies if a.severity == "critical"])
+            }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 SECURE SESSION MANAGER — Authenticated GUI sessions
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass  
+class CockpitSession:
+    """An authenticated session with the cockpit daemon."""
+    session_id: str
+    created_at: float
+    last_activity: float
+    permissions: List[str]
+    client_pid: Optional[int]
+    is_valid: bool = True
+
+
+class SecureSessionManager:
+    """
+    V7.6 Secure Session Manager - Manages authenticated sessions
+    between GUI and daemon with session tokens and permissions.
+    """
+    
+    SESSION_TIMEOUT = 3600  # 1 hour
+    
+    def __init__(self):
+        self._sessions: Dict[str, CockpitSession] = {}
+        self._lock = threading.Lock()
+    
+    def create_session(self, client_pid: Optional[int] = None,
+                       permissions: List[str] = None) -> str:
+        """
+        Create a new authenticated session.
+        
+        Returns:
+            Session token
+        """
+        with self._lock:
+            session_id = hashlib.sha256(
+                f"{time.time()}:{os.urandom(16).hex()}".encode()
+            ).hexdigest()[:32]
+            
+            session = CockpitSession(
+                session_id=session_id,
+                created_at=time.time(),
+                last_activity=time.time(),
+                permissions=permissions or ["*"],
+                client_pid=client_pid
+            )
+            
+            self._sessions[session_id] = session
+            return session_id
+    
+    def validate_session(self, session_id: str, action: str = None) -> Tuple[bool, str]:
+        """
+        Validate a session token.
+        
+        Args:
+            session_id: Session token to validate
+            action: Optional action to check permission for
+        
+        Returns:
+            (valid, error_message)
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+            
+            if not session:
+                return False, "Session not found"
+            
+            if not session.is_valid:
+                return False, "Session invalidated"
+            
+            # Check timeout
+            if time.time() - session.last_activity > self.SESSION_TIMEOUT:
+                session.is_valid = False
+                return False, "Session expired"
+            
+            # Check permission
+            if action and "*" not in session.permissions:
+                if action not in session.permissions:
+                    return False, f"Permission denied for action: {action}"
+            
+            # Update activity
+            session.last_activity = time.time()
+            return True, ""
+    
+    def invalidate_session(self, session_id: str):
+        """Invalidate a session."""
+        with self._lock:
+            if session_id in self._sessions:
+                self._sessions[session_id].is_valid = False
+    
+    def cleanup_expired(self):
+        """Remove expired sessions."""
+        with self._lock:
+            now = time.time()
+            expired = [
+                sid for sid, s in self._sessions.items()
+                if not s.is_valid or (now - s.last_activity > self.SESSION_TIMEOUT * 2)
+            ]
+            for sid in expired:
+                del self._sessions[sid]
+    
+    def get_active_sessions(self) -> List[Dict]:
+        """Get list of active sessions."""
+        with self._lock:
+            return [
+                {
+                    "session_id": s.session_id[:8] + "...",
+                    "age_minutes": int((time.time() - s.created_at) / 60),
+                    "idle_seconds": int(time.time() - s.last_activity),
+                    "permissions": s.permissions,
+                    "valid": s.is_valid
+                }
+                for s in self._sessions.values()
+                if s.is_valid
+            ]
+
+
+# Global instances for V7.6 components
+_command_queue: Optional[CommandQueue] = None
+_health_monitor: Optional[DaemonHealthMonitor] = None
+_audit_analyzer: Optional[CommandAuditAnalyzer] = None
+_session_manager: Optional[SecureSessionManager] = None
+
+
+def get_command_queue() -> CommandQueue:
+    """Get global command queue."""
+    global _command_queue
+    if _command_queue is None:
+        _command_queue = CommandQueue()
+    return _command_queue
+
+
+def get_health_monitor() -> DaemonHealthMonitor:
+    """Get global health monitor."""
+    global _health_monitor
+    if _health_monitor is None:
+        _health_monitor = DaemonHealthMonitor()
+    return _health_monitor
+
+
+def get_audit_analyzer() -> CommandAuditAnalyzer:
+    """Get global audit analyzer."""
+    global _audit_analyzer
+    if _audit_analyzer is None:
+        _audit_analyzer = CommandAuditAnalyzer()
+    return _audit_analyzer
+
+
+def get_session_manager() -> SecureSessionManager:
+    """Get global session manager."""
+    global _session_manager
+    if _session_manager is None:
+        _session_manager = SecureSessionManager()
+    return _session_manager

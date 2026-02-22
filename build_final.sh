@@ -1,5 +1,5 @@
 #!/bin/bash
-# TITAN V7.0.3 "SINGULARITY" — FINAL FUSION BUILD
+# TITAN V8.1 "SINGULARITY" — FINAL FUSION BUILD
 # ---------------------------------------------------
 
 set -e

@@ -1,6 +1,6 @@
-# TITAN V7.0.3 — Docker/WSL Build Guide
+# TITAN V8.1 — Docker/WSL Build Guide
 
-**Authority:** Dva.12 | **Status:** OBLIVION_ACTIVE  
+**Authority:** Dva.12 | **Status:** MAXIMUM_LEVEL  
 **Purpose:** Build Titan ISO using Docker in WSL Ubuntu or Docker Desktop
 
 ---

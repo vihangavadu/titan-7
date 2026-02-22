@@ -1,7 +1,7 @@
 #!/bin/sh
 # =============================================================================
-# TITAN V7.0 SINGULARITY - Live Build Configuration (Secondary — use build_vps_image.sh for VPS)
-# Base OS: Debian 12 (Bookworm) - Kernel 6.1 LTS
+# TITAN V8.0 MAXIMUM - Live Build Configuration (Secondary — use build_vps_image.sh for VPS)
+# Base: Kernel 6.1 LTS
 # =============================================================================
 # Usage: Run from the iso/ directory:
 #   lb config
@@ -25,10 +25,11 @@ lb config noauto \
     --mirror-binary http://deb.debian.org/debian \
     --mirror-binary-security http://deb.debian.org/debian-security \
     --keyring-packages debian-archive-keyring \
+    --debootstrap-options "--keyring=/usr/share/keyrings/debian-archive-keyring.gpg" \
     --archive-areas "main contrib non-free non-free-firmware" \
     --architectures amd64 \
     --binary-images iso-hybrid \
-    --bootappend-live "boot=live components quiet splash persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0" \
+    --bootappend-live "boot=live components quiet splash toram persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0 plymouth.enable=1" \
     --debian-installer none \
     --security false \
     --backports false \
@@ -41,9 +42,9 @@ lb config noauto \
     --apt-indices false \
     --apt-recommends false \
     --memtest memtest86+ \
-    --iso-application "LUCID EMPIRE TITAN V7.0 SINGULARITY" \
+    --iso-application "Titan OS V8.0 Maximum" \
     --iso-publisher "Dva.12" \
-    --iso-volume "TITAN-V70-SINGULARITY" \
+    --iso-volume "TITAN-V80-MAXIMUM" \
     --firmware-chroot true \
     --cache true \
     --cache-packages true \

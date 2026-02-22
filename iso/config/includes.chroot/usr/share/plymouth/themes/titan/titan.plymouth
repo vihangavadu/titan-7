@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Titan OS
+Description=Titan OS V7.0.3 Singularity Boot Splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/titan
+ScriptFile=/usr/share/plymouth/themes/titan/titan.script

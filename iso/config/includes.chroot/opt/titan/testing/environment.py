@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 Test Environment
+TITAN V8.1 Test Environment
 
 Complete virtualized testing environment that integrates:
 - PSP sandboxes (Stripe, Adyen, Braintree, PayPal, Square)
@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 import uuid
@@ -127,7 +127,7 @@ class TestEnvironment:
     def initialize(self) -> bool:
         """Initialize all environment components"""
         try:
-            logger.info("Initializing TITAN V7.0 Test Environment...")
+            logger.info("Initializing TITAN V8.1 Test Environment...")
             
             # Initialize PSP sandboxes
             for psp_name in self.config.enabled_psps:
@@ -206,7 +206,7 @@ class TestEnvironment:
         
         results = {
             "profile_id": profile_data.get("profile_id", str(uuid.uuid4())),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_passed": True,
             "overall_risk_score": 0.0,
             "detection_results": {},
@@ -603,7 +603,7 @@ def main():
     """Command-line interface for the test environment"""
     import argparse
     
-    parser = argparse.ArgumentParser(description="TITAN V7.0 Test Environment")
+    parser = argparse.ArgumentParser(description="TITAN V8.1 Test Environment")
     parser.add_argument("--run-tests", action="store_true", help="Run default test suite")
     parser.add_argument("--test-profile", type=str, help="Test a profile from JSON file")
     parser.add_argument("--test-card", type=str, help="Test a card (format: number|exp_month|exp_year|cvv)")

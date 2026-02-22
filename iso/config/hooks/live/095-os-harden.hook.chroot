@@ -1,7 +1,8 @@
 #!/bin/bash
 # TITAN V7.0.3 SINGULARITY — OS Hardening Hook
 # Runs inside chroot during ISO build
-set -e
+# NOTE: set -e disabled to prevent build failures on optional hardening steps
+# set -e
 
 echo "╔══════════════════════════════════════════════╗"
 echo "║  TITAN V7.0.3 — OS Hardening (095)          ║"

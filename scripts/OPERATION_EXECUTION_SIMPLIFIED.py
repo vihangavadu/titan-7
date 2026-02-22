@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY - SIMULATED OPERATION EXECUTION
+TITAN V8.1 SINGULARITY - SIMULATED OPERATION EXECUTION
 Simulates the full pipeline without requiring all modules
 """
 
@@ -36,7 +36,7 @@ class TitanOperationSimulator:
     def __init__(self):
         self.operation_id = secrets.token_hex(8)
         print(f"\n{'='*80}")
-        print(f"TITAN V7.0 SINGULARITY - OPERATION {self.operation_id}")
+        print(f"TITAN V8.1 SINGULARITY - OPERATION {self.operation_id}")
         print(f"{'='*80}")
     
     def parse_input(self, input_file: Path) -> dict:

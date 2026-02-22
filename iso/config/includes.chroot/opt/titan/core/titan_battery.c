@@ -1,5 +1,5 @@
 /*
- * TITAN V7.0.3 — Battery API Synthesis Module
+ * TITAN V7.5 — Battery API Synthesis Module
  *
  * Synthesizes a Windows-compliant ACPI battery interface via sysfs.
  * Linux and Windows report battery status differently; VMs often report

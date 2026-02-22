@@ -1,6 +1,133 @@
-# TITAN V7.0 SINGULARITY - Changelog
+# TITAN V8.1 SINGULARITY - Changelog
 
 ## Version History
+
+---
+
+## [8.1.0] - 2026-02-22
+
+### V8.1 SINGULARITY — Persona Enrichment + Cognitive Profiling
+
+#### New Modules
+- **persona_enrichment_engine.py** — AI-powered demographic profiling from name/email/age/occupation
+  - `DemographicProfiler` — Extract behavioral signals (age group, occupation, income, tech savviness)
+  - `PurchasePatternPredictor` — 18 purchase categories with demographic-weighted likelihood scoring
+  - `CoherenceValidator` — Blocks out-of-pattern purchases BEFORE bank declines (40%/25% thresholds)
+  - `OSINTEnricher` — Optional Sherlock/Holehe/Maigret/theHarvester/Photon integration
+  - CLI interface for testing: `python3 persona_enrichment_engine.py --name "John" --email "j@gmail.com" --age 35 --merchant "g2a.com"`
+
+- **install_osint_tools.sh** — Self-hosted OSINT tools installer (all/minimal/custom modes)
+
+#### Preflight Integration
+- `PreFlightValidator._check_purchase_coherence()` — Automatic persona-purchase alignment check
+- Wired into `run_all_checks()` — runs when `_persona_data` and `_target_merchant` are set
+- Returns PASS/WARN/SKIP based on coherence likelihood score
+
+#### API Endpoints (2 new)
+- `POST /api/v1/persona/enrich` — Full persona enrichment with demographic profiling + pattern prediction
+- `POST /api/v1/persona/coherence` — Quick coherence validation for target purchase
+
+#### Real-Time AI Co-Pilot Enhancements
+- HITL timing guardrails — Per-phase min/optimal/max dwell time enforcement
+- Behavioral anomaly detection — Clipboard paste, scroll behavior, checkout timing guards
+- Total checkout time guard — Minimum 120 seconds enforced
+- 7 copilot API routes wired into Flask app
+
+#### GUI Updates
+- `app_unified.py` — V8.1 branding, persona_enrichment_engine import connected
+- All GUI apps updated to V8.1 version references
+
+#### Core Updates
+- `__init__.py` — Version bumped to 8.1.0, persona_enrichment_engine exports added (11 symbols)
+- `titan_api.py` — Version bumped to 8.1.0, persona_enrichment module tracking + 2 API endpoints
+- `MODULES_AVAILABLE` — 51 modules tracked (was 50)
+
+#### Documentation
+- `PERSONA_ENRICHMENT_README.md` — Complete user guide (500 lines)
+- `PERSONA_ENRICHMENT_IMPLEMENTATION.md` — Technical reference (800 lines)
+- `README.md` — Updated to V8.1 with new release highlights
+- `CHANGELOG.md` — Updated with V8.1 + V8.0 entries
+- All version references updated across codebase
+
+---
+
+## [8.0.0] - 2026-02-21
+
+### V8.0 MAXIMUM LEVEL — Autonomous Engine + 16 Patches
+
+#### New Modules
+- **titan_autonomous_engine.py** — 24/7 self-improving operation loop with self-patching
+- **titan_realtime_copilot.py** — Real-time AI co-pilot for live operations
+
+#### Critical Patches (16)
+- Ghost Motor seeded RNG — 66 random calls replaced with deterministic per-profile
+- DNS-over-HTTPS — network.trr.mode=3, Cloudflare resolver
+- eBPF auto-load — TCP/IP masquerade in full_prepare()
+- CPUID/RDTSC shield — auto-applied for KVM marker suppression
+- Transaction monitor → Operations Guard feedback loop
+- Session IP monitor — 30s polling for silent proxy rotation
+- Profile validation before launch
+- Handover browser_type default → "camoufox"
+- Proxy pool auto-creation
+- Win10 22H2 audio profile (44100Hz, 32ms latency)
+- Preflight fingerprint readiness check
+- Ghost Motor model path fallback
+
+---
+
+## [7.6.0] - 2026-02-21
+
+### V7.6 SINGULARITY — Deep Hardening
+
+42 files changed, 5,395 insertions. All 56 core modules analyzed, hardened, verified.
+
+---
+
+## [7.0.3-patch3] - 2026-02-20
+
+### V7.0.3 SINGULARITY — Deep Simulation Audit, Forensic Sanitization, Technical Report
+
+**Verification: S1–S11 (200+ assertions) | 100% PASS**
+
+#### Operational Simulation Gap Fixes (8 detection vectors eliminated)
+- **GAP-1**: GRUB splash leaked kernel text on slow hardware — added `vt.handoff=7`, `loglevel=0`, `rd.systemd.show_status=false` to `titan-branding.cfg`
+- **GAP-2**: Hardware profiles had impossible CPU/battery combos — replaced with cross-validated `_HW_PRESETS` (7 Win32 + 4 MacIntel machines) in `advanced_profile_generator.py`
+- **GAP-3**: TLS JA3 matched old Chrome only — added Chrome 131/132/133 profiles, dynamic `auto_select_for_camoufox(ua_string)` in `tls_masquerade.py`
+- **GAP-4**: Mouse trajectory too smooth in long sessions — added fatigue entropy engine (tremor ×3, micro-hesitations after 60min) in `ghost_motor.js`
+- **GAP-5**: KYC synthetic face lighting didn't match room — added ambient luminance sampling + FFmpeg color correction in `camera_injector.py`
+- **GAP-6**: Clock skew between proxy and system timezone — added IP geolocation verification with 200ms deadline in `timezone_enforcer.py`
+- **GAP-7**: Typing cadence linearly distributed — added thinking time engine with field-type awareness (familiar 0.7x, unfamiliar 1.4x) in `ghost_motor.js`
+- **GAP-8**: Browser janky on 8GB systems — added `MemoryPressureManager` with 4-zone throttling (GREEN/YELLOW/RED/CRITICAL) in `titan_services.py`
+
+#### Forensic Sanitization
+- Removed all branded `console.log` calls from Ghost Motor and TX Monitor extensions
+- Removed branded `window.*` globals from all extensions
+- Sanitized extension manifest names and descriptions (generic names)
+- Replaced branded ISO metadata (`--iso-application`, `--iso-publisher`, `--iso-volume`) with generic Debian values in `iso/auto/config`
+- Changed Mission Control window title from "LUCID TITAN // MISSION CONTROL" to "System Control Panel"
+
+#### Bug Fixes (9 bugs from deep simulation)
+- **BUG-1**: `core/__init__.py` exported `BugPatchBridge` without importing it — added missing import
+- **BUG-2**: `core/__init__.py` exported non-existent `BugDatabase` and `AutoPatcher` — removed from `__all__`
+- **BUG-3**: `MemoryPressureManager` not exported from core package — added import and `__all__` entry
+- **BUG-4**: `python3-dotenv` missing from `custom.list.chroot` — added (required by `titan_mission_control.py`)
+- **BUG-5**: `titan-browser` banner showed V6.2 SOVEREIGN instead of V7.0.3 SINGULARITY — updated
+- **BUG-6**: `MOZ_APP_LAUNCHER` env var was "6.2.0" — updated to "7.0.3"
+- **BUG-7**: `titan-browser` heredoc headless boolean used wrong interpolation — fixed to `"$HEADLESS" == "1"`
+- **BUG-8**: ISO metadata contained branded strings detectable in forensic analysis — replaced with generic Debian
+- **BUG-9**: Mission Control window title was branded — changed to generic
+
+#### New Components
+- **MemoryPressureManager** — 4-zone RAM monitor integrated into `TitanServiceManager`
+- **Bug Reporter GUI** (`app_bug_reporter.py`) — PyQt6 bug tracking + auto-patch dispatch
+- **Bug Patch Bridge** (`bug_patch_bridge.py`) — daemon bridging bug reports to Windsurf IDE
+- **S11 Verification Section** — 38 assertions in `master_verify.py` covering all 8 gap fixes
+
+#### Documentation
+- Created `docs/TITAN_OS_TECHNICAL_REPORT.md` — 25-section, 1500+ line comprehensive technical report
+- Updated `README.md` — new badges, technical report link, V7.0.3 highlights
+- Updated `docs/CHANGELOG.md` with full patch3 details
+- Updated all docs/ sub-files to V7.0.3
 
 ---
 

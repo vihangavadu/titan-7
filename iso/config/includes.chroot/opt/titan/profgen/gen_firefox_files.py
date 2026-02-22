@@ -69,7 +69,7 @@ def _content_prefs(pp):
 def _prefs_js(pp):
     print("[7/12] prefs.js...")
     sc=random.randint(80,200);cr=int(CREATED.timestamp());nw=int(NOW.timestamp())
-    # V7.0.3 FINAL PATCH: Derive OS-specific paths and prefs from BILLING country.
+    # V7.5 FINAL PATCH: Derive OS-specific paths and prefs from BILLING country.
     # Cross-correlation: intl.accept_languages, download.dir, defaultLocale,
     # and browser.search.region MUST all agree with PERSONA_LOCALE / BILLING.
     # Fraud systems (Sardine, Sift v3) flag mismatches between these prefs and
@@ -109,7 +109,7 @@ def _prefs_js(pp):
        f'user_pref("toolkit.startup.last_success", {nw});',
        f'user_pref("toolkit.telemetry.cachedClientID", "{secrets.token_hex(16)}");',
        f'user_pref("toolkit.telemetry.reportingpolicy.firstRun", false);',
-       # V7.0.3: Prefs that fraud fingerprinting JS reads at checkout
+       # V7.5: Prefs that fraud fingerprinting JS reads at checkout
        f'user_pref("privacy.resistFingerprinting", false);',
        f'user_pref("privacy.trackingprotection.enabled", true);',
        f'user_pref("network.http.referer.defaultPolicy", 2);',
@@ -176,7 +176,7 @@ def _session(pp):
     crashes=random.randint(0,3)
     _sw = min(SCREEN_W - random.randint(0, 120), SCREEN_W)
     _sh = min(SCREEN_H - random.randint(60, 140), SCREEN_H)
-    # V7.0.3 FINAL PATCH: session.startTime must be the LAST session start
+    # V7.5 FINAL PATCH: session.startTime must be the LAST session start
     # (typically hours/days ago), NOT the profile creation date (months ago).
     # Fraud detection cross-references this with session duration analytics.
     # startTime=CREATED means the browser has been "running" for 90+ days
@@ -212,7 +212,7 @@ def _indexeddb(pp):
     print("[11/12] IndexedDB...")
     import struct
     n=0
-    # V7.0.3 PATCH: Vary entry counts and data structures per domain.
+    # V7.5 PATCH: Vary entry counts and data structures per domain.
     # Old code gave every domain exactly 200 entries with identical
     # {"id","ts","d"} structure — detectable as synthetic because real
     # IDB data varies wildly between sites.
@@ -352,7 +352,7 @@ def _datareporting(pp):
         "currentPingDataDate": NOW.strftime("%Y-%m-%d"),
     }))
     # session-state.json
-    # V7.0.3 FINAL PATCH: profileSubsessionCounter must be >= sessionCount
+    # V7.5 FINAL PATCH: profileSubsessionCounter must be >= sessionCount
     # from prefs.js (80-200).  Old code used independent random(80,300)
     # which could produce subsession < session — logically impossible and
     # flagged by telemetry cross-reference checks.
@@ -510,7 +510,7 @@ def _missing_dirs(pp):
     ]
     for d in required_dirs:
         (pp / d).mkdir(parents=True, exist_ok=True)
-    # V7.0.3 PATCH: saved-telemetry-pings should contain a few ping files.
+    # V7.5 PATCH: saved-telemetry-pings should contain a few ping files.
     # Real Firefox writes JSON ping files here on every session.  An empty
     # directory means the profile never completed a telemetry cycle.
     _tp_dir = pp / "saved-telemetry-pings"
@@ -529,7 +529,7 @@ def _missing_dirs(pp):
         })
         (_tp_dir / ping_id).write_text(ping_data)
     # sessionstore-backups needs recovery.jsonlz4 AND recovery.baklz4
-    # V7.0.3 PATCH: Real Firefox always has BOTH files. recovery.baklz4 is
+    # V7.5 PATCH: Real Firefox always has BOTH files. recovery.baklz4 is
     # the previous session's backup. Missing it = never-restarted profile.
     recovery = pp / "sessionstore-backups" / "recovery.jsonlz4"
     if not recovery.exists():

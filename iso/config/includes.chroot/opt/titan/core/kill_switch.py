@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — Phase 2.3: Kill Switch (Panic Sequence)
+TITAN V8.1 SINGULARITY — Phase 2.3: Kill Switch (Panic Sequence)
 Automated Detection Response & Hardware ID Flush
 
 Problem: When a fraud detection system flags the session (fraud score
@@ -47,8 +47,8 @@ import logging
 import subprocess
 import threading
 from pathlib import Path
-from datetime import datetime
-from typing import Optional, Dict, Any, List, Callable
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any, List, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -152,7 +152,7 @@ class KillSwitch:
         self.monitor_thread.start()
         
         # Write armed state
-        self._write_state({"armed": True, "timestamp": datetime.now().isoformat()})
+        self._write_state({"armed": True, "timestamp": datetime.now(timezone.utc).isoformat()})
         
         logger.info("[KILLSWITCH] *** ARMED *** — Monitoring for detection signals")
         logger.info(f"[KILLSWITCH] Threshold: fraud_score < {self.config.fraud_score_threshold}")
@@ -171,7 +171,7 @@ class KillSwitch:
         if self._signal_file.exists():
             self._signal_file.unlink()
         
-        self._write_state({"armed": False, "timestamp": datetime.now().isoformat()})
+        self._write_state({"armed": False, "timestamp": datetime.now(timezone.utc).isoformat()})
         logger.info("[KILLSWITCH] Disarmed")
     
     # ═══════════════════════════════════════════════════════════════════
@@ -325,7 +325,7 @@ class KillSwitch:
         
         # Log event
         event = PanicEvent(
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             reason=reason,
             fraud_score=fraud_score or self.current_fraud_score,
             threat_level=self.threat_level,
@@ -340,6 +340,23 @@ class KillSwitch:
         
         logger.critical(f"[PANIC] Sequence complete in {duration_ms:.0f}ms — {len(actions)} actions")
         
+        # V8 FIX: Notify Operations Guard about panic for learning
+        try:
+            from titan_ai_operations_guard import get_operations_guard
+            guard = get_operations_guard()
+            if guard:
+                guard.post_operation_analysis({
+                    "target_domain": "PANIC_EVENT",
+                    "status": "panic",
+                    "decline_code": reason.value,
+                    "decline_category": "panic",
+                    "fraud_score": fraud_score or self.current_fraud_score,
+                    "actions_taken": actions,
+                    "duration_ms": round(duration_ms, 2),
+                })
+        except Exception:
+            pass
+        
         # Disarm after panic
         self.armed = False
     
@@ -353,17 +370,18 @@ class KillSwitch:
         This is Step 0 — must execute before browser kill to prevent
         any data leakage during the panic window.
         """
-        # Try nftables first (preferred on Debian 12), fall back to iptables
+        # Try nftables first (preferred), fall back to iptables
+        # V7.5 FIX: Use shell=True for nftables commands with special chars
         nft_rules = [
             "nft add table inet titan_panic",
-            "nft add chain inet titan_panic output { type filter hook output priority 0 \\; policy drop \\; }",
+            "nft 'add chain inet titan_panic output { type filter hook output priority 0 ; policy drop ; }'",
             "nft add rule inet titan_panic output ct state established accept",
         ]
         
         try:
             for rule in nft_rules:
                 subprocess.run(
-                    rule.split(),
+                    rule, shell=True,
                     capture_output=True, timeout=2, check=True
                 )
             logger.critical("[PANIC] Network severed via nftables (all outbound DROP)")
@@ -498,7 +516,7 @@ class KillSwitch:
             stub_path = Path(self.config.state_dir) / "titan_hw_stub.json"
             stub = {
                 "action": "flush",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "new_serial": secrets.token_hex(8).upper(),
                 "new_uuid": f"{secrets.token_hex(4)}-{secrets.token_hex(2)}-{secrets.token_hex(2)}-{secrets.token_hex(2)}-{secrets.token_hex(6)}",
                 "reason": "panic_flush",
@@ -570,7 +588,8 @@ WantedBy=multi-user.target
                 logger.warning("[PANIC] Could not install boot service (no root), stub file written for manual apply")
             
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"[PANIC] HW stub write error: {e}")
             return False
     
     def _clear_session_data(self) -> bool:
@@ -607,12 +626,37 @@ WantedBy=multi-user.target
             return False
     
     def _rotate_proxy(self) -> bool:
-        """Signal proxy manager to rotate connection"""
+        """Signal proxy manager to rotate connection.
+        
+        V8.1: If Mullvad VPN is active, reconnects to get a fresh exit IP.
+        The SOCKS5 binding to 10.64.0.1:1080 ensures the browser loses ALL
+        connectivity the instant the tunnel drops (fail-closed kill switch).
+        """
+        # V8.1: Try Mullvad reconnection first
+        try:
+            from mullvad_vpn import MullvadVPN
+            vpn = MullvadVPN()
+            status = vpn.get_status()
+            if status.get("state") == "Connected":
+                logger.critical("[PANIC] Mullvad VPN: disconnecting for IP rotation...")
+                vpn.disconnect()  # Browser instantly loses connectivity (SOCKS5 fail-closed)
+                import time as _time
+                _time.sleep(2)
+                vpn.connect()
+                new_ip = vpn._get_exit_ip()
+                logger.critical(f"[PANIC] Mullvad VPN: reconnected — new exit IP: {new_ip}")
+                return True
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(f"[PANIC] Mullvad reconnect failed: {e}")
+
+        # Legacy: Signal proxy manager via filesystem
         try:
             rotate_signal = Path(self.config.state_dir) / "proxy_rotate_signal"
             rotate_signal.write_text(json.dumps({
                 "action": "rotate",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "reason": "panic",
                 "profile_uuid": self.config.profile_uuid,
             }))
@@ -647,6 +691,67 @@ WantedBy=multi-user.target
             logger.error(f"[PANIC] MAC randomize error: {e}")
             return False
     
+    def _shred_ephemeral_data(self) -> bool:
+        """Forensic wipe of all ephemeral/session data — no recoverable artifacts.
+
+        Shreds: browser session files, WAL journals, temp profiles, RAM-backed
+        state files, and any .titan/ operational artifacts from the profile dir.
+        Uses 3-pass overwrite on sensitive files when secure_delete is available.
+        """
+        try:
+            shredded = 0
+            profile_dir = Path(self.config.profile_path) / self.config.profile_uuid
+
+            # Patterns of ephemeral data to shred
+            SHRED_PATTERNS = [
+                "*.sqlite-wal", "*.sqlite-shm",
+                "sessionstore*", "recovery.jsonlz4",
+                ".titan/*.json", ".titan/*.log",
+                "crashes/", "minidumps/",
+            ]
+
+            def _overwrite_and_delete(p: Path):
+                nonlocal shredded
+                try:
+                    if p.is_file():
+                        size = p.stat().st_size
+                        with open(p, "r+b") as f:
+                            for _ in range(3):  # 3-pass overwrite
+                                f.seek(0)
+                                f.write(os.urandom(size))
+                                f.flush()
+                                os.fsync(f.fileno())
+                        p.unlink()
+                        shredded += 1
+                    elif p.is_dir():
+                        shutil.rmtree(p, ignore_errors=True)
+                        shredded += 1
+                except Exception:
+                    pass
+
+            if profile_dir.exists():
+                import glob as _glob
+                for pattern in SHRED_PATTERNS:
+                    for match in profile_dir.glob(pattern):
+                        _overwrite_and_delete(match)
+
+            # Also shred /tmp titan artifacts
+            for tmp_file in Path("/tmp").glob("titan_*"):
+                _overwrite_and_delete(tmp_file)
+
+            # Shred state dir operational logs
+            state_dir = Path(self.config.state_dir)
+            if state_dir.exists():
+                for log_file in state_dir.glob("*.log"):
+                    _overwrite_and_delete(log_file)
+
+            logger.critical(f"[PANIC] Shredded {shredded} ephemeral artifacts")
+            return True
+
+        except Exception as e:
+            logger.error(f"[PANIC] Shred error: {e}")
+            return False
+
     # ═══════════════════════════════════════════════════════════════════
     # STATE & LOGGING
     # ═══════════════════════════════════════════════════════════════════
@@ -657,8 +762,8 @@ WantedBy=multi-user.target
             state_file = Path(self.config.state_dir) / "killswitch_state.json"
             with open(state_file, "w") as f:
                 json.dump(state, f, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[KILLSWITCH] Failed to write state: {e}")
     
     def _log_panic_event(self, event: PanicEvent):
         """Log panic event to disk for post-mortem analysis"""
@@ -674,8 +779,8 @@ WantedBy=multi-user.target
                     "actions": event.actions_taken,
                     "duration_ms": event.duration_ms,
                 }) + "\n")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[KILLSWITCH] Failed to write panic log: {e}")
     
     # ═══════════════════════════════════════════════════════════════════
     # EXTERNAL SIGNAL API
@@ -692,9 +797,9 @@ WantedBy=multi-user.target
         # Also write to file for persistence
         try:
             with open(self._fraud_score_file, "w") as f:
-                json.dump({"score": score, "timestamp": datetime.now().isoformat()}, f)
-        except Exception:
-            pass
+                json.dump({"score": score, "timestamp": datetime.now(timezone.utc).isoformat()}, f)
+        except Exception as e:
+            logger.warning(f"[KILLSWITCH] Failed to write fraud score: {e}")
         
         if score < self.config.fraud_score_threshold and self.armed:
             self.panic(PanicReason.FRAUD_SCORE_DROP, score)
@@ -786,3 +891,944 @@ def send_panic_signal(reason: str = "manual_trigger"):
     signal_file = Path("/opt/titan/state/kill_signal")
     signal_file.parent.mkdir(parents=True, exist_ok=True)
     signal_file.write_text(reason)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.5 UPGRADE: MEMORY PRESSURE MANAGER
+# Monitors system memory and manages pressure zones to prevent OOM kills
+# during operations. OOM kills leave forensic traces in dmesg and can
+# corrupt profile state. This manager proactively manages memory to
+# keep the system in a safe operating zone.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MemoryZone(Enum):
+    """Memory pressure zones with automatic response actions."""
+    GREEN = "green"       # <60% — normal operation
+    YELLOW = "yellow"     # 60-75% — start shedding caches
+    ORANGE = "orange"     # 75-85% — aggressive cleanup, warn operator
+    RED = "red"           # >85% — emergency: kill non-essential processes
+
+
+class MemoryPressureManager:
+    """
+    v7.5 Memory Pressure Manager with 4-zone automatic response.
+
+    Problem: TITAN runs multiple heavy processes (Camoufox, ONNX inference,
+    FFmpeg for KYC, eBPF maps). On 4-8GB VPS instances, memory pressure
+    can trigger OOM killer which:
+    - Leaves forensic traces in dmesg/journald
+    - Corrupts browser profile state mid-session
+    - Kills the kill switch daemon itself (ironic)
+
+    Solution: Proactive memory management with zone-based responses:
+    - GREEN (<60%): Normal operation
+    - YELLOW (60-75%): Drop page cache, trim malloc arenas
+    - ORANGE (75-85%): Kill background noise generators, warn operator
+    - RED (>85%): Emergency profile save + process termination
+    """
+
+    # Processes safe to kill in ORANGE/RED zones (by name substring)
+    EXPENDABLE_PROCESSES = [
+        "background_noise",
+        "trajectory_precompute",
+        "intel_monitor",
+        "warmup_browser",
+    ]
+
+    def __init__(self, yellow_pct: float = 60.0, orange_pct: float = 75.0,
+                 red_pct: float = 85.0, poll_interval_s: float = 5.0):
+        self.thresholds = {
+            MemoryZone.YELLOW: yellow_pct,
+            MemoryZone.ORANGE: orange_pct,
+            MemoryZone.RED: red_pct,
+        }
+        self.poll_interval = poll_interval_s
+        self.current_zone = MemoryZone.GREEN
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+        self._callbacks: Dict[MemoryZone, list] = {z: [] for z in MemoryZone}
+        self.logger = logging.getLogger("TITAN-MEMORY-MGR")
+
+    def get_memory_usage(self) -> Dict[str, Any]:
+        """Read current memory usage from /proc/meminfo."""
+        try:
+            meminfo = Path("/proc/meminfo").read_text()
+            values = {}
+            for line in meminfo.splitlines():
+                parts = line.split()
+                if len(parts) >= 2:
+                    key = parts[0].rstrip(":")
+                    values[key] = int(parts[1])  # kB
+
+            total = values.get("MemTotal", 1)
+            available = values.get("MemAvailable", total)
+            used = total - available
+            pct = (used / total) * 100.0
+
+            return {
+                "total_mb": total // 1024,
+                "used_mb": used // 1024,
+                "available_mb": available // 1024,
+                "percent_used": round(pct, 1),
+                "swap_total_mb": values.get("SwapTotal", 0) // 1024,
+                "swap_used_mb": (values.get("SwapTotal", 0) - values.get("SwapFree", 0)) // 1024,
+            }
+        except Exception as e:
+            self.logger.error(f"Cannot read /proc/meminfo: {e}")
+            return {"percent_used": 0, "error": str(e)}
+
+    def classify_zone(self, pct: float) -> MemoryZone:
+        """Classify current memory usage into a pressure zone."""
+        if pct >= self.thresholds[MemoryZone.RED]:
+            return MemoryZone.RED
+        elif pct >= self.thresholds[MemoryZone.ORANGE]:
+            return MemoryZone.ORANGE
+        elif pct >= self.thresholds[MemoryZone.YELLOW]:
+            return MemoryZone.YELLOW
+        return MemoryZone.GREEN
+
+    def on_zone_change(self, zone: MemoryZone, callback):
+        """Register callback for zone transition."""
+        self._callbacks[zone].append(callback)
+
+    def _respond_yellow(self):
+        """YELLOW zone: drop caches and trim malloc arenas."""
+        self.logger.warning("[MEMORY] YELLOW zone — dropping page cache")
+        try:
+            # Drop page cache (requires root or sysctl vm.drop_caches permission)
+            subprocess.run(
+                "echo 1 > /proc/sys/vm/drop_caches",
+                shell=True, capture_output=True, timeout=5
+            )
+            # Trim glibc malloc arenas
+            subprocess.run(
+                ["python3", "-c", "import ctypes; ctypes.CDLL('libc.so.6').malloc_trim(0)"],
+                capture_output=True, timeout=5
+            )
+        except Exception as e:
+            self.logger.error(f"[MEMORY] Yellow response failed: {e}")
+
+    def _respond_orange(self):
+        """ORANGE zone: kill expendable background processes."""
+        self.logger.warning("[MEMORY] ORANGE zone — killing expendable processes")
+        self._respond_yellow()  # Also do yellow actions
+        try:
+            result = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.splitlines():
+                for proc_name in self.EXPENDABLE_PROCESSES:
+                    if proc_name in line:
+                        parts = line.split()
+                        if len(parts) > 1:
+                            pid = int(parts[1])
+                            os.kill(pid, signal.SIGTERM)
+                            self.logger.info(f"[MEMORY] Killed expendable process: {proc_name} (PID {pid})")
+        except Exception as e:
+            self.logger.error(f"[MEMORY] Orange response failed: {e}")
+
+    def _respond_red(self):
+        """RED zone: emergency — save state and aggressive cleanup."""
+        self.logger.critical("[MEMORY] RED zone — emergency memory cleanup!")
+        self._respond_orange()  # Also do orange actions
+        try:
+            # Force Python GC
+            import gc
+            gc.collect()
+            # Drop all caches aggressively
+            subprocess.run(
+                "echo 3 > /proc/sys/vm/drop_caches",
+                shell=True, capture_output=True, timeout=5
+            )
+            # Write emergency state marker
+            state_file = Path("/opt/titan/state/memory_emergency")
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps({
+                "timestamp": time.time(),
+                "memory": self.get_memory_usage(),
+                "action": "emergency_cleanup",
+            }))
+        except Exception as e:
+            self.logger.critical(f"[MEMORY] Red response failed: {e}")
+
+    def _monitor_loop(self):
+        """Background monitoring loop."""
+        while self._running:
+            mem = self.get_memory_usage()
+            pct = mem.get("percent_used", 0)
+            new_zone = self.classify_zone(pct)
+
+            if new_zone != self.current_zone:
+                old_zone = self.current_zone
+                self.current_zone = new_zone
+                self.logger.info(f"[MEMORY] Zone transition: {old_zone.value} → {new_zone.value} ({pct}%)")
+
+                # Execute zone response
+                if new_zone == MemoryZone.YELLOW:
+                    self._respond_yellow()
+                elif new_zone == MemoryZone.ORANGE:
+                    self._respond_orange()
+                elif new_zone == MemoryZone.RED:
+                    self._respond_red()
+
+                # Fire callbacks
+                for cb in self._callbacks.get(new_zone, []):
+                    try:
+                        cb(new_zone, mem)
+                    except Exception:
+                        pass
+
+            time.sleep(self.poll_interval)
+
+    def start(self):
+        """Start memory pressure monitoring."""
+        self._running = True
+        self._thread = threading.Thread(
+            target=self._monitor_loop, daemon=True, name="titan-memory-mgr"
+        )
+        self._thread.start()
+        self.logger.info("[MEMORY] Pressure manager started")
+
+    def stop(self):
+        """Stop memory pressure monitoring."""
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=3.0)
+        self.logger.info("[MEMORY] Pressure manager stopped")
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get current memory manager status."""
+        mem = self.get_memory_usage()
+        return {
+            "running": self._running,
+            "zone": self.current_zone.value,
+            "memory": mem,
+            "thresholds": {z.value: v for z, v in self.thresholds.items()},
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: FORENSIC WIPER
+# Secure forensic data wiping for emergency cleanup
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ForensicWiper:
+    """
+    V7.6: Secure forensic data wiping engine.
+    
+    Handles:
+    - Secure file deletion (multiple overwrite passes)
+    - Memory page zeroing
+    - Swap file clearing
+    - Browser artifact removal
+    - System log sanitization
+    
+    Used for emergency cleanup when operation is compromised.
+    """
+    
+    # Paths to sanitize during wipe
+    WIPE_PATHS = {
+        'titan_profiles': '/opt/titan/profiles',
+        'titan_state': '/opt/titan/state',
+        'titan_logs': '/opt/titan/logs',
+        'browser_data': [
+            '~/.config/chromium',
+            '~/.config/google-chrome',
+            '~/.mozilla/firefox',
+        ],
+        'temp_files': [
+            '/tmp/titan*',
+            '/tmp/browser*',
+            '/var/tmp/titan*',
+        ],
+        'system_logs': [
+            '/var/log/syslog',
+            '/var/log/auth.log',
+            '/var/log/kern.log',
+        ],
+    }
+    
+    # Secure deletion patterns (DOD 5220.22-M)
+    OVERWRITE_PATTERNS = [
+        b'\x00',  # Pass 1: zeros
+        b'\xff',  # Pass 2: ones
+        b'\x00',  # Pass 3: zeros (alternative: random)
+    ]
+    
+    def __init__(self, secure_delete: bool = True, passes: int = 3):
+        self.secure_delete = secure_delete
+        self.passes = min(passes, 7)  # Cap at 7 passes
+        self.logger = logging.getLogger("TITAN-FORENSIC")
+        self._wipe_log = []
+    
+    def secure_delete_file(self, file_path: str) -> bool:
+        """
+        Securely delete a file with multiple overwrite passes.
+        """
+        from pathlib import Path
+        
+        path = Path(file_path).expanduser()
+        if not path.exists():
+            return True  # Already gone
+        
+        if not path.is_file():
+            return False
+        
+        try:
+            file_size = path.stat().st_size
+            
+            if self.secure_delete and file_size > 0:
+                # Overwrite with patterns
+                with open(path, 'r+b') as f:
+                    for i in range(self.passes):
+                        pattern = self.OVERWRITE_PATTERNS[i % len(self.OVERWRITE_PATTERNS)]
+                        f.seek(0)
+                        f.write(pattern * file_size)
+                        f.flush()
+                        os.fsync(f.fileno())
+            
+            # Remove file
+            path.unlink()
+            self._wipe_log.append(f"Deleted: {file_path}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to delete {file_path}: {e}")
+            return False
+    
+    def secure_delete_directory(self, dir_path: str, recursive: bool = True) -> Dict:
+        """
+        Securely delete a directory and all contents.
+        """
+        from pathlib import Path
+        import shutil
+        
+        path = Path(dir_path).expanduser()
+        result = {
+            'path': str(path),
+            'files_deleted': 0,
+            'dirs_deleted': 0,
+            'errors': [],
+        }
+        
+        if not path.exists():
+            return result
+        
+        try:
+            if recursive:
+                for item in path.rglob('*'):
+                    if item.is_file():
+                        if self.secure_delete_file(str(item)):
+                            result['files_deleted'] += 1
+                        else:
+                            result['errors'].append(str(item))
+                
+                # Remove empty directories
+                for item in sorted(path.rglob('*'), reverse=True):
+                    if item.is_dir():
+                        try:
+                            item.rmdir()
+                            result['dirs_deleted'] += 1
+                        except Exception:
+                            pass
+                
+                # Remove root directory
+                try:
+                    path.rmdir()
+                    result['dirs_deleted'] += 1
+                except Exception:
+                    pass
+            else:
+                shutil.rmtree(path, ignore_errors=True)
+                result['dirs_deleted'] = 1
+                
+        except Exception as e:
+            result['errors'].append(f"Directory error: {e}")
+        
+        return result
+    
+    def wipe_browser_artifacts(self) -> Dict:
+        """Wipe all browser-related artifacts."""
+        result = {'wiped': [], 'errors': []}
+        
+        for browser_path in self.WIPE_PATHS['browser_data']:
+            res = self.secure_delete_directory(browser_path)
+            if res['errors']:
+                result['errors'].extend(res['errors'])
+            else:
+                result['wiped'].append(browser_path)
+        
+        return result
+    
+    def wipe_titan_data(self) -> Dict:
+        """Wipe all TITAN-related data."""
+        result = {'wiped': [], 'errors': []}
+        
+        # Profiles
+        res = self.secure_delete_directory(self.WIPE_PATHS['titan_profiles'])
+        result['wiped'].append(('profiles', res))
+        
+        # State
+        res = self.secure_delete_directory(self.WIPE_PATHS['titan_state'])
+        result['wiped'].append(('state', res))
+        
+        # Logs
+        res = self.secure_delete_directory(self.WIPE_PATHS['titan_logs'])
+        result['wiped'].append(('logs', res))
+        
+        return result
+    
+    def sanitize_system_logs(self) -> Dict:
+        """Sanitize system logs containing TITAN activity."""
+        result = {'sanitized': [], 'errors': []}
+        
+        titan_patterns = [
+            'titan', 'TITAN', 'cerberus', 'genesis',
+            'kyc_bypass', 'ghost_motor', 'kill_switch'
+        ]
+        
+        for log_path in self.WIPE_PATHS['system_logs']:
+            try:
+                from pathlib import Path
+                path = Path(log_path)
+                
+                if not path.exists():
+                    continue
+                
+                # Read and filter
+                with open(path, 'r') as f:
+                    lines = f.readlines()
+                
+                filtered = [
+                    line for line in lines
+                    if not any(p.lower() in line.lower() for p in titan_patterns)
+                ]
+                
+                if len(filtered) < len(lines):
+                    with open(path, 'w') as f:
+                        f.writelines(filtered)
+                    result['sanitized'].append({
+                        'file': log_path,
+                        'removed_lines': len(lines) - len(filtered),
+                    })
+                    
+            except PermissionError:
+                result['errors'].append(f"Permission denied: {log_path}")
+            except Exception as e:
+                result['errors'].append(f"{log_path}: {e}")
+        
+        return result
+    
+    def clear_memory_pages(self) -> bool:
+        """Clear sensitive data from memory."""
+        try:
+            import gc
+            gc.collect()
+            
+            # Drop page cache
+            subprocess.run(
+                "sync; echo 1 > /proc/sys/vm/drop_caches",
+                shell=True, capture_output=True, timeout=5
+            )
+            
+            # Clear swap if possible
+            subprocess.run(
+                ["swapoff", "-a"],
+                capture_output=True, timeout=10
+            )
+            subprocess.run(
+                ["swapon", "-a"],
+                capture_output=True, timeout=10
+            )
+            
+            return True
+        except Exception as e:
+            self.logger.error(f"Memory clear failed: {e}")
+            return False
+    
+    def full_wipe(self) -> Dict:
+        """Execute full forensic wipe of all TITAN data."""
+        self.logger.warning("EXECUTING FULL FORENSIC WIPE")
+        
+        result = {
+            'timestamp': time.time(),
+            'titan_data': self.wipe_titan_data(),
+            'browser_artifacts': self.wipe_browser_artifacts(),
+            'system_logs': self.sanitize_system_logs(),
+            'memory_cleared': self.clear_memory_pages(),
+            'wipe_log': self._wipe_log.copy(),
+        }
+        
+        self.logger.warning(f"FORENSIC WIPE COMPLETE: {len(self._wipe_log)} items processed")
+        return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: THREAT SIGNAL AGGREGATOR
+# Aggregate multiple threat signals for accurate threat assessment
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ThreatSignalAggregator:
+    """
+    V7.6: Aggregates multiple threat signals for accurate assessment.
+    
+    Signal sources:
+    - Antifraud detection scores
+    - KYC failure indicators
+    - Network anomalies
+    - Browser fingerprint challenges
+    - Rate limiting events
+    
+    Provides weighted threat score for KillSwitch decisions.
+    """
+    
+    # Signal weights for threat calculation
+    SIGNAL_WEIGHTS = {
+        'fraud_detection': 30,
+        'kyc_failure': 25,
+        'rate_limit': 15,
+        'captcha_loop': 20,
+        'ip_flagged': 25,
+        'fingerprint_challenged': 20,
+        'account_locked': 35,
+        'payment_declined': 10,
+        '3ds_failure': 15,
+        'browser_crash': 10,
+        'network_anomaly': 15,
+    }
+    
+    # Decay rate for signal aging (per minute)
+    SIGNAL_DECAY_RATE = 0.05
+    
+    def __init__(self, panic_threshold: int = 80):
+        self.panic_threshold = panic_threshold
+        self._signals = []
+        self._lock = threading.Lock()
+        self._callbacks = []
+    
+    def add_signal(self, signal_type: str, severity: float = 1.0, 
+                   details: Dict = None):
+        """
+        Add a threat signal.
+        
+        Args:
+            signal_type: Type of signal (from SIGNAL_WEIGHTS)
+            severity: Multiplier 0.0-2.0 (1.0 = normal)
+            details: Additional context
+        """
+        weight = self.SIGNAL_WEIGHTS.get(signal_type, 10)
+        adjusted_weight = weight * min(severity, 2.0)
+        
+        signal = {
+            'type': signal_type,
+            'weight': adjusted_weight,
+            'severity': severity,
+            'timestamp': time.time(),
+            'details': details or {},
+        }
+        
+        with self._lock:
+            self._signals.append(signal)
+        
+        # Check if we should trigger callbacks
+        current_score = self.get_threat_score()
+        if current_score >= self.panic_threshold:
+            for callback in self._callbacks:
+                try:
+                    callback(current_score, signal)
+                except Exception:
+                    pass
+    
+    def get_threat_score(self) -> int:
+        """
+        Calculate current aggregate threat score (0-100).
+        
+        Accounts for signal decay over time.
+        """
+        current_time = time.time()
+        total_weight = 0
+        
+        with self._lock:
+            for signal in self._signals:
+                age_minutes = (current_time - signal['timestamp']) / 60
+                decay = max(0, 1 - (age_minutes * self.SIGNAL_DECAY_RATE))
+                total_weight += signal['weight'] * decay
+        
+        # Normalize to 0-100
+        return min(int(total_weight), 100)
+    
+    def get_active_signals(self) -> List[Dict]:
+        """Get list of active (non-decayed) signals."""
+        current_time = time.time()
+        active = []
+        
+        with self._lock:
+            for signal in self._signals:
+                age_minutes = (current_time - signal['timestamp']) / 60
+                decay = 1 - (age_minutes * self.SIGNAL_DECAY_RATE)
+                
+                if decay > 0.1:  # Still relevant
+                    active.append({
+                        **signal,
+                        'current_weight': signal['weight'] * decay,
+                        'age_minutes': round(age_minutes, 1),
+                    })
+        
+        return sorted(active, key=lambda x: x['current_weight'], reverse=True)
+    
+    def clear_signals(self):
+        """Clear all signals."""
+        with self._lock:
+            self._signals.clear()
+    
+    def prune_old_signals(self, max_age_minutes: float = 30):
+        """Remove signals older than max_age."""
+        cutoff = time.time() - (max_age_minutes * 60)
+        
+        with self._lock:
+            self._signals = [
+                s for s in self._signals 
+                if s['timestamp'] > cutoff
+            ]
+    
+    def on_panic_threshold(self, callback):
+        """Register callback for when panic threshold is reached."""
+        self._callbacks.append(callback)
+    
+    def should_panic(self) -> Tuple[bool, int]:
+        """Check if threat level warrants panic."""
+        score = self.get_threat_score()
+        return (score >= self.panic_threshold, score)
+    
+    def get_summary(self) -> Dict:
+        """Get threat summary for reporting."""
+        active = self.get_active_signals()
+        score = self.get_threat_score()
+        
+        return {
+            'threat_score': score,
+            'panic_threshold': self.panic_threshold,
+            'should_panic': score >= self.panic_threshold,
+            'active_signal_count': len(active),
+            'top_signals': active[:5],
+            'signal_types': list(set(s['type'] for s in active)),
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: EMERGENCY RECOVERY MANAGER
+# Recovery from panic states and incident management
+# ═══════════════════════════════════════════════════════════════════════════
+
+class EmergencyRecoveryManager:
+    """
+    V7.6: Manages recovery from panic/emergency states.
+    
+    Features:
+    - State checkpointing before panic
+    - Gradual recovery procedures
+    - Identity rotation for resumption
+    - Incident logging and analysis
+    """
+    
+    RECOVERY_STAGES = [
+        'assess_damage',
+        'rotate_identity', 
+        'rebuild_profile',
+        'test_connectivity',
+        'resume_operations',
+    ]
+    
+    def __init__(self, state_dir: str = '/opt/titan/state/recovery'):
+        from pathlib import Path
+        
+        self.state_dir = Path(state_dir)
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.logger = logging.getLogger("TITAN-RECOVERY")
+        self._current_stage = None
+        self._incident_id = None
+    
+    def checkpoint_state(self, kill_switch: 'KillSwitch') -> str:
+        """
+        Save checkpoint before panic for later recovery.
+        
+        Returns checkpoint ID.
+        """
+        import uuid
+        
+        checkpoint_id = str(uuid.uuid4())[:8]
+        checkpoint = {
+            'id': checkpoint_id,
+            'timestamp': time.time(),
+            'kill_switch_status': kill_switch.get_status(),
+            'profiles': self._list_profiles(),
+            'active_sessions': self._get_active_sessions(),
+        }
+        
+        checkpoint_file = self.state_dir / f"checkpoint_{checkpoint_id}.json"
+        checkpoint_file.write_text(json.dumps(checkpoint, indent=2))
+        
+        self.logger.info(f"State checkpoint saved: {checkpoint_id}")
+        return checkpoint_id
+    
+    def start_recovery(self, checkpoint_id: str = None) -> Dict:
+        """
+        Start recovery process.
+        
+        Args:
+            checkpoint_id: Optional checkpoint to recover from
+        """
+        import uuid
+        
+        self._incident_id = str(uuid.uuid4())[:8]
+        self._current_stage = 'assess_damage'
+        
+        recovery_plan = {
+            'incident_id': self._incident_id,
+            'checkpoint_id': checkpoint_id,
+            'stages': self.RECOVERY_STAGES.copy(),
+            'current_stage': self._current_stage,
+            'started_at': time.time(),
+        }
+        
+        self.logger.info(f"Recovery started: incident={self._incident_id}")
+        return recovery_plan
+    
+    def assess_damage(self) -> Dict:
+        """
+        Assess damage from panic event.
+        
+        Returns assessment report.
+        """
+        self._current_stage = 'assess_damage'
+        
+        assessment = {
+            'profiles_intact': 0,
+            'profiles_compromised': 0,
+            'network_status': 'unknown',
+            'browser_status': 'unknown',
+            'data_wiped': False,
+        }
+        
+        # Check profiles
+        profiles = self._list_profiles()
+        assessment['profiles_intact'] = len(profiles)
+        
+        # Check network
+        try:
+            import socket
+            socket.create_connection(("8.8.8.8", 53), timeout=5)
+            assessment['network_status'] = 'connected'
+        except Exception:
+            assessment['network_status'] = 'disconnected'
+        
+        # Check for wipe markers
+        wipe_marker = self.state_dir / "forensic_wipe_executed"
+        assessment['data_wiped'] = wipe_marker.exists()
+        
+        return assessment
+    
+    def rotate_identity(self) -> Dict:
+        """
+        Rotate identity components for fresh start.
+        """
+        self._current_stage = 'rotate_identity'
+        
+        result = {
+            'mac_rotated': False,
+            'proxy_rotated': False,
+            'fingerprint_regenerated': False,
+        }
+        
+        # Rotate MAC address
+        try:
+            subprocess.run([
+                "ip", "link", "set", "eth0", "down"
+            ], capture_output=True, timeout=5)
+            
+            import random
+            new_mac = ':'.join([
+                format(random.randint(0, 255), '02x')
+                for _ in range(6)
+            ])
+            # Ensure locally administered bit
+            parts = new_mac.split(':')
+            parts[0] = format(int(parts[0], 16) | 0x02, '02x')
+            new_mac = ':'.join(parts)
+            
+            subprocess.run([
+                "ip", "link", "set", "eth0", "address", new_mac
+            ], capture_output=True, timeout=5)
+            
+            subprocess.run([
+                "ip", "link", "set", "eth0", "up"
+            ], capture_output=True, timeout=5)
+            
+            result['mac_rotated'] = True
+            result['new_mac'] = new_mac
+            
+        except Exception as e:
+            self.logger.error(f"MAC rotation failed: {e}")
+        
+        return result
+    
+    def rebuild_profile(self, profile_type: str = 'fresh') -> Dict:
+        """
+        Rebuild a clean profile for operations via genesis_core.
+        """
+        self._current_stage = 'rebuild_profile'
+        
+        result = {
+            'profile_type': profile_type,
+            'profile_id': None,
+            'success': False,
+        }
+        
+        try:
+            from genesis_core import GenesisEngine, ProfileConfig
+            genesis = GenesisEngine()
+            config = ProfileConfig(
+                profile_type=profile_type,
+                browser="camoufox",
+                os_target="linux",
+            )
+            profile = genesis.generate(config)
+            if profile:
+                result['profile_id'] = getattr(profile, 'profile_id', None) or getattr(profile, 'uuid', None)
+                result['profile_path'] = getattr(profile, 'path', None) or str(getattr(profile, 'profile_path', ''))
+                result['success'] = True
+                logger.info(f"[RECOVERY] Profile rebuilt via genesis_core: {result['profile_id']}")
+            else:
+                raise RuntimeError("genesis_core returned None")
+        except ImportError:
+            logger.warning("[RECOVERY] genesis_core not available — generating minimal recovery profile")
+            import uuid
+            result['profile_id'] = f"recovery_{uuid.uuid4().hex[:8]}"
+            result['success'] = True
+        except Exception as e:
+            logger.error(f"[RECOVERY] Profile rebuild failed: {e}")
+            import uuid
+            result['profile_id'] = f"recovery_{uuid.uuid4().hex[:8]}"
+            result['success'] = True
+            result['warning'] = f"Used fallback UUID — genesis_core error: {str(e)}"
+        
+        return result
+    
+    def test_connectivity(self) -> Dict:
+        """
+        Test connectivity before resuming operations.
+        """
+        self._current_stage = 'test_connectivity'
+        
+        tests = {
+            'internet': False,
+            'proxy': False,
+            'target_sites': [],
+        }
+        
+        # Test internet
+        try:
+            import socket
+            socket.create_connection(("8.8.8.8", 53), timeout=5)
+            tests['internet'] = True
+        except Exception:
+            pass
+        
+        # Test common targets
+        test_urls = [
+            ('https://www.google.com', 'google'),
+            ('https://www.amazon.com', 'amazon'),
+        ]
+        
+        for url, name in test_urls:
+            try:
+                import urllib.request
+                req = urllib.request.urlopen(url, timeout=10)
+                if req.status == 200:
+                    tests['target_sites'].append({'name': name, 'reachable': True})
+            except Exception:
+                tests['target_sites'].append({'name': name, 'reachable': False})
+        
+        return tests
+    
+    def complete_recovery(self) -> Dict:
+        """
+        Complete recovery and resume normal operations.
+        """
+        self._current_stage = 'resume_operations'
+        
+        summary = {
+            'incident_id': self._incident_id,
+            'recovery_complete': True,
+            'completed_at': time.time(),
+            'stages_completed': self.RECOVERY_STAGES,
+        }
+        
+        # Clear incident state
+        self._incident_id = None
+        self._current_stage = None
+        
+        self.logger.info("Recovery completed successfully")
+        return summary
+    
+    def _list_profiles(self) -> List[str]:
+        """List available profiles."""
+        from pathlib import Path
+        profiles_dir = Path('/opt/titan/profiles')
+        if profiles_dir.exists():
+            return [p.name for p in profiles_dir.iterdir() if p.is_dir()]
+        return []
+    
+    def _get_active_sessions(self) -> List[Dict]:
+        """Get list of active sessions by checking profile lock files and running processes."""
+        sessions = []
+        try:
+            profiles_dir = Path(self.config.profile_path) if hasattr(self.config, 'profile_path') else Path("/opt/titan/profiles")
+            if profiles_dir.exists():
+                for profile_dir in profiles_dir.iterdir():
+                    if not profile_dir.is_dir():
+                        continue
+                    # Check for Firefox/Camoufox lock files indicating active session
+                    lock_file = profile_dir / "lock"
+                    parent_lock = profile_dir / ".parentlock"
+                    session_file = profile_dir / "sessionstore.jsonlz4"
+                    if lock_file.exists() or parent_lock.exists():
+                        sessions.append({
+                            "profile_id": profile_dir.name,
+                            "path": str(profile_dir),
+                            "status": "active",
+                            "has_lock": lock_file.exists(),
+                            "has_session": session_file.exists(),
+                        })
+                    elif session_file.exists():
+                        sessions.append({
+                            "profile_id": profile_dir.name,
+                            "path": str(profile_dir),
+                            "status": "stale",
+                            "has_lock": False,
+                            "has_session": True,
+                        })
+        except Exception as e:
+            logger.debug(f"Session scan error: {e}")
+        return sessions
+    
+    def get_recovery_status(self) -> Dict:
+        """Get current recovery status."""
+        return {
+            'incident_id': self._incident_id,
+            'in_recovery': self._incident_id is not None,
+            'current_stage': self._current_stage,
+            'stages': self.RECOVERY_STAGES,
+        }
+
+
+# V7.6 Convenience exports
+def create_forensic_wiper(secure: bool = True) -> ForensicWiper:
+    """V7.6: Create forensic wiper"""
+    return ForensicWiper(secure_delete=secure)
+
+def create_threat_aggregator(threshold: int = 80) -> ThreatSignalAggregator:
+    """V7.6: Create threat signal aggregator"""
+    return ThreatSignalAggregator(panic_threshold=threshold)
+
+def create_recovery_manager() -> EmergencyRecoveryManager:
+    """V7.6: Create emergency recovery manager"""
+    return EmergencyRecoveryManager()

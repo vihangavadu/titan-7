@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# LUCID EMPIRE :: TITAN V7.0.3 SINGULARITY — INTEGRATED ISO BUILDER
+# LUCID EMPIRE :: TITAN V8.1 SINGULARITY — INTEGRATED ISO BUILDER
 # ==============================================================================
 # AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 # PURPOSE:   Zero-tolerance ISO generation for Debian 12 (Bookworm) hosts.
@@ -16,8 +16,8 @@
 #   - Internet connection (debootstrap + apt + pip downloads)
 #
 # Output:
-#   lucid-titan-v7.0-singularity.iso  (in repo root)
-#   lucid-titan-v7.0-singularity.iso.sha256
+#   lucid-titan-v8.1-singularity.iso  (in repo root)
+#   lucid-titan-v8.1-singularity.iso.sha256
 # ==============================================================================
 
 set -eo pipefail
@@ -148,10 +148,10 @@ log "Build dependencies installed."
 hdr "PHASE 2 — VERIFY SOURCE TREE INTEGRITY"
 # ==============================================================================
 
-# This phase checks that ALL V7.0 sources exist in the repo before building.
+# This phase checks that ALL V8.1 sources exist in the repo before building.
 # No deployment step needed — sources are already in iso/config/includes.chroot/
 
-log "Verifying V7.0 Titan Core (/opt/titan/core/)..."
+log "Verifying V8.1 Titan Core (/opt/titan/core/)..."
 V7_CORE_MODULES=(
     # Trinity
     "genesis_core.py"
@@ -187,14 +187,14 @@ V7_CORE_MODULES=(
     "location_spoofer_linux.py"
     "generate_trajectory_model.py"
     "titan_env.py"
-    # V7.0 Singularity Modules
+    # V8.1 Singularity Modules
     "tls_parrot.py"
     "webgl_angle.py"
     "network_jitter.py"
     "immutable_os.py"
     "cockpit_daemon.py"
     "waydroid_sync.py"
-    # V7.0.3 Intelligence & Operational Modules
+    # V8.1 Intelligence & Operational Modules
     "target_discovery.py"
     "intel_monitor.py"
     "transaction_monitor.py"
@@ -220,7 +220,7 @@ for mod in "${V7_CORE_MODULES[@]}"; do
     fi
 done
 
-log "Verifying V7.0 C Modules (/opt/titan/core/)..."
+log "Verifying V8.1 C Modules (/opt/titan/core/)..."
 for cmod in "${V6_C_MODULES[@]}"; do
     if [ -f "$TITAN_OPT/core/$cmod" ]; then
         echo -e "  ${GREEN}[+]${NC} core/$cmod"
@@ -230,7 +230,7 @@ for cmod in "${V6_C_MODULES[@]}"; do
     fi
 done
 
-log "Verifying V7.0 Trinity Apps (/opt/titan/apps/)..."
+log "Verifying V8.1 Trinity Apps (/opt/titan/apps/)..."
 for app in app_unified.py app_genesis.py app_cerberus.py app_kyc.py; do
     if [ -f "$TITAN_OPT/apps/$app" ]; then
         echo -e "  ${GREEN}[+]${NC} apps/$app"
@@ -240,7 +240,7 @@ for app in app_unified.py app_genesis.py app_cerberus.py app_kyc.py; do
     fi
 done
 
-log "Verifying V7.0 Launchers (/opt/titan/bin/)..."
+log "Verifying V8.1 Launchers (/opt/titan/bin/)..."
 for bin in titan-browser titan-launcher titan-first-boot install-to-disk; do
     if [ -f "$TITAN_OPT/bin/$bin" ]; then
         echo -e "  ${GREEN}[+]${NC} bin/$bin"
@@ -258,12 +258,12 @@ for ext in ghost_motor.js manifest.json; do
     fi
 done
 
-log "Verifying TX Monitor extension (V7.0.3)..."
+log "Verifying TX Monitor extension (V8.1)..."
 for ext in tx_monitor.js background.js manifest.json; do
     if [ -f "$TITAN_OPT/extensions/tx_monitor/$ext" ]; then
         echo -e "  ${GREEN}[+]${NC} extensions/tx_monitor/$ext"
     else
-        echo -e "  ${YELLOW}[~]${NC} extensions/tx_monitor/$ext (V7.0.3)"
+        echo -e "  ${YELLOW}[~]${NC} extensions/tx_monitor/$ext (V8.1)"
     fi
 done
 
@@ -317,7 +317,7 @@ else
     echo -e "  ${YELLOW}[~]${NC} XDG autostart missing — GUI will rely on systemd only"
 fi
 
-log "Verifying V7.0 VPN Infrastructure (/opt/titan/vpn/)..."
+log "Verifying V8.1 VPN Infrastructure (/opt/titan/vpn/)..."
 for vpnf in xray-client.json xray-server.json setup-vps-relay.sh setup-exit-node.sh; do
     if [ -f "$TITAN_OPT/vpn/$vpnf" ]; then
         echo -e "  ${GREEN}[+]${NC} vpn/$vpnf"
@@ -326,7 +326,7 @@ for vpnf in xray-client.json xray-server.json setup-vps-relay.sh setup-exit-node
     fi
 done
 
-log "Verifying V7.0 Testing Framework (/opt/titan/testing/)..."
+log "Verifying V8.1 Testing Framework (/opt/titan/testing/)..."
 for tf in __init__.py test_runner.py detection_emulator.py titan_adversary_sim.py environment.py psp_sandbox.py report_generator.py; do
     if [ -f "$TITAN_OPT/testing/$tf" ]; then
         echo -e "  ${GREEN}[+]${NC} testing/$tf"
@@ -418,7 +418,7 @@ HW_V6_SRC="$TITAN_OPT/core/hardware_shield_v6.c"
 HW_LEGACY_SRC="$LUCID_OPT/hardware_shield/titan_hw.c"
 
 if [ -f "$HW_V6_SRC" ]; then
-    log "V7.0 hardware shield source: $(ls -lh "$HW_V6_SRC" | awk '{print $5}')"
+    log "V8.1 hardware shield source: $(ls -lh "$HW_V6_SRC" | awk '{print $5}')"
     # Syntax check only (kernel module must be compiled inside chroot via DKMS)
     if command -v gcc &>/dev/null; then
         gcc -fsyntax-only -Wall "$HW_V6_SRC" 2>/dev/null && \
@@ -432,7 +432,7 @@ fi
 if [ -f "$HW_LEGACY_SRC" ]; then
     log "Legacy hardware shield: $(ls -lh "$HW_LEGACY_SRC" | awk '{print $5}')"
 else
-    warn "Legacy titan_hw.c not found — DKMS will use V7.0 source only"
+    warn "Legacy titan_hw.c not found — DKMS will use V8.1 source only"
 fi
 
 # ==============================================================================
@@ -445,7 +445,7 @@ mkdir -p "$DKMS_DIR"
 # Copy source from hardware_shield directory or V6 core
 if [ -f "$TITAN_OPT/core/hardware_shield_v6.c" ]; then
     cp "$TITAN_OPT/core/hardware_shield_v6.c" "$DKMS_DIR/titan_hw.c"
-    log "Using V7.0 hardware shield with Netlink injection"
+    log "Using V8.1 hardware shield with Netlink injection"
 elif [ -f "$LUCID_OPT/hardware_shield/titan_hw.c" ]; then
     cp "$LUCID_OPT/hardware_shield/titan_hw.c" "$DKMS_DIR/titan_hw.c"
     log "Using legacy hardware shield"
@@ -501,7 +501,7 @@ mkdir -p "$TITAN_OPT/state"
 mkdir -p "$TITAN_OPT/docs"
 mkdir -p "$TITAN_OPT/vpn"
 mkdir -p "$TITAN_OPT/assets/motions"
-# V7.0.3 data directories
+# V8.1 data directories
 mkdir -p "$CHROOT/opt/titan/data"
 mkdir -p "$CHROOT/opt/titan/data/tx_monitor"
 mkdir -p "$CHROOT/opt/titan/data/services"
@@ -510,7 +510,7 @@ mkdir -p "$CHROOT/opt/titan/data/intel_monitor/sessions/browser_profiles"
 mkdir -p "$CHROOT/opt/titan/data/intel_monitor/feed_cache"
 mkdir -p "$CHROOT/opt/titan/profiles"
 
-# V7.0.3: Copy profgen package to ISO chroot (forensic-grade profile generation)
+# V8.1: Copy profgen package to ISO chroot (forensic-grade profile generation)
 if [ -d "$REPO_ROOT/profgen" ]; then
     mkdir -p "$TITAN_OPT/profgen"
     cp -f "$REPO_ROOT/profgen/"*.py "$TITAN_OPT/profgen/"
@@ -667,7 +667,7 @@ if [ -d "$ISO_DIR/config/hooks/live" ]; then
     log "Hooks copied to config/hooks/ for live-build 3.x compat"
 fi
 
-# SquashFS compression: Zstandard level 19 (per V7.0 optimization plan Section 3.1)
+# SquashFS compression: Zstandard level 19 (per V8.1 optimization plan Section 3.1)
 # Superior balance between compression ratio and decompression speed vs XZ
 # Accelerates boot times — critical for toram rapid redeployment
 export MKSQUASHFS_OPTIONS="-comp zstd -Xcompression-level 19"
@@ -699,14 +699,14 @@ lb config \
     --initramfs live-boot \
     --initsystem systemd \
     --bootloaders grub-efi \
-    --bootappend-live "boot=live components quiet splash toram persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0" \
+    --bootappend-live "boot=live components quiet splash toram persistence username=user locales=en_US.UTF-8 ipv6.disable=1 net.ifnames=0 plymouth.enable=1" \
     --chroot-filesystem squashfs \
     --binary-images iso-hybrid \
     --apt-indices false \
     --memtest memtest86+ \
-    --iso-application "LUCID EMPIRE TITAN V7.0 SINGULARITY" \
+    --iso-application "Titan OS V8.1 Singularity" \
     --iso-publisher "Dva.12" \
-    --iso-volume "TITAN-V70-SINGULARITY"
+    --iso-volume "TITAN-V703-SINGULARITY"
 
 log "lb config complete."
 log "Starting ISO build — this takes 30-90 minutes..."
@@ -737,7 +737,7 @@ if [ "$LB_EXIT" -ne 0 ]; then
             HYBRID_ARG="-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin"
         fi
         xorriso -as mkisofs \
-            -r -V "TITAN-V70-SINGULARITY" \
+            -r -V "TITAN-V703-SINGULARITY" \
             -iso-level 3 \
             -o "$ISO_DIR/${ISO_NAME}.iso" \
             -J -joliet-long \
@@ -790,7 +790,7 @@ if [ -n "$ISO_FILE" ]; then
 
     echo "$ISO_SHA" > "${FINAL}.sha256"
 
-    hdr "BUILD COMPLETE — TITAN V7.0 SINGULARITY"
+    hdr "BUILD COMPLETE — TITAN V8.1 SINGULARITY"
     echo ""
     echo -e "  ${GREEN}${BOLD}ISO:${NC}      $FINAL"
     echo -e "  ${GREEN}${BOLD}Size:${NC}     $ISO_SIZE"

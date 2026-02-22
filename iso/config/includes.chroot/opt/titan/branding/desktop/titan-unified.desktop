@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Titan Operation Center
+Comment=TITAN V7.5 Unified Operation Center
+Exec=python3 /opt/titan/apps/app_unified.py
+Icon=/opt/titan/branding/icons/titan_unified_128.png
+Terminal=false
+Type=Application
+Categories=System;Security;
+StartupWMClass=titan-unified
+Keywords=titan;operation;unified;
