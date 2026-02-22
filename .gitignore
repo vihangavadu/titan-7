@@ -1,4 +1,56 @@
-
-nul
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
 venv/
+.venv/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS artifacts
+NUL
+nul
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Binaries — do not commit executables
+*.exe
+
+# Generated profiles — runtime data, not source
+profiles/
+
+# Build output
+*.iso
+*.img
+*.tar.gz
+
+# Runtime state & data
+state/
+data/
+*.db
+*.sqlite
+
+# Secrets & credentials
+titan.env
+*.pem
+*.key
+id_rsa*
+
+# Logs
+*.log
+logs/
+
+# Workspace files
+*.code-workspace
+lucid-titan.code-workspace

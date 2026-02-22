@@ -637,47 +637,46 @@ python titan_autonomous_engine.py patch --hours 24
 
 ```
 titan-7/
-  iso/config/includes.chroot/opt/titan/
-    core/                          84 Python modules + C sources + shell scripts
-      __init__.py                  Package init (662 lines, all exports)
-      hardware_shield_v6.c         Ring 0 kernel module source
-      network_shield_v6.c          Ring 1 eBPF XDP source
-      titan_battery.c              Battery state synthesis
-      build_ebpf.sh                eBPF compilation script
-      Makefile                     Kernel module build
-      *.py                         84 Python modules
-    apps/                          5 GUI apps + launcher + support
-      titan_launcher.py            Unified entry point
-      titan_operations.py          Operations Center (5 tabs)
-      titan_intelligence.py        Intelligence Center (5 tabs)
-      titan_network.py             Network Center (4 tabs)
-      app_kyc.py                   KYC Studio (4 tabs)
-      titan_admin.py               Admin Panel (5 tabs)
-      titan_enterprise_theme.py    Shared theme engine
-      titan_icon.py                App icon generator
-      titan_splash.py              Splash screen generator
-    profgen/                       6 profile generators
-      gen_places.py                Browsing history
-      gen_cookies.py               Cookie synthesis
-      gen_storage.py               localStorage/IndexedDB
-      gen_firefox_files.py         Firefox profile files
-      gen_formhistory.py           Form autofill data
-      config.py                    Generator configuration
-    extensions/                    Browser extensions
-      ghost_motor/                 Human-like mouse/keyboard
-      tx_monitor/                  Transaction monitoring
-    vpn/                           VPN configuration
-      setup-exit-node.sh           WireGuard exit node setup
-      setup-vps-relay.sh           VPS relay configuration
-      xray-client.json             VLESS client config
-      xray-server.json             VLESS server config
-    branding/                      OS branding assets
-      generate_branding.py         Logo/wallpaper generator
-      install_branding.sh          Branding installer
-    scripts/                       Utility scripts
-    config/                        Runtime configuration
-    state/                         Persistent state
-    docs/                          Documentation
+  README.md                        This file — full technical report
+  Dockerfile.build                 Docker ISO build container
+  pytest.ini                       Test configuration
+  .github/workflows/               CI/CD (build-iso, test-modules)
+  docs/                            All documentation
+    BUILD_GUIDE.md                 Step-by-step build instructions
+    DOCKER_BUILD.md                Container deployment guide
+    MANUAL_DEPLOYMENT.md           Manual setup guide
+    APP_ARCHITECTURE_V81.md        5-app architecture details
+    README_V81.md                  V8.1 quick start
+    TITAN_APP_RESTRUCTURE.md       Architecture migration notes
+    ISO_BUILD_EXECUTION_GUIDE.md   ISO build walkthrough
+    API_REFERENCE.md               REST API documentation
+    ARCHITECTURE.md                System architecture deep dive
+    CHANGELOG.md                   Version history
+    TROUBLESHOOTING.md             Common issues & fixes
+    ... (17 docs total)
+  research-resources/              17 technical whitepapers
+  scripts/
+    build/                         Build scripts (sh, bat, ps1)
+    vps/                           VPS deployment & sync scripts
+    ssh/                           SSH helper scripts
+    install/                       Installation scripts (WSL, AI, stack)
+    operations/                    Operation execution scripts
+  tests/                           Unit & integration tests
+  profgen/                         6 profile generators
+  config/                          OS hardening configs (sysctl, limits)
+  iso/                             Live ISO build system
+    auto/                          live-build auto scripts
+    config/
+      hooks/live/                  Build hooks (kernel, desktop, camoufox, ollama)
+      includes.chroot/opt/titan/   ← THE TITAN OS
+        core/                      84 Python modules + C sources
+        apps/                      5 GUI apps + launcher
+        extensions/                Browser extensions (Ghost Motor, tx_monitor)
+        vpn/                       VPN configs (WireGuard, VLESS)
+        branding/                  OS branding assets
+      includes.chroot/etc/         System configs (nftables, fonts, pulse, sysctl)
+    templates/                     DKMS kernel module templates
+  plans/                           Build capability verification
 ```
 
 ---
@@ -695,14 +694,13 @@ ssh root@72.62.72.48
 
 ### Option 2: WSL Installation
 ```bash
-cd /mnt/c/Users/Administrator/Desktop/titan-main
-sudo bash install_titan_wsl.sh
+sudo bash scripts/install/install_titan_wsl.sh
 ```
 
 ### Option 3: ISO Build
 ```bash
-chmod +x build_final.sh finalize_titan_oblivion.sh
-./build_final.sh
+chmod +x scripts/build/build_final.sh
+./scripts/build/build_final.sh
 # Output: ~2.7GB Debian 12 live ISO with 1505 packages
 ```
 
