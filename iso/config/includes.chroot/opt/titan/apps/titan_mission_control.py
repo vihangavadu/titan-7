@@ -1,3 +1,10 @@
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  DEPRECATED in V8.1 — Use Admin Panel (titan_admin.py)          ║
+# ║  All system control features are in the SERVICES + SYSTEM tabs.  ║
+# ║  Launch via: titan_launcher.py → Admin Panel                     ║
+# ║  NOTE: This file uses Tkinter; titan_admin.py uses PyQt6.       ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import subprocess

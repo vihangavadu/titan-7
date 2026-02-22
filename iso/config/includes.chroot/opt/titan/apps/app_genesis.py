@@ -2,6 +2,12 @@
 """
 TITAN V8.0 MAXIMUM — Identity Synthesis Engine
 
+╔═══════════════════════════════════════════════════════════════════╗
+║  DEPRECATED in V8.1 — Use Operations Center (app_unified.py)    ║
+║  All profile forge features are in the OPERATION tab.            ║
+║  Launch via: titan_launcher.py → Operations Center               ║
+╚═══════════════════════════════════════════════════════════════════╝
+
 PyQt6 Desktop Application for creating aged browser profiles.
 User selects target from dropdown, enters persona details, clicks "Synthesize".
 Profile is generated for MANUAL use by the human operator.

@@ -3,6 +3,12 @@
 TITAN V8.0 MAXIMUM — Asset Validation & Risk Assessment
 Card Validation GUI
 
+╔═══════════════════════════════════════════════════════════════════╗
+║  DEPRECATED in V8.1 — Use Operations Center (app_unified.py)    ║
+║  All card validation features are in the OPERATION tab.          ║
+║  Launch via: titan_launcher.py → Operations Center               ║
+╚═══════════════════════════════════════════════════════════════════╝
+
 PyQt6 Desktop Application for zero-touch card validation.
 User pastes card -> App shows Traffic Light (Green/Yellow/Red).
 Simple, fast, no-burn validation using merchant APIs.

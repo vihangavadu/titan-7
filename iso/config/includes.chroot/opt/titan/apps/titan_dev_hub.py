@@ -3,6 +3,12 @@
 TITAN V8.0 MAXIMUM — Development Integration Hub
 ═══════════════════════════════════════════════════════════════════════════════
 
+╔═══════════════════════════════════════════════════════════════════╗
+║  DEPRECATED in V8.1 — Use Admin Panel (titan_admin.py)          ║
+║  AI config, bug reporting, and system tools are in TOOLS tab.    ║
+║  Launch via: titan_launcher.py → Admin Panel                     ║
+╚═══════════════════════════════════════════════════════════════════╝
+
 Advanced development environment with comprehensive AI provider integration:
 
 🤖 AI PROVIDERS:

@@ -328,6 +328,118 @@ except ImportError:
     CoherenceValidator = OSINTEnricher = DemographicProfile = PurchaseCategory = None
     CoherenceResult = AgeGroup = OccupationCategory = IncomeLevel = None
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ORPHAN FIX: Previously unregistered core modules (17 modules)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# AI Intelligence Engine (Ollama LLM integration, model selection, prompt optimization)
+try:
+    from .ai_intelligence_engine import (
+        UnifiedAIOrchestrator, AIModelSelector, AIPromptOptimizer,
+        AIResponseValidator, AIBINAnalysis, AIPreFlightAdvice,
+        AITargetRecon, AI3DSStrategy, AIProfileAudit, AIBehavioralTuning,
+    )
+except ImportError:
+    UnifiedAIOrchestrator = AIModelSelector = AIPromptOptimizer = AIResponseValidator = None
+    AIBINAnalysis = AIPreFlightAdvice = AITargetRecon = AI3DSStrategy = None
+    AIProfileAudit = AIBehavioralTuning = None
+
+# Canvas Subpixel Shim (anti-fingerprint canvas noise injection)
+try:
+    from .canvas_subpixel_shim import CanvasSubpixelShim
+except ImportError:
+    CanvasSubpixelShim = None
+
+# CPUID/RDTSC Shield (KVM marker suppression)
+try:
+    from .cpuid_rdtsc_shield import CPUIDShield
+except ImportError:
+    CPUIDShield = None
+
+# Dynamic Data Generation
+try:
+    from .dynamic_data import DynamicDataGenerator
+except ImportError:
+    DynamicDataGenerator = None
+
+# Forensic Monitor (real-time detection monitoring)
+try:
+    from .forensic_monitor import ForensicMonitor
+except ImportError:
+    ForensicMonitor = None
+
+# KYC Voice Engine (voice synthesis for liveness)
+try:
+    from .kyc_voice_engine import KYCVoiceEngine
+except ImportError:
+    KYCVoiceEngine = None
+
+# Network Shield Loader (eBPF/XDP TCP stack rewrite)
+try:
+    from .network_shield_loader import NetworkShieldLoader
+except ImportError:
+    NetworkShieldLoader = None
+
+# Ollama Bridge (local LLM integration)
+try:
+    from .ollama_bridge import OllamaBridge
+except ImportError:
+    OllamaBridge = None
+
+# USB Peripheral Synthesis (fake USB device tree)
+try:
+    from .usb_peripheral_synth import USBPeripheralSynth
+except ImportError:
+    USBPeripheralSynth = None
+
+# Windows Font Provisioner (font substitution for Linux)
+try:
+    from .windows_font_provisioner import WindowsFontProvisioner
+except ImportError:
+    WindowsFontProvisioner = None
+
+# Titan Agent Chain (multi-step AI agent orchestration)
+try:
+    from .titan_agent_chain import AgentChain
+except ImportError:
+    AgentChain = None
+
+# Titan Auto Patcher (automated bug fixing)
+try:
+    from .titan_auto_patcher import TitanAutoPatcher
+except ImportError:
+    TitanAutoPatcher = None
+
+# Titan Automation Orchestrator (workflow automation)
+try:
+    from .titan_automation_orchestrator import AutomationOrchestrator
+except ImportError:
+    AutomationOrchestrator = None
+
+# Titan Detection Analyzer (antifraud detection analysis)
+try:
+    from .titan_detection_analyzer import TitanDetectionAnalyzer
+except ImportError:
+    TitanDetectionAnalyzer = None
+
+# Titan Vector Memory (embedding-based context memory)
+try:
+    from .titan_vector_memory import VectorMemory
+except ImportError:
+    VectorMemory = None
+
+# Titan Web Intel (web scraping intelligence)
+try:
+    from .titan_web_intel import WebIntelCollector
+except ImportError:
+    WebIntelCollector = None
+
+# Titan Master Automation (high-level automation coordinator)
+try:
+    from .titan_master_automation import MasterAutomation
+except ImportError:
+    MasterAutomation = None
+
 __all__ = [
     # Trinity Apps Core
     'GenesisEngine', 'ProfileConfig', 'TargetPreset',
@@ -509,4 +621,13 @@ __all__ = [
     'PersonaEnrichmentEngine', 'DemographicProfiler', 'PurchasePatternPredictor',
     'CoherenceValidator', 'OSINTEnricher', 'DemographicProfile', 'PurchaseCategory',
     'CoherenceResult', 'AgeGroup', 'OccupationCategory', 'IncomeLevel',
+    # Orphan Fix: 17 previously unregistered modules
+    'UnifiedAIOrchestrator', 'AIModelSelector', 'AIPromptOptimizer', 'AIResponseValidator',
+    'AIBINAnalysis', 'AIPreFlightAdvice', 'AITargetRecon', 'AI3DSStrategy',
+    'AIProfileAudit', 'AIBehavioralTuning',
+    'CanvasSubpixelShim', 'CPUIDShield', 'DynamicDataGenerator',
+    'ForensicMonitor', 'KYCVoiceEngine', 'NetworkShieldLoader',
+    'OllamaBridge', 'USBPeripheralSynth', 'WindowsFontProvisioner',
+    'AgentChain', 'TitanAutoPatcher', 'AutomationOrchestrator',
+    'TitanDetectionAnalyzer', 'VectorMemory', 'WebIntelCollector', 'MasterAutomation',
 ]
