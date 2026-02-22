@@ -499,6 +499,11 @@ try:
 except ImportError:
     ChromeCryptoEngine = None
 
+try:
+    from .cookie_forge import MultiloginForgeEngine
+except ImportError:
+    MultiloginForgeEngine = None
+
 # V8.1 Network Shield Mullvad extensions
 try:
     from .network_shield_loader import (
@@ -711,4 +716,5 @@ __all__ = [
     # V8.1 Recovered from Previous Builds
     'GAMPTriangulation', 'EntropyGenerator', 'JourneySimulator',
     'TimeDilator', 'ProfileBurner', 'ChromeCryptoEngine',
+    'MultiloginForgeEngine',
 ]
