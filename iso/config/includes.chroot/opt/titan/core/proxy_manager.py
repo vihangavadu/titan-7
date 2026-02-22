@@ -15,6 +15,7 @@ Datacenter IPs are instant death - residential is mandatory.
 
 import os
 import asyncio
+import threading
 try:
     import aiohttp
     AIOHTTP_AVAILABLE = True
@@ -26,7 +27,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Set
 from pathlib import Path
 from enum import Enum
 import hashlib
@@ -225,6 +226,11 @@ class ResidentialProxyManager:
         self.pool: List[ProxyEndpoint] = []
         self.sessions: Dict[str, ProxySession] = {}
         
+        # R5-FIX: Thread-safe locks for session checkout and pool access
+        self._session_lock = threading.Lock()
+        self._pool_lock = threading.Lock()
+        self._active_checkout_sessions: Set[str] = set()  # session IDs in active checkout
+        
         # Auto-load pool from env or explicit path
         resolved_pool = pool_file or os.getenv("TITAN_PROXY_POOL_FILE", "/opt/titan/state/proxies.json")
         if resolved_pool:
@@ -267,8 +273,9 @@ class ResidentialProxyManager:
             logger.error(f"Failed to load pool: {e}")
     
     def add_proxy(self, proxy: ProxyEndpoint):
-        """Add proxy to pool"""
-        self.pool.append(proxy)
+        """Add proxy to pool (thread-safe)"""
+        with self._pool_lock:
+            self.pool.append(proxy)
     
     def get_proxy_for_geo(self, target: GeoTarget) -> Optional[ProxyEndpoint]:
         """
@@ -356,37 +363,75 @@ class ResidentialProxyManager:
         """
         Create a sticky proxy session for an operation.
         
+        R5-FIX: Thread-safe session creation with lock.
         The same IP will be used for the entire session duration.
         This is critical for checkout flows.
         """
-        proxy = self.get_proxy_for_geo(geo_target)
-        if not proxy:
-            logger.error("No proxy available for geo target")
-            return None
-        
-        session_id = hashlib.sha256(
-            f"{target_domain}:{datetime.now(timezone.utc).isoformat()}".encode()
-        ).hexdigest()[:16]
-        
-        session = ProxySession(
-            session_id=session_id,
-            proxy=proxy,
-            target_domain=target_domain,
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
-        )
-        
-        self.sessions[session_id] = session
-        
-        logger.info(f"Created session {session_id} with proxy {proxy.host}:{proxy.port}")
-        return session
+        with self._session_lock:
+            proxy = self.get_proxy_for_geo(geo_target)
+            if not proxy:
+                logger.error("No proxy available for geo target")
+                return None
+            
+            session_id = hashlib.sha256(
+                f"{target_domain}:{datetime.now(timezone.utc).isoformat()}".encode()
+            ).hexdigest()[:16]
+            
+            session = ProxySession(
+                session_id=session_id,
+                proxy=proxy,
+                target_domain=target_domain,
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+            )
+            
+            self.sessions[session_id] = session
+            
+            logger.info(f"Created session {session_id} with proxy {proxy.host}:{proxy.port}")
+            return session
     
     def get_session(self, session_id: str) -> Optional[ProxySession]:
-        """Get existing session"""
-        session = self.sessions.get(session_id)
-        if session and session.is_expired:
-            del self.sessions[session_id]
-            return None
-        return session
+        """Get existing session (thread-safe)"""
+        with self._session_lock:
+            session = self.sessions.get(session_id)
+            if session and session.is_expired:
+                self._active_checkout_sessions.discard(session_id)
+                del self.sessions[session_id]
+                return None
+            return session
+    
+    def checkout_lock(self, session_id: str) -> bool:
+        """
+        R5-FIX: Lock a session for checkout — prevents health checker from
+        rotating this session's proxy while checkout is in progress.
+        
+        Call this BEFORE entering the payment flow.
+        Call checkout_unlock() after transaction completes or fails.
+        """
+        with self._session_lock:
+            session = self.sessions.get(session_id)
+            if not session:
+                logger.warning(f"[R5] Cannot lock non-existent session {session_id}")
+                return False
+            if session.is_expired:
+                logger.warning(f"[R5] Cannot lock expired session {session_id}")
+                return False
+            self._active_checkout_sessions.add(session_id)
+            logger.info(f"[R5] Session {session_id} LOCKED for checkout (proxy={session.proxy.host})")
+            return True
+    
+    def checkout_unlock(self, session_id: str):
+        """
+        R5-FIX: Unlock a session after checkout completes.
+        Health checker can now rotate this proxy if needed.
+        """
+        with self._session_lock:
+            self._active_checkout_sessions.discard(session_id)
+            logger.info(f"[R5] Session {session_id} UNLOCKED from checkout")
+    
+    def is_session_in_checkout(self, session_id: str) -> bool:
+        """R5-FIX: Check if a session is currently locked for checkout."""
+        with self._session_lock:
+            return session_id in self._active_checkout_sessions
     
     async def check_proxy_health(self, proxy: ProxyEndpoint) -> ProxyStatus:
         """Check proxy health via test request"""
@@ -704,15 +749,38 @@ class ProxyHealthChecker:
             self._monitor_thread.join(timeout=5)
     
     def _monitoring_loop(self, interval: int):
-        """Background monitoring loop."""
+        """Background monitoring loop.
+        
+        R5-FIX: Coordinates with session checkout locks — skips proxies
+        that are assigned to sessions currently in active checkout.
+        """
         import asyncio
         
         while not self._stop_monitoring.is_set():
             if self.manager:
-                # Check all proxies in pool
-                for proxy_url, proxy in list(self.manager._pool.items()):
+                # R5-FIX: Build set of proxy hosts currently locked for checkout
+                locked_proxy_hosts = set()
+                if hasattr(self.manager, '_session_lock'):
+                    with self.manager._session_lock:
+                        for sid in self.manager._active_checkout_sessions:
+                            session = self.manager.sessions.get(sid)
+                            if session and session.proxy:
+                                locked_proxy_hosts.add(f"{session.proxy.host}:{session.proxy.port}")
+                
+                # Check all proxies in pool (list, not dict)
+                with self.manager._pool_lock:
+                    pool_snapshot = list(self.manager.pool)
+                
+                for proxy in pool_snapshot:
                     if self._stop_monitoring.is_set():
                         break
+                    
+                    # R5-FIX: Skip proxies locked for checkout
+                    proxy_key = f"{proxy.host}:{proxy.port}"
+                    if proxy_key in locked_proxy_hosts:
+                        logger.debug(f"[R5] Skipping health check for {proxy_key} (checkout locked)")
+                        continue
+                    
                     try:
                         asyncio.run(self.check_proxy_health(proxy))
                     except Exception:

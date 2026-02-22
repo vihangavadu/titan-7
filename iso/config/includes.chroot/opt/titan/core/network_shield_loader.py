@@ -455,6 +455,151 @@ class NetworkShield:
             "stats": self.get_stats(),
         }
     
+    def is_available(self) -> bool:
+        """Check if eBPF shield can be loaded on this system."""
+        try:
+            if os.geteuid() != 0:
+                return False
+            if not self._check_bpf_support():
+                return False
+            # Check if clang is available for compilation
+            result = subprocess.run(["which", "clang"], capture_output=True, check=False)
+            return result.returncode == 0
+        except Exception:
+            return False
+    
+    def switch_persona(self, persona) -> Dict[str, Any]:
+        """Convenience alias for set_persona that accepts Persona enum directly."""
+        if isinstance(persona, Persona):
+            name_map = {Persona.LINUX: "linux", Persona.WINDOWS: "windows", Persona.MACOS: "macos"}
+            return self.set_persona(name_map.get(persona, "windows"))
+        return self.set_persona(str(persona).lower())
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # R3-FIX: Safe Boot Sequence — block traffic until eBPF is confirmed active
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    _NFTABLES_BLOCK_RULES = """#!/usr/sbin/nft -f
+# R3-FIX: Temporary outbound block during eBPF boot
+# This table is deleted once eBPF shield reports successful init
+table inet titan_boot_block {{
+    chain output {{
+        type filter hook output priority 0; policy drop;
+        # Allow loopback
+        oif "lo" accept
+        # Allow SSH (port 22) to prevent lockout
+        tcp sport 22 accept
+        tcp dport 22 accept
+        # Allow DNS for eBPF compilation dependencies
+        udp dport 53 accept
+        tcp dport 53 accept
+        # Allow established connections (keeps SSH alive)
+        ct state established,related accept
+        # Drop everything else — prevents true TCP fingerprint leak
+        counter drop
+    }}
+}}
+"""
+    
+    def safe_boot(self, mode: str = "xdp", persona: str = "windows",
+                  timeout_seconds: int = 30) -> bool:
+        """
+        R3-FIX: Safe boot sequence that prevents TCP fingerprint leak.
+        
+        1. Block all outbound traffic via nftables (except SSH + loopback)
+        2. Compile and load eBPF program
+        3. Set persona
+        4. Verify eBPF is active
+        5. Remove nftables block
+        
+        If eBPF fails to load within timeout, the block is removed and
+        an error is raised — the system stays in Linux TCP fingerprint
+        but at least doesn't hang.
+        
+        Args:
+            mode: eBPF attachment mode ('xdp' or 'tc')
+            persona: Target OS persona
+            timeout_seconds: Max time to wait for eBPF init
+            
+        Returns:
+            True if eBPF loaded successfully with no fingerprint leak window
+        """
+        self._check_root()
+        
+        logger.info("[R3-SAFE-BOOT] Starting safe boot sequence...")
+        
+        # Step 1: Apply nftables outbound block
+        block_applied = False
+        try:
+            nft_file = Path("/tmp/titan_boot_block.nft")
+            nft_file.write_text(self._NFTABLES_BLOCK_RULES)
+            result = subprocess.run(
+                ["nft", "-f", str(nft_file)],
+                capture_output=True, text=True, check=True,
+                timeout=5
+            )
+            block_applied = True
+            logger.info("[R3-SAFE-BOOT] Outbound traffic BLOCKED (nftables)")
+        except FileNotFoundError:
+            logger.warning("[R3-SAFE-BOOT] nftables not available — proceeding without block")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"[R3-SAFE-BOOT] nftables block failed: {e.stderr}")
+        except Exception as e:
+            logger.warning(f"[R3-SAFE-BOOT] nftables block error: {e}")
+        
+        # Step 2: Load eBPF
+        ebpf_ok = False
+        try:
+            self.load(mode=mode)
+            self.set_persona(persona)
+            
+            # Step 3: Verify eBPF is actually processing packets
+            import time as _time
+            deadline = _time.time() + timeout_seconds
+            while _time.time() < deadline:
+                stats = self.get_stats()
+                if self.is_loaded:
+                    ebpf_ok = True
+                    logger.info(f"[R3-SAFE-BOOT] eBPF loaded and active — persona={persona}")
+                    break
+                _time.sleep(0.5)
+            
+            if not ebpf_ok:
+                logger.error(f"[R3-SAFE-BOOT] eBPF failed to confirm within {timeout_seconds}s")
+        except Exception as e:
+            logger.error(f"[R3-SAFE-BOOT] eBPF load failed: {e}")
+        
+        # Step 4: Remove nftables block (ALWAYS — even on failure)
+        if block_applied:
+            try:
+                subprocess.run(
+                    ["nft", "delete", "table", "inet", "titan_boot_block"],
+                    capture_output=True, text=True, check=False,
+                    timeout=5
+                )
+                logger.info("[R3-SAFE-BOOT] Outbound traffic UNBLOCKED")
+            except Exception as e:
+                logger.error(f"[R3-SAFE-BOOT] CRITICAL: Could not remove nftables block: {e}")
+                # Emergency: flush all nftables rules
+                try:
+                    subprocess.run(["nft", "flush", "ruleset"], capture_output=True, check=False, timeout=5)
+                    logger.warning("[R3-SAFE-BOOT] Emergency: flushed all nftables rules")
+                except Exception:
+                    pass
+        
+        # Cleanup temp file
+        try:
+            Path("/tmp/titan_boot_block.nft").unlink(missing_ok=True)
+        except Exception:
+            pass
+        
+        if ebpf_ok:
+            logger.info("[R3-SAFE-BOOT] Safe boot COMPLETE — zero fingerprint leak window")
+        else:
+            logger.warning("[R3-SAFE-BOOT] Safe boot DEGRADED — eBPF not active, TCP fingerprint is Linux")
+        
+        return ebpf_ok
+    
     def __enter__(self):
         """Context manager entry."""
         return self

@@ -45,6 +45,45 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import json
 import logging
+import threading
+from enum import Enum as _BridgeEnum
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# R1-FIX: Bridge State Machine — prevents silent cascading failures
+# ═══════════════════════════════════════════════════════════════════════════
+
+class BridgeState(_BridgeEnum):
+    """Strict state machine for the integration bridge lifecycle."""
+    UNINITIALIZED = "uninitialized"
+    INITIALIZING = "initializing"
+    READY = "ready"              # All critical subsystems OK
+    DEGRADED = "degraded"        # Some non-critical subsystems failed
+    FAILED = "failed"            # Critical subsystem failed — cannot operate
+    PREPARING = "preparing"      # full_prepare() in progress
+    ARMED = "armed"              # full_prepare() complete — ready for browser launch
+    ACTIVE = "active"            # Browser launched, operation in progress
+    TEARDOWN = "teardown"        # Shutting down
+
+
+@dataclass
+class SubsystemHealth:
+    """Tracks health of each bridge subsystem to prevent silent failures."""
+    name: str
+    critical: bool = False       # If True, bridge cannot operate without this
+    initialized: bool = False
+    error: Optional[str] = None
+    init_time_ms: float = 0.0
+
+
+# Critical subsystems — bridge MUST NOT launch browser if any of these fail
+CRITICAL_SUBSYSTEMS = {
+    "fingerprint_shims",   # V1 vector — browser is naked without these
+    "proxy",               # V2 vector — no proxy = real IP exposed
+    "timezone",            # V4 vector — TZ mismatch = instant flag
+    "profile_validation",  # V6 vector — corrupt profile = detection
+}
+
 
 # Centralized env loading
 try:
@@ -553,6 +592,13 @@ class TitanIntegrationBridge:
         self.config = config
         self.initialized = False
         
+        # R1-FIX: State machine + subsystem health tracking
+        self._state = BridgeState.UNINITIALIZED
+        self._state_lock = threading.Lock()
+        self._subsystems: Dict[str, SubsystemHealth] = {}
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._heartbeat_running = False
+        
         # Legacy module instances (lazy loaded)
         self._zero_detect = None
         self._preflight = None
@@ -583,36 +629,157 @@ class TitanIntegrationBridge:
         self.preflight_report: Optional[PreFlightReport] = None
         self.browser_config: Optional[BrowserLaunchConfig] = None
     
+    # ═══════════════════════════════════════════════════════════════════════════
+    # R1-FIX: STATE MACHINE + SUBSYSTEM HEALTH API
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def _set_state(self, new_state: BridgeState):
+        """Thread-safe state transition."""
+        with self._state_lock:
+            old = self._state
+            self._state = new_state
+            logger.info(f"[BRIDGE-STATE] {old.value} → {new_state.value}")
+    
+    @property
+    def state(self) -> BridgeState:
+        """Current bridge state."""
+        return self._state
+    
+    def _track_subsystem(self, name: str, critical: bool, success: bool,
+                         error: Optional[str] = None, init_time_ms: float = 0.0):
+        """Record subsystem initialization result."""
+        self._subsystems[name] = SubsystemHealth(
+            name=name,
+            critical=critical,
+            initialized=success,
+            error=error,
+            init_time_ms=init_time_ms,
+        )
+        if not success and critical:
+            logger.error(f"[BRIDGE] CRITICAL subsystem '{name}' FAILED: {error}")
+        elif not success:
+            logger.warning(f"[BRIDGE] Non-critical subsystem '{name}' failed: {error}")
+    
+    def get_subsystem_report(self) -> Dict[str, Any]:
+        """Get health report for all subsystems — exposes failures instead of hiding them."""
+        critical_ok = []
+        critical_fail = []
+        optional_ok = []
+        optional_fail = []
+        for s in self._subsystems.values():
+            bucket = (critical_ok if s.initialized else critical_fail) if s.critical else \
+                     (optional_ok if s.initialized else optional_fail)
+            bucket.append({"name": s.name, "error": s.error, "time_ms": round(s.init_time_ms, 1)})
+        return {
+            "state": self._state.value,
+            "critical_ok": len(critical_ok),
+            "critical_fail": len(critical_fail),
+            "optional_ok": len(optional_ok),
+            "optional_fail": len(optional_fail),
+            "critical_failures": critical_fail,
+            "optional_failures": optional_fail,
+            "can_operate": len(critical_fail) == 0,
+        }
+    
+    def _start_heartbeat(self, interval: int = 30):
+        """R1-FIX: Heartbeat thread — checks cognitive core + proxy manager liveness."""
+        def _heartbeat_loop():
+            import time as _time
+            while self._heartbeat_running:
+                try:
+                    # Check cognitive core liveness
+                    if self._cognitive_core:
+                        connected = getattr(self._cognitive_core, 'is_connected', False)
+                        if not connected:
+                            logger.warning("[HEARTBEAT] Cognitive core disconnected")
+                    # Check proxy manager liveness
+                    if self._proxy_manager:
+                        try:
+                            stats = self._proxy_manager.get_stats()
+                            if stats.get('total', 0) == 0:
+                                logger.warning("[HEARTBEAT] Proxy pool empty")
+                        except Exception:
+                            logger.warning("[HEARTBEAT] Proxy manager unreachable")
+                except Exception as e:
+                    logger.debug(f"[HEARTBEAT] Check error: {e}")
+                _time.sleep(interval)
+        
+        self._heartbeat_running = True
+        self._heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True, name="bridge-heartbeat")
+        self._heartbeat_thread.start()
+        logger.info(f"[BRIDGE] Heartbeat started (interval={interval}s)")
+    
+    def stop_heartbeat(self):
+        """Stop the heartbeat thread."""
+        self._heartbeat_running = False
+        if self._heartbeat_thread:
+            self._heartbeat_thread.join(timeout=5)
+            self._heartbeat_thread = None
+    
     def initialize(self) -> bool:
         """Initialize all legacy modules and V7.5/V7.6 architectural modules"""
-        logger.info("Initializing TITAN V7.6 Integration Bridge...")
+        import time as _time
+        self._set_state(BridgeState.INITIALIZING)
+        logger.info("Initializing TITAN V8.0 Integration Bridge...")
         
         try:
             # Import and initialize ZeroDetect
+            t0 = _time.time()
             self._init_zero_detect()
+            self._track_subsystem("zero_detect", critical=False, success=self._zero_detect is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
             
             # Import and initialize PreFlight
+            t0 = _time.time()
             self._init_preflight()
+            self._track_subsystem("preflight", critical=False, success=self._preflight is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
             
             # Import and initialize Location Spoofer
+            t0 = _time.time()
             self._init_location()
+            self._track_subsystem("location", critical=False, success=self._location is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
             
             # Import and initialize Commerce Vault
+            t0 = _time.time()
             self._init_commerce()
+            self._track_subsystem("commerce", critical=False, success=self._commerce is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
             
             # Import and initialize Fingerprint Manager
+            t0 = _time.time()
             self._init_fingerprint()
+            self._track_subsystem("fingerprint", critical=False, success=self._fingerprint is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
             
             # Import and initialize TLS Masquerade
+            t0 = _time.time()
             self._init_tls_masquerade()
+            self._track_subsystem("tls_masquerade", critical=False, success=self._tls_masquerade is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
             
             # Import and initialize Humanization Engine
+            t0 = _time.time()
             self._init_humanization()
+            self._track_subsystem("humanization", critical=False, success=self._humanization is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
             
             # V7.0: Initialize subsystems from titan.env
+            t0 = _time.time()
             self._init_cognitive_core()
+            self._track_subsystem("cognitive_core", critical=False, success=self._cognitive_core is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
+            
+            t0 = _time.time()
             self._init_proxy_manager()
+            self._track_subsystem("proxy_manager", critical=False, success=self._proxy_manager is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
+            
+            t0 = _time.time()
             self._init_vpn()
+            self._track_subsystem("vpn", critical=False, success=self._vpn is not None,
+                                  init_time_ms=(_time.time()-t0)*1000)
             
             # V7.5/V7.6: Initialize Architectural Modules
             logger.info("  Initializing V7.6 Architectural Modules...")
@@ -629,12 +796,31 @@ class TitanIntegrationBridge:
             active_count = sum(1 for v in v76_status.values() if v)
             logger.info(f"  V7.6 Modules: {active_count}/{len(v76_status)} active")
             
+            # R1-FIX: Determine bridge state from subsystem health
+            report = self.get_subsystem_report()
+            if report["critical_fail"] > 0:
+                self._set_state(BridgeState.FAILED)
+                logger.error(f"[BRIDGE] FAILED — {report['critical_fail']} critical subsystem(s) down")
+                for f in report["critical_failures"]:
+                    logger.error(f"  ✗ {f['name']}: {f['error']}")
+                self.initialized = False
+                return False
+            elif report["optional_fail"] > 0:
+                self._set_state(BridgeState.DEGRADED)
+                logger.warning(f"[BRIDGE] DEGRADED — {report['optional_fail']} non-critical subsystem(s) down")
+            else:
+                self._set_state(BridgeState.READY)
+            
+            # R1-FIX: Start heartbeat monitoring
+            self._start_heartbeat(interval=30)
+            
             self.initialized = True
-            logger.info("Integration Bridge V7.6 initialized successfully")
+            logger.info(f"Integration Bridge V8.0 initialized — state={self._state.value}")
             return True
             
         except Exception as e:
             logger.error(f"Failed to initialize bridge: {e}")
+            self._set_state(BridgeState.FAILED)
             return False
     
     def _init_zero_detect(self):
@@ -1516,19 +1702,23 @@ class TitanIntegrationBridge:
         6. Build browser config
         
         Returns True if ready for manual operation.
+        R1-FIX: Now tracks critical subsystem health and refuses to launch if any fail.
         """
+        self._set_state(BridgeState.PREPARING)
         self.config.billing_address = billing_address
         self.config.target_domain = target_domain
         
         # Initialize
         if not self.initialized:
             if not self.initialize():
+                self._set_state(BridgeState.FAILED)
                 return False
         
         # Pre-flight
         report = self.run_preflight()
         if not report.is_ready:
             logger.error(f"Pre-flight failed: {report.abort_reason}")
+            self._set_state(BridgeState.FAILED)
             return False
         
         # V7.6: AI Operations Guard — pre-operation check
@@ -1682,17 +1872,22 @@ class TitanIntegrationBridge:
         except Exception as e:
             logger.debug(f"  DoH configuration skipped: {e}")
         
-        # V8 U2-FIX: Auto-load eBPF network shield for TCP/IP masquerade
+        # V8 U2-FIX + R3-FIX: Safe-boot eBPF network shield (blocks traffic until active)
         try:
             from network_shield_loader import NetworkShield, Persona
             shield = NetworkShield()
             if shield.is_available():
-                shield.switch_persona(Persona.WINDOWS)
-                logger.info("  ✓ eBPF network shield loaded (Windows TCP/IP persona)")
-            elif hasattr(shield, 'load') and callable(shield.load):
-                shield.load()
-                shield.switch_persona(Persona.WINDOWS)
-                logger.info("  ✓ eBPF network shield compiled & loaded")
+                # R3-FIX: Use safe_boot() to prevent TCP fingerprint leak window
+                if hasattr(shield, 'safe_boot'):
+                    ebpf_ok = shield.safe_boot(mode="xdp", persona="windows", timeout_seconds=30)
+                    if ebpf_ok:
+                        logger.info("  ✓ eBPF network shield safe-booted (zero leak window)")
+                    else:
+                        logger.warning("  ⚠ eBPF safe-boot degraded — TCP fingerprint may be Linux")
+                else:
+                    shield.load()
+                    shield.switch_persona(Persona.WINDOWS)
+                    logger.info("  ✓ eBPF network shield loaded (Windows TCP/IP persona)")
             else:
                 logger.debug("  eBPF shield: not available (requires root + kernel support)")
         except ImportError:
@@ -1754,7 +1949,48 @@ class TitanIntegrationBridge:
         # Build config
         self.get_browser_config()
         
-        logger.info("Full preparation complete - ready for manual operation")
+        # R1-FIX: Check critical subsystem health before declaring ready
+        # Track fingerprint shims as critical
+        shims_ok = CANVAS_SHIM_AVAILABLE or FINGERPRINT_INJECTOR_AVAILABLE or AUDIO_HARDENER_AVAILABLE
+        self._track_subsystem("fingerprint_shims", critical=True, success=shims_ok,
+                              error="No fingerprint shim modules available" if not shims_ok else None)
+        
+        # Track proxy as critical (must have proxy OR VPN)
+        proxy_ok = (self._proxy_manager is not None) or (self._vpn is not None) or \
+                   (self.config.proxy_config is not None)
+        self._track_subsystem("proxy", critical=True, success=proxy_ok,
+                              error="No proxy, VPN, or proxy config available" if not proxy_ok else None)
+        
+        # Track timezone as critical
+        tz_ok = TIMEZONE_ENFORCER_AVAILABLE
+        self._track_subsystem("timezone", critical=True, success=tz_ok,
+                              error="Timezone enforcer not available" if not tz_ok else None)
+        
+        # Track profile validation as critical
+        profile_ok = True
+        profile_error = None
+        if self.config.profile_path:
+            profile_path = Path(self.config.profile_path) if not isinstance(self.config.profile_path, Path) else self.config.profile_path
+            required_files = ["places.sqlite", "prefs.js", "compatibility.ini"]
+            missing = [f for f in required_files if not (profile_path / f).exists()]
+            if missing:
+                profile_ok = False
+                profile_error = f"Missing: {', '.join(missing)}"
+        self._track_subsystem("profile_validation", critical=True, success=profile_ok, error=profile_error)
+        
+        # R1-FIX: Final gate — refuse to launch if critical subsystems failed
+        final_report = self.get_subsystem_report()
+        if not final_report["can_operate"]:
+            self._set_state(BridgeState.FAILED)
+            logger.error("[BRIDGE] CANNOT PROCEED — critical subsystem(s) failed:")
+            for f in final_report["critical_failures"]:
+                logger.error(f"  ✗ {f['name']}: {f['error']}")
+            return False
+        
+        self._set_state(BridgeState.ARMED)
+        logger.info(f"Full preparation complete — state=ARMED, "
+                    f"critical={final_report['critical_ok']}/{final_report['critical_ok']}, "
+                    f"optional={final_report['optional_ok']}/{final_report['optional_ok']+final_report['optional_fail']}")
         return True
 
 

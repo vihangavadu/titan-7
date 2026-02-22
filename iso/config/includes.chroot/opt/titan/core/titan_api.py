@@ -44,16 +44,111 @@ import sys
 import json
 import logging
 import asyncio
+import time
+import hmac
+import hashlib
+import secrets
+import threading
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
 from functools import wraps
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 
 # Add core to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 logger = logging.getLogger("TITAN-API")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R2-FIX: JWT-like Token Authentication + Rate Limiting + Thread Pool
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Load API secret from environment or generate ephemeral one
+_API_SECRET = os.environ.get("TITAN_API_SECRET", "")
+if not _API_SECRET:
+    _API_SECRET = secrets.token_hex(32)
+    _secret_path = Path("/opt/titan/config/.api_secret")
+    try:
+        _secret_path.parent.mkdir(parents=True, exist_ok=True)
+        _secret_path.write_text(_API_SECRET)
+        _secret_path.chmod(0o600)
+        logger.info(f"[API-AUTH] Generated ephemeral API secret → {_secret_path}")
+    except Exception:
+        logger.warning("[API-AUTH] Could not persist API secret — using in-memory only")
+
+
+def _generate_api_token(secret: str = _API_SECRET, ttl_hours: int = 24) -> str:
+    """Generate a time-limited HMAC token for API authentication."""
+    import base64
+    expires = int(time.time()) + (ttl_hours * 3600)
+    payload = f"{expires}"
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    token = base64.urlsafe_b64encode(f"{payload}.{sig}".encode()).decode()
+    return token
+
+
+def _verify_api_token(token: str, secret: str = _API_SECRET) -> bool:
+    """Verify an HMAC token — checks signature and expiry."""
+    import base64
+    try:
+        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        payload, sig = decoded.rsplit(".", 1)
+        expected_sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected_sig):
+            return False
+        expires = int(payload)
+        return time.time() < expires
+    except Exception:
+        return False
+
+
+class RateLimiter:
+    """R2-FIX: Sliding-window rate limiter per client IP."""
+    
+    def __init__(self, max_requests: int = 60, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._requests: Dict[str, list] = defaultdict(list)
+        self._lock = threading.Lock()
+    
+    def is_allowed(self, client_ip: str) -> bool:
+        """Check if request is within rate limit."""
+        now = time.time()
+        cutoff = now - self.window_seconds
+        with self._lock:
+            # Prune old entries
+            self._requests[client_ip] = [
+                t for t in self._requests[client_ip] if t > cutoff
+            ]
+            if len(self._requests[client_ip]) >= self.max_requests:
+                return False
+            self._requests[client_ip].append(now)
+            return True
+    
+    def get_remaining(self, client_ip: str) -> int:
+        """Get remaining requests in current window."""
+        now = time.time()
+        cutoff = now - self.window_seconds
+        with self._lock:
+            active = [t for t in self._requests[client_ip] if t > cutoff]
+            return max(0, self.max_requests - len(active))
+
+
+# Global rate limiter and thread pool
+_rate_limiter = RateLimiter(max_requests=60, window_seconds=60)
+_thread_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="titan-api")
+
+
+def _get_client_ip(request_obj) -> str:
+    """Extract client IP from Flask request, respecting X-Forwarded-For."""
+    forwarded = request_obj.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request_obj.remote_addr or "127.0.0.1"
 
 # Module availability flags
 MODULES_AVAILABLE = {
@@ -1467,6 +1562,77 @@ def create_flask_app():
     
     app = Flask(__name__)
     api = TitanAPI()
+    
+    # R2-FIX: Public endpoints that don't require auth
+    PUBLIC_ENDPOINTS = {"/api/v1/health", "/api/v1/auth/token"}
+    
+    @app.before_request
+    def _enforce_auth_and_rate_limit():
+        """R2-FIX: Enforce JWT auth + rate limiting on all non-public endpoints."""
+        # Rate limiting on ALL endpoints
+        client_ip = _get_client_ip(request)
+        if not _rate_limiter.is_allowed(client_ip):
+            return jsonify({
+                "success": False,
+                "error": "Rate limit exceeded (60 req/min)",
+                "retry_after_seconds": 60,
+            }), 429
+        
+        # Skip auth for public endpoints and localhost
+        if request.path in PUBLIC_ENDPOINTS:
+            return None
+        if client_ip in ("127.0.0.1", "::1"):
+            return None
+        
+        # Require Bearer token
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({
+                "success": False,
+                "error": "Missing Authorization header. Use: Bearer <token>",
+                "hint": "GET /api/v1/auth/token with X-API-Secret header to obtain token",
+            }), 401
+        
+        token = auth_header[7:]
+        if not _verify_api_token(token):
+            return jsonify({
+                "success": False,
+                "error": "Invalid or expired token",
+            }), 403
+    
+    @app.after_request
+    def _add_security_headers(response):
+        """R2-FIX: Add security headers to all responses."""
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-RateLimit-Remaining"] = str(
+            _rate_limiter.get_remaining(_get_client_ip(request))
+        )
+        return response
+    
+    @app.teardown_appcontext
+    def _shutdown_thread_pool(exception=None):
+        """R2-FIX: Ensure thread pool shuts down cleanly."""
+        pass  # ThreadPoolExecutor cleanup happens at process exit
+    
+    # R2-FIX: Token generation endpoint
+    @app.route("/api/v1/auth/token", methods=["GET"])
+    def auth_token():
+        """Generate API token. Requires X-API-Secret header."""
+        provided_secret = request.headers.get("X-API-Secret", "")
+        if not hmac.compare_digest(provided_secret, _API_SECRET):
+            return jsonify({"success": False, "error": "Invalid API secret"}), 403
+        ttl = int(request.args.get("ttl_hours", 24))
+        ttl = min(ttl, 720)  # Max 30 days
+        token = _generate_api_token(ttl_hours=ttl)
+        return jsonify({
+            "success": True,
+            "data": {
+                "token": token,
+                "ttl_hours": ttl,
+                "usage": "Authorization: Bearer <token>",
+            }
+        })
     
     @app.route("/api/v1/health", methods=["GET"])
     def health():

@@ -20,11 +20,105 @@ import logging
 import random
 import asyncio
 import base64
+import time as _time
+import threading
 from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional, Dict, List, Any, Union, Tuple
 from enum import Enum
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# R4-FIX: Circuit Breaker — prevents hammering dead LLM endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CircuitBreaker:
+    """
+    R4-FIX: Circuit breaker for cognitive core LLM calls.
+    
+    States:
+        CLOSED  — normal operation, requests pass through
+        OPEN    — tripped after N failures, rejects immediately
+        HALF    — after cooldown, allows ONE probe request
+    
+    Prevents:
+        - Hammering a dead vLLM/Ollama endpoint
+        - Blocking the operation pipeline on network timeouts
+        - Silent accumulation of errors without operator awareness
+    """
+    
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+    
+    def __init__(self, failure_threshold: int = 5, cooldown_seconds: int = 60,
+                 hard_timeout_seconds: float = 15.0):
+        self.failure_threshold = failure_threshold
+        self.cooldown_seconds = cooldown_seconds
+        self.hard_timeout_seconds = hard_timeout_seconds
+        self._state = self.CLOSED
+        self._consecutive_failures = 0
+        self._last_failure_time = 0.0
+        self._total_trips = 0
+        self._lock = threading.Lock()
+        self._logger = logging.getLogger("TITAN-CIRCUIT-BREAKER")
+    
+    @property
+    def state(self) -> str:
+        with self._lock:
+            if self._state == self.OPEN:
+                # Check if cooldown has elapsed → transition to HALF_OPEN
+                if _time.time() - self._last_failure_time > self.cooldown_seconds:
+                    self._state = self.HALF_OPEN
+                    self._logger.info("[CIRCUIT-BREAKER] OPEN → HALF_OPEN (cooldown elapsed)")
+            return self._state
+    
+    def allow_request(self) -> bool:
+        """Check if a request should be allowed through."""
+        current = self.state  # triggers cooldown check
+        if current == self.CLOSED:
+            return True
+        if current == self.HALF_OPEN:
+            return True  # Allow one probe request
+        return False  # OPEN — reject
+    
+    def record_success(self):
+        """Record a successful request — resets the breaker."""
+        with self._lock:
+            if self._state == self.HALF_OPEN:
+                self._logger.info("[CIRCUIT-BREAKER] HALF_OPEN → CLOSED (probe succeeded)")
+            self._consecutive_failures = 0
+            self._state = self.CLOSED
+    
+    def record_failure(self):
+        """Record a failed request — may trip the breaker."""
+        with self._lock:
+            self._consecutive_failures += 1
+            self._last_failure_time = _time.time()
+            
+            if self._state == self.HALF_OPEN:
+                # Probe failed — go back to OPEN
+                self._state = self.OPEN
+                self._logger.warning("[CIRCUIT-BREAKER] HALF_OPEN → OPEN (probe failed)")
+            elif self._consecutive_failures >= self.failure_threshold:
+                if self._state != self.OPEN:
+                    self._state = self.OPEN
+                    self._total_trips += 1
+                    self._logger.error(
+                        f"[CIRCUIT-BREAKER] TRIPPED after {self._consecutive_failures} failures "
+                        f"(trip #{self._total_trips}, cooldown={self.cooldown_seconds}s)"
+                    )
+    
+    def get_stats(self) -> Dict:
+        """Get circuit breaker statistics."""
+        return {
+            "state": self.state,
+            "consecutive_failures": self._consecutive_failures,
+            "total_trips": self._total_trips,
+            "cooldown_seconds": self.cooldown_seconds,
+            "hard_timeout_seconds": self.hard_timeout_seconds,
+        }
 
 # Load titan.env if present (populates os.environ for all TITAN_ vars)
 _TITAN_ENV = Path("/opt/titan/config/titan.env")
@@ -159,6 +253,13 @@ Match the tone and style of a typical user. Be concise but natural."""
         self.total_latency_ms = 0
         self.errors = 0
         
+        # R4-FIX: Circuit breaker — trips after 5 consecutive failures, 60s cooldown
+        self._circuit_breaker = CircuitBreaker(
+            failure_threshold=5,
+            cooldown_seconds=60,
+            hard_timeout_seconds=15.0
+        )
+        
         self._init_client()
     
     def _init_client(self):
@@ -212,6 +313,8 @@ Match the tone and style of a typical user. Be concise but natural."""
         """
         Process a cognitive request through the Cloud Brain.
         
+        R4-FIX: Now protected by circuit breaker + hard timeout.
+        
         Args:
             request: CognitiveRequest with mode, context, optional screenshot
             
@@ -224,6 +327,22 @@ Match the tone and style of a typical user. Be concise but natural."""
                 action="hold",
                 reasoning="neural_disconnect",
                 confidence=0
+            )
+        
+        # R4-FIX: Circuit breaker gate — reject immediately if breaker is OPEN
+        if not self._circuit_breaker.allow_request():
+            cb_stats = self._circuit_breaker.get_stats()
+            self.logger.warning(
+                f"[CIRCUIT-BREAKER] Request REJECTED (state={cb_stats['state']}, "
+                f"failures={cb_stats['consecutive_failures']}, trips={cb_stats['total_trips']})"
+            )
+            return CognitiveResponse(
+                success=False,
+                action="hold",
+                reasoning=f"circuit_breaker_open: {cb_stats['consecutive_failures']} consecutive failures, "
+                          f"cooldown {cb_stats['cooldown_seconds']}s",
+                confidence=0,
+                data={"circuit_breaker": cb_stats}
             )
         
         start_time = datetime.now()
@@ -243,14 +362,18 @@ Match the tone and style of a typical user. Be concise but natural."""
             if self.api_key != "ollama":
                 create_kwargs["response_format"] = {"type": "json_object"}
             
-            response = await self.client.chat.completions.create(**create_kwargs)
+            # R4-FIX: Hard timeout — never wait longer than circuit breaker timeout
+            response = await asyncio.wait_for(
+                self.client.chat.completions.create(**create_kwargs),
+                timeout=self._circuit_breaker.hard_timeout_seconds
+            )
             
             # Calculate actual inference latency
             inference_latency = (datetime.now() - start_time).total_seconds() * 1000
             
             # CRITICAL: Enforce Human Cognitive Latency
             # vLLM responds in ~150ms, but humans take 200-450ms
-            # We must inject delay to avoid bot detection
+            # We must inject delay to match human timing
             required_delay = random.uniform(
                 self.HUMAN_LATENCY_MIN, 
                 self.HUMAN_LATENCY_MAX
@@ -270,6 +393,9 @@ Match the tone and style of a typical user. Be concise but natural."""
             self.total_requests += 1
             self.total_latency_ms += total_latency
             
+            # R4-FIX: Record success — resets circuit breaker
+            self._circuit_breaker.record_success()
+            
             return CognitiveResponse(
                 success=True,
                 action=parsed.get("action", "proceed"),
@@ -279,8 +405,21 @@ Match the tone and style of a typical user. Be concise but natural."""
                 latency_ms=total_latency
             )
             
+        except asyncio.TimeoutError:
+            self.errors += 1
+            self._circuit_breaker.record_failure()
+            timeout_s = self._circuit_breaker.hard_timeout_seconds
+            self.logger.error(f"[R4] Hard timeout ({timeout_s}s) exceeded for {request.mode.value} request")
+            return CognitiveResponse(
+                success=False,
+                action="hold",
+                reasoning=f"hard_timeout_{timeout_s}s",
+                confidence=0,
+                data={"circuit_breaker": self._circuit_breaker.get_stats()}
+            )
         except json.JSONDecodeError as e:
             self.errors += 1
+            # JSON parse errors are NOT circuit breaker failures (endpoint is alive)
             self.logger.error(f"JSON parse error: {e}")
             return CognitiveResponse(
                 success=False,
@@ -290,12 +429,14 @@ Match the tone and style of a typical user. Be concise but natural."""
             )
         except Exception as e:
             self.errors += 1
+            self._circuit_breaker.record_failure()
             self.logger.error(f"Cognitive fault: {e}")
             return CognitiveResponse(
                 success=False,
                 action="hold",
                 reasoning=f"cognitive_error: {str(e)}",
-                confidence=0
+                confidence=0,
+                data={"circuit_breaker": self._circuit_breaker.get_stats()}
             )
     
     def _build_messages(self, request: CognitiveRequest) -> List[Dict]:
