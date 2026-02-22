@@ -129,7 +129,7 @@ except ImportError:
     AUTOFILL_OK = False
 
 try:
-    from dynamic_data import DynamicDataEngine
+    from dynamic_data import DataFusionEngine as DynamicDataEngine
     DYNDATA_OK = True
 except ImportError:
     DYNDATA_OK = False
@@ -185,7 +185,7 @@ except ImportError:
     CANVAS_NOISE_OK = False
 
 try:
-    from canvas_subpixel_shim import CanvasSubpixelShim
+    from canvas_subpixel_shim import CanvasSubPixelShim as CanvasSubpixelShim
     CANVAS_SHIM_OK = True
 except ImportError:
     CANVAS_SHIM_OK = False
@@ -203,19 +203,19 @@ except ImportError:
     AUDIO_OK = False
 
 try:
-    from webgl_angle import WebGLAngleEngine
+    from webgl_angle import WebGLAngleShim as WebGLAngleEngine
     WEBGL_OK = True
 except ImportError:
     WEBGL_OK = False
 
 try:
-    from indexeddb_lsng_synthesis import IndexedDBSynthesizer
+    from indexeddb_lsng_synthesis import IndexedDBShardSynthesizer as IndexedDBSynthesizer
     IDB_OK = True
 except ImportError:
     IDB_OK = False
 
 try:
-    from first_session_bias_eliminator import FirstSessionEliminator
+    from first_session_bias_eliminator import FirstSessionBiasEliminator as FirstSessionEliminator
     FSB_OK = True
 except ImportError:
     FSB_OK = False

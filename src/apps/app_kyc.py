@@ -69,7 +69,8 @@ except ImportError:
 
 # Cognitive core for behavioral modeling
 try:
-    from cognitive_core import CognitiveEngine, BehaviorProfile
+    from cognitive_core import TitanCognitiveCore as CognitiveEngine
+    BehaviorProfile = None
     COGNITIVE_AVAILABLE = True
 except ImportError:
     COGNITIVE_AVAILABLE = False

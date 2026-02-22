@@ -266,7 +266,7 @@ from .first_session_bias_eliminator import FirstSessionBiasEliminator
 
 # P1-10 FIX: Missing module exports
 try:
-    from .payment_preflight import PaymentPreflightV2, PreflightResult
+    from .payment_preflight import PaymentPreflightValidator as PaymentPreflightV2, PreflightReport as PreflightResult
 except ImportError:
     PaymentPreflightV2 = PreflightResult = None
 
@@ -276,12 +276,12 @@ except ImportError:
     PaymentSandboxTester = None
 
 try:
-    from .payment_success_metrics import PaymentSuccessMetrics
+    from .payment_success_metrics import PaymentSuccessMetricsDB as PaymentSuccessMetrics
 except ImportError:
     PaymentSuccessMetrics = None
 
 try:
-    from .titan_operation_logger import OperationLogger
+    from .titan_operation_logger import TitanOperationLogger as OperationLogger
 except ImportError:
     OperationLogger = None
 
@@ -346,19 +346,19 @@ except ImportError:
 
 # Canvas Subpixel Shim (anti-fingerprint canvas noise injection)
 try:
-    from .canvas_subpixel_shim import CanvasSubpixelShim
+    from .canvas_subpixel_shim import CanvasSubPixelShim as CanvasSubpixelShim
 except ImportError:
     CanvasSubpixelShim = None
 
 # CPUID/RDTSC Shield (KVM marker suppression)
 try:
-    from .cpuid_rdtsc_shield import CPUIDShield
+    from .cpuid_rdtsc_shield import CPUIDRDTSCShield as CPUIDShield
 except ImportError:
     CPUIDShield = None
 
 # Dynamic Data Generation
 try:
-    from .dynamic_data import DynamicDataGenerator
+    from .dynamic_data import DataFusionEngine as DynamicDataGenerator
 except ImportError:
     DynamicDataGenerator = None
 
@@ -376,7 +376,7 @@ except ImportError:
 
 # Network Shield Loader (eBPF/XDP TCP stack rewrite)
 try:
-    from .network_shield_loader import NetworkShieldLoader
+    from .network_shield_loader import NetworkShield as NetworkShieldLoader
 except ImportError:
     NetworkShieldLoader = None
 
@@ -400,43 +400,43 @@ except ImportError:
 
 # Titan Agent Chain (multi-step AI agent orchestration)
 try:
-    from .titan_agent_chain import AgentChain
+    from .titan_agent_chain import TitanAgent as AgentChain
 except ImportError:
     AgentChain = None
 
 # Titan Auto Patcher (automated bug fixing)
 try:
-    from .titan_auto_patcher import TitanAutoPatcher
+    from .titan_auto_patcher import AutoPatcher as TitanAutoPatcher
 except ImportError:
     TitanAutoPatcher = None
 
 # Titan Automation Orchestrator (workflow automation)
 try:
-    from .titan_automation_orchestrator import AutomationOrchestrator
+    from .titan_automation_orchestrator import TitanOrchestrator as AutomationOrchestrator
 except ImportError:
     AutomationOrchestrator = None
 
 # Titan Detection Analyzer (antifraud detection analysis)
 try:
-    from .titan_detection_analyzer import TitanDetectionAnalyzer
+    from .titan_detection_analyzer import DetectionAnalyzer as TitanDetectionAnalyzer
 except ImportError:
     TitanDetectionAnalyzer = None
 
 # Titan Vector Memory (embedding-based context memory)
 try:
-    from .titan_vector_memory import VectorMemory
+    from .titan_vector_memory import TitanVectorMemory as VectorMemory
 except ImportError:
     VectorMemory = None
 
 # Titan Web Intel (web scraping intelligence)
 try:
-    from .titan_web_intel import WebIntelCollector
+    from .titan_web_intel import TitanWebIntel as WebIntelCollector
 except ImportError:
     WebIntelCollector = None
 
 # Titan Master Automation (high-level automation coordinator)
 try:
-    from .titan_master_automation import MasterAutomation
+    from .titan_master_automation import TitanMasterAutomation as MasterAutomation
 except ImportError:
     MasterAutomation = None
 

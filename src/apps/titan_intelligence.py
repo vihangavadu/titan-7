@@ -50,7 +50,7 @@ CYAN = "#00d4ff"
 
 # Tab 1: AI COPILOT
 try:
-    from titan_realtime_copilot import TitanRealtimeCopilot
+    from titan_realtime_copilot import RealtimeCopilot as TitanRealtimeCopilot
     COPILOT_OK = True
 except ImportError:
     COPILOT_OK = False
@@ -111,7 +111,8 @@ except ImportError:
 
 try:
     from issuer_algo_defense import (
-        IssuerDefenseEngine, calculate_decline_risk, get_mitigation_strategy,
+        IssuerDeclineDefenseEngine as IssuerDefenseEngine,
+        IssuerAlgorithmModeler, VelocityOptimizer, AmountOptimizer,
     )
     ISSUER_OK = True
 except ImportError:
@@ -119,13 +120,13 @@ except ImportError:
 
 # Tab 3: DETECTION
 try:
-    from titan_detection_analyzer import TitanDetectionAnalyzer
+    from titan_detection_analyzer import DetectionAnalyzer as TitanDetectionAnalyzer
     DETECT_OK = True
 except ImportError:
     DETECT_OK = False
 
 try:
-    from titan_ai_operations_guard import TitanAIOperationsGuard
+    from titan_ai_operations_guard import AIOperationsGuard as TitanAIOperationsGuard
     GUARD_OK = True
 except ImportError:
     GUARD_OK = False

@@ -124,7 +124,7 @@ except ImportError:
     KILL_OK = False
 
 try:
-    from immutable_os import ImmutableOS
+    from immutable_os import ImmutableOSManager as ImmutableOS
     IMMUTABLE_OK = True
 except ImportError:
     IMMUTABLE_OK = False
@@ -155,7 +155,7 @@ except ImportError:
     LOCATION_LINUX_OK = False
 
 try:
-    from referrer_warmup import ReferrerWarmupEngine
+    from referrer_warmup import ReferrerWarmup as ReferrerWarmupEngine
     REFERRER_OK = True
 except ImportError:
     REFERRER_OK = False

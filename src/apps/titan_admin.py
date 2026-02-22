@@ -70,7 +70,7 @@ except ImportError:
     BUG_BRIDGE_AVAILABLE = False
 
 try:
-    from titan_auto_patcher import TitanAutoPatcher
+    from titan_auto_patcher import AutoPatcher as TitanAutoPatcher
     PATCHER_AVAILABLE = True
 except ImportError:
     PATCHER_AVAILABLE = False
@@ -100,26 +100,26 @@ except ImportError:
     FORENSIC_AVAILABLE = False
 
 try:
-    from immutable_os import verify_system_integrity, get_boot_status
+    from immutable_os import verify_system_integrity, get_boot_status, ImmutableOSManager
     IMMUTABLE_AVAILABLE = True
 except ImportError:
     IMMUTABLE_AVAILABLE = False
 
 # V8.1: Previously orphaned modules — now wired into Admin
 try:
-    from titan_automation_orchestrator import AutomationOrchestrator
+    from titan_automation_orchestrator import TitanOrchestrator as AutomationOrchestrator
     ORCHESTRATOR_AVAILABLE = True
 except ImportError:
     ORCHESTRATOR_AVAILABLE = False
 
 try:
-    from titan_autonomous_engine import TitanAutonomousEngine
+    from titan_autonomous_engine import AutonomousEngine as TitanAutonomousEngine
     AUTONOMOUS_AVAILABLE = True
 except ImportError:
     AUTONOMOUS_AVAILABLE = False
 
 try:
-    from titan_env import ConfigValidator, TitanEnvManager
+    from titan_env import ConfigValidator, SecureConfigManager as TitanEnvManager
     ENV_AVAILABLE = True
 except ImportError:
     ENV_AVAILABLE = False
@@ -137,13 +137,13 @@ except ImportError:
     OP_LOG_AVAILABLE = False
 
 try:
-    from titan_master_verify import MasterVerifier
+    from titan_master_verify import VerificationOrchestrator as MasterVerifier
     MASTER_VERIFY_AVAILABLE = True
 except ImportError:
     MASTER_VERIFY_AVAILABLE = False
 
 try:
-    from generate_trajectory_model import TrajectoryModelGenerator
+    from generate_trajectory_model import TrajectoryPlanner as TrajectoryModelGenerator
     TRAJECTORY_AVAILABLE = True
 except ImportError:
     TRAJECTORY_AVAILABLE = False
