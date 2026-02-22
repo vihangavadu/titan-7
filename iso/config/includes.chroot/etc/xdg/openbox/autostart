@@ -1,0 +1,50 @@
+#!/bin/bash
+# Titan OS V7.0.3 — Openbox Autostart
+# Launches desktop components after window manager is ready
+
+# ─── Set Wallpaper ──────────────────────────────────────────
+if command -v feh &>/dev/null; then
+    feh --bg-fill /usr/share/titan/wallpaper.svg &
+elif command -v nitrogen &>/dev/null; then
+    nitrogen --set-zoom-fill /usr/share/titan/wallpaper.svg &
+fi
+
+# ─── Start Tint2 Panel/Dock ────────────────────────────────
+if command -v tint2 &>/dev/null; then
+    tint2 &
+fi
+
+# ─── Start Conky System Monitor ─────────────────────────────
+if command -v conky &>/dev/null; then
+    sleep 2 && conky -c /etc/conky/titan.conf &
+fi
+
+# ─── Start Notification Daemon ──────────────────────────────
+if command -v dunst &>/dev/null; then
+    dunst &
+elif command -v notification-daemon &>/dev/null; then
+    /usr/lib/notification-daemon/notification-daemon &
+fi
+
+# ─── Compositing (subtle shadows + transparency) ────────────
+if command -v picom &>/dev/null; then
+    picom --backend glx --vsync --shadow --shadow-radius 12 \
+          --shadow-opacity 0.4 --shadow-offset-x -8 --shadow-offset-y -8 \
+          --corner-radius 8 --fade-in-step 0.06 --fade-out-step 0.06 \
+          --inactive-opacity 0.92 -b &
+elif command -v compton &>/dev/null; then
+    compton --backend glx --vsync --shadow -b &
+fi
+
+# ─── Power Manager ──────────────────────────────────────────
+if command -v xfce4-power-manager &>/dev/null; then
+    xfce4-power-manager &
+fi
+
+# ─── Network Manager Applet ─────────────────────────────────
+if command -v nm-applet &>/dev/null; then
+    nm-applet &
+fi
+
+# ─── Auto-launch Operation Center (delayed) ─────────────────
+sleep 3 && python3 /opt/titan/apps/app_unified.py &

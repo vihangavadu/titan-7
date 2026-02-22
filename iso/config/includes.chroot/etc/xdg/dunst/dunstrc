@@ -1,0 +1,70 @@
+# Titan OS V7.0.3 — Dunst Notification Configuration
+# Dark themed notifications matching the desktop aesthetic
+
+[global]
+    monitor = 0
+    follow = mouse
+    
+    # Geometry
+    width = 350
+    height = 120
+    origin = top-right
+    offset = 20x60
+    
+    # Appearance
+    transparency = 10
+    corner_radius = 10
+    frame_width = 1
+    frame_color = "#00d4ff40"
+    separator_height = 1
+    separator_color = "#1e2d40"
+    
+    padding = 12
+    horizontal_padding = 14
+    text_icon_padding = 14
+    
+    # Font
+    font = Cantarell 10
+    
+    # Format
+    format = "<b>%s</b>\n%b"
+    alignment = left
+    vertical_alignment = center
+    
+    # Behavior
+    sort = yes
+    idle_threshold = 120
+    show_age_threshold = 60
+    
+    # History
+    sticky_history = yes
+    history_length = 20
+    
+    # Icons
+    icon_position = left
+    min_icon_size = 24
+    max_icon_size = 48
+    icon_theme = Papirus-Dark
+    
+    # Mouse actions
+    mouse_left_click = close_current
+    mouse_middle_click = do_action
+    mouse_right_click = close_all
+
+[urgency_low]
+    background = "#0a0e17ee"
+    foreground = "#8899aa"
+    frame_color = "#1e2d4060"
+    timeout = 5
+
+[urgency_normal]
+    background = "#0a0e17ee"
+    foreground = "#c8d2dc"
+    frame_color = "#00d4ff40"
+    timeout = 8
+
+[urgency_critical]
+    background = "#1a0508ee"
+    foreground = "#ff6644"
+    frame_color = "#ff664480"
+    timeout = 0

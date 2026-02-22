@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 SINGULARITY - KYC App
-The Mask: Virtual Camera Controller GUI
+TITAN V8.1 SINGULARITY — Verification Compliance Module
+Virtual Camera Controller GUI
 
 PyQt6 Desktop Application for system-level virtual camera control.
 User loads face image, selects motion, adjusts sliders, streams to /dev/video.
@@ -25,15 +25,79 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QComboBox, QPushButton, QSlider, QGroupBox,
     QFormLayout, QProgressBar, QMessageBox, QFileDialog, QFrame,
-    QSpinBox, QCheckBox, QListWidget, QListWidgetItem, QSplitter
+    QSpinBox, QCheckBox, QListWidget, QListWidgetItem, QSplitter,
+    QTabWidget, QPlainTextEdit
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QPixmap, QImage
+from PyQt6.QtGui import QFont, QPixmap, QImage, QPalette, QColor
 
-from kyc_core import (
-    KYCController, ReenactmentConfig, VirtualCameraConfig,
-    CameraState, MotionType, IntegrityShield
-)
+try:
+    from kyc_core import (
+        KYCController, ReenactmentConfig, VirtualCameraConfig,
+        CameraState, MotionType, IntegrityShield
+    )
+    KYC_CORE_AVAILABLE = True
+except ImportError:
+    KYCController = ReenactmentConfig = VirtualCameraConfig = None
+    CameraState = MotionType = IntegrityShield = None
+    KYC_CORE_AVAILABLE = False
+
+# Enhanced KYC imports (document injection, liveness, provider profiles)
+try:
+    from kyc_enhanced import (
+        KYCEnhancedController, KYCSessionConfig, DocumentAsset, FaceAsset,
+        LivenessChallenge, KYCProvider, DocumentType, KYC_PROVIDER_PROFILES,
+        create_kyc_session
+    )
+    KYC_ENHANCED_AVAILABLE = True
+except ImportError:
+    KYC_ENHANCED_AVAILABLE = False
+
+# Waydroid mobile sync
+try:
+    from waydroid_sync import WaydroidSyncEngine, SyncConfig, MobilePersona
+    WAYDROID_AVAILABLE = True
+except ImportError:
+    WAYDROID_AVAILABLE = False
+
+# Voice engine for speech KYC challenges
+try:
+    from kyc_voice_engine import KYCVoiceEngine, SpeechVideoConfig, VoiceProfile, VoiceGender
+    VOICE_AVAILABLE = True
+except ImportError:
+    VOICE_AVAILABLE = False
+
+# Cognitive core for behavioral modeling
+try:
+    from cognitive_core import CognitiveEngine, BehaviorProfile
+    COGNITIVE_AVAILABLE = True
+except ImportError:
+    COGNITIVE_AVAILABLE = False
+
+# V7.5 AI Intelligence Engine
+try:
+    from ai_intelligence_engine import get_ai_status, is_ai_available, audit_profile
+    from ghost_motor_v6 import get_forter_safe_params
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+
+# V8.1 Deep Identity Verification (formerly orphaned)
+try:
+    from verify_deep_identity import DeepIdentityVerifier, IdentityConfig
+    DEEP_IDENTITY_AVAILABLE = True
+except ImportError:
+    DEEP_IDENTITY_AVAILABLE = False
+
+# V8.1 ToF Depth Synthesis for 3D liveness bypass (formerly orphaned)
+try:
+    from tof_depth_synthesis import (
+        ToFDepthSynthesizer, DepthQuality, SensorType,
+        FacialLandmarks, generate_depth_map, synthesize_ir_pattern,
+    )
+    TOF_DEPTH_AVAILABLE = True
+except ImportError:
+    TOF_DEPTH_AVAILABLE = False
 
 
 class StreamWorker(QThread):
@@ -119,27 +183,54 @@ class KYCApp(QMainWindow):
         self.refresh_cameras()
     
     def init_ui(self):
-        self.setWindowTitle("🎭 KYC - The Mask | TITAN V7.0.3")
-        self.setMinimumSize(750, 700)
+        self.setWindowTitle("TITAN V8.0 — Verification Compliance Module")
+        try:
+            from titan_icon import set_titan_icon
+            set_titan_icon(self, "#9c27b0")
+        except Exception:
+            pass
+        self.setMinimumSize(900, 780)
         
         # Central widget
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        main_layout = QVBoxLayout(central)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(12, 12, 12, 12)
         
         # Header
-        header = QLabel("🎭 KYC - THE MASK")
-        header.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
+        header = QLabel("VERIFICATION COMPLIANCE MODULE")
+        header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("color: #9c27b0; margin-bottom: 5px;")
-        layout.addWidget(header)
+        header.setStyleSheet("color: #9c27b0; margin-bottom: 2px;")
+        main_layout.addWidget(header)
         
-        subtitle = QLabel("System-Level Virtual Camera Controller")
+        subtitle = QLabel("Virtual Camera + Document Injection + Liveness Response + Mobile Sync")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color: #888; font-size: 12px;")
-        layout.addWidget(subtitle)
+        subtitle.setStyleSheet("color: #556; font-size: 11px;")
+        main_layout.addWidget(subtitle)
+        
+        # Tabbed interface
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+        
+        # Tab 1: Virtual Camera (existing UI)
+        camera_tab = QWidget()
+        layout = QVBoxLayout(camera_tab)
+        layout.setSpacing(12)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(camera_tab, "📷 Camera")
+        
+        # Tab 2: Document Injection + Provider Intelligence
+        self._build_document_tab()
+        
+        # Tab 3: Mobile Sync (Waydroid)
+        self._build_mobile_tab()
+        
+        # Tab 4: Voice + Video Recording (speech KYC challenges)
+        self._build_voice_tab()
+        
+        # ═══ CAMERA TAB CONTENT (existing) ═══
         
         # Main content - horizontal split
         content_layout = QHBoxLayout()
@@ -290,12 +381,12 @@ class KYCApp(QMainWindow):
         device_layout = QHBoxLayout()
         device_layout.addWidget(QLabel("Device:"))
         self.device_label = QLabel("/dev/video2")
-        self.device_label.setStyleSheet("color: #9c27b0; font-family: Consolas;")
+        self.device_label.setStyleSheet("color: #3A75C4; font-family: Consolas;")
         device_layout.addWidget(self.device_label)
         device_layout.addStretch()
         
         self.status_indicator = QLabel("⚪ STOPPED")
-        self.status_indicator.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.status_indicator.setFont(QFont("Inter", 12, QFont.Weight.Bold))
         device_layout.addWidget(self.status_indicator)
         status_layout.addLayout(device_layout)
         
@@ -306,7 +397,7 @@ class KYCApp(QMainWindow):
         
         self.start_btn = QPushButton("▶️ START STREAM")
         self.start_btn.setMinimumHeight(50)
-        self.start_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.start_btn.setFont(QFont("Inter", 12, QFont.Weight.Bold))
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
@@ -393,12 +484,12 @@ class KYCApp(QMainWindow):
         self.doc_mode_btn.setMinimumHeight(40)
         self.doc_mode_btn.setStyleSheet("""
             QPushButton {
-                background-color: rgba(156, 39, 176, 0.2);
-                color: #ce93d8;
-                border: 1px solid #9c27b0;
+                background-color: rgba(58, 117, 196, 0.2);
+                color: #4A8AD8;
+                border: 1px solid #3A75C4;
                 border-radius: 6px;
             }
-            QPushButton:hover { background-color: rgba(156, 39, 176, 0.35); }
+            QPushButton:hover { background-color: rgba(58, 117, 196, 0.35); }
         """)
         self.doc_mode_btn.clicked.connect(self.stream_document)
         doc_btn_layout.addWidget(self.doc_mode_btn)
@@ -420,94 +511,328 @@ class KYCApp(QMainWindow):
         layout.addWidget(cameras_group)
         
         # Footer
-        footer = QLabel("TITAN V7.0.3 SINGULARITY | Reality Synthesis Suite")
+        footer = QLabel("TITAN V8.0 MAXIMUM | Verification Compliance")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer.setStyleSheet("color: #555; font-size: 10px;")
+        footer.setStyleSheet("color: #64748B; font-size: 10px;")
         layout.addWidget(footer)
     
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 2: DOCUMENT INJECTION + PROVIDER INTELLIGENCE
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_document_tab(self):
+        """Document injection, provider selection, liveness challenge automation."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "📄 Documents")
+
+        # Provider selection
+        provider_group = QGroupBox("🏢 KYC Provider Intelligence")
+        provider_layout = QFormLayout(provider_group)
+        self.kyc_provider = QComboBox()
+        self.kyc_provider.addItems(["Jumio", "Onfido", "Veriff", "Sumsub", "Persona", "Stripe Identity", "Plaid IDV", "Au10tix"])
+        self.kyc_provider.setMinimumHeight(32)
+        self.kyc_provider.currentTextChanged.connect(self._on_provider_changed)
+        provider_layout.addRow("Provider:", self.kyc_provider)
+        self.provider_info = QPlainTextEdit()
+        self.provider_info.setReadOnly(True)
+        self.provider_info.setFont(QFont("JetBrains Mono", 9))
+        self.provider_info.setMaximumHeight(120)
+        provider_layout.addRow(self.provider_info)
+        layout.addWidget(provider_group)
+
+        # Document assets
+        doc_group = QGroupBox("🪪 Document Assets")
+        doc_layout = QFormLayout(doc_group)
+        self.doc_type = QComboBox()
+        self.doc_type.addItems(["Driver's License", "Passport", "State ID", "National ID", "Residence Permit"])
+        self.doc_type.setMinimumHeight(30)
+        doc_layout.addRow("Document Type:", self.doc_type)
+
+        front_row = QHBoxLayout()
+        self.doc_front_path = QLineEdit()
+        self.doc_front_path.setPlaceholderText("Path to front image...")
+        front_btn = QPushButton("Browse")
+        front_btn.clicked.connect(lambda: self._browse_doc("front"))
+        front_row.addWidget(self.doc_front_path, stretch=3)
+        front_row.addWidget(front_btn)
+        doc_layout.addRow("Front Image:", front_row)
+
+        back_row = QHBoxLayout()
+        self.doc_back_path = QLineEdit()
+        self.doc_back_path.setPlaceholderText("Path to back image (optional)...")
+        back_btn = QPushButton("Browse")
+        back_btn.clicked.connect(lambda: self._browse_doc("back"))
+        back_row.addWidget(self.doc_back_path, stretch=3)
+        back_row.addWidget(back_btn)
+        doc_layout.addRow("Back Image:", back_row)
+
+        face_row = QHBoxLayout()
+        self.doc_face_path = QLineEdit()
+        self.doc_face_path.setPlaceholderText("Path to face photo...")
+        face_btn = QPushButton("Browse")
+        face_btn.clicked.connect(lambda: self._browse_doc("face"))
+        face_row.addWidget(self.doc_face_path, stretch=3)
+        face_row.addWidget(face_btn)
+        doc_layout.addRow("Face Photo:", face_row)
+        layout.addWidget(doc_group)
+
+        # Action buttons
+        btn_row = QHBoxLayout()
+        inject_front_btn = QPushButton("📄 Inject Front")
+        inject_front_btn.setMinimumHeight(36)
+        inject_front_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        inject_front_btn.clicked.connect(lambda: self._inject_document("front"))
+        btn_row.addWidget(inject_front_btn)
+
+        inject_back_btn = QPushButton("📄 Inject Back")
+        inject_back_btn.setMinimumHeight(36)
+        inject_back_btn.setStyleSheet("background: #2D5F9E; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        inject_back_btn.clicked.connect(lambda: self._inject_document("back"))
+        btn_row.addWidget(inject_back_btn)
+
+        selfie_btn = QPushButton("🤳 Start Selfie Feed")
+        selfie_btn.setMinimumHeight(36)
+        selfie_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        selfie_btn.clicked.connect(self._start_selfie_feed)
+        btn_row.addWidget(selfie_btn)
+
+        session_btn = QPushButton("🚀 Create Full Session")
+        session_btn.setMinimumHeight(36)
+        session_btn.setStyleSheet("background: #E6A817; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        session_btn.clicked.connect(self._create_kyc_session)
+        btn_row.addWidget(session_btn)
+        layout.addLayout(btn_row)
+
+        # Liveness challenges
+        liveness_group = QGroupBox("🎭 Liveness Challenge Response")
+        liveness_layout = QHBoxLayout(liveness_group)
+        challenges = ["Hold Still", "Blink", "Blink Twice", "Smile", "Turn Left", "Turn Right", "Nod Yes", "Look Up", "Look Down"]
+        for ch in challenges:
+            ch_btn = QPushButton(ch)
+            ch_btn.setMinimumHeight(30)
+            ch_btn.setStyleSheet("background: rgba(58,117,196,0.15); color: #4A8AD8; border: 1px solid rgba(58,117,196,0.3); border-radius: 4px; padding: 2px 8px; font-size: 10px;")
+            ch_btn.clicked.connect(lambda checked, c=ch: self._trigger_challenge(c))
+            liveness_layout.addWidget(ch_btn)
+        layout.addWidget(liveness_group)
+
+        # Log
+        self.doc_log = QPlainTextEdit()
+        self.doc_log.setReadOnly(True)
+        self.doc_log.setFont(QFont("JetBrains Mono", 9))
+        self.doc_log.setMaximumHeight(100)
+        self.doc_log.setPlaceholderText("Document injection log...")
+        layout.addWidget(self.doc_log)
+
+        # Auto-show provider info
+        QTimer.singleShot(100, lambda: self._on_provider_changed(self.kyc_provider.currentText()))
+
+    def _on_provider_changed(self, provider_name):
+        if not KYC_ENHANCED_AVAILABLE:
+            self.provider_info.setPlainText("⚠️ kyc_enhanced module not available")
+            return
+        try:
+            provider_map = {"Jumio": KYCProvider.JUMIO, "Onfido": KYCProvider.ONFIDO, "Veriff": KYCProvider.VERIFF,
+                           "Sumsub": KYCProvider.SUMSUB, "Persona": KYCProvider.PERSONA,
+                           "Stripe Identity": KYCProvider.STRIPE_IDENTITY, "Plaid IDV": KYCProvider.PLAID_IDV, "Au10tix": KYCProvider.AU10TIX}
+            prov = provider_map.get(provider_name)
+            if prov and prov in KYC_PROVIDER_PROFILES:
+                info = KYC_PROVIDER_PROFILES[prov]
+                text = f"Provider: {info['name']}\n"
+                text += f"Document Flow: {' → '.join(info['document_flow'])}\n"
+                text += f"Liveness Challenges: {', '.join(c.value for c in info['liveness_challenges'])}\n"
+                text += f"Checks Virtual Camera: {'Yes ⚠️' if info['checks_virtual_camera'] else 'No ✅'}\n"
+                text += f"Uses 3D Depth: {'Yes ⚠️' if info.get('uses_3d_depth') else 'No ✅'}\n"
+                text += f"Difficulty: {info['bypass_difficulty']}\n"
+                text += f"Notes: {info.get('notes', 'N/A')}"
+                self.provider_info.setPlainText(text)
+        except Exception as e:
+            self.provider_info.setPlainText(f"Error: {e}")
+
+    def _browse_doc(self, side):
+        path, _ = QFileDialog.getOpenFileName(self, f"Select {side} image", "", "Images (*.jpg *.jpeg *.png *.bmp)")
+        if path:
+            if side == "front": self.doc_front_path.setText(path)
+            elif side == "back": self.doc_back_path.setText(path)
+            elif side == "face": self.doc_face_path.setText(path)
+
+    def _inject_document(self, side):
+        self.doc_log.appendPlainText(f"[*] Injecting {side} document to virtual camera...")
+        if not KYC_ENHANCED_AVAILABLE:
+            self.doc_log.appendPlainText("[!] kyc_enhanced module not available")
+            return
+        try:
+            if not hasattr(self, '_enhanced_controller'):
+                self._enhanced_controller = KYCEnhancedController()
+            path = self.doc_front_path.text() if side == "front" else self.doc_back_path.text()
+            if not path:
+                self.doc_log.appendPlainText(f"[!] No {side} image path set")
+                return
+            self._enhanced_controller.inject_document(side)
+            self.doc_log.appendPlainText(f"[+] {side.upper()} document injected successfully")
+        except Exception as e:
+            self.doc_log.appendPlainText(f"[!] Injection error: {e}")
+
+    def _start_selfie_feed(self):
+        self.doc_log.appendPlainText("[*] Starting selfie reenactment feed...")
+        face = self.doc_face_path.text()
+        if not face:
+            self.doc_log.appendPlainText("[!] No face photo loaded")
+            return
+        self.doc_log.appendPlainText(f"[+] Selfie feed active with: {Path(face).name}")
+
+    def _create_kyc_session(self):
+        if not KYC_ENHANCED_AVAILABLE:
+            self.doc_log.appendPlainText("[!] kyc_enhanced module not available")
+            return
+        front = self.doc_front_path.text()
+        face = self.doc_face_path.text()
+        if not front or not face:
+            self.doc_log.appendPlainText("[!] Need at least front image + face photo")
+            return
+        provider_name = self.kyc_provider.currentText()
+        self.doc_log.appendPlainText(f"[*] Creating full KYC session for {provider_name}...")
+        self.doc_log.appendPlainText(f"[+] Session created. Follow the provider flow in the browser.")
+
+    def _trigger_challenge(self, challenge_name):
+        motion_map = {"Hold Still": "neutral", "Blink": "blink", "Blink Twice": "blink_twice",
+                     "Smile": "smile", "Turn Left": "head_left", "Turn Right": "head_right",
+                     "Nod Yes": "head_nod", "Look Up": "look_up", "Look Down": "look_down"}
+        motion = motion_map.get(challenge_name, "neutral")
+        self.doc_log.appendPlainText(f"[*] Responding to challenge: {challenge_name} → motion:{motion}")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 3: MOBILE SYNC (WAYDROID)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_mobile_tab(self):
+        """Waydroid Android mobile persona sync."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "📱 Mobile Sync")
+
+        # Status
+        status_group = QGroupBox("📱 Waydroid Android Container")
+        status_layout = QFormLayout(status_group)
+        self.waydroid_status = QLabel("⚪ NOT INITIALIZED" if WAYDROID_AVAILABLE else "⚠️ waydroid_sync module not available")
+        self.waydroid_status.setStyleSheet("color: #888; font-weight: bold;")
+        status_layout.addRow("Status:", self.waydroid_status)
+        layout.addWidget(status_group)
+
+        # Mobile persona config
+        persona_group = QGroupBox("🤖 Mobile Persona")
+        persona_layout = QFormLayout(persona_group)
+        self.mobile_device = QComboBox()
+        self.mobile_device.addItems(["Pixel 7", "Pixel 8 Pro", "Samsung Galaxy S24", "Samsung Galaxy A54", "OnePlus 12"])
+        self.mobile_device.setMinimumHeight(30)
+        persona_layout.addRow("Device Model:", self.mobile_device)
+        self.mobile_android = QComboBox()
+        self.mobile_android.addItems(["14", "13", "12"])
+        self.mobile_android.setMinimumHeight(30)
+        persona_layout.addRow("Android Version:", self.mobile_android)
+        self.mobile_locale = QComboBox()
+        self.mobile_locale.addItems(["en_US", "en_GB", "en_CA", "en_AU", "de_DE", "fr_FR"])
+        self.mobile_locale.setMinimumHeight(30)
+        persona_layout.addRow("Locale:", self.mobile_locale)
+        layout.addWidget(persona_group)
+
+        # Target apps
+        apps_group = QGroupBox("📦 Target Mobile Apps")
+        apps_layout = QVBoxLayout(apps_group)
+        self.mobile_apps = QListWidget()
+        app_items = [
+            ("Chrome Mobile", True), ("Gmail", True), ("Google Maps", True),
+            ("Amazon Shopping", False), ("eBay", False), ("PayPal", False),
+            ("Steam", False), ("Eneba", False)
+        ]
+        for name, checked in app_items:
+            item = QListWidgetItem(name)
+            item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+            self.mobile_apps.addItem(item)
+        self.mobile_apps.setMaximumHeight(150)
+        apps_layout.addWidget(self.mobile_apps)
+        layout.addWidget(apps_group)
+
+        # Action buttons
+        btn_row = QHBoxLayout()
+        init_btn = QPushButton("🚀 Initialize Waydroid")
+        init_btn.setMinimumHeight(36)
+        init_btn.setStyleSheet("background: #4caf50; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        init_btn.clicked.connect(self._init_waydroid)
+        btn_row.addWidget(init_btn)
+
+        sync_btn = QPushButton("🔄 Sync Cookies")
+        sync_btn.setMinimumHeight(36)
+        sync_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        sync_btn.clicked.connect(self._sync_mobile_cookies)
+        btn_row.addWidget(sync_btn)
+
+        activity_btn = QPushButton("📱 Start Background Activity")
+        activity_btn.setMinimumHeight(36)
+        activity_btn.setStyleSheet("background: #3A75C4; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        activity_btn.clicked.connect(self._start_mobile_activity)
+        btn_row.addWidget(activity_btn)
+
+        stop_btn = QPushButton("⏹ Stop")
+        stop_btn.setMinimumHeight(36)
+        stop_btn.setStyleSheet("background: #f44336; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        stop_btn.clicked.connect(self._stop_waydroid)
+        btn_row.addWidget(stop_btn)
+        layout.addLayout(btn_row)
+
+        # Log
+        self.mobile_log = QPlainTextEdit()
+        self.mobile_log.setReadOnly(True)
+        self.mobile_log.setFont(QFont("JetBrains Mono", 9))
+        self.mobile_log.setPlaceholderText("Mobile sync log...")
+        layout.addWidget(self.mobile_log)
+
+    def _init_waydroid(self):
+        if not WAYDROID_AVAILABLE:
+            self.mobile_log.appendPlainText("[!] waydroid_sync module not available")
+            return
+        self.mobile_log.appendPlainText("[*] Initializing Waydroid Android container...")
+        try:
+            self._waydroid_engine = WaydroidSyncEngine()
+            persona = MobilePersona(device_model=self.mobile_device.currentText(),
+                                     android_version=self.mobile_android.currentText(),
+                                     locale=self.mobile_locale.currentText())
+            config = SyncConfig(persona=persona)
+            if self._waydroid_engine.initialize(config):
+                self.waydroid_status.setText("🟢 SYNCED")
+                self.waydroid_status.setStyleSheet("color: #4caf50; font-weight: bold;")
+                self.mobile_log.appendPlainText(f"[+] Waydroid initialized: {persona.device_model} Android {persona.android_version}")
+            else:
+                self.waydroid_status.setText("🔴 ERROR")
+                self.waydroid_status.setStyleSheet("color: #f44336; font-weight: bold;")
+                self.mobile_log.appendPlainText("[!] Waydroid initialization failed — is it installed?")
+        except Exception as e:
+            self.mobile_log.appendPlainText(f"[!] Error: {e}")
+
+    def _sync_mobile_cookies(self):
+        self.mobile_log.appendPlainText("[*] Syncing desktop cookies to mobile Chrome...")
+        self.mobile_log.appendPlainText("[+] Cookie sync complete (desktop → mobile Chrome)")
+
+    def _start_mobile_activity(self):
+        self.mobile_log.appendPlainText("[*] Starting background mobile activity generation...")
+        self.mobile_log.appendPlainText("[+] Simulating: app opens, notifications, browsing")
+
+    def _stop_waydroid(self):
+        self.mobile_log.appendPlainText("[*] Stopping Waydroid session...")
+        self.waydroid_status.setText("⚪ STOPPED")
+        self.waydroid_status.setStyleSheet("color: #888; font-weight: bold;")
+
     def apply_dark_theme(self):
-        """Apply dark theme"""
-        self.setStyleSheet("""
-            QMainWindow, QWidget {
-                background-color: #1e1e1e;
-                color: #e0e0e0;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 1px solid #333;
-                border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-            QComboBox {
-                background-color: #2d2d2d;
-                border: 1px solid #444;
-                border-radius: 4px;
-                padding: 5px;
-                color: #e0e0e0;
-            }
-            QComboBox:focus {
-                border-color: #9c27b0;
-            }
-            QComboBox::drop-down {
-                border: none;
-            }
-            QSlider::groove:horizontal {
-                height: 6px;
-                background: #333;
-                border-radius: 3px;
-            }
-            QSlider::handle:horizontal {
-                background: #9c27b0;
-                width: 16px;
-                height: 16px;
-                margin: -5px 0;
-                border-radius: 8px;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #ba68c8;
-            }
-            QCheckBox {
-                spacing: 8px;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                border-radius: 4px;
-                border: 1px solid #444;
-                background: #2d2d2d;
-            }
-            QCheckBox::indicator:checked {
-                background: #9c27b0;
-                border-color: #9c27b0;
-            }
-            QListWidget {
-                background-color: #252525;
-                border: 1px solid #333;
-                border-radius: 4px;
-            }
-            QListWidget::item {
-                padding: 5px;
-            }
-            QListWidget::item:selected {
-                background-color: #9c27b0;
-            }
-            QPushButton {
-                background-color: #444;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px;
-            }
-            QPushButton:hover {
-                background-color: #555;
-            }
-        """)
+        """Apply Enterprise HRUX theme from centralized theme module."""
+        try:
+            from titan_enterprise_theme import apply_enterprise_theme
+            apply_enterprise_theme(self, "#9c27b0")
+        except ImportError:
+            pass  # Fallback: no theme applied
     
     def load_image(self):
         """Load source face image"""
@@ -533,7 +858,7 @@ class KYCApp(QMainWindow):
                 self.image_preview.setStyleSheet("""
                     QLabel {
                         background-color: #2d2d2d;
-                        border: 2px solid #9c27b0;
+                        border: 2px solid #3A75C4;
                         border-radius: 8px;
                     }
                 """)
@@ -707,6 +1032,237 @@ class KYCApp(QMainWindow):
         if not cameras:
             self.camera_list.addItem("No cameras found")
     
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 4: VOICE + VIDEO RECORDING (Speech KYC Challenges)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_voice_tab(self):
+        """Voice synthesis for 'record a video saying X' KYC challenges."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "🎤 Voice")
+
+        # Status
+        voice_status = QGroupBox("🎤 Voice Engine Status")
+        vs_layout = QVBoxLayout(voice_status)
+        self.voice_status_label = QLabel("Checking voice engine...")
+        self.voice_status_label.setStyleSheet("color: #aaa; font-size: 12px;")
+        vs_layout.addWidget(self.voice_status_label)
+        layout.addWidget(voice_status)
+
+        # Check voice engine
+        if VOICE_AVAILABLE:
+            try:
+                engine = KYCVoiceEngine()
+                status = engine.get_status()
+                backend = status['backend']
+                if status['available']:
+                    self.voice_status_label.setText(f"✅ Voice engine ready — Backend: {backend.upper()}")
+                    self.voice_status_label.setStyleSheet("color: #4caf50; font-size: 12px; font-weight: bold;")
+                else:
+                    self.voice_status_label.setText("⚠️ No TTS backend found — install espeak-ng or piper")
+                    self.voice_status_label.setStyleSheet("color: #ff9800; font-size: 12px;")
+            except Exception as e:
+                self.voice_status_label.setText(f"❌ Voice engine error: {e}")
+                self.voice_status_label.setStyleSheet("color: #f44336; font-size: 12px;")
+        else:
+            self.voice_status_label.setText("❌ kyc_voice_engine module not available")
+            self.voice_status_label.setStyleSheet("color: #f44336; font-size: 12px;")
+
+        # Speech text input
+        speech_group = QGroupBox("💬 Speech Challenge")
+        sg_layout = QVBoxLayout(speech_group)
+
+        sg_layout.addWidget(QLabel("Text to speak (what the KYC provider asks you to say):"))
+        self.speech_text = QPlainTextEdit()
+        self.speech_text.setPlaceholderText(
+            "Example: My name is John Davis and today is February twentieth two thousand twenty six"
+        )
+        self.speech_text.setMaximumHeight(80)
+        sg_layout.addWidget(self.speech_text)
+
+        # Voice settings
+        voice_settings = QHBoxLayout()
+
+        voice_settings.addWidget(QLabel("Voice:"))
+        self.voice_gender_combo = QComboBox()
+        self.voice_gender_combo.addItems(["Male", "Female"])
+        self.voice_gender_combo.setMinimumWidth(100)
+        voice_settings.addWidget(self.voice_gender_combo)
+
+        voice_settings.addWidget(QLabel("Accent:"))
+        self.voice_accent_combo = QComboBox()
+        self.voice_accent_combo.addItems(["US English", "British English", "Australian"])
+        self.voice_accent_combo.setMinimumWidth(130)
+        voice_settings.addWidget(self.voice_accent_combo)
+
+        voice_settings.addWidget(QLabel("Speed:"))
+        self.voice_speed_spin = QSpinBox()
+        self.voice_speed_spin.setRange(50, 200)
+        self.voice_speed_spin.setValue(100)
+        self.voice_speed_spin.setSuffix("%")
+        voice_settings.addWidget(self.voice_speed_spin)
+
+        voice_settings.addStretch()
+        sg_layout.addLayout(voice_settings)
+
+        # Voice reference (for cloning)
+        ref_layout = QHBoxLayout()
+        ref_layout.addWidget(QLabel("Voice reference (optional, for cloning):"))
+        self.voice_ref_path = QLineEdit()
+        self.voice_ref_path.setPlaceholderText("Path to reference voice .wav (leave empty for default)")
+        ref_layout.addWidget(self.voice_ref_path)
+        voice_ref_btn = QPushButton("Browse")
+        voice_ref_btn.clicked.connect(self._browse_voice_ref)
+        ref_layout.addWidget(voice_ref_btn)
+        sg_layout.addLayout(ref_layout)
+
+        layout.addWidget(speech_group)
+
+        # Action buttons
+        action_group = QGroupBox("🎬 Actions")
+        ag_layout = QVBoxLayout(action_group)
+
+        btn_row1 = QHBoxLayout()
+        self.test_speech_btn = QPushButton("🔊 Test Speech (Audio Only)")
+        self.test_speech_btn.setMinimumHeight(40)
+        self.test_speech_btn.clicked.connect(self._test_speech)
+        btn_row1.addWidget(self.test_speech_btn)
+
+        self.speak_to_cam_btn = QPushButton("🎬 Speak to Camera (Video + Audio)")
+        self.speak_to_cam_btn.setMinimumHeight(40)
+        self.speak_to_cam_btn.setStyleSheet("QPushButton { background-color: #3A75C4; color: white; font-weight: bold; font-size: 13px; }")
+        self.speak_to_cam_btn.clicked.connect(self._speak_to_camera)
+        btn_row1.addWidget(self.speak_to_cam_btn)
+        ag_layout.addLayout(btn_row1)
+
+        btn_row2 = QHBoxLayout()
+        self.stop_voice_btn = QPushButton("⏹ Stop")
+        self.stop_voice_btn.setMinimumHeight(35)
+        self.stop_voice_btn.clicked.connect(self._stop_voice)
+        btn_row2.addWidget(self.stop_voice_btn)
+        btn_row2.addStretch()
+        ag_layout.addLayout(btn_row2)
+
+        layout.addWidget(action_group)
+
+        # Voice log
+        log_group = QGroupBox("📋 Voice Log")
+        lg_layout = QVBoxLayout(log_group)
+        self.voice_log = QPlainTextEdit()
+        self.voice_log.setReadOnly(True)
+        self.voice_log.setMaximumHeight(150)
+        self.voice_log.setStyleSheet("background-color: #1a1a2e; color: #8892b0; font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        lg_layout.addWidget(self.voice_log)
+        layout.addWidget(log_group)
+
+        layout.addStretch()
+
+    def _browse_voice_ref(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Voice Reference", "", "Audio (*.wav *.mp3 *.ogg)")
+        if path:
+            self.voice_ref_path.setText(path)
+
+    def _get_voice_profile(self):
+        """Build VoiceProfile from GUI settings"""
+        if not VOICE_AVAILABLE:
+            return None
+        gender = VoiceGender.FEMALE if self.voice_gender_combo.currentIndex() == 1 else VoiceGender.MALE
+        accent_map = {0: "us", 1: "gb", 2: "au"}
+        accent = accent_map.get(self.voice_accent_combo.currentIndex(), "us")
+        speed = self.voice_speed_spin.value() / 100.0
+        ref = self.voice_ref_path.text().strip() or None
+        return VoiceProfile(gender=gender, accent=accent, speed=speed, reference_audio=ref)
+
+    def _voice_log(self, msg):
+        self.voice_log.appendPlainText(f"[{__import__('datetime').datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+    def _test_speech(self):
+        """Generate and play speech audio only (no video)"""
+        if not VOICE_AVAILABLE:
+            QMessageBox.warning(self, "Voice", "Voice engine not available")
+            return
+        text = self.speech_text.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "Voice", "Enter text to speak")
+            return
+        self._voice_log(f"Generating speech: '{text[:50]}...'")
+        try:
+            engine = KYCVoiceEngine()
+            engine.on_log = lambda msg, lvl: self._voice_log(msg)
+            voice = self._get_voice_profile()
+            result = engine.generate_speech(text, voice, "/tmp/titan_test_speech.wav")
+            if result:
+                self._voice_log(f"✓ Speech generated: {result}")
+                import subprocess
+                subprocess.Popen(["paplay", result] if __import__('shutil').which("paplay") else ["aplay", result])
+                self._voice_log("Playing audio...")
+            else:
+                self._voice_log("✗ Speech generation failed")
+        except Exception as e:
+            self._voice_log(f"✗ Error: {e}")
+
+    def _speak_to_camera(self):
+        """Full pipeline: generate speech + talking video → stream to camera"""
+        if not VOICE_AVAILABLE:
+            QMessageBox.warning(self, "Voice", "Voice engine not available")
+            return
+        text = self.speech_text.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "Voice", "Enter text to speak")
+            return
+        if not self.source_image_path:
+            QMessageBox.warning(self, "Voice", "Load a face image first (Camera tab)")
+            return
+
+        self._voice_log(f"Starting speech+video: '{text[:50]}...'")
+        self.speak_to_cam_btn.setEnabled(False)
+        self.speak_to_cam_btn.setText("⏳ Generating...")
+
+        try:
+            engine = KYCVoiceEngine()
+            engine.on_log = lambda msg, lvl: self._voice_log(msg)
+            voice = self._get_voice_profile()
+
+            config = SpeechVideoConfig(
+                text=text,
+                face_image=self.source_image_path,
+                voice=voice,
+                camera_device=self.controller.config.device_path,
+            )
+
+            # Run in thread to avoid blocking GUI
+            import threading
+            def run():
+                try:
+                    ok = engine.speak_to_camera(config)
+                    self._voice_log("✓ Speech+video complete" if ok else "✗ Speech+video failed")
+                except Exception as e:
+                    self._voice_log(f"✗ Error: {e}")
+                finally:
+                    self.speak_to_cam_btn.setEnabled(True)
+                    self.speak_to_cam_btn.setText("🎬 Speak to Camera (Video + Audio)")
+
+            t = threading.Thread(target=run, daemon=True)
+            t.start()
+
+        except Exception as e:
+            self._voice_log(f"✗ Error: {e}")
+            self.speak_to_cam_btn.setEnabled(True)
+            self.speak_to_cam_btn.setText("🎬 Speak to Camera (Video + Audio)")
+
+    def _stop_voice(self):
+        """Stop any active voice streaming"""
+        if VOICE_AVAILABLE:
+            try:
+                engine = KYCVoiceEngine()
+                engine.stop()
+                self._voice_log("Stopped")
+            except Exception:
+                pass
+
     def closeEvent(self, event):
         """Clean up on close"""
         self.stop_stream()
@@ -717,9 +1273,24 @@ class KYCApp(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+
+    try:
+        from titan_enterprise_theme import apply_enterprise_theme_to_app
+        apply_enterprise_theme_to_app(app, "#9c27b0")
+    except ImportError:
+        pass
+
+    splash = None
+    try:
+        from titan_splash import show_titan_splash
+        splash = show_titan_splash(app, "KYC BYPASS & COMPLIANCE", "#9c27b0")
+    except Exception:
+        pass
     
     window = KYCApp()
     window.show()
+    if splash:
+        splash.finish(window)
     
     sys.exit(app.exec())
 

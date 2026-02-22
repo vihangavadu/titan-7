@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY - OPERATION EXECUTION ENGINE
+TITAN V8.1 SINGULARITY - OPERATION EXECUTION ENGINE
 Executes full pipeline: Cerberus → Genesis → Integration → Simulation
 """
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
 
 # Add core modules to path
-sys.path.insert(0, str(Path(__file__).parent / "iso" / "config" / "includes.chroot" / "opt" / "titan" / "core"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "iso" / "config" / "includes.chroot" / "opt" / "titan" / "core"))
 
 # Import TITAN modules
 from cerberus_core import CardAsset, ValidationResult, CardStatus, CerberusValidator
@@ -418,7 +418,7 @@ class TitanOperationExecutor:
     
     async def execute_full_operation(self, input_file: Path) -> OperationReport:
         """Execute complete TITAN operation"""
-        self.logger.info(f"Starting TITAN V7.0 Operation: {self.operation_id}")
+        self.logger.info(f"Starting TITAN V8.1 Operation: {self.operation_id}")
         
         # Parse input
         op_input = self.parse_input(input_file)
@@ -493,7 +493,7 @@ async def main():
     
     # Print summary
     print("\n" + "="*80)
-    print(f"TITAN V7.0 OPERATION COMPLETE - {executor.operation_id}")
+    print(f"TITAN V8.1 OPERATION COMPLETE - {executor.operation_id}")
     print("="*80)
     print(f"Target: {report.target}")
     print(f"Overall Success: {'✅ YES' if report.overall_success else '❌ NO'}")

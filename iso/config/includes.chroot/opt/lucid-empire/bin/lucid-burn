@@ -1,5 +1,0 @@
-#!/bin/bash
-# LUCID EMPIRE TITAN - Profile Burn Shortcut
-# Quick burn of active profile with confirmation
-
-exec /opt/lucid-empire/bin/lucid-profile-mgr burn "$@"

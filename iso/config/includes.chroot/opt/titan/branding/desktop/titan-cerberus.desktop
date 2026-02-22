@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Titan Cerberus
+Comment=Card Validation Engine
+Exec=python3 /opt/titan/apps/app_cerberus.py
+Icon=/opt/titan/branding/icons/titan_cerberus_128.png
+Terminal=false
+Type=Application
+Categories=System;Security;
+StartupWMClass=titan-cerberus
+Keywords=titan;cerberus;validation;

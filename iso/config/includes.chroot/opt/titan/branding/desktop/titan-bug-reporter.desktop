@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Titan Bug Reporter
+Comment=Bug Reporter & Auto-Patcher
+Exec=python3 /opt/titan/apps/app_bug_reporter.py
+Icon=/opt/titan/branding/icons/titan_bug_reporter_128.png
+Terminal=false
+Type=Application
+Categories=System;Development;
+StartupWMClass=titan-bug-reporter
+Keywords=titan;bug;reporter;patch;

@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Cerberus Enhanced Engine
+TITAN V8.1 SINGULARITY - Cerberus Enhanced Engine
 Advanced card intelligence: AVS verification, AI BIN scoring,
 silent validation without bank flags, and target recommendations.
 
@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, Dict, List, Any, Tuple
+from datetime import timezone as _tz
 import logging
 
 # Centralized env loading
@@ -561,7 +562,9 @@ class BINScoringEngine:
         network = 'visa'
         if bin6.startswith('4'):
             network = 'visa'
-        elif bin6[:2] in ('51', '52', '53', '54', '55') or bin6[:2] in ('22', '23', '24', '25', '26', '27'):
+        elif bin6[:2] in ('51', '52', '53', '54', '55'):
+            network = 'mastercard'
+        elif len(bin6) >= 4 and 2221 <= int(bin6[:4]) <= 2720:
             network = 'mastercard'
         elif bin6[:2] in ('34', '37'):
             network = 'amex'
@@ -650,7 +653,7 @@ class SilentValidationEngine:
         is_relaxed = bank in self.ALERT_RELAXED_BANKS
         
         # Current hour (UTC)
-        current_hour = datetime.utcnow().hour
+        current_hour = datetime.now(_tz.utc).hour
         in_quiet_window = any(start <= current_hour < end for start, end in self.QUIET_WINDOWS)
         
         strategies = []
@@ -1928,8 +1931,11 @@ class MaxDrainEngine:
     
     def _select_warmup_target(self, categories, country):
         """Select best low-friction target for warmup purchase"""
-        # Prefer gaming keys for warmup — instant delivery, low friction
-        for cat in ["gaming_keys", "gift_cards"]:
+        # V7.5 FIX: Respect preferred categories, fallback to gaming_keys/gift_cards
+        warmup_cats = [c for c in categories if c in ("gaming_keys", "gift_cards")]
+        if not warmup_cats:
+            warmup_cats = ["gaming_keys", "gift_cards"]
+        for cat in warmup_cats:
             if cat in self.DRAIN_TARGETS:
                 targets = self.DRAIN_TARGETS[cat]["targets"]
                 # Sort by lowest 3DS rate
@@ -2062,7 +2068,7 @@ def predict_bank_pattern(bin_number, merchant, amount, time_hour_utc=None):
 def generate_drain_plan(bin_number, amount_limit=None, preferred_categories=None, country=None):
     """V7.0.2: Generate optimal drain strategy for a validated card"""
     from datetime import datetime
-    hour_utc = datetime.utcnow().hour
+    hour_utc = datetime.now(_tz.utc).hour
     return MaxDrainEngine().generate_plan(
         bin_number, amount_limit=amount_limit,
         preferred_categories=preferred_categories,
@@ -2072,3 +2078,896 @@ def generate_drain_plan(bin_number, amount_limit=None, preferred_categories=None
 def format_drain_plan(plan):
     """V7.0.2: Format drain plan as readable text"""
     return MaxDrainEngine().format_plan_text(plan)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.5 UPGRADE: AVS PRE-CHECK ENGINE
+# Validates billing address against USPS ZIP-state database BEFORE
+# submitting to payment processor. Prevents AVS mismatch declines
+# which burn cards and trigger bank fraud alerts.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AVSPreCheckEngine:
+    """
+    v7.5 AVS Pre-Check Engine with USPS ZIP-state validation.
+
+    Problem: AVS mismatches (wrong ZIP for state, wrong street format)
+    cause immediate decline + fraud flag at the issuing bank. Once flagged,
+    the card is burned for ALL future attempts.
+
+    Solution: Pre-validate address components before submission:
+    1. ZIP code matches state (USPS ZIP prefix ranges)
+    2. Street address format normalization (Apt → #, Suite → Ste)
+    3. City/state consistency check
+    4. PO Box detection (many merchants reject PO Boxes)
+    """
+
+    # USPS ZIP code prefix → state mapping (first 3 digits)
+    ZIP_STATE_MAP = {
+        range(10, 70): "NY", range(70, 80): "NJ", range(80, 100): "PA",
+        range(100, 150): "NY", range(150, 197): "PA",
+        range(197, 200): "DE", range(200, 206): "DC",
+        range(206, 220): "MD", range(220, 247): "VA",
+        range(247, 269): "WV", range(270, 290): "NC",
+        range(290, 300): "SC", range(300, 320): "GA",
+        range(320, 350): "FL", range(350, 370): "AL",
+        range(370, 386): "TN", range(386, 398): "MS",
+        range(398, 400): "GA", range(400, 428): "KY",
+        range(428, 430): "KY", range(430, 459): "OH",
+        range(460, 480): "IN", range(480, 500): "MI",
+        range(500, 529): "IA", range(530, 550): "WI",
+        range(550, 568): "MN", range(570, 578): "SD",
+        range(580, 589): "ND", range(590, 600): "MT",
+        range(600, 630): "IL", range(630, 659): "MO",
+        range(660, 680): "KS", range(680, 694): "NE",
+        range(700, 715): "LA", range(716, 730): "AR",
+        range(730, 750): "OK", range(750, 800): "TX",
+        range(800, 816): "CO", range(816, 820): "CO",
+        range(820, 832): "WY", range(832, 839): "ID",
+        range(840, 848): "UT", range(850, 866): "AZ",
+        range(870, 885): "NM", range(885, 886): "TX",
+        range(889, 900): "NV", range(900, 966): "CA",
+        range(967, 969): "HI", range(970, 980): "OR",
+        range(980, 995): "WA", range(995, 1000): "AK",
+    }
+
+    # Common address abbreviation normalization
+    ADDRESS_NORMALIZATIONS = {
+        r'\bApartment\b': 'Apt',
+        r'\bSuite\b': 'Ste',
+        r'\bBuilding\b': 'Bldg',
+        r'\bFloor\b': 'Fl',
+        r'\bRoom\b': 'Rm',
+        r'\bStreet\b': 'St',
+        r'\bAvenue\b': 'Ave',
+        r'\bBoulevard\b': 'Blvd',
+        r'\bDrive\b': 'Dr',
+        r'\bLane\b': 'Ln',
+        r'\bRoad\b': 'Rd',
+        r'\bCourt\b': 'Ct',
+        r'\bPlace\b': 'Pl',
+        r'\bCircle\b': 'Cir',
+        r'\bNorth\b': 'N',
+        r'\bSouth\b': 'S',
+        r'\bEast\b': 'E',
+        r'\bWest\b': 'W',
+    }
+
+    def __init__(self):
+        self._zip_cache = {}
+
+    def validate_zip_state(self, zip_code: str, state: str) -> Dict[str, Any]:
+        """
+        Validate that ZIP code prefix matches the declared state.
+        Returns validation result with expected state if mismatch.
+        """
+        zip_clean = zip_code.strip().replace("-", "")[:5]
+        if not zip_clean.isdigit() or len(zip_clean) < 3:
+            return {"valid": False, "error": "Invalid ZIP format", "zip": zip_code}
+
+        prefix = int(zip_clean[:3])
+        expected_state = None
+
+        for zip_range, st in self.ZIP_STATE_MAP.items():
+            if prefix in zip_range:
+                expected_state = st
+                break
+
+        state_upper = state.strip().upper()
+        if expected_state is None:
+            return {"valid": False, "error": f"ZIP prefix {prefix} not in database",
+                    "zip": zip_clean, "state": state_upper}
+
+        match = state_upper == expected_state
+        return {
+            "valid": match,
+            "zip": zip_clean,
+            "state_input": state_upper,
+            "state_expected": expected_state,
+            "error": None if match else f"ZIP {zip_clean} belongs to {expected_state}, not {state_upper}",
+        }
+
+    def normalize_address(self, address: str) -> str:
+        """
+        Normalize street address to USPS standard abbreviations.
+        Reduces AVS partial-match failures caused by format differences.
+        """
+        normalized = address.strip()
+        for pattern, replacement in self.ADDRESS_NORMALIZATIONS.items():
+            normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
+
+        # Remove extra whitespace
+        normalized = re.sub(r'\s+', ' ', normalized).strip()
+
+        # Normalize unit numbers: "Apt. 5B" → "Apt 5B", "#5B" stays
+        normalized = re.sub(r'(Apt|Ste|Bldg|Fl|Rm)\.?\s*#?\s*', r'\1 ', normalized)
+
+        return normalized
+
+    def detect_po_box(self, address: str) -> bool:
+        """Detect PO Box addresses (rejected by many merchants)."""
+        return bool(re.search(r'\bP\.?O\.?\s*Box\b', address, re.IGNORECASE))
+
+    def pre_check(self, address: str, city: str, state: str,
+                  zip_code: str) -> Dict[str, Any]:
+        """
+        Full AVS pre-check: validate all address components before submission.
+        Returns comprehensive validation report.
+        """
+        results = {
+            "address_original": address,
+            "address_normalized": self.normalize_address(address),
+            "city": city.strip(),
+            "state": state.strip().upper(),
+            "zip": zip_code.strip(),
+            "checks": {},
+        }
+
+        # ZIP-state validation
+        zip_check = self.validate_zip_state(zip_code, state)
+        results["checks"]["zip_state_match"] = zip_check["valid"]
+        if not zip_check["valid"]:
+            results["checks"]["zip_state_error"] = zip_check["error"]
+
+        # PO Box detection
+        results["checks"]["po_box_detected"] = self.detect_po_box(address)
+
+        # Address has street number
+        results["checks"]["has_street_number"] = bool(re.match(r'^\d+\s', address.strip()))
+
+        # Overall pass/fail
+        results["avs_ready"] = (
+            zip_check["valid"] and
+            not results["checks"]["po_box_detected"] and
+            results["checks"]["has_street_number"]
+        )
+
+        return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: 3DS CHALLENGE PREDICTOR
+# Predicts when a card will trigger 3D Secure challenge based on card BIN,
+# merchant 3DS configuration, transaction amount, and cardholder history.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class ThreeDSPrediction:
+    """3D Secure challenge prediction result"""
+    will_challenge: bool
+    probability: float              # 0-1
+    challenge_type: str             # frictionless, challenge, exemption, none
+    exemption_eligible: bool
+    recommended_amount_for_exemption: Optional[float]
+    merchant_3ds_policy: str        # always, risk_based, exemption_preferred, legacy
+    recommendations: List[str]
+
+
+class ThreeDSPredictor:
+    """
+    V7.6: Predicts 3D Secure challenge probability.
+    
+    3DS challenges burn cards faster than declines because:
+    1. Cardholder sees the challenge and may report fraud
+    2. Failed challenge = permanent VBV/MSC blacklist on that card
+    3. Challenge creates audit trail at issuing bank
+    
+    This predictor helps avoid 3DS challenges by:
+    - Identifying exemption-eligible amounts (<€30 EU, merchants with TRA)
+    - Predicting which merchants use frictionless flow
+    - Recommending transaction structuring to avoid challenge
+    """
+    
+    # Merchant 3DS configuration profiles
+    MERCHANT_3DS_PROFILES = {
+        # Gaming/Digital - mostly frictionless for small amounts
+        'g2a.com': {'policy': 'risk_based', 'exemption_threshold': 100, 'base_rate': 0.15,
+                    'frictionless_rate': 0.70, 'network_supports_tra': True},
+        'eneba.com': {'policy': 'risk_based', 'exemption_threshold': 100, 'base_rate': 0.20,
+                      'frictionless_rate': 0.65, 'network_supports_tra': True},
+        'instant-gaming.com': {'policy': 'exemption_preferred', 'exemption_threshold': 150,
+                               'base_rate': 0.18, 'frictionless_rate': 0.75, 'network_supports_tra': True},
+        'cdkeys.com': {'policy': 'exemption_preferred', 'exemption_threshold': 100,
+                       'base_rate': 0.15, 'frictionless_rate': 0.80, 'network_supports_tra': True},
+        'steam': {'policy': 'always', 'exemption_threshold': 0, 'base_rate': 0.85,
+                  'frictionless_rate': 0.10, 'network_supports_tra': False},
+        
+        # Retail - mostly risk-based with higher thresholds
+        'amazon.com': {'policy': 'risk_based', 'exemption_threshold': 250, 'base_rate': 0.10,
+                       'frictionless_rate': 0.85, 'network_supports_tra': True},
+        'bestbuy.com': {'policy': 'risk_based', 'exemption_threshold': 150, 'base_rate': 0.25,
+                        'frictionless_rate': 0.60, 'network_supports_tra': True},
+        'walmart.com': {'policy': 'exemption_preferred', 'exemption_threshold': 200,
+                        'base_rate': 0.12, 'frictionless_rate': 0.80, 'network_supports_tra': True},
+        
+        # Crypto - always challenge
+        'bitrefill.com': {'policy': 'always', 'exemption_threshold': 0, 'base_rate': 0.90,
+                          'frictionless_rate': 0.05, 'network_supports_tra': False},
+        'coinsbee.com': {'policy': 'always', 'exemption_threshold': 0, 'base_rate': 0.95,
+                         'frictionless_rate': 0.02, 'network_supports_tra': False},
+        
+        # Gift cards - moderate
+        'mygiftcardsupply.com': {'policy': 'risk_based', 'exemption_threshold': 100,
+                                  'base_rate': 0.10, 'frictionless_rate': 0.85, 'network_supports_tra': True},
+        'raise.com': {'policy': 'risk_based', 'exemption_threshold': 150, 'base_rate': 0.20,
+                      'frictionless_rate': 0.70, 'network_supports_tra': True},
+    }
+    
+    # Card network 3DS enforcement
+    NETWORK_3DS_RATES = {
+        'visa': {'base_challenge_rate': 0.25, 'supports_exemption': True},
+        'mastercard': {'base_challenge_rate': 0.30, 'supports_exemption': True},
+        'amex': {'base_challenge_rate': 0.40, 'supports_exemption': False},  # SafeKey always challenges
+        'discover': {'base_challenge_rate': 0.20, 'supports_exemption': True},
+    }
+    
+    # Issuer 3DS aggressiveness
+    ISSUER_3DS_RATES = {
+        'Chase': 0.85, 'Bank of America': 0.80, 'Wells Fargo': 0.75, 'Capital One': 0.65,
+        'Citi': 0.70, 'American Express': 0.95, 'USAA': 0.50, 'Navy Federal': 0.45,
+        'Monzo': 0.30, 'Revolut': 0.25, 'Discover': 0.55,
+    }
+    
+    def predict(self, bin_number: str, merchant: str, amount: float,
+                is_new_card: bool = True, country: str = 'US') -> ThreeDSPrediction:
+        """
+        Predict 3DS challenge probability for a transaction.
+        """
+        scorer = BINScoringEngine()
+        bin_score = scorer.score_bin(bin_number)
+        
+        network = bin_score.network
+        bank = bin_score.bank
+        
+        merchant_lower = merchant.lower().replace('www.', '')
+        merchant_profile = self.MERCHANT_3DS_PROFILES.get(
+            merchant_lower, 
+            {'policy': 'risk_based', 'exemption_threshold': 100, 'base_rate': 0.30,
+             'frictionless_rate': 0.50, 'network_supports_tra': True}
+        )
+        
+        network_profile = self.NETWORK_3DS_RATES.get(network, {'base_challenge_rate': 0.30, 'supports_exemption': True})
+        issuer_rate = self.ISSUER_3DS_RATES.get(bank, 0.65)
+        
+        recommendations = []
+        
+        # Calculate base probability
+        base_prob = merchant_profile['base_rate']
+        
+        # Adjust for issuer
+        base_prob = base_prob * 0.5 + issuer_rate * 0.5
+        
+        # Adjust for network
+        base_prob = (base_prob + network_profile['base_challenge_rate']) / 2
+        
+        # Adjust for new card (first use triggers challenge more often)
+        if is_new_card:
+            base_prob += 0.15
+        
+        # Check exemption eligibility (SCA exemptions: <€30 or TRA)
+        exemption_eligible = False
+        exemption_amount = None
+        
+        if merchant_profile['network_supports_tra'] and network_profile['supports_exemption']:
+            if amount <= merchant_profile['exemption_threshold']:
+                exemption_eligible = True
+                base_prob *= 0.40  # 60% reduction if under threshold
+                recommendations.append(f"Under €{merchant_profile['exemption_threshold']} TRA exemption threshold — frictionless likely")
+            else:
+                exemption_amount = merchant_profile['exemption_threshold']
+                recommendations.append(f"Reduce to ${exemption_amount} or below for TRA exemption")
+        
+        # EU low-value exemption (<€30)
+        if country in ('GB', 'DE', 'FR', 'NL', 'ES', 'IT') and amount < 30:
+            exemption_eligible = True
+            base_prob *= 0.25
+            recommendations.append("Under €30 EU low-value exemption — challenge very unlikely")
+        
+        # Determine challenge type
+        if base_prob < 0.15:
+            challenge_type = 'frictionless'
+            will_challenge = False
+        elif base_prob < 0.40:
+            challenge_type = 'frictionless'
+            will_challenge = random.random() < base_prob
+        elif base_prob < 0.70:
+            challenge_type = 'challenge'
+            will_challenge = True
+        else:
+            challenge_type = 'challenge'
+            will_challenge = True
+            recommendations.append("HIGH 3DS probability — consider alternative merchant or card")
+        
+        # Policy-specific adjustments
+        if merchant_profile['policy'] == 'always':
+            will_challenge = True
+            challenge_type = 'challenge'
+            recommendations.insert(0, f"{merchant} ALWAYS triggers 3DS — prepare for challenge")
+        elif merchant_profile['policy'] == 'exemption_preferred':
+            if exemption_eligible:
+                will_challenge = False
+                challenge_type = 'exemption'
+                recommendations.insert(0, f"{merchant} prefers exemptions — frictionless expected")
+        
+        # AMEX SafeKey always challenges
+        if network == 'amex':
+            will_challenge = True
+            challenge_type = 'challenge'
+            recommendations.append("AMEX SafeKey: always challenges on new merchants")
+        
+        final_prob = min(0.99, max(0.01, base_prob))
+        
+        return ThreeDSPrediction(
+            will_challenge=will_challenge,
+            probability=round(final_prob, 2),
+            challenge_type=challenge_type,
+            exemption_eligible=exemption_eligible,
+            recommended_amount_for_exemption=exemption_amount,
+            merchant_3ds_policy=merchant_profile['policy'],
+            recommendations=recommendations,
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: CROSS-MERCHANT LINKING DETECTOR
+# Detects when fraud prevention networks (Forter, Riskified, Sift, SEON)
+# may correlate your purchases across different merchants.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class LinkingRiskAssessment:
+    """Cross-merchant linking risk assessment"""
+    risk_level: str                 # low, medium, high, critical
+    linked_merchants: List[str]     # merchants that share fraud network
+    fraud_network: str              # forter, riskified, sift, seon
+    fingerprint_shared: bool        # whether device fingerprint is shared
+    card_hash_shared: bool          # whether card hash is shared across network
+    recommendations: List[str]
+    safe_time_gap_hours: int        # recommended hours between linked merchants
+
+
+class CrossMerchantLinkingDetector:
+    """
+    V7.6: Detects cross-merchant fraud network linking.
+    
+    Modern fraud networks (Forter, Riskified, Sift, SEON) share data
+    including:
+    - Device fingerprints
+    - Card BIN + last4 hashes
+    - Email hashes
+    - IP + behavioral patterns
+    - Velocity data (purchases in last 24h)
+    
+    Using the same card on two merchants in the same network within
+    24 hours can trigger correlation flags:
+    - "Same device seen at competitor 2h ago"
+    - "Card used at high-risk merchant recently"
+    """
+    
+    # Fraud network membership per merchant
+    FRAUD_NETWORK_MEMBERSHIP = {
+        # Forter network (largest)
+        'forter': ['nordstrom.com', 'priceline.com', 'booking.com', 'wayfair.com',
+                   'groupon.com', 'stubhub.com', 'wish.com', 'houzz.com', 
+                   'adorama.com', 'fanatics.com', 'chewy.com'],
+        
+        # Riskified network
+        'riskified': ['g2a.com', 'wish.com', 'aliexpress.com', 'shein.com',
+                      'stockx.com', 'goat.com', 'fashionnova.com', 'mvmt.com'],
+        
+        # Sift network
+        'sift': ['airbnb.com', 'doordash.com', 'instacart.com', 'twitter.com',
+                 'tinder.com', 'offerup.com', 'letgo.com', 'zelle.com'],
+        
+        # SEON network
+        'seon': ['betfair.com', 'pokerstars.com', 'bet365.com', 'draftkings.com',
+                 'fanduel.com', 'parimatch.com', 'revolut.com'],
+        
+        # Stripe Radar (internal)
+        'stripe_radar': ['shopify_merchants', 'squarespace.com', 'bigcommerce.com'],
+        
+        # Adyen RevenueProtect
+        'adyen': ['uber.com', 'spotify.com', 'netflix.com', 'ebay.com',
+                  'booking.com', 'etsy.com', 'mcdonalds.com'],
+        
+        # Signifyd
+        'signifyd': ['samsung.com', 'lenovo.com', 'hp.com', 'lacoste.com',
+                     'fanatics.com', 'dickssportinggoods.com'],
+    }
+    
+    # Network data sharing capabilities
+    NETWORK_CAPABILITIES = {
+        'forter': {'fingerprint_sharing': True, 'card_hash_sharing': True,
+                   'email_hash_sharing': True, 'velocity_window_hours': 48},
+        'riskified': {'fingerprint_sharing': True, 'card_hash_sharing': True,
+                      'email_hash_sharing': True, 'velocity_window_hours': 24},
+        'sift': {'fingerprint_sharing': True, 'card_hash_sharing': True,
+                 'email_hash_sharing': True, 'velocity_window_hours': 72},
+        'seon': {'fingerprint_sharing': True, 'card_hash_sharing': False,
+                 'email_hash_sharing': True, 'velocity_window_hours': 24},
+        'stripe_radar': {'fingerprint_sharing': False, 'card_hash_sharing': True,
+                         'email_hash_sharing': False, 'velocity_window_hours': 168},
+        'adyen': {'fingerprint_sharing': True, 'card_hash_sharing': True,
+                  'email_hash_sharing': True, 'velocity_window_hours': 24},
+        'signifyd': {'fingerprint_sharing': True, 'card_hash_sharing': True,
+                     'email_hash_sharing': True, 'velocity_window_hours': 48},
+    }
+    
+    def assess_linking_risk(self, merchant1: str, merchant2: str,
+                            time_gap_hours: float = 0) -> LinkingRiskAssessment:
+        """
+        Assess risk of cross-merchant linking for a card used at two merchants.
+        """
+        m1 = merchant1.lower().replace('www.', '')
+        m2 = merchant2.lower().replace('www.', '')
+        
+        # Find shared fraud networks
+        shared_network = None
+        for network, members in self.FRAUD_NETWORK_MEMBERSHIP.items():
+            if m1 in members and m2 in members:
+                shared_network = network
+                break
+        
+        recommendations = []
+        
+        if shared_network is None:
+            # No shared network — low risk
+            return LinkingRiskAssessment(
+                risk_level='low',
+                linked_merchants=[],
+                fraud_network='none',
+                fingerprint_shared=False,
+                card_hash_shared=False,
+                recommendations=[f"{m1} and {m2} do not share fraud network — linking unlikely"],
+                safe_time_gap_hours=1,
+            )
+        
+        caps = self.NETWORK_CAPABILITIES.get(shared_network, {})
+        velocity_window = caps.get('velocity_window_hours', 24)
+        
+        # Assess risk based on time gap
+        if time_gap_hours > velocity_window:
+            risk_level = 'low'
+            recommendations.append(f"Time gap ({time_gap_hours:.1f}h) exceeds {shared_network} velocity window ({velocity_window}h)")
+        elif time_gap_hours > velocity_window / 2:
+            risk_level = 'medium'
+            recommendations.append(f"Time gap is within {shared_network} velocity window — moderate linking risk")
+        elif time_gap_hours > 2:
+            risk_level = 'high'
+            recommendations.append(f"SHORT time gap ({time_gap_hours:.1f}h) — {shared_network} may correlate purchases")
+        else:
+            risk_level = 'critical'
+            recommendations.append(f"CRITICAL: <2h gap on {shared_network} network — HIGH correlation risk")
+        
+        # Data sharing warnings
+        if caps.get('fingerprint_sharing'):
+            recommendations.append(f"{shared_network}: Device fingerprint shared — use different browser profile")
+        if caps.get('card_hash_sharing'):
+            recommendations.append(f"{shared_network}: Card hash shared — use different card for {m2}")
+        
+        safe_gap = max(velocity_window + 4, 24)
+        recommendations.append(f"Safe time gap: wait {safe_gap} hours between {m1} and {m2}")
+        
+        return LinkingRiskAssessment(
+            risk_level=risk_level,
+            linked_merchants=[m1, m2],
+            fraud_network=shared_network,
+            fingerprint_shared=caps.get('fingerprint_sharing', False),
+            card_hash_shared=caps.get('card_hash_sharing', False),
+            recommendations=recommendations,
+            safe_time_gap_hours=safe_gap,
+        )
+    
+    def get_network_for_merchant(self, merchant: str) -> Optional[str]:
+        """Get the fraud network a merchant belongs to."""
+        m = merchant.lower().replace('www.', '')
+        for network, members in self.FRAUD_NETWORK_MEMBERSHIP.items():
+            if m in members:
+                return network
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: CARD VELOCITY HEAT MAP
+# Real-time tracking of card usage across sessions to prevent
+# velocity violations that trigger bank fraud alerts.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CardVelocityHeatMap:
+    """
+    V7.6: Real-time card velocity tracking.
+    
+    Banks track velocity patterns:
+    - Transactions per hour
+    - Transactions per day
+    - Unique merchants per day
+    - Geographic spread
+    - Amount patterns (many small = testing, few large = normal)
+    
+    This heat map tracks card usage and warns when approaching limits.
+    """
+    
+    def __init__(self, storage_path: str = "/opt/titan/data/velocity_heat.json"):
+        self.storage_path = Path(storage_path)
+        self._data: Dict[str, List[Dict]] = {}
+        self._load()
+    
+    def _load(self):
+        """Load velocity data from disk."""
+        if self.storage_path.exists():
+            try:
+                self._data = json.loads(self.storage_path.read_text())
+            except (json.JSONDecodeError, Exception):
+                self._data = {}
+    
+    def _save(self):
+        """Save velocity data to disk."""
+        try:
+            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+            self.storage_path.write_text(json.dumps(self._data, default=str))
+        except Exception:
+            pass
+    
+    def _card_key(self, card_number: str) -> str:
+        """Generate safe key for card (hash of last8 + BIN)."""
+        clean = re.sub(r'\D', '', card_number)
+        key_material = clean[:6] + clean[-4:]
+        return hashlib.sha256(key_material.encode()).hexdigest()[:16]
+    
+    def record_transaction(self, card_number: str, merchant: str,
+                           amount: float, result: str = 'pending') -> Dict[str, Any]:
+        """
+        Record a transaction for velocity tracking.
+        Returns current heat level for the card.
+        """
+        key = self._card_key(card_number)
+        now = datetime.now(_tz.utc)
+        
+        if key not in self._data:
+            self._data[key] = []
+        
+        self._data[key].append({
+            'timestamp': now.isoformat(),
+            'merchant': merchant,
+            'amount': amount,
+            'result': result,
+        })
+        
+        self._save()
+        return self.get_heat_level(card_number)
+    
+    def get_heat_level(self, card_number: str) -> Dict[str, Any]:
+        """
+        Get current heat level for a card.
+        Returns heat metrics and warnings.
+        """
+        key = self._card_key(card_number)
+        txns = self._data.get(key, [])
+        now = datetime.now(_tz.utc)
+        
+        # Filter to relevant time windows
+        txns_1h = []
+        txns_24h = []
+        txns_7d = []
+        
+        for txn in txns:
+            try:
+                ts = datetime.fromisoformat(txn['timestamp'].replace('Z', '+00:00'))
+                age_hours = (now - ts).total_seconds() / 3600
+                if age_hours <= 1:
+                    txns_1h.append(txn)
+                if age_hours <= 24:
+                    txns_24h.append(txn)
+                if age_hours <= 168:
+                    txns_7d.append(txn)
+            except (ValueError, KeyError):
+                continue
+        
+        # Calculate metrics
+        count_1h = len(txns_1h)
+        count_24h = len(txns_24h)
+        count_7d = len(txns_7d)
+        
+        total_24h = sum(t.get('amount', 0) for t in txns_24h)
+        unique_merchants_24h = len(set(t.get('merchant', '') for t in txns_24h))
+        
+        # Heat calculation (0-100)
+        heat = 0
+        warnings = []
+        
+        # 1h velocity (max ~3 transactions)
+        if count_1h >= 4:
+            heat += 40
+            warnings.append(f"CRITICAL: {count_1h} transactions in 1 hour — bank will block")
+        elif count_1h >= 3:
+            heat += 25
+            warnings.append(f"HIGH: {count_1h} transactions in 1 hour — approaching limit")
+        elif count_1h >= 2:
+            heat += 10
+        
+        # 24h velocity (max ~6-8 transactions)
+        if count_24h >= 8:
+            heat += 35
+            warnings.append(f"CRITICAL: {count_24h} transactions in 24 hours")
+        elif count_24h >= 6:
+            heat += 20
+            warnings.append(f"HIGH: {count_24h} transactions in 24 hours — slow down")
+        elif count_24h >= 4:
+            heat += 10
+        
+        # Unique merchant velocity (max ~4 per day)
+        if unique_merchants_24h >= 5:
+            heat += 20
+            warnings.append(f"{unique_merchants_24h} unique merchants in 24h — unusual pattern")
+        elif unique_merchants_24h >= 4:
+            heat += 10
+        
+        # Amount pattern (many small = testing pattern)
+        if count_24h >= 3:
+            avg_amount = total_24h / count_24h
+            if avg_amount < 20:
+                heat += 15
+                warnings.append(f"Many small transactions (avg ${avg_amount:.0f}) — looks like card testing")
+        
+        heat = min(100, heat)
+        
+        # Determine status
+        if heat >= 70:
+            status = 'critical'
+            recommendation = "STOP: Card is HOT. Wait 24+ hours before next transaction."
+        elif heat >= 40:
+            status = 'high'
+            recommendation = "CAUTION: Card is warming up. Wait 2+ hours before next transaction."
+        elif heat >= 20:
+            status = 'medium'
+            recommendation = "Card is warm. Proceed with caution."
+        else:
+            status = 'low'
+            recommendation = "Card is cool. Safe to proceed."
+        
+        return {
+            'heat_level': heat,
+            'status': status,
+            'txns_1h': count_1h,
+            'txns_24h': count_24h,
+            'txns_7d': count_7d,
+            'total_amount_24h': round(total_24h, 2),
+            'unique_merchants_24h': unique_merchants_24h,
+            'warnings': warnings,
+            'recommendation': recommendation,
+        }
+    
+    def clear_card(self, card_number: str):
+        """Clear velocity history for a card."""
+        key = self._card_key(card_number)
+        if key in self._data:
+            del self._data[key]
+            self._save()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: MERCHANT REPUTATION SCORER
+# Scores merchants by decline rate, 3DS rate, chargeback threshold,
+# and antifraud aggressiveness to help select optimal targets.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class MerchantScore:
+    """Merchant reputation score"""
+    merchant: str
+    overall_score: float            # 0-100 (higher = better for carding)
+    decline_rate: float             # estimated decline rate
+    threed_rate: float              # 3DS challenge rate
+    chargeback_threshold: str       # low, medium, high
+    antifraud_vendor: str           # forter, riskified, in-house, etc.
+    category: str                   # gaming, retail, travel, etc.
+    max_recommended_amount: float
+    warnings: List[str]
+    pros: List[str]
+
+
+class MerchantReputationScorer:
+    """
+    V7.6: Scores merchants for carding viability.
+    
+    Factors:
+    - Decline rate (from community data)
+    - 3DS challenge rate
+    - Chargeback threshold (how many CBs before ban)
+    - Antifraud vendor aggressiveness
+    - Product category
+    - Delivery method (instant digital = best)
+    """
+    
+    MERCHANT_DATABASE = {
+        # Gaming/Digital - Best category
+        'g2a.com': {
+            'decline_rate': 0.18, '3ds_rate': 0.15, 'chargeback_threshold': 'medium',
+            'antifraud': 'riskified', 'category': 'gaming_keys', 'max_amount': 500,
+            'delivery': 'instant', 'pros': ['Instant key delivery', 'Low 3DS on US cards'],
+            'warnings': ['Riskified may link to other merchants'],
+        },
+        'eneba.com': {
+            'decline_rate': 0.20, '3ds_rate': 0.20, 'chargeback_threshold': 'medium',
+            'antifraud': 'adyen', 'category': 'gaming_keys', 'max_amount': 500,
+            'delivery': 'instant', 'pros': ['Good acceptance rate', 'Multi-payment support'],
+            'warnings': ['Adyen learning ML — may flag repeat patterns'],
+        },
+        'cdkeys.com': {
+            'decline_rate': 0.15, '3ds_rate': 0.15, 'chargeback_threshold': 'high',
+            'antifraud': 'in-house', 'category': 'gaming_keys', 'max_amount': 250,
+            'delivery': 'instant', 'pros': ['Lenient antifraud', 'Fast delivery'],
+            'warnings': ['Lower limits'],
+        },
+        'instant-gaming.com': {
+            'decline_rate': 0.18, '3ds_rate': 0.18, 'chargeback_threshold': 'medium',
+            'antifraud': 'in-house', 'category': 'gaming_keys', 'max_amount': 300,
+            'delivery': 'instant', 'pros': ['EU-friendly', 'Good for first transactions'],
+            'warnings': [],
+        },
+        
+        # Gift Cards - High cashout
+        'mygiftcardsupply.com': {
+            'decline_rate': 0.12, '3ds_rate': 0.10, 'chargeback_threshold': 'high',
+            'antifraud': 'stripe_radar', 'category': 'gift_cards', 'max_amount': 500,
+            'delivery': 'instant', 'pros': ['Very low 3DS', 'High limits', 'Instant delivery'],
+            'warnings': ['Stripe Radar learns card patterns'],
+        },
+        'bitrefill.com': {
+            'decline_rate': 0.15, '3ds_rate': 0.12, 'chargeback_threshold': 'low',
+            'antifraud': 'in-house', 'category': 'crypto', 'max_amount': 1000,
+            'delivery': 'instant', 'pros': ['Direct to crypto', 'Highest cashout efficiency'],
+            'warnings': ['Low CB threshold — burned cards stay burned'],
+        },
+        
+        # Retail - Higher friction
+        'amazon.com': {
+            'decline_rate': 0.22, '3ds_rate': 0.10, 'chargeback_threshold': 'high',
+            'antifraud': 'in-house_ml', 'category': 'retail', 'max_amount': 2000,
+            'delivery': 'shipped', 'pros': ['High limits', 'Low 3DS', 'Many product options'],
+            'warnings': ['Sophisticated ML', 'Needs aged account', 'Tracks device extensively'],
+        },
+        'bestbuy.com': {
+            'decline_rate': 0.30, '3ds_rate': 0.25, 'chargeback_threshold': 'medium',
+            'antifraud': 'forter', 'category': 'electronics', 'max_amount': 2000,
+            'delivery': 'shipped', 'pros': ['High-value items', 'Store pickup option'],
+            'warnings': ['Forter antifraud — very aggressive', 'High decline rate'],
+        },
+        'walmart.com': {
+            'decline_rate': 0.20, '3ds_rate': 0.12, 'chargeback_threshold': 'high',
+            'antifraud': 'in-house', 'category': 'retail', 'max_amount': 1000,
+            'delivery': 'shipped', 'pros': ['Moderate friction', 'Store pickup'],
+            'warnings': ['Strong ML on repeated patterns'],
+        },
+    }
+    
+    def score_merchant(self, merchant: str) -> MerchantScore:
+        """Score a merchant for carding viability."""
+        m = merchant.lower().replace('www.', '')
+        
+        if m not in self.MERCHANT_DATABASE:
+            # Unknown merchant — provide generic estimate
+            return MerchantScore(
+                merchant=m,
+                overall_score=50,
+                decline_rate=0.25,
+                threed_rate=0.30,
+                chargeback_threshold='unknown',
+                antifraud_vendor='unknown',
+                category='unknown',
+                max_recommended_amount=200,
+                warnings=['Unknown merchant — proceed with caution'],
+                pros=['No historical data — may have lenient antifraud'],
+            )
+        
+        data = self.MERCHANT_DATABASE[m]
+        
+        # Calculate overall score
+        score = 70  # Base score
+        
+        # Decline rate penalty
+        score -= data['decline_rate'] * 100 * 0.5
+        
+        # 3DS rate penalty
+        score -= data['3ds_rate'] * 100 * 0.3
+        
+        # Delivery bonus
+        if data['delivery'] == 'instant':
+            score += 15
+        
+        # Category bonus
+        if data['category'] in ('gaming_keys', 'gift_cards', 'crypto'):
+            score += 10
+        
+        # Antifraud penalty
+        if data['antifraud'] in ('forter', 'riskified', 'sift'):
+            score -= 10
+        elif data['antifraud'] == 'in-house':
+            score += 5
+        
+        # Chargeback threshold bonus
+        if data['chargeback_threshold'] == 'high':
+            score += 5
+        elif data['chargeback_threshold'] == 'low':
+            score -= 10
+        
+        score = max(0, min(100, score))
+        
+        return MerchantScore(
+            merchant=m,
+            overall_score=round(score, 1),
+            decline_rate=data['decline_rate'],
+            threed_rate=data['3ds_rate'],
+            chargeback_threshold=data['chargeback_threshold'],
+            antifraud_vendor=data['antifraud'],
+            category=data['category'],
+            max_recommended_amount=data['max_amount'],
+            warnings=data['warnings'],
+            pros=data['pros'],
+        )
+    
+    def get_best_merchants(self, category: str = None, max_amount: float = None,
+                            top_n: int = 5) -> List[MerchantScore]:
+        """Get top merchants sorted by score."""
+        scores = []
+        for m in self.MERCHANT_DATABASE:
+            score = self.score_merchant(m)
+            
+            if category and score.category != category:
+                continue
+            if max_amount and score.max_recommended_amount < max_amount:
+                continue
+            
+            scores.append(score)
+        
+        scores.sort(key=lambda s: s.overall_score, reverse=True)
+        return scores[:top_n]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 CONVENIENCE EXPORTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def predict_3ds(bin_number: str, merchant: str, amount: float, country: str = 'US'):
+    """V7.6: Predict 3DS challenge probability"""
+    return ThreeDSPredictor().predict(bin_number, merchant, amount, country=country)
+
+def assess_linking_risk(merchant1: str, merchant2: str, time_gap_hours: float = 0):
+    """V7.6: Assess cross-merchant linking risk"""
+    return CrossMerchantLinkingDetector().assess_linking_risk(merchant1, merchant2, time_gap_hours)
+
+def get_card_heat(card_number: str):
+    """V7.6: Get card velocity heat level"""
+    return CardVelocityHeatMap().get_heat_level(card_number)
+
+def record_card_transaction(card_number: str, merchant: str, amount: float, result: str = 'success'):
+    """V7.6: Record transaction for velocity tracking"""
+    return CardVelocityHeatMap().record_transaction(card_number, merchant, amount, result)
+
+def score_merchant(merchant: str):
+    """V7.6: Get merchant reputation score"""
+    return MerchantReputationScorer().score_merchant(merchant)
+
+def get_best_merchants(category: str = None, max_amount: float = None, top_n: int = 5):
+    """V7.6: Get top merchants for carding"""
+    return MerchantReputationScorer().get_best_merchants(category, max_amount, top_n)

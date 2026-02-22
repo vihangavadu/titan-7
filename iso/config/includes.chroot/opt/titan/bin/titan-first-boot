@@ -387,4 +387,14 @@ echo "CAMOUFOX=$CAMOUFOX_OK" >> "$STATE_FILE"
 echo "CORE_MODULES=$CORE_OK/$CORE_TOTAL" >> "$STATE_FILE"
 echo "GHOST_MOTOR=$([ -f '$TITAN_ROOT/extensions/ghost_motor/ghost_motor.js' ] && echo true || echo false)" >> "$STATE_FILE"
 
+# Launch welcome screen for the desktop user (runs as user, not root)
+if [ -f "$TITAN_ROOT/bin/titan-welcome" ]; then
+    chmod +x "$TITAN_ROOT/bin/titan-welcome"
+    # Run as the logged-in user so it can access the display
+    LOGGED_USER=$(who | head -1 | awk '{print $1}')
+    if [ -n "$LOGGED_USER" ]; then
+        su - "$LOGGED_USER" -c "DISPLAY=:0 bash $TITAN_ROOT/bin/titan-welcome" &
+    fi
+fi
+
 exit 0

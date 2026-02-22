@@ -30,8 +30,16 @@
 #include <linux/random.h>
 #include <linux/jiffies.h>
 
-#define TITAN_HW_VERSION "7.0.0"
+#define TITAN_HW_VERSION "7.5.0"
 #define TITAN_HW_CODENAME "SINGULARITY"
+
+/* V7.5: Netlink-optional mode — procfs hooks work even if Netlink fails (KVM) */
+static int netlink_available = 0;
+
+/* V7.5: DMI sysfs override support */
+static struct kobject *dmi_kobj = NULL;
+static struct kobj_attribute *dmi_attrs[12];
+static int dmi_attrs_count = 0;
 
 /* Netlink protocol number */
 #define NETLINK_TITAN 31
@@ -449,11 +457,14 @@ static int __init titan_hw_init(void)
     /* Initialize default profile */
     init_default_profile();
     
-    /* Create Netlink socket */
+    /* Create Netlink socket — V7.5: non-fatal on KVM/cloud hosts */
     nl_sock = netlink_kernel_create(&init_net, NETLINK_TITAN, &nl_cfg);
     if (!nl_sock) {
-        printk(KERN_ERR "TITAN-HW-V7: Failed to create Netlink socket\n");
-        return -ENOMEM;
+        printk(KERN_WARNING "TITAN-HW-V7: Netlink socket unavailable (KVM host?) — running in procfs-only mode\n");
+        netlink_available = 0;
+    } else {
+        netlink_available = 1;
+        printk(KERN_INFO "TITAN-HW-V7: Netlink socket created on protocol %d\n", NETLINK_TITAN);
     }
     
     /* Setup procfs hooks */
@@ -484,8 +495,29 @@ static int __init titan_hw_init(void)
         printk(KERN_INFO "TITAN-HW-V7: /proc/meminfo hooked\n");
     }
     
-    printk(KERN_INFO "TITAN-HW-V7: Hardware Shield active\n");
+    /* V7.5: Initialize DMI sysfs overrides using default profile */
+    {
+        /* Set default DMI values matching our Dell XPS 15 profile */
+        strncpy(current_dmi.sys_vendor, "Dell Inc.", MAX_DMI_LEN - 1);
+        strncpy(current_dmi.product_name, "XPS 15 9520", MAX_DMI_LEN - 1);
+        strncpy(current_dmi.board_vendor, "Dell Inc.", MAX_DMI_LEN - 1);
+        strncpy(current_dmi.board_name, "0RH1JY", MAX_DMI_LEN - 1);
+        strncpy(current_dmi.bios_vendor, "Dell Inc.", MAX_DMI_LEN - 1);
+        strncpy(current_dmi.bios_version, "1.18.0", MAX_DMI_LEN - 1);
+        strncpy(current_dmi.bios_date, "09/12/2024", MAX_DMI_LEN - 1);
+        strncpy(current_dmi.chassis_type, "10", MAX_DMI_LEN - 1); /* Notebook */
+        strncpy(current_dmi.chassis_vendor, "Dell Inc.", MAX_DMI_LEN - 1);
+        /* Use profile serial/uuid */
+        strncpy(current_dmi.product_serial, current_profile->serial_number, MAX_DMI_LEN - 1);
+        strncpy(current_dmi.product_uuid, current_profile->uuid, MAX_DMI_LEN - 1);
+        current_dmi.active = 1;
+        dmi_active = 1;
+    }
+
+    printk(KERN_INFO "TITAN-HW-V7: Hardware Shield V%s active [%s mode]\n",
+           TITAN_HW_VERSION, netlink_available ? "full" : "procfs-only");
     printk(KERN_INFO "TITAN-HW-V7: Default profile: %s\n", current_profile->cpu_model);
+    printk(KERN_INFO "TITAN-HW-V7: DMI: %s %s\n", current_dmi.sys_vendor, current_dmi.product_name);
     
     return 0;
 }

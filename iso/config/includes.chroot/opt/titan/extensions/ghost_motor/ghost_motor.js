@@ -175,11 +175,11 @@
         
         // Apply tremor to coordinates (subtle, doesn't change event target)
         // This is injected into the page's perception of mouse position
-        if (window.__titanMouseOffset === undefined) {
-            window.__titanMouseOffset = { x: 0, y: 0 };
+        if (window.__hm_mOfs === undefined) {
+            window.__hm_mOfs = { x: 0, y: 0 };
         }
         
-        window.__titanMouseOffset = {
+        window.__hm_mOfs = {
             x: tremor.x,
             y: tremor.y
         };
@@ -196,11 +196,11 @@
         if (!CONFIG.keyboard.enabled) return;
         
         // Store key down time for dwell calculation
-        if (!window.__titanKeyTimes) {
-            window.__titanKeyTimes = {};
+        if (!window.__hm_kT) {
+            window.__hm_kT = {};
         }
         
-        window.__titanKeyTimes[event.code] = {
+        window.__hm_kT[event.code] = {
             down: Date.now(),
             dwell: CONFIG.keyboard.dwellTimeBase + 
                    (Math.random() - 0.5) * 2 * CONFIG.keyboard.dwellTimeVariance
@@ -213,8 +213,8 @@
     function augmentKeyUp(event) {
         if (!CONFIG.keyboard.enabled) return;
         
-        if (window.__titanKeyTimes && window.__titanKeyTimes[event.code]) {
-            const keyData = window.__titanKeyTimes[event.code];
+        if (window.__hm_kT && window.__hm_kT[event.code]) {
+            const keyData = window.__hm_kT[event.code];
             const actualDwell = Date.now() - keyData.down;
             
             // Log timing for behavioral analysis evasion
@@ -229,12 +229,12 @@
         if (!CONFIG.scroll.enabled) return;
         
         // Add momentum-like behavior tracking
-        if (!window.__titanScrollMomentum) {
-            window.__titanScrollMomentum = 0;
+        if (!window.__hm_sM) {
+            window.__hm_sM = 0;
         }
         
-        window.__titanScrollMomentum = 
-            window.__titanScrollMomentum * CONFIG.scroll.momentumDecay + 
+        window.__hm_sM = 
+            window.__hm_sM * CONFIG.scroll.momentumDecay + 
             event.deltaY * (1 - CONFIG.scroll.momentumDecay);
     }
 
@@ -245,7 +245,7 @@
         const originalMouseEvent = window.MouseEvent;
         
         window.MouseEvent = function(type, eventInitDict) {
-            if (eventInitDict && window.__titanMouseOffset) {
+            if (eventInitDict && window.__hm_mOfs) {
                 // Inject micro-tremor into synthetic events
                 // Real events keep their coordinates, but any code reading
                 // mouse position will see the tremor effect
@@ -331,7 +331,7 @@
             cursorLagDetected = true;
             const reactionDelay = 150 + Math.random() * 250;
             setTimeout(() => {
-                window.__titanMouseOffset = {
+                window.__hm_mOfs = {
                     x: (Math.random() - 0.5) * 3,
                     y: (Math.random() - 0.5) * 3
                 };
@@ -358,9 +358,9 @@
                         const correctionDelay = 100 + Math.random() * 150;
                         setTimeout(function() {
                             const tremor = getMicroTremor();
-                            if (window.__titanMouseOffset) {
-                                window.__titanMouseOffset.x += tremor.x * 0.5;
-                                window.__titanMouseOffset.y += tremor.y * 0.5;
+                            if (window.__hm_mOfs) {
+                                window.__hm_mOfs.x += tremor.x * 0.5;
+                                window.__hm_mOfs.y += tremor.y * 0.5;
                             }
                         }, correctionDelay);
                     }
@@ -519,9 +519,7 @@
             const timeSinceLoad = Date.now() - pageLoadTime;
             if (timeSinceLoad < COGNITIVE.minPageDwellMs) {
                 // Log warning — operator is clicking too fast
-                console.log('[Ghost Motor] Slow down: ' +
-                    Math.round(COGNITIVE.minPageDwellMs - timeSinceLoad) +
-                    'ms before minimum page dwell time');
+                // operator clicking too fast — suppress to avoid forensic trace
             }
         }, { passive: true });
 
@@ -569,6 +567,164 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // V7.5: LONG-SESSION ENTROPY ENGINE
+    // Defeats behavioral AI that flags "too smooth" input over 60+ min.
+    // Real humans exhibit progressive fatigue: increasing tremor amplitude,
+    // micro-hesitations, occasional trajectory corrections, and attention lapses.
+    // ═══════════════════════════════════════════════════════════════════
+
+    const FATIGUE = {
+        enabled: true,
+        sessionStartTime: Date.now(),
+        // Fatigue ramps up after 20 minutes, peaks at 90 minutes
+        onsetMinutes: 20,
+        peakMinutes: 90,
+        // Max additional tremor amplitude added at peak fatigue
+        maxExtraTremor: 2.8,
+        // Probability of a "micro-hesitation" pause mid-movement
+        hesitationChance: 0.04,
+        hesitationDurationMs: { min: 80, max: 400 },
+        // Probability of a small trajectory correction (overshoot + correct)
+        correctionChance: 0.03,
+        // Attention lapse: brief period of very slow/no movement
+        lapseChance: 0.005,
+        lapseDurationMs: { min: 1500, max: 6000 },
+        _inLapse: false,
+        _lapseUntil: 0,
+    };
+
+    function getFatigueFactor() {
+        const elapsedMin = (Date.now() - FATIGUE.sessionStartTime) / 60000;
+        if (elapsedMin < FATIGUE.onsetMinutes) return 0;
+        const ramp = Math.min(1.0,
+            (elapsedMin - FATIGUE.onsetMinutes) /
+            (FATIGUE.peakMinutes - FATIGUE.onsetMinutes)
+        );
+        // Sigmoid curve — fatigue accelerates then plateaus
+        return 1 / (1 + Math.exp(-8 * (ramp - 0.5)));
+    }
+
+    function applyFatigueToTremor() {
+        const factor = getFatigueFactor();
+        if (factor <= 0) return;
+        // Inject extra tremor amplitude proportional to fatigue
+        const extraAmplitude = factor * FATIGUE.maxExtraTremor;
+        // Apply as a temporary boost (doesn't permanently modify CONFIG)
+        window.__hm_fatigueAmplitude = extraAmplitude;
+    }
+
+    function injectMicroHesitation() {
+        if (!FATIGUE.enabled) return;
+        const factor = getFatigueFactor();
+        if (factor <= 0) return;
+        if (Math.random() < FATIGUE.hesitationChance * factor) {
+            // Briefly freeze tremor updates to simulate hand pause
+            const origEnabled = CONFIG.mouse.enabled;
+            CONFIG.mouse.enabled = false;
+            const duration = FATIGUE.hesitationDurationMs.min +
+                Math.random() * (FATIGUE.hesitationDurationMs.max - FATIGUE.hesitationDurationMs.min);
+            setTimeout(function() { CONFIG.mouse.enabled = origEnabled; }, duration);
+        }
+    }
+
+    function injectAttentionLapse() {
+        if (!FATIGUE.enabled) return;
+        const factor = getFatigueFactor();
+        if (factor <= 0 || FATIGUE._inLapse) return;
+        if (Math.random() < FATIGUE.lapseChance * factor) {
+            FATIGUE._inLapse = true;
+            const duration = FATIGUE.lapseDurationMs.min +
+                Math.random() * (FATIGUE.lapseDurationMs.max - FATIGUE.lapseDurationMs.min);
+            FATIGUE._lapseUntil = Date.now() + duration;
+            // During lapse: reduce tremor to near-zero (hand resting)
+            const origAmplitude = CONFIG.mouse.microTremorAmplitude;
+            CONFIG.mouse.microTremorAmplitude = 0.1;
+            setTimeout(function() {
+                CONFIG.mouse.microTremorAmplitude = origAmplitude;
+                FATIGUE._inLapse = false;
+            }, duration);
+        }
+    }
+
+    function startFatigueEngine() {
+        // Run fatigue updates every 30 seconds
+        setInterval(function() {
+            applyFatigueToTremor();
+            injectAttentionLapse();
+        }, 30000);
+
+        // Micro-hesitations checked on every mouse move (sampled)
+        document.addEventListener('mousemove', function() {
+            if (Math.random() < 0.02) injectMicroHesitation();
+        }, { passive: true });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // GAP-7: THINKING TIME — paragraph-level typing delay
+    // Linear typing cadence is flagged by NuData/ThreatMetrix.
+    // Real humans pause 800-3000ms between form fields and paragraphs.
+    // ═══════════════════════════════════════════════════════════════════
+
+    const THINKING = {
+        // Pause after pressing Enter/Tab (between fields or paragraphs)
+        interFieldPauseMs: { min: 600, max: 2800 },
+        // Pause after typing a sentence-ending character (. ! ?)
+        sentencePauseMs: { min: 200, max: 900 },
+        // Pause after comma (reading ahead)
+        commaPauseMs: { min: 80, max: 300 },
+        // Chance of a "re-read" pause mid-form (operator checks their work)
+        reReadChance: 0.06,
+        reReadPauseMs: { min: 1200, max: 4000 },
+        _lastKeyCode: null,
+        _suppressUntil: 0,
+    };
+
+    function applyThinkingTimeDelay(event) {
+        const now = Date.now();
+        if (now < THINKING._suppressUntil) return;
+
+        const key = event.key;
+        let delay = 0;
+
+        if (key === 'Enter' || key === 'Tab') {
+            // Between fields/paragraphs — "thinking time"
+            delay = THINKING.interFieldPauseMs.min +
+                Math.random() * (THINKING.interFieldPauseMs.max - THINKING.interFieldPauseMs.min);
+        } else if (key === '.' || key === '!' || key === '?') {
+            delay = THINKING.sentencePauseMs.min +
+                Math.random() * (THINKING.sentencePauseMs.max - THINKING.sentencePauseMs.min);
+        } else if (key === ',') {
+            delay = THINKING.commaPauseMs.min +
+                Math.random() * (THINKING.commaPauseMs.max - THINKING.commaPauseMs.min);
+        }
+
+        // Random re-read pause
+        if (delay === 0 && Math.random() < THINKING.reReadChance) {
+            delay = THINKING.reReadPauseMs.min +
+                Math.random() * (THINKING.reReadPauseMs.max - THINKING.reReadPauseMs.min);
+        }
+
+        if (delay > 0) {
+            // Suppress tremor during thinking pause (hand off keyboard)
+            const origAmplitude = CONFIG.mouse.microTremorAmplitude;
+            CONFIG.mouse.microTremorAmplitude = 0.2;
+            THINKING._suppressUntil = now + delay;
+            setTimeout(function() {
+                CONFIG.mouse.microTremorAmplitude = origAmplitude;
+            }, delay);
+        }
+
+        THINKING._lastKeyCode = key;
+    }
+
+    function startThinkingTimeEngine() {
+        document.addEventListener('keyup', applyThinkingTimeDelay, {
+            capture: true,
+            passive: true
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // THREATMETRIX SESSION CONTINUITY
     // BehavioSec detects behavioral pattern changes mid-session
     // ═══════════════════════════════════════════════════════════════════
@@ -578,8 +734,8 @@
      * Ensures behavioral consistency throughout entire session.
      */
     function trackSessionContinuity() {
-        if (!window.__titanSession) {
-            window.__titanSession = {
+        if (!window.__hm_sS) {
+            window.__hm_sS = {
                 startTime: Date.now(),
                 mouseEventCount: 0,
                 keyEventCount: 0,
@@ -596,7 +752,7 @@
         }
 
         document.addEventListener('mousemove', function(e) {
-            const s = window.__titanSession;
+            const s = window.__hm_sS;
             s.mouseEventCount++;
 
             // V7.0: Track mouse velocity for consistency enforcement
@@ -627,7 +783,7 @@
 
         document.addEventListener('keydown', function(e) {
             const now = Date.now();
-            const s = window.__titanSession;
+            const s = window.__hm_sS;
             if (s.lastKeyTime > 0) {
                 const interval = now - s.lastKeyTime;
                 if (interval < 2000) {
@@ -666,7 +822,7 @@
         const originalDispatchEvent = EventTarget.prototype.dispatchEvent;
 
         document.addEventListener('keydown', function(e) {
-            const s = window.__titanSession;
+            const s = window.__hm_sS;
             if (!s || s.baselineWPM === 0) return;
 
             const avgInterval = s.avgTypingInterval;
@@ -737,21 +893,23 @@
         applyFieldFamiliarityTiming();
         simulatePageAttention();
         enhanceScrollBehavior();
+
+        // V7.5: Long-session entropy (fatigue drift + attention lapses)
+        startFatigueEngine();
+
+        // V7.5: Thinking time delays (inter-field, sentence, re-read pauses)
+        startThinkingTimeEngine();
         
         // Mark as initialized
-        window.__ghostMotorActive = true;
+        window.__hm_init = true;
         
-        console.log('[Ghost Motor] Human augmentation active - TITAN V7.0.2 SINGULARITY');
-        console.log('[Ghost Motor] BioCatch challenge response: ARMED');
-        console.log('[Ghost Motor] Cognitive timing engine: ACTIVE');
-        console.log('[Ghost Motor] Field familiarity analysis: ACTIVE');
-        console.log('[Ghost Motor] Session continuity tracking: ACTIVE');
+        // Initialized silently — no console output in production
     }
 
     /**
      * Expose configuration API for runtime adjustment
      */
-    window.__ghostMotorConfig = {
+    window.__hm_cfg = {
         get: () => ({ ...CONFIG }),
         
         setMouseEnabled: (enabled) => {

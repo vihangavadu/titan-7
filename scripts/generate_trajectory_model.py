@@ -91,7 +91,7 @@ def create_model(output_path: str = "assets/models/ghost_motor_v5.pkl"):
     
     # Model parameters (no function references - can't be pickled across modules)
     model = {
-        'version': '7.0.0',
+        'version': '8.1.0',
         'name': 'ghost_motor',
         'type': 'bezier_trajectory',
         'num_points': 20,

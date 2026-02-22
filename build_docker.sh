@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.0.3 — DOCKER/WSL BUILD SCRIPT
+# TITAN V8.1 — DOCKER/WSL BUILD SCRIPT
 # AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 # PURPOSE: Build Titan ISO using Docker in WSL Ubuntu environment
 #
@@ -31,7 +31,7 @@ CONTAINER_NAME="titan-build-$(date +%s)"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  TITAN V7.0.3 SINGULARITY — Docker/WSL Build              ║"
+echo "║  TITAN V8.1 SINGULARITY — Docker/WSL Build                 ║"
 echo "║  Authority: Dva.12 | Status: OBLIVION_ACTIVE               ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -231,4 +231,4 @@ fi
 echo "  [+] Container cleaned up"
 echo ""
 
-echo -e "${GREEN}TITAN V7.0.3 Docker/WSL build complete!${NC}"
+echo -e "${GREEN}TITAN V8.1 Docker/WSL build complete!${NC}"

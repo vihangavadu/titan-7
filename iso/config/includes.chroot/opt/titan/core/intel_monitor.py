@@ -40,7 +40,7 @@ import re
 import shutil
 from pathlib import Path
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
 
@@ -614,7 +614,7 @@ class SessionManager:
         if session.expires_at:
             try:
                 expires = datetime.fromisoformat(session.expires_at.rstrip("Z"))
-                if datetime.utcnow() > expires:
+                if datetime.now(timezone.utc) > expires.replace(tzinfo=timezone.utc) if expires.tzinfo is None else expires:
                     return False
             except (ValueError, TypeError):
                 pass
@@ -811,7 +811,7 @@ class FeedFetcher:
                 author=author.group(1).strip() if author else "Unknown",
                 content=content_text,
                 url=link_text,
-                timestamp=pub_date.group(1).strip() if pub_date else datetime.utcnow().isoformat(),
+                timestamp=pub_date.group(1).strip() if pub_date else datetime.now(timezone.utc).isoformat(),
                 category="news",
                 priority=priority,
                 tags=tags,
@@ -875,8 +875,8 @@ class IntelMonitor:
                     IntelPost(**post) for post in data.get("posts", [])
                     if isinstance(post, dict)
                 ]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not load feed cache {cache_file.name}: {e}")
     
     def _save_feed_cache(self, source_id: str, posts: List[IntelPost]):
         """Save feed cache to disk"""
@@ -885,7 +885,7 @@ class IntelMonitor:
             path = self.FEED_CACHE / f"{source_id}.json"
             data = {
                 "source_id": source_id,
-                "fetched_at": datetime.utcnow().isoformat() + "Z",
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
                 "posts": [
                     {
                         "post_id": p.post_id, "source_id": p.source_id,
@@ -988,9 +988,9 @@ class IntelMonitor:
         if reply_templates:
             session.reply_templates = reply_templates
         
-        session.login_timestamp = datetime.utcnow().isoformat() + "Z"
+        session.login_timestamp = datetime.now(timezone.utc).isoformat()
         # Default expiry: 24 hours
-        session.expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat() + "Z"
+        session.expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
         
         self.session_mgr.save_session(session)
         
@@ -1062,7 +1062,7 @@ class IntelMonitor:
             self._feed_cache[source_id] = cached
             self._save_feed_cache(source_id, cached)
             
-            source.last_fetch = datetime.utcnow().isoformat() + "Z"
+            source.last_fetch = datetime.now(timezone.utc).isoformat()
         
         return [self._post_to_dict(p) for p in posts]
     
@@ -1149,7 +1149,7 @@ class IntelMonitor:
                     author="Unknown",
                     content="[Content requires engagement — click to view and engage]" if requires_engagement else "",
                     url=link,
-                    timestamp=datetime.utcnow().isoformat() + "Z",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                     category="thread",
                     priority=priority,
                     tags=tags,
@@ -1239,3 +1239,727 @@ def get_intel_alerts(min_priority="high"):
 def get_intel_settings():
     """Get monitor settings"""
     return IntelMonitor().get_settings()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 INTEL CORRELATION ENGINE — Correlate intel across multiple sources
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from collections import defaultdict
+
+
+@dataclass
+class CorrelatedIntel:
+    """Correlated intelligence from multiple sources."""
+    correlation_id: str
+    topic: str
+    sources: List[str]
+    posts: List[str]  # post IDs
+    first_seen: float
+    last_updated: float
+    confidence: float
+    keywords: List[str]
+    summary: str
+
+
+class IntelCorrelationEngine:
+    """
+    V7.6 Intel Correlation Engine - Correlates related intel
+    across multiple sources to identify trends and validate info.
+    """
+    
+    # Topic patterns for correlation
+    TOPIC_PATTERNS = {
+        "3ds_bypass": [
+            r"3ds", r"3d.?secure", r"otp.?bypass", r"verification.?bypass"
+        ],
+        "new_method": [
+            r"new.?method", r"fresh.?method", r"working.?method", r"2024.?method"
+        ],
+        "bin_drop": [
+            r"fresh.?bin", r"new.?bin", r"bin.?list", r"nonvbv", r"non-?vbv"
+        ],
+        "site_target": [
+            r"amazon", r"bestbuy", r"walmart", r"target", r"ebay", r"shopify"
+        ],
+        "psp_change": [
+            r"stripe", r"adyen", r"forter", r"riskified", r"sift", r"signifyd"
+        ],
+        "shop_news": [
+            r"shop.?down", r"shop.?up", r"new.?shop", r"shop.?exit", r"validity"
+        ],
+    }
+    
+    def __init__(self):
+        self._correlations: Dict[str, CorrelatedIntel] = {}
+        self._post_to_correlation: Dict[str, str] = {}
+    
+    def _extract_topics(self, text: str) -> List[str]:
+        """Extract topics from text."""
+        topics = []
+        text_lower = text.lower()
+        
+        for topic, patterns in self.TOPIC_PATTERNS.items():
+            for pattern in patterns:
+                if re.search(pattern, text_lower):
+                    topics.append(topic)
+                    break
+        
+        return topics
+    
+    def correlate_post(self, post: IntelPost) -> Optional[CorrelatedIntel]:
+        """
+        Correlate a post with existing correlations or create new one.
+        
+        Args:
+            post: The post to correlate
+        
+        Returns:
+            Updated or new correlation
+        """
+        text = post.title + " " + post.content
+        topics = self._extract_topics(text)
+        
+        if not topics:
+            return None
+        
+        # Find matching correlation
+        best_match = None
+        best_overlap = 0
+        
+        for corr_id, corr in self._correlations.items():
+            # Check topic overlap
+            overlap = len(set(topics) & set(self._extract_topics(corr.topic)))
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_match = corr
+        
+        now = time.time()
+        
+        if best_match and best_overlap > 0:
+            # Update existing correlation
+            if post.source_id not in best_match.sources:
+                best_match.sources.append(post.source_id)
+            if post.post_id not in best_match.posts:
+                best_match.posts.append(post.post_id)
+            best_match.last_updated = now
+            best_match.confidence = min(1.0, len(best_match.sources) * 0.2)
+            best_match.keywords = list(set(best_match.keywords + post.tags))
+            
+            self._post_to_correlation[post.post_id] = best_match.correlation_id
+            return best_match
+        else:
+            # Create new correlation
+            corr_id = hashlib.md5(
+                f"{topics[0]}{now}".encode()
+            ).hexdigest()[:12]
+            
+            correlation = CorrelatedIntel(
+                correlation_id=corr_id,
+                topic=topics[0],
+                sources=[post.source_id],
+                posts=[post.post_id],
+                first_seen=now,
+                last_updated=now,
+                confidence=0.2,
+                keywords=post.tags,
+                summary=post.title[:100]
+            )
+            
+            self._correlations[corr_id] = correlation
+            self._post_to_correlation[post.post_id] = corr_id
+            return correlation
+    
+    def correlate_batch(self, posts: List[IntelPost]) -> List[CorrelatedIntel]:
+        """Correlate a batch of posts."""
+        updated = set()
+        
+        for post in posts:
+            result = self.correlate_post(post)
+            if result:
+                updated.add(result.correlation_id)
+        
+        return [self._correlations[cid] for cid in updated]
+    
+    def get_trending_topics(self, hours: int = 24) -> List[Dict]:
+        """Get trending topics from recent correlations."""
+        cutoff = time.time() - (hours * 3600)
+        
+        recent = [
+            c for c in self._correlations.values()
+            if c.last_updated > cutoff
+        ]
+        
+        # Sort by confidence and source count
+        recent.sort(key=lambda x: (x.confidence, len(x.sources)), reverse=True)
+        
+        return [
+            {
+                "topic": c.topic,
+                "sources": len(c.sources),
+                "posts": len(c.posts),
+                "confidence": c.confidence,
+                "summary": c.summary,
+                "keywords": c.keywords[:5]
+            }
+            for c in recent[:10]
+        ]
+    
+    def get_cross_source_validated(self) -> List[CorrelatedIntel]:
+        """Get intel validated across multiple sources."""
+        return [
+            c for c in self._correlations.values()
+            if len(c.sources) >= 2 and c.confidence >= 0.4
+        ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 SOURCE REPUTATION TRACKER — Track source reputation over time
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class SourceReputation:
+    """Reputation data for an intel source."""
+    source_id: str
+    base_rating: float
+    accuracy_score: float
+    freshness_score: float
+    reliability_score: float
+    overall_score: float
+    accurate_posts: int
+    inaccurate_posts: int
+    total_posts: int
+    last_updated: float
+
+
+class SourceReputationTracker:
+    """
+    V7.6 Source Reputation Tracker - Tracks and scores source
+    reputation based on intel accuracy and reliability.
+    """
+    
+    def __init__(self):
+        self._reputations: Dict[str, SourceReputation] = {}
+        self._feedback: Dict[str, List[Dict]] = defaultdict(list)
+    
+    def initialize_source(self, source: IntelSource):
+        """Initialize reputation for a source."""
+        self._reputations[source.source_id] = SourceReputation(
+            source_id=source.source_id,
+            base_rating=source.rating,
+            accuracy_score=source.rating / 5.0,
+            freshness_score=1.0,
+            reliability_score=1.0,
+            overall_score=source.rating / 5.0,
+            accurate_posts=0,
+            inaccurate_posts=0,
+            total_posts=0,
+            last_updated=time.time()
+        )
+    
+    def record_feedback(self, source_id: str, post_id: str,
+                       accurate: bool, fresh: bool = True,
+                       notes: str = ""):
+        """
+        Record feedback on a post from a source.
+        
+        Args:
+            source_id: Source ID
+            post_id: Post ID
+            accurate: Whether the intel was accurate
+            fresh: Whether the intel was timely
+            notes: Optional notes
+        """
+        self._feedback[source_id].append({
+            "post_id": post_id,
+            "accurate": accurate,
+            "fresh": fresh,
+            "notes": notes,
+            "timestamp": time.time()
+        })
+        
+        self._update_reputation(source_id)
+    
+    def _update_reputation(self, source_id: str):
+        """Recalculate reputation based on feedback."""
+        if source_id not in self._reputations:
+            return
+        
+        rep = self._reputations[source_id]
+        feedback = self._feedback.get(source_id, [])
+        
+        if not feedback:
+            return
+        
+        # Calculate scores from recent feedback (last 30 days)
+        recent_cutoff = time.time() - (30 * 24 * 3600)
+        recent = [f for f in feedback if f["timestamp"] > recent_cutoff]
+        
+        if recent:
+            accurate_count = sum(1 for f in recent if f["accurate"])
+            fresh_count = sum(1 for f in recent if f["fresh"])
+            
+            rep.accuracy_score = accurate_count / len(recent)
+            rep.freshness_score = fresh_count / len(recent)
+            rep.accurate_posts += accurate_count
+            rep.inaccurate_posts += len(recent) - accurate_count
+        
+        rep.total_posts = len(feedback)
+        
+        # Reliability based on consistency
+        if len(feedback) >= 5:
+            # Calculate variance in accuracy over windows
+            windows = [feedback[i:i+5] for i in range(0, len(feedback)-4, 5)]
+            if windows:
+                accuracies = [
+                    sum(1 for f in w if f["accurate"]) / len(w)
+                    for w in windows
+                ]
+                if len(accuracies) > 1:
+                    import statistics
+                    variance = statistics.variance(accuracies)
+                    rep.reliability_score = max(0, 1 - variance * 2)
+        
+        # Overall score
+        rep.overall_score = (
+            rep.accuracy_score * 0.5 +
+            rep.freshness_score * 0.3 +
+            rep.reliability_score * 0.2
+        )
+        
+        rep.last_updated = time.time()
+    
+    def get_reputation(self, source_id: str) -> Optional[Dict]:
+        """Get reputation for a source."""
+        rep = self._reputations.get(source_id)
+        if not rep:
+            return None
+        
+        return {
+            "source_id": rep.source_id,
+            "base_rating": rep.base_rating,
+            "accuracy_score": round(rep.accuracy_score, 2),
+            "freshness_score": round(rep.freshness_score, 2),
+            "reliability_score": round(rep.reliability_score, 2),
+            "overall_score": round(rep.overall_score, 2),
+            "accurate_posts": rep.accurate_posts,
+            "inaccurate_posts": rep.inaccurate_posts,
+            "total_posts": rep.total_posts
+        }
+    
+    def get_rankings(self) -> List[Dict]:
+        """Get sources ranked by reputation."""
+        rankings = []
+        for source_id, rep in self._reputations.items():
+            rankings.append({
+                "source_id": source_id,
+                "overall_score": rep.overall_score,
+                "accuracy": rep.accuracy_score,
+                "total_posts": rep.total_posts
+            })
+        
+        rankings.sort(key=lambda x: x["overall_score"], reverse=True)
+        return rankings
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 THREAT FEED AGGREGATOR — Aggregate feeds with deduplication
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class AggregatedPost:
+    """A post aggregated from multiple sources."""
+    aggregate_id: str
+    canonical_title: str
+    sources: List[str]
+    post_ids: List[str]
+    content: str
+    priority: AlertPriority
+    first_seen: float
+    dedup_confidence: float
+
+
+class ThreatFeedAggregator:
+    """
+    V7.6 Threat Feed Aggregator - Aggregates intel from multiple
+    sources with deduplication and normalization.
+    """
+    
+    # Similarity threshold for deduplication
+    SIMILARITY_THRESHOLD = 0.7
+    
+    def __init__(self):
+        self._aggregated: Dict[str, AggregatedPost] = {}
+        self._post_to_aggregate: Dict[str, str] = {}
+    
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """Calculate text similarity using token overlap."""
+        tokens1 = set(re.findall(r'\w+', text1.lower()))
+        tokens2 = set(re.findall(r'\w+', text2.lower()))
+        
+        if not tokens1 or not tokens2:
+            return 0
+        
+        intersection = tokens1 & tokens2
+        union = tokens1 | tokens2
+        
+        return len(intersection) / len(union) if union else 0
+    
+    def aggregate_post(self, post: IntelPost) -> AggregatedPost:
+        """
+        Aggregate a post, deduplicating against existing posts.
+        
+        Args:
+            post: Post to aggregate
+        
+        Returns:
+            Aggregated post (new or existing)
+        """
+        # Find matching aggregate
+        best_match = None
+        best_similarity = 0
+        
+        for agg_id, agg in self._aggregated.items():
+            similarity = self._calculate_similarity(post.title, agg.canonical_title)
+            if similarity > best_similarity and similarity >= self.SIMILARITY_THRESHOLD:
+                best_similarity = similarity
+                best_match = agg
+        
+        if best_match:
+            # Deduplicate into existing
+            if post.source_id not in best_match.sources:
+                best_match.sources.append(post.source_id)
+            if post.post_id not in best_match.post_ids:
+                best_match.post_ids.append(post.post_id)
+            best_match.dedup_confidence = max(best_match.dedup_confidence, best_similarity)
+            
+            # Upgrade priority if higher from new source
+            post_priority = post.priority if isinstance(post.priority, AlertPriority) else AlertPriority(post.priority)
+            if post_priority.value < best_match.priority.value:
+                best_match.priority = post_priority
+            
+            self._post_to_aggregate[post.post_id] = best_match.aggregate_id
+            return best_match
+        else:
+            # Create new aggregate
+            agg_id = hashlib.md5(
+                f"{post.title}{post.post_id}".encode()
+            ).hexdigest()[:12]
+            
+            post_priority = post.priority if isinstance(post.priority, AlertPriority) else AlertPriority(post.priority)
+            
+            aggregate = AggregatedPost(
+                aggregate_id=agg_id,
+                canonical_title=post.title,
+                sources=[post.source_id],
+                post_ids=[post.post_id],
+                content=post.content,
+                priority=post_priority,
+                first_seen=time.time(),
+                dedup_confidence=1.0
+            )
+            
+            self._aggregated[agg_id] = aggregate
+            self._post_to_aggregate[post.post_id] = agg_id
+            return aggregate
+    
+    def aggregate_batch(self, posts: List[IntelPost]) -> Dict[str, int]:
+        """
+        Aggregate a batch of posts.
+        
+        Returns:
+            Stats on new vs deduplicated
+        """
+        new_count = 0
+        dedup_count = 0
+        
+        for post in posts:
+            before_count = len(self._aggregated)
+            self.aggregate_post(post)
+            if len(self._aggregated) > before_count:
+                new_count += 1
+            else:
+                dedup_count += 1
+        
+        return {
+            "processed": len(posts),
+            "new": new_count,
+            "deduplicated": dedup_count
+        }
+    
+    def get_unique_feed(self, priority_filter: Optional[str] = None,
+                       limit: int = 50) -> List[Dict]:
+        """Get deduplicated feed."""
+        aggregates = list(self._aggregated.values())
+        
+        if priority_filter:
+            target = AlertPriority(priority_filter)
+            aggregates = [a for a in aggregates if a.priority.value <= target.value]
+        
+        # Sort by first seen, newest first
+        aggregates.sort(key=lambda x: x.first_seen, reverse=True)
+        
+        return [
+            {
+                "id": a.aggregate_id,
+                "title": a.canonical_title,
+                "sources": a.sources,
+                "source_count": len(a.sources),
+                "priority": a.priority.value,
+                "first_seen": a.first_seen,
+                "content_preview": a.content[:200] if a.content else ""
+            }
+            for a in aggregates[:limit]
+        ]
+    
+    def get_multi_source_intel(self) -> List[Dict]:
+        """Get intel confirmed by multiple sources."""
+        multi = [a for a in self._aggregated.values() if len(a.sources) >= 2]
+        multi.sort(key=lambda x: len(x.sources), reverse=True)
+        
+        return [
+            {
+                "title": a.canonical_title,
+                "sources": a.sources,
+                "source_count": len(a.sources),
+                "priority": a.priority.value,
+                "confidence": "high" if len(a.sources) >= 3 else "medium"
+            }
+            for a in multi
+        ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V7.6 INTEL REPORT GENERATOR — Generate intelligence reports
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class IntelReportGenerator:
+    """
+    V7.6 Intel Report Generator - Generates formatted intelligence
+    reports from collected data.
+    """
+    
+    REPORT_DIR = Path("/opt/titan/data/intel_reports")
+    
+    def __init__(self, monitor: Optional[IntelMonitor] = None,
+                 aggregator: Optional[ThreatFeedAggregator] = None,
+                 correlation: Optional[IntelCorrelationEngine] = None):
+        """
+        Initialize report generator.
+        
+        Args:
+            monitor: IntelMonitor instance
+            aggregator: ThreatFeedAggregator instance
+            correlation: IntelCorrelationEngine instance
+        """
+        self.monitor = monitor or IntelMonitor()
+        self.aggregator = aggregator or ThreatFeedAggregator()
+        self.correlation = correlation or IntelCorrelationEngine()
+    
+    def generate_daily_brief(self) -> Dict:
+        """
+        Generate daily intelligence brief.
+        
+        Returns:
+            Structured daily report
+        """
+        now = datetime.now(timezone.utc)
+        
+        # Get alerts from last 24 hours
+        alerts = self.monitor.get_alerts(min_priority="high")
+        
+        # Get trending topics
+        trending = self.correlation.get_trending_topics(hours=24)
+        
+        # Get multi-source validated intel
+        validated = self.aggregator.get_multi_source_intel()
+        
+        report = {
+            "report_type": "daily_brief",
+            "generated_at": now.isoformat(),
+            "period": "24h",
+            "summary": {
+                "critical_alerts": len([a for a in alerts if a.get("priority") == "critical"]),
+                "high_alerts": len([a for a in alerts if a.get("priority") == "high"]),
+                "trending_topics": len(trending),
+                "multi_source_intel": len(validated)
+            },
+            "critical_intel": [
+                {
+                    "title": a["title"],
+                    "source": a["source_name"],
+                    "url": a["url"],
+                    "tags": a["tags"]
+                }
+                for a in alerts[:5] if a.get("priority") == "critical"
+            ],
+            "trending": trending[:5],
+            "validated_intel": validated[:5],
+            "source_activity": {
+                source_id: len(posts)
+                for source_id, posts in self.monitor._feed_cache.items()
+            }
+        }
+        
+        return report
+    
+    def generate_topic_report(self, topic: str) -> Dict:
+        """
+        Generate focused report on a specific topic.
+        
+        Args:
+            topic: Topic to report on (e.g., "3ds_bypass", "amazon")
+        
+        Returns:
+            Topic-focused report
+        """
+        # Search all posts for topic
+        relevant_posts = []
+        topic_lower = topic.lower()
+        
+        for source_id, posts in self.monitor._feed_cache.items():
+            for post in posts:
+                if topic_lower in post.title.lower() or topic_lower in post.content.lower():
+                    relevant_posts.append(post)
+        
+        # Sort by timestamp
+        relevant_posts.sort(key=lambda p: p.timestamp, reverse=True)
+        
+        return {
+            "report_type": "topic_report",
+            "topic": topic,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "total_posts": len(relevant_posts),
+            "sources": list(set(p.source_id for p in relevant_posts)),
+            "timeline": [
+                {
+                    "date": p.timestamp[:10] if len(p.timestamp) >= 10 else p.timestamp,
+                    "title": p.title,
+                    "source": p.source_id,
+                    "priority": p.priority.value if isinstance(p.priority, AlertPriority) else p.priority
+                }
+                for p in relevant_posts[:20]
+            ],
+            "key_insights": self._extract_insights(relevant_posts)
+        }
+    
+    def _extract_insights(self, posts: List[IntelPost]) -> List[str]:
+        """Extract key insights from posts."""
+        insights = []
+        
+        # Count priority distribution
+        priorities = defaultdict(int)
+        for p in posts:
+            pval = p.priority.value if isinstance(p.priority, AlertPriority) else p.priority
+            priorities[pval] += 1
+        
+        if priorities.get("critical", 0) > 0:
+            insights.append(f"{priorities['critical']} critical priority items detected")
+        
+        # Count source distribution
+        sources = defaultdict(int)
+        for p in posts:
+            sources[p.source_id] += 1
+        
+        if len(sources) > 1:
+            top_source = max(sources.items(), key=lambda x: x[1])
+            insights.append(f"Most activity from {top_source[0]} ({top_source[1]} posts)")
+        
+        # Tag analysis
+        all_tags = []
+        for p in posts:
+            all_tags.extend(p.tags)
+        
+        tag_counts = defaultdict(int)
+        for tag in all_tags:
+            tag_counts[tag] += 1
+        
+        if tag_counts:
+            top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+            tag_str = ", ".join([t[0] for t in top_tags])
+            insights.append(f"Common keywords: {tag_str}")
+        
+        return insights
+    
+    def save_report(self, report: Dict, filename: str = None) -> str:
+        """Save report to file."""
+        self.REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"intel_report_{timestamp}.json"
+        
+        path = self.REPORT_DIR / filename
+        path.write_text(json.dumps(report, indent=2, default=str))
+        
+        return str(path)
+    
+    def generate_markdown_report(self, report: Dict) -> str:
+        """Generate markdown formatted report."""
+        lines = []
+        
+        lines.append(f"# Intel Report: {report.get('report_type', 'Unknown')}")
+        lines.append(f"\nGenerated: {report.get('generated_at', 'Unknown')}")
+        lines.append("")
+        
+        if "summary" in report:
+            lines.append("## Summary")
+            for key, value in report["summary"].items():
+                lines.append(f"- **{key.replace('_', ' ').title()}**: {value}")
+            lines.append("")
+        
+        if "critical_intel" in report and report["critical_intel"]:
+            lines.append("## Critical Intel")
+            for item in report["critical_intel"]:
+                lines.append(f"- [{item['title']}]({item['url']})")
+                lines.append(f"  - Source: {item['source']}")
+                if item.get('tags'):
+                    lines.append(f"  - Tags: {', '.join(item['tags'])}")
+            lines.append("")
+        
+        if "trending" in report and report["trending"]:
+            lines.append("## Trending Topics")
+            for topic in report["trending"]:
+                lines.append(f"- **{topic['topic']}**: {topic['sources']} sources, {topic['posts']} posts")
+            lines.append("")
+        
+        return "\n".join(lines)
+
+
+# Global instances
+_intel_correlation: Optional[IntelCorrelationEngine] = None
+_reputation_tracker: Optional[SourceReputationTracker] = None
+_feed_aggregator: Optional[ThreatFeedAggregator] = None
+_report_generator: Optional[IntelReportGenerator] = None
+
+
+def get_intel_correlation() -> IntelCorrelationEngine:
+    """Get global intel correlation engine."""
+    global _intel_correlation
+    if _intel_correlation is None:
+        _intel_correlation = IntelCorrelationEngine()
+    return _intel_correlation
+
+
+def get_reputation_tracker() -> SourceReputationTracker:
+    """Get global reputation tracker."""
+    global _reputation_tracker
+    if _reputation_tracker is None:
+        _reputation_tracker = SourceReputationTracker()
+    return _reputation_tracker
+
+
+def get_feed_aggregator() -> ThreatFeedAggregator:
+    """Get global feed aggregator."""
+    global _feed_aggregator
+    if _feed_aggregator is None:
+        _feed_aggregator = ThreatFeedAggregator()
+    return _feed_aggregator
+
+
+def get_report_generator() -> IntelReportGenerator:
+    """Get global report generator."""
+    global _report_generator
+    if _report_generator is None:
+        _report_generator = IntelReportGenerator()
+    return _report_generator

@@ -71,7 +71,7 @@ LB_HDD_SIZE="10000"
 LB_HDD_PARTITION_START=""
 
 # Set iso author
-LB_ISO_APPLICATION="LUCID EMPIRE TITAN V7.0 SINGULARITY"
+LB_ISO_APPLICATION="Titan OS V7.0.3 Singularity"
 
 # Set iso preparer
 LB_ISO_PREPARER="live-build 3.0~a57-1; http://packages.qa.debian.org/live-build"
@@ -80,7 +80,7 @@ LB_ISO_PREPARER="live-build 3.0~a57-1; http://packages.qa.debian.org/live-build"
 LB_ISO_PUBLISHER="Dva.12"
 
 # Set iso volume (max 32 chars)
-LB_ISO_VOLUME="TITAN-V70-SINGULARITY"
+LB_ISO_VOLUME="TITAN-V703-SINGULARITY"
 
 # Set jffs2 eraseblock size
 LB_JFFS2_ERASEBLOCK=""

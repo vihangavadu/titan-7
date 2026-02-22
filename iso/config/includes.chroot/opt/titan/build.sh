@@ -1,5 +1,5 @@
 #!/bin/bash
-# TITAN V7.0 SINGULARITY - Master Build Script
+# TITAN V8.1 SINGULARITY - Master Build Script
 # Compiles all C/eBPF components and verifies Python dependencies
 set -e
 
@@ -8,7 +8,7 @@ CORE_DIR="${TITAN_ROOT}/core"
 INSTALL_DIR="/opt/lucid-empire"
 
 echo "╔══════════════════════════════════════════════╗"
-echo "║  TITAN V7.0 SINGULARITY — Master Build      ║"
+echo "║  TITAN V8.1 SINGULARITY — Master Build      ║"
 echo "╚══════════════════════════════════════════════╝"
 echo ""
 

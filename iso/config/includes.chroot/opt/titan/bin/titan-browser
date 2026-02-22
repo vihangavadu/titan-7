@@ -105,7 +105,7 @@ echo -e "${CYAN}║${NC}        ██║   ██║   ██║   ██╔═
 echo -e "${CYAN}║${NC}        ██║   ██║   ██║   ██║  ██║██║ ╚████║                ${CYAN}║${NC}"
 echo -e "${CYAN}║${NC}        ╚═╝   ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝                ${CYAN}║${NC}"
 echo -e "${CYAN}║${NC}                                                            ${CYAN}║${NC}"
-echo -e "${CYAN}║${NC}     V6.2 SOVEREIGN - Reality Synthesis Browser             ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}     V7.5 SINGULARITY - Reality Synthesis Browser            ${CYAN}║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -192,7 +192,7 @@ log_info "Configuring environment..."
 export MOZ_PROFILER_SESSION="$PROFILE_NAME"
 export MOZ_PROFILE_PATH="$PROFILE_PATH"
 export MOZ_SANDBOX_LEVEL="1"
-export MOZ_APP_LAUNCHER="6.2.0"
+export MOZ_APP_LAUNCHER="7.0.3"
 
 # Load hardware profile if exists
 HW_PROFILE="$PROFILE_PATH/hardware_profile.json"
@@ -336,7 +336,7 @@ import os
 profile_path = "$FIREFOX_PROFILE"
 target_url = "$URL" or "about:blank"
 proxy_url = "$PROXY_URL" or None
-headless = $HEADLESS == 1
+headless = "$HEADLESS" == "1"
 
 # Build config
 config = {}

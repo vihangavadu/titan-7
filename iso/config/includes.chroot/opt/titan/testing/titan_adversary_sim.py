@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY — Top-Tier Adversary Detection Simulation
-Authority: Dva.12 | Version: 7.0
+TITAN V8.1 SINGULARITY — Top-Tier Adversary Detection Simulation
+Authority: Dva.12 | Version: 8.1
 
 Simulates 5 real-world antifraud detection algorithms to test Titan
 sessions BEFORE going live. Each algorithm models a top-tier vendor:
@@ -544,7 +544,7 @@ class AdversarySimulator:
     @staticmethod
     def print_report(report: Dict[str, Any]):
         print("=" * 72)
-        print("  TITAN V7.0 ADVERSARY DETECTION SIMULATION REPORT")
+        print("  TITAN V8.1 ADVERSARY DETECTION SIMULATION REPORT")
         print("=" * 72)
         print(f"  Session:  {report['session_id']}")
         print(f"  VERDICT:  {report['final_verdict']}")

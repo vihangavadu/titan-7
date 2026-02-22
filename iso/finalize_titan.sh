@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.0.3 FINALIZATION & HARDENING SCRIPT
+# TITAN V8.1 FINALIZATION & HARDENING SCRIPT
 # AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 # OBJECTIVE: Prepare source tree for 100% Stealth ISO Build
 #
@@ -33,7 +33,7 @@ WARNINGS=0
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  TITAN V7.0.3 SINGULARITY — FINALIZATION PROTOCOL          ║"
+echo "║  TITAN V8.1 SINGULARITY — FINALIZATION PROTOCOL          ║"
 echo "║  Authority: Dva.12 | Status: OBLIVION_ACTIVE               ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -150,7 +150,7 @@ else
     echo "    [!] Creating coredump disable config..."
     mkdir -p "$(dirname "$CORES_CONF")"
     cat > "$CORES_CONF" << 'CEOF'
-# TITAN V7.0.3 — Disable core dumps
+# TITAN V8.1 — Disable core dumps
 # Prevents RAM leakage to disk on crash (forensic defense)
 * hard core 0
 * soft core 0

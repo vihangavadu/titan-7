@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - 3DS Strategy Module
+TITAN V8.1 SINGULARITY - 3DS Strategy Module
 Provides guidance on 3DS avoidance and handling
 
 3DS (3D Secure) is a major friction point that can block transactions.
@@ -10,9 +10,12 @@ This module provides:
 4. Fallback handling guidance
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
+
+logger = logging.getLogger("TITAN-V7-3DS")
 
 
 class ThreeDSLikelihood(Enum):
@@ -69,7 +72,7 @@ HIGH_3DS_BINS = {
     # European Banks - High 3DS (PSD2)
     '400115', '410039', '420000', '430000', '440000', '450000',
     # Virtual/Prepaid - Often 3DS
-    '414720', '424631', '428837', '431274', '438857',
+    '428837', '431274', '438857',
 }
 
 # Merchant-specific 3DS patterns
@@ -140,7 +143,9 @@ class ThreeDSStrategy:
         self.merchant_patterns = MERCHANT_3DS_PATTERNS
     
     def get_bin_likelihood(self, bin_prefix: str) -> ThreeDSLikelihood:
-        """Get 3DS likelihood for a BIN"""
+        """Get 3DS likelihood for a BIN or full card number"""
+        # V7.5 FIX: Support full card numbers by extracting first 6 digits
+        bin_prefix = bin_prefix[:6]
         if bin_prefix in self.high_3ds_bins:
             return ThreeDSLikelihood.HIGH
         elif bin_prefix in self.low_3ds_bins:
@@ -475,7 +480,7 @@ def get_3ds_strategy() -> ThreeDSStrategy:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# V7.0.3: 3DS BYPASS & DOWNGRADE ENGINE
+# V7.5: 3DS BYPASS & DOWNGRADE ENGINE
 # Comprehensive 3DS attack surface: downgrade, timeout, frictionless abuse,
 # amount manipulation, PSP-specific vulnerabilities
 # ═══════════════════════════════════════════════════════════════════════════
@@ -716,6 +721,41 @@ PSP_3DS_VULNERABILITIES = {
             "US cards on Shopify stores: <10% 3DS trigger rate",
             "Small stores (<$1M revenue) almost never see 3DS challenges",
             "Shopify's built-in fraud analysis is basic compared to enterprise antifraud",
+        ],
+    },
+    "checkout_com": {
+        "3ds_version": "2.0 primary, 1.0 fallback",
+        "downgrade_possible": True,
+        "downgrade_method": "Block threeDSMethodURL → ACS falls back to 1.0. Checkout.com retries with 'attempt' flag.",
+        "timeout_behavior": "Moderate — retries as non-3DS if merchant has 'attempt' mode enabled",
+        "frictionless_exploitable": True,
+        "frictionless_method": "Checkout.com risk engine: low-risk profile + matching geo + low amount = frictionless",
+        "amount_threshold": "EU: PSD2 thresholds apply. Non-EU: merchant-configured, typically $200-500.",
+        "recurring_exempt": True,
+        "recurring_method": "Stored card tokens with merchant-initiated flag skip 3DS on repeat charges.",
+        "weak_points": [
+            "Checkout.com 'attempt' mode: if 3DS fails, merchant can still attempt authorization",
+            "Non-EU cards have significantly lower 3DS enforcement",
+            "Frictionless approval rate is high for aged profiles with consistent behavior",
+            "Some merchants use Checkout.com in 'passive' 3DS mode — collects data but doesn't challenge",
+            "Soft decline → retry without 3DS is supported and commonly configured",
+        ],
+    },
+    "square": {
+        "3ds_version": "2.0 (limited adoption)",
+        "downgrade_possible": False,
+        "downgrade_method": "Square handles 3DS internally — limited merchant control.",
+        "timeout_behavior": "Strict — Square declines on 3DS failure",
+        "frictionless_exploitable": False,
+        "frictionless_method": "Square's risk engine is opaque — limited frictionless exploitation.",
+        "amount_threshold": "Dynamic — Square ML decides. Generally permissive on low amounts.",
+        "recurring_exempt": True,
+        "recurring_method": "Card on File (CoF) transactions skip 3DS after initial auth.",
+        "weak_points": [
+            "Square merchants are typically small businesses with basic fraud tools",
+            "In-person card-on-file tokens can be used for online purchases without 3DS",
+            "Low amounts ($1-25) almost never trigger 3DS on Square",
+            "Square's fraud detection focuses on chargeback patterns, not real-time behavioral analysis",
         ],
     },
 }
@@ -1885,6 +1925,149 @@ NON_VBV_BINS: Dict[str, List[NonVBVBin]] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# DYNAMIC EXPANSION VIA OLLAMA — Expands NON_VBV_BINS at runtime
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _expand_bin_database():
+    """Expand NON_VBV_BINS with Ollama-generated entries (cached, background)."""
+    try:
+        from dynamic_data import generate_bins_for_country, is_ollama_available
+        if not is_ollama_available():
+            return
+        
+        country_names = {
+            "US": "United States", "CA": "Canada", "GB": "United Kingdom",
+            "FR": "France", "DE": "Germany", "NL": "Netherlands",
+            "AU": "Australia", "IT": "Italy", "ES": "Spain",
+            "JP": "Japan", "BR": "Brazil", "MX": "Mexico",
+            "KR": "South Korea", "SG": "Singapore", "AE": "UAE",
+            "IN": "India", "TR": "Turkey", "TH": "Thailand",
+            "CO": "Colombia", "AR": "Argentina", "ZA": "South Africa",
+            "PL": "Poland", "SE": "Sweden", "IE": "Ireland",
+            "PT": "Portugal", "MY": "Malaysia", "PH": "Philippines",
+            "CL": "Chile",
+        }
+        
+        total_added = 0
+        for country_code, bins in NON_VBV_BINS.items():
+            if country_code == "US_EXT":
+                continue
+            country_name = country_names.get(country_code, country_code)
+            seed_dicts = []
+            for b in bins[:3]:
+                seed_dicts.append({
+                    "bin": b.bin, "bank": b.bank, "country": b.country,
+                    "network": b.network, "card_type": b.card_type,
+                    "card_level": b.level, "vbv_status": b.vbv_status,
+                    "three_ds_rate": b.three_ds_rate, "avs_enforced": b.avs_required,
+                    "notes": b.notes, "recommended_targets": b.best_for,
+                })
+            
+            new_bins = generate_bins_for_country(country_code, country_name, seed_dicts, count=10)
+            existing_prefixes = {b.bin for b in bins}
+            for nb in new_bins:
+                prefix = nb.get("bin", "")
+                if prefix and prefix not in existing_prefixes:
+                    try:
+                        entry = NonVBVBin(
+                            bin=prefix,
+                            bank=nb.get("bank", "Unknown"),
+                            country=country_code,
+                            network=nb.get("network", "visa"),
+                            card_type=nb.get("card_type", "credit"),
+                            level=nb.get("card_level", "classic"),
+                            vbv_status=nb.get("vbv_status", "low_vbv"),
+                            three_ds_rate=float(nb.get("three_ds_rate", 0.20)),
+                            avs_required=nb.get("avs_enforced", False),
+                            notes=f"[Ollama] {nb.get('notes', '')}",
+                            best_for=nb.get("recommended_targets", ["g2a.com"]),
+                        )
+                        bins.append(entry)
+                        existing_prefixes.add(prefix)
+                        total_added += 1
+                    except Exception:
+                        continue
+        
+        if total_added:
+            logger.info(f"Ollama expanded NON_VBV_BINS: +{total_added} BINs")
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"Dynamic BIN expansion failed: {e}")
+
+
+def _expand_country_profiles():
+    """Expand COUNTRY_PROFILES with Ollama-generated entries for new countries."""
+    try:
+        from dynamic_data import generate_country_profiles, is_ollama_available
+        if not is_ollama_available():
+            return
+        
+        # Countries we have BINs for but no profile
+        bin_countries = set(NON_VBV_BINS.keys()) - {"US_EXT"}
+        profile_countries = set(COUNTRY_PROFILES.keys())
+        missing = bin_countries - profile_countries
+        
+        if not missing:
+            return
+        
+        seed_dicts = []
+        for code in list(profile_countries)[:3]:
+            p = COUNTRY_PROFILES[code]
+            seed_dicts.append({
+                "code": p.code, "name": p.name, "difficulty": p.difficulty,
+                "psd2_enforced": p.psd2_enforced, "three_ds_base_rate": p.three_ds_base_rate,
+                "avs_common": p.avs_common, "best_card_types": p.best_card_types,
+                "best_networks": p.best_networks, "notes": p.notes,
+                "recommended_targets": p.recommended_targets,
+            })
+        
+        new_profiles = generate_country_profiles(list(missing), seed_dicts)
+        added = 0
+        for prof in new_profiles:
+            code = prof.get("code", "").upper()
+            if code and code not in COUNTRY_PROFILES:
+                try:
+                    COUNTRY_PROFILES[code] = CountryProfile(
+                        code=code,
+                        name=prof.get("name", code),
+                        difficulty=prof.get("difficulty", "moderate"),
+                        psd2_enforced=prof.get("psd2_enforced", False),
+                        three_ds_base_rate=float(prof.get("three_ds_base_rate", 0.30)),
+                        avs_common=prof.get("avs_common", False),
+                        best_card_types=prof.get("best_card_types", ["credit"]),
+                        best_networks=prof.get("best_networks", ["visa", "mastercard"]),
+                        notes=f"[Ollama] {prof.get('notes', '')}",
+                        recommended_targets=prof.get("recommended_targets", ["g2a.com"]),
+                    )
+                    added += 1
+                except Exception:
+                    continue
+        
+        if added:
+            logger.info(f"Ollama expanded COUNTRY_PROFILES: +{added} countries")
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"Dynamic country profile expansion failed: {e}")
+
+
+# Run BIN + country expansion in background at import time
+def _background_expand_3ds():
+    import threading
+    def _worker():
+        _expand_bin_database()
+        _expand_country_profiles()
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+try:
+    _background_expand_3ds()
+except Exception:
+    pass
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # COUNTRY DIFFICULTY RANKING
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -2203,3 +2386,281 @@ def get_easy_countries() -> List[Dict]:
 def get_all_non_vbv_bins(country: str = None) -> List[Dict]:
     """Get all non-VBV BINs"""
     return NonVBVRecommendationEngine().get_all_non_vbv_bins(country)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 UPGRADE: 3DS CHALLENGE HANDLER
+# When a 3DS challenge is unavoidable, this engine provides optimal handling
+# strategies including timing, decoy attempts, and session management.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class ThreeDSChallengeState:
+    """State tracking for an active 3DS challenge"""
+    challenge_id: str
+    challenge_type: ThreeDSType
+    started_at: str                 # ISO timestamp
+    timeout_seconds: int
+    attempts: int
+    max_attempts: int
+    bank: str
+    merchant: str
+    amount: float
+    status: str                     # pending, timeout_waiting, failed, passed
+    recommendation: str
+
+
+class ThreeDSChallengeHandler:
+    """
+    V7.6: Optimal handling for unavoidable 3DS challenges.
+    
+    When 3DS challenge cannot be avoided, this handler provides:
+    1. Challenge type identification and timing optimization
+    2. Timeout exploitation tracking (wait for merchant fallback)
+    3. Decoy session management (spread attempts across sessions)
+    4. Bank-specific OTP timing patterns
+    5. Challenge failure mitigation (preserve card for future use)
+    """
+    
+    # Bank OTP timing patterns (seconds before bank considers attempt suspicious)
+    BANK_OTP_WINDOWS = {
+        'Chase': {'otp_timeout': 300, 'push_timeout': 120, 'retry_delay': 1800,
+                  'suspicious_speed': 5, 'optimal_entry_time': (15, 45)},
+        'Bank of America': {'otp_timeout': 300, 'push_timeout': 180, 'retry_delay': 1800,
+                            'suspicious_speed': 3, 'optimal_entry_time': (12, 40)},
+        'Capital One': {'otp_timeout': 300, 'push_timeout': 120, 'retry_delay': 900,
+                        'suspicious_speed': 5, 'optimal_entry_time': (10, 35)},
+        'Wells Fargo': {'otp_timeout': 600, 'push_timeout': 180, 'retry_delay': 1800,
+                        'suspicious_speed': 4, 'optimal_entry_time': (12, 50)},
+        'Citi': {'otp_timeout': 300, 'push_timeout': 90, 'retry_delay': 1200,
+                 'suspicious_speed': 3, 'optimal_entry_time': (10, 30)},
+        'American Express': {'otp_timeout': 300, 'push_timeout': 60, 'retry_delay': 3600,
+                             'suspicious_speed': 8, 'optimal_entry_time': (20, 60)},
+        'Discover': {'otp_timeout': 600, 'push_timeout': 180, 'retry_delay': 900,
+                     'suspicious_speed': 5, 'optimal_entry_time': (15, 45)},
+        'USAA': {'otp_timeout': 600, 'push_timeout': 300, 'retry_delay': 600,
+                 'suspicious_speed': 3, 'optimal_entry_time': (8, 30)},
+        'Navy Federal': {'otp_timeout': 600, 'push_timeout': 300, 'retry_delay': 600,
+                         'suspicious_speed': 3, 'optimal_entry_time': (8, 30)},
+    }
+    
+    DEFAULT_TIMING = {'otp_timeout': 300, 'push_timeout': 120, 'retry_delay': 1200,
+                      'suspicious_speed': 5, 'optimal_entry_time': (10, 40)}
+    
+    # Merchant timeout behavior (which merchants process on 3DS timeout)
+    MERCHANT_TIMEOUT_BEHAVIOR = {
+        'amazon.com': {'processes_on_timeout': False, 'timeout_seconds': 600,
+                       'retry_without_3ds': False},
+        'walmart.com': {'processes_on_timeout': True, 'timeout_seconds': 300,
+                        'retry_without_3ds': True},
+        'bestbuy.com': {'processes_on_timeout': False, 'timeout_seconds': 600,
+                        'retry_without_3ds': False},
+        'newegg.com': {'processes_on_timeout': True, 'timeout_seconds': 300,
+                       'retry_without_3ds': True},
+        'g2a.com': {'processes_on_timeout': False, 'timeout_seconds': 600,
+                    'retry_without_3ds': False},
+        'eneba.com': {'processes_on_timeout': False, 'timeout_seconds': 600,
+                      'retry_without_3ds': False},
+        'steam': {'processes_on_timeout': False, 'timeout_seconds': 300,
+                  'retry_without_3ds': False},
+    }
+    
+    DEFAULT_MERCHANT = {'processes_on_timeout': False, 'timeout_seconds': 600,
+                        'retry_without_3ds': False}
+    
+    def __init__(self):
+        self._active_challenges: Dict[str, ThreeDSChallengeState] = {}
+    
+    def start_challenge(self, challenge_id: str, challenge_type: ThreeDSType,
+                        bank: str, merchant: str, amount: float) -> ThreeDSChallengeState:
+        """
+        Register a new 3DS challenge and get optimal handling strategy.
+        """
+        import secrets
+        from datetime import datetime
+        
+        if not challenge_id:
+            challenge_id = secrets.token_hex(8)
+        
+        bank_timing = self.BANK_OTP_WINDOWS.get(bank, self.DEFAULT_TIMING)
+        merchant_behavior = self.MERCHANT_TIMEOUT_BEHAVIOR.get(
+            merchant.lower().replace('www.', ''),
+            self.DEFAULT_MERCHANT
+        )
+        
+        # Determine timeout based on challenge type
+        if challenge_type == ThreeDSType.SMS_OTP:
+            timeout = bank_timing['otp_timeout']
+        elif challenge_type == ThreeDSType.BANK_APP:
+            timeout = bank_timing['push_timeout']
+        else:
+            timeout = merchant_behavior['timeout_seconds']
+        
+        state = ThreeDSChallengeState(
+            challenge_id=challenge_id,
+            challenge_type=challenge_type,
+            started_at=datetime.now().isoformat(),
+            timeout_seconds=timeout,
+            attempts=0,
+            max_attempts=3,
+            bank=bank,
+            merchant=merchant,
+            amount=amount,
+            status='pending',
+            recommendation=self._get_recommendation(challenge_type, bank, merchant, amount),
+        )
+        
+        self._active_challenges[challenge_id] = state
+        return state
+    
+    def _get_recommendation(self, challenge_type: ThreeDSType, bank: str,
+                            merchant: str, amount: float) -> str:
+        """Generate handling recommendation for this challenge."""
+        bank_timing = self.BANK_OTP_WINDOWS.get(bank, self.DEFAULT_TIMING)
+        merchant_behavior = self.MERCHANT_TIMEOUT_BEHAVIOR.get(
+            merchant.lower().replace('www.', ''),
+            self.DEFAULT_MERCHANT
+        )
+        
+        opt_min, opt_max = bank_timing['optimal_entry_time']
+        
+        if challenge_type == ThreeDSType.SMS_OTP:
+            if merchant_behavior['processes_on_timeout']:
+                return (f"TIMEOUT STRATEGY: Let SMS OTP expire. {merchant} may process anyway. "
+                        f"If entering OTP: wait {opt_min}-{opt_max} seconds (not instant).")
+            return (f"SMS OTP: Enter code slowly ({opt_min}-{opt_max}s delay). "
+                    f"Instant entry (<{bank_timing['suspicious_speed']}s) flags as bot.")
+        
+        elif challenge_type == ThreeDSType.BANK_APP:
+            return (f"BANK APP: Cannot bypass remotely. Card requires device with {bank} app. "
+                    f"Consider alternative card without app-based 3DS.")
+        
+        elif challenge_type == ThreeDSType.BIOMETRIC:
+            return (f"BIOMETRIC: Cannot bypass. {bank} requires fingerprint/face on enrolled device. "
+                    f"Card is unusable for remote operations.")
+        
+        elif challenge_type == ThreeDSType.EMAIL_OTP:
+            return (f"EMAIL OTP: Check cardholder's email for code. "
+                    f"Wait {opt_min}-{opt_max}s before entering. Email access required.")
+        
+        elif challenge_type == ThreeDSType.PASSWORD:
+            return (f"3DS PASSWORD: Requires cardholder's preset password. "
+                    f"If unknown, let timeout — some merchants retry without 3DS.")
+        
+        else:
+            if merchant_behavior['processes_on_timeout']:
+                return f"TIMEOUT AVAILABLE: Let challenge expire. {merchant} may process payment."
+            return f"Unknown challenge type. Try timeout strategy or alternative card."
+    
+    def get_timeout_strategy(self, challenge_id: str) -> Dict:
+        """
+        Get detailed timeout exploitation strategy for a challenge.
+        """
+        state = self._active_challenges.get(challenge_id)
+        if not state:
+            return {'error': 'Challenge not found'}
+        
+        merchant_behavior = self.MERCHANT_TIMEOUT_BEHAVIOR.get(
+            state.merchant.lower().replace('www.', ''),
+            self.DEFAULT_MERCHANT
+        )
+        
+        return {
+            'challenge_id': challenge_id,
+            'timeout_seconds': state.timeout_seconds,
+            'processes_on_timeout': merchant_behavior['processes_on_timeout'],
+            'retry_without_3ds': merchant_behavior['retry_without_3ds'],
+            'strategy': 'timeout_wait' if merchant_behavior['processes_on_timeout'] else 'abort_preserve_card',
+            'instructions': [
+                f"1. DO NOT close the 3DS popup/iframe",
+                f"2. Wait {state.timeout_seconds // 60} minutes for timeout",
+                f"3. {'Check if order went through anyway' if merchant_behavior['processes_on_timeout'] else 'Card preserved — try different merchant'}",
+                f"4. If declined, card is still clean (timeout is not failed auth)",
+            ],
+            'success_probability': 0.25 if merchant_behavior['processes_on_timeout'] else 0.0,
+        }
+    
+    def record_attempt(self, challenge_id: str, success: bool) -> Dict:
+        """Record an OTP entry attempt and get next action."""
+        state = self._active_challenges.get(challenge_id)
+        if not state:
+            return {'error': 'Challenge not found'}
+        
+        state.attempts += 1
+        bank_timing = self.BANK_OTP_WINDOWS.get(state.bank, self.DEFAULT_TIMING)
+        
+        if success:
+            state.status = 'passed'
+            return {
+                'challenge_id': challenge_id,
+                'result': 'passed',
+                'next_action': 'proceed_with_purchase',
+            }
+        
+        if state.attempts >= state.max_attempts:
+            state.status = 'failed'
+            return {
+                'challenge_id': challenge_id,
+                'result': 'max_attempts_exceeded',
+                'next_action': 'abort',
+                'card_status': 'potentially_flagged',
+                'cooldown_seconds': bank_timing['retry_delay'],
+                'warning': f"Card may be flagged after {state.attempts} failed 3DS attempts. "
+                           f"Let cool for {bank_timing['retry_delay'] // 60} minutes before retry.",
+            }
+        
+        return {
+            'challenge_id': challenge_id,
+            'result': 'failed',
+            'attempts_remaining': state.max_attempts - state.attempts,
+            'next_action': 'retry',
+            'wait_seconds': bank_timing['retry_delay'] // 4,  # Short delay between attempts
+            'warning': f"Attempt {state.attempts} failed. Wait before retrying.",
+        }
+    
+    def get_decoy_strategy(self, card_bin: str, bank: str) -> Dict:
+        """
+        Get decoy session strategy to protect card from 3DS scrutiny.
+        
+        Multiple small low-3DS transactions before main purchase
+        can reduce challenge probability on the important transaction.
+        """
+        return {
+            'strategy': 'decoy_warmup',
+            'description': "Make 1-2 small purchases on low-3DS merchants before main target",
+            'steps': [
+                {'step': 1, 'target': 'Low-3DS merchant (Auth.net PSP)',
+                 'amount': '$5-15', 'purpose': 'Establish card activity pattern'},
+                {'step': 2, 'delay_minutes': 30,
+                 'purpose': 'Let first transaction clear and reduce novelty flag'},
+                {'step': 3, 'target': 'Main target merchant',
+                 'amount': 'Target amount',
+                 'purpose': 'Card now has recent legitimate activity — lower 3DS probability'},
+            ],
+            'effectiveness': 'Moderate — reduces 3DS on some issuers',
+            'bank_notes': f"{bank}: " + self.BANK_OTP_WINDOWS.get(bank, self.DEFAULT_TIMING).get(
+                'optimal_entry_time', (10, 40)
+            ).__str__() + " seconds optimal OTP entry time",
+        }
+
+
+# V7.6 Convenience exports
+def start_3ds_challenge(challenge_type: str, bank: str, merchant: str, amount: float):
+    """V7.6: Start tracking a 3DS challenge"""
+    type_map = {
+        'sms': ThreeDSType.SMS_OTP, 'sms_otp': ThreeDSType.SMS_OTP,
+        'email': ThreeDSType.EMAIL_OTP, 'email_otp': ThreeDSType.EMAIL_OTP,
+        'app': ThreeDSType.BANK_APP, 'bank_app': ThreeDSType.BANK_APP,
+        'bio': ThreeDSType.BIOMETRIC, 'biometric': ThreeDSType.BIOMETRIC,
+        'password': ThreeDSType.PASSWORD,
+    }
+    challenge_enum = type_map.get(challenge_type.lower(), ThreeDSType.UNKNOWN)
+    return ThreeDSChallengeHandler().start_challenge(None, challenge_enum, bank, merchant, amount)
+
+def get_timeout_strategy(challenge_id: str):
+    """V7.6: Get timeout exploitation strategy for active challenge"""
+    return ThreeDSChallengeHandler().get_timeout_strategy(challenge_id)
+
+def get_3ds_decoy_strategy(card_bin: str, bank: str):
+    """V7.6: Get decoy session strategy for card warmup"""
+    return ThreeDSChallengeHandler().get_decoy_strategy(card_bin, bank)

@@ -1,0 +1,18 @@
+[Unit]
+Description=Bug Patch Bridge — auto-dispatch and patch daemon
+After=network.target graphical.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=user
+Group=user
+WorkingDirectory=/opt/titan/core
+ExecStart=/usr/bin/python3 /opt/titan/core/bug_patch_bridge.py
+Restart=on-failure
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/titan/core:/opt/titan/apps
+
+[Install]
+WantedBy=multi-user.target

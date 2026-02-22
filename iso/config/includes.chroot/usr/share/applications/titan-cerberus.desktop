@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Cerberus
+GenericName=Card Validator
+Comment=Zero-touch card validation with traffic light system
+Exec=python3 /opt/titan/apps/app_cerberus.py
+Icon=dialog-password
+Terminal=false
+Categories=System;Security;
+Keywords=cerberus;card;validator;
+StartupNotify=true

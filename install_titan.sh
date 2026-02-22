@@ -1,7 +1,9 @@
 #!/bin/bash
+# TITAN V8.1 SINGULARITY — Root Partition Installer
+# WARNING: This script overwrites the root filesystem. Use with extreme caution.
 set -e
-echo "[TITAN] Starting installation to root partition..."
-echo "[TITAN] Syncing TITAN system to root..."
+echo "[TITAN V8.1] Starting installation to root partition..."
+echo "[TITAN V8.1] Syncing TITAN system to root..."
 rsync -aAX --delete \
   --exclude=/mnt \
   --exclude=/proc \
@@ -9,7 +11,7 @@ rsync -aAX --delete \
   --exclude=/dev \
   --exclude=/run \
   --exclude=/tmp \
-  --exclude=/home/malith/titan-7 \
+  --exclude=/home \
   /mnt/titan-root/ /
 
 mkdir -p /proc /sys /dev /run /tmp /mnt

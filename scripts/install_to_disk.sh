@@ -1,9 +1,9 @@
 #!/bin/bash
 # ==============================================================================
-# LUCID EMPIRE :: TITAN V7.0 SINGULARITY — VPS DISK INSTALLER
+# LUCID EMPIRE :: TITAN V8.1 SINGULARITY — VPS DISK INSTALLER
 # ==============================================================================
 # AUTHORITY: Dva.12
-# PURPOSE:   Install TITAN V7.0 from live ISO to a persistent disk.
+# PURPOSE:   Install TITAN V8.1 from live ISO to a persistent disk.
 #            Works on VPS (Vultr, Hetzner, DO, Linode, Kamatera) or bare metal.
 #
 # Usage:
@@ -18,12 +18,12 @@
 #   2. Extracts the live filesystem to the root partition
 #   3. Installs GRUB bootloader (EFI + BIOS fallback)
 #   4. Configures fstab, networking, hostname, SSH
-#   5. Enables all TITAN V7.0 systemd services
+#   5. Enables all TITAN V8.1 systemd services
 #   6. Sets root password and creates 'user' account
 #
 # After install:
 #   - Reboot removes the live media
-#   - System boots directly into TITAN V7.0 with GUI
+#   - System boots directly into TITAN V8.1 with GUI
 #   - All modules persist across reboots
 #   - VNC/RDP available for headless VPS access
 # ==============================================================================
@@ -48,7 +48,7 @@ hdr()  {
 }
 
 # ==============================================================================
-hdr "TITAN V7.0 SINGULARITY — VPS DISK INSTALLER"
+hdr "TITAN V8.1 SINGULARITY — VPS DISK INSTALLER"
 # ==============================================================================
 
 if [ "$EUID" -ne 0 ]; then
@@ -192,7 +192,7 @@ log "EFI  UUID: $EFI_UUID"
 
 # fstab
 cat > "$MOUNT_ROOT/etc/fstab" << EOF
-# TITAN V7.0 SINGULARITY — /etc/fstab
+# TITAN V8.1 SINGULARITY — /etc/fstab
 UUID=$ROOT_UUID  /          ext4  errors=remount-ro,noatime  0 1
 UUID=$EFI_UUID   /boot/efi  vfat  umask=0077                0 1
 tmpfs            /tmp       tmpfs defaults,noatime,size=2G   0 0
@@ -348,7 +348,7 @@ chroot "$MOUNT_ROOT" /bin/bash -c "
 # Create VNC systemd service
 cat > "$MOUNT_ROOT/etc/systemd/system/titan-vnc.service" << 'EOF'
 [Unit]
-Description=TITAN V7.0 VNC Server (Display :1)
+Description=TITAN V8.1 VNC Server (Display :1)
 After=network.target
 
 [Service]
@@ -372,7 +372,7 @@ log "VNC password: titan"
 
 # Sudoers for user
 cat > "$MOUNT_ROOT/etc/sudoers.d/titan-user" << 'EOF'
-# TITAN V7.0 — VPS user permissions
+# TITAN V8.1 — VPS user permissions
 user ALL=(ALL) NOPASSWD: ALL
 EOF
 chmod 440 "$MOUNT_ROOT/etc/sudoers.d/titan-user"
@@ -397,7 +397,7 @@ rmdir "$MOUNT_ROOT" 2>/dev/null || true
 sync
 
 # ==============================================================================
-hdr "INSTALLATION COMPLETE — TITAN V7.0 SINGULARITY"
+hdr "INSTALLATION COMPLETE — TITAN V8.1 SINGULARITY"
 # ==============================================================================
 echo ""
 echo -e "  ${GREEN}${BOLD}Disk:${NC}       $TARGET_DISK"

@@ -1,4 +1,4 @@
-# TITAN V7.0.3 — Model Assets
+# TITAN V7.5 — Model Assets
 
 This directory contains ML model files required by TITAN subsystems.
 

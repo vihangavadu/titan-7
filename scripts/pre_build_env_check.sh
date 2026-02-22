@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.0.3 SINGULARITY — Pre-Build Environment Check
+# TITAN V8.1 SINGULARITY — Pre-Build Environment Check
 # ═══════════════════════════════════════════════════════════════════════════
 # PURPOSE: Verify all required environment variables and API keys are present
 #          before allowing ISO build to proceed.
@@ -34,7 +34,7 @@ FAIL_COUNT=0
 
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}  TITAN V7.0.3 SINGULARITY — PRE-BUILD ENVIRONMENT CHECK${NC}"
+echo -e "${CYAN}  TITAN V8.1 SINGULARITY — PRE-BUILD ENVIRONMENT CHECK${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}"
 
 # Locate the titan.env file

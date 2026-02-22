@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 Detection System Emulators
+TITAN V8.1 Detection System Emulators
 
 Emulates real-world fraud detection systems:
 - Fingerprint detection (Canvas, WebGL, Audio, Fonts)
@@ -18,7 +18,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 import logging
@@ -67,7 +67,7 @@ class DetectionResult:
     detector_name: str = ""
     detection_time_ms: float = 0.0
     raw_data: Dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -1081,7 +1081,7 @@ class VelocityDetector(DetectionEmulator):
         score = 0.0
         signals = []
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         hour_ago = now - timedelta(hours=1)
         day_ago = now - timedelta(days=1)
         

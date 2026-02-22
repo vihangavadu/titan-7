@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.0.3 — VPS/RDP DEPLOYMENT SCRIPT
+# TITAN V8.1 — VPS/RDP DEPLOYMENT SCRIPT
 # AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 # OBJECTIVE: Deploy Titan OS build environment on remote VPS/RDP servers
 #
@@ -34,7 +34,7 @@ NC='\033[0m'
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  TITAN V7.0.3 VPS/RDP DEPLOYMENT                           ║"
+echo "║  TITAN V7.5 VPS/RDP DEPLOYMENT                              ║"
 echo "║  Remote Build Environment Setup                            ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -142,7 +142,7 @@ apt-get install -y -qq linux-headers-$(uname -r || echo "amd64") dkms
 echo "  [2.5] Installing Single-Terminal Execution Block..."
 cat > /usr/local/bin/titan-migrate << 'EOF_MIGRATE'
 #!/bin/bash
-# TITAN V7.0.3 — SINGLE-TERMINAL MIGRATION BLOCK
+# TITAN V7.5 — SINGLE-TERMINAL MIGRATION BLOCK
 # AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 
 set -euo pipefail
@@ -286,7 +286,7 @@ set -euo pipefail
 cd "$(dirname "$0")/iso"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  TITAN V7.0.3 ISO BUILD                                     ║"
+echo "║  TITAN V7.5 ISO BUILD                                       ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -358,7 +358,7 @@ echo "  [+] Created start_build.sh (tmux wrapper)"
 # Create systemd service for auto-build (optional)
 cat > /etc/systemd/system/titan-build.service << EOFSVC
 [Unit]
-Description=TITAN V7.0.3 ISO Build Service
+Description=TITAN V7.5 ISO Build Service
 After=network.target
 
 [Service]
@@ -385,7 +385,7 @@ echo ""
 echo -e "${BLUE}[7/7] Deployment Complete${NC}"
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  TITAN V7.0.3 VPS DEPLOYMENT SUCCESSFUL                    ║"
+echo "║  TITAN V7.5 VPS DEPLOYMENT SUCCESSFUL                      ║"
 echo "╠══════════════════════════════════════════════════════════════╣"
 echo "║  Build Directory: $INSTALL_DIR"
 echo "║  Build User:      $BUILD_USER"

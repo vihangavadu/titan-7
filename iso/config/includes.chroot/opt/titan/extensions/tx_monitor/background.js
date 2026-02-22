@@ -1,5 +1,5 @@
 /**
- * TITAN V7.0.3 — TX Monitor Background Service Worker
+ * TITAN V7.5 — TX Monitor Background Service Worker
  * 
  * Uses webRequest API to monitor payment-related HTTP responses
  * at the network level (catches requests content scripts might miss).
@@ -101,10 +101,10 @@ setInterval(() => {
         .then(r => r.json())
         .then(data => {
             if (data.status === 'alive') {
-                console.log('[TX Monitor] Backend alive');
+                // heartbeat ok
             }
         })
         .catch(() => {
-            console.log('[TX Monitor] Backend not running');
+            // backend offline
         });
 }, 60000);

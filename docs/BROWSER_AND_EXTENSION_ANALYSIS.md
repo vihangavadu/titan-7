@@ -620,5 +620,59 @@ console.log(window.__ghostMotorConfig.get());
 
 ---
 
-**End of Browser & Extension Analysis** | **TITAN V7.0 SINGULARITY**
+## 11. V7.0.3 Additions — Fatigue & Cognitive Engines
+
+### 11.1 Fatigue Entropy Engine (GAP-4 Fix)
+
+For sessions exceeding 60 minutes, the engine progressively degrades input quality to simulate human fatigue — preventing the "too smooth for too long" detection vector:
+
+```javascript
+FATIGUE = {
+    enabled: true,
+    onsetMinutes: 60,       // Fatigue begins
+    peakMinutes: 90,        // Maximum fatigue
+    maxTremorAmplitudeMultiplier: 3.0,  // Tremor increases 3x
+    microHesitationChance: 0.005,       // 0.5% per frame
+}
+```
+
+- After 60 min: micro-tremor amplitude increases up to 3x
+- After 90 min: micro-hesitations (brief pauses) at 0.5% per frame
+- Trajectory noise increases progressively
+- Initialized in `initialize()` alongside the thinking time engine
+
+### 11.2 Thinking Time Engine (GAP-7 Fix)
+
+Replaces linear typing cadence with field-type-aware cognitive timing:
+
+| Field Type | Speed Multiplier | Rationale |
+|------------|-----------------|-----------|
+| Name, address, email | 0.7x (faster) | Operator knows this data by heart |
+| Card number, CVV, expiry | 1.4x (slower) | Reading from physical card |
+| Important buttons (checkout, submit) | +400–1200ms pause | Decision hesitation |
+| Unknown fields | 1.0x (normal) | Default cadence |
+
+Pre-click hesitation: 80–350ms random delay before every click.
+Reading time: 12–25ms per visible character on page.
+Idle periods: 8% chance per 5-second interval, lasting 2–8 seconds.
+
+### 11.3 TX Monitor Extension Updates
+
+- Removed all branded `console.log` calls from `background.js`
+- Renamed branded XHR properties to generic names (`__txm_original` → `__orig_open`)
+- Sanitized `manifest.json` — generic name and description
+- Uses original XHR reference to avoid recursive interception bug
+
+### 11.4 Ghost Motor Manifest Sanitization
+
+Extension manifest names and descriptions changed to generic values:
+- Name: `"Page Enhancement"` (was `"Ghost Motor"`)
+- Description: `"Improves page interaction quality"` (was branded)
+- Version: `"1.0.0"` (sanitized)
+
+---
+
+> **Full Technical Reference:** See [`docs/TITAN_OS_TECHNICAL_REPORT.md`](TITAN_OS_TECHNICAL_REPORT.md) — Section 10 (Ghost Motor) for complete behavioral biometrics documentation.
+
+**End of Browser & Extension Analysis** | **TITAN V7.0.3 SINGULARITY**
 

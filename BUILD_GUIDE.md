@@ -1,7 +1,7 @@
-# TITAN V7.0.3 SINGULARITY — BUILD GUIDE
+# TITAN V8.1 SINGULARITY — BUILD GUIDE
 
-**Authority:** Dva.12 | **Status:** OBLIVION_ACTIVE  
-**Version:** 7.0.3 "Singularity"  
+**Authority:** Dva.12 | **Status:** MAXIMUM_LEVEL  
+**Version:** 8.1.0 "Singularity"  
 **Target:** 100% Purchase Readiness | Zero Forensic Attribution
 
 ---
@@ -20,7 +20,7 @@
 
 ## Overview
 
-Titan V7.0.3 "Singularity" is a hardened Debian 12 live ISO designed for maximum operational security and fraud detection resistance. The build process involves:
+Titan V8.1 "Singularity" is a hardened Debian 12 live ISO designed for maximum operational security and fraud detection resistance. The build process involves:
 
 - **Finalization Protocol**: AI attribution strip, sysctl hardening, RAM wipe verification
 - **Kernel Hardening**: TTL=128, tcp_timestamps=0, coredump disable

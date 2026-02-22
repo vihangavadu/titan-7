@@ -109,6 +109,9 @@ p7zip-full
 python3-pyqt6
 # python3-pyqt6.qtwebengine  # may not exist in bookworm, install via pip if needed
 
+# --- Dotenv (TITAN Mission Control config loading) ---
+python3-dotenv
+
 # --- Database & Storage (Firefox Profile Injection) ---
 # Required for LSNG storage manipulation
 libsnappy-dev
@@ -245,6 +248,20 @@ unbound-anchor
 
 # --- V6: DKMS for Hardware Shield V6 (Netlink Injection) ---
 dkms
+
+# --- V7.0.3: Desktop UX — Titan OS Identity ---
+# Panel/dock, compositor, wallpaper, notifications, system monitor
+tint2
+conky-all
+feh
+picom
+dunst
+plymouth
+plymouth-themes
+papirus-icon-theme
+arc-theme
+fonts-cantarell
+pcmanfm
 
 # --- V7.0.2: VPS Deployment Packages ---
 # These are used by build_vps_image.sh for persistent disk deployments.

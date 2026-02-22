@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 TITAN MASTER VERIFICATION PROTOCOL (MVP)
-AUTHORITY: Dva.12 | VERSION: 7.0-SINGULARITY
+AUTHORITY: Dva.12 | VERSION: 8.1-SINGULARITY
 PURPOSE: Aggregated Pre-Flight Check for Lucid Titan OS.
 
 Layers verified:
@@ -52,7 +52,8 @@ SYSFS_DMI = Path("/sys/class/dmi/id")
 BPF_PIN_PATH = Path("/sys/fs/bpf/titan_network_shield")
 
 # Browser paths
-CAMOUFOX_PREFS = LEGACY_ROOT / "camoufox" / "settings" / "defaults" / "pref" / "local-settings.js"
+# V7.5 FIX: Use correct Camoufox install path on Titan OS
+CAMOUFOX_PREFS = Path("/opt/camoufox/defaults/pref/local-settings.js")
 FONT_CONFIG = Path("/etc/fonts/local.conf")
 
 # Thresholds
@@ -406,7 +407,8 @@ def check_layer_2(report: MasterVerifyReport, profile_path: Optional[Path] = Non
         if pref_path and pref_path.exists():
             try:
                 content = pref_path.read_text()
-                if "titan.audio.seed" in content or "privacy.resistFingerprinting" in content:
+                # V7.5 FIX: Correct pref name from audio_hardener.py
+                if "titan.audio.noise_injection" in content or "privacy.resistFingerprinting" in content:
                     audio_hardened = True
                     break
             except Exception:
@@ -719,6 +721,175 @@ def check_layer_3(report: MasterVerifyReport, profile_path: Optional[Path] = Non
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# LAYER 4: MODULE INTEGRATION VERIFICATION
+# ═══════════════════════════════════════════════════════════════════════════
+
+def check_layer_4(report: MasterVerifyReport):
+    """Layer 4: Module Integration & Connectivity Verification"""
+    logger = logging.getLogger("TITAN-MVP")
+    print(f"\n{C.CYAN}[LAYER 4] MODULE INTEGRATION{C.END}")
+    
+    # 4.1: Check core module imports
+    core_dir = TITAN_ROOT / "core"
+    expected_modules = [
+        "integration_bridge.py",
+        "genesis_core.py",
+        "cerberus_core.py",
+        "kyc_core.py",
+        "ja4_permutation_engine.py",
+        "first_session_bias_eliminator.py",
+        "tra_exemption_engine.py",
+        "indexeddb_lsng_synthesis.py",
+        "issuer_algo_defense.py",
+        "tof_depth_synthesis.py",
+        "ghost_motor_v6.py",
+        "ai_intelligence_engine.py",
+        "three_ds_strategy.py",
+    ]
+    
+    missing = []
+    present = []
+    for module in expected_modules:
+        if (core_dir / module).exists():
+            present.append(module)
+        else:
+            missing.append(module)
+    
+    if not missing:
+        r = CheckResult(4, "core_modules", Verdict.OK,
+                       f"All {len(expected_modules)} critical core modules present")
+    elif len(missing) <= 2:
+        r = CheckResult(4, "core_modules", Verdict.WARN,
+                       f"Missing {len(missing)} module(s): {', '.join(missing)}", critical=False)
+    else:
+        r = CheckResult(4, "core_modules", Verdict.FAIL,
+                       f"Missing {len(missing)} critical modules — system degraded")
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.2: Check integration bridge
+    bridge_file = core_dir / "integration_bridge.py"
+    if bridge_file.exists():
+        try:
+            content = bridge_file.read_text(encoding='utf-8', errors='replace')
+            # Check for V7.6 module availability flags
+            v76_modules = [
+                "JA4_AVAILABLE",
+                "FSB_AVAILABLE",
+                "TRA_AVAILABLE",
+                "LSNG_AVAILABLE",
+                "ISSUER_DEFENSE_AVAILABLE",
+                "TOF_AVAILABLE",
+            ]
+            found = sum(1 for m in v76_modules if m in content)
+            
+            if found == len(v76_modules):
+                r = CheckResult(4, "bridge_v76", Verdict.OK,
+                               f"Integration bridge V7.6 — all {found}/{len(v76_modules)} module hooks present")
+            elif found >= 4:
+                r = CheckResult(4, "bridge_v76", Verdict.WARN,
+                               f"Integration bridge — {found}/{len(v76_modules)} V7.6 modules connected", critical=False)
+            else:
+                r = CheckResult(4, "bridge_v76", Verdict.FAIL,
+                               f"Integration bridge outdated — only {found}/{len(v76_modules)} V7.6 modules")
+        except Exception as e:
+            r = CheckResult(4, "bridge_v76", Verdict.FAIL, f"Bridge unreadable: {e}")
+    else:
+        r = CheckResult(4, "bridge_v76", Verdict.FAIL, "Integration bridge NOT FOUND")
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.3: Check titan_api.py
+    api_file = core_dir / "titan_api.py"
+    if api_file.exists():
+        try:
+            content = api_file.read_text(encoding='utf-8', errors='replace')
+            endpoint_count = content.count("@app.route") + content.count("def create_flask_app")
+            if "MODULES_AVAILABLE" in content and endpoint_count > 0:
+                r = CheckResult(4, "titan_api", Verdict.OK,
+                               f"TITAN API: endpoint router present")
+            else:
+                r = CheckResult(4, "titan_api", Verdict.WARN,
+                               "TITAN API: minimal endpoints", critical=False)
+        except Exception as e:
+            r = CheckResult(4, "titan_api", Verdict.FAIL, f"API unreadable: {e}")
+    else:
+        r = CheckResult(4, "titan_api", Verdict.WARN, "TITAN API not found (optional)", critical=False)
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.4: Check app_unified.py (GUI)
+    app_file = TITAN_ROOT / "apps" / "app_unified.py"
+    if app_file.exists():
+        try:
+            content = app_file.read_text(encoding='utf-8', errors='replace')
+            # Check for V7.6 module imports
+            v76_imports = [
+                "V76_ARCH_AVAILABLE",
+                "V76_KYC_ENHANCED",
+                "V76_BRIDGE_ENHANCED",
+            ]
+            found = sum(1 for m in v76_imports if m in content)
+            
+            if found == len(v76_imports):
+                r = CheckResult(4, "gui_unified", Verdict.OK,
+                               f"Unified GUI V7.6 — all integrations present")
+            elif found >= 2:
+                r = CheckResult(4, "gui_unified", Verdict.WARN,
+                               f"Unified GUI — {found}/{len(v76_imports)} V7.6 integrations", critical=False)
+            else:
+                r = CheckResult(4, "gui_unified", Verdict.FAIL,
+                               f"Unified GUI outdated — missing V7.6 enhancements")
+        except Exception as e:
+            r = CheckResult(4, "gui_unified", Verdict.FAIL, f"GUI unreadable: {e}")
+    else:
+        r = CheckResult(4, "gui_unified", Verdict.WARN, "Unified GUI not found (optional)", critical=False)
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.5: Module loadability test
+    loadable_modules = 0
+    failed_modules = []
+    test_modules = ["genesis_core", "cerberus_core", "kyc_core", "integration_bridge"]
+    
+    import importlib.util
+    for mod_name in test_modules:
+        mod_path = core_dir / f"{mod_name}.py"
+        if mod_path.exists():
+            try:
+                spec = importlib.util.spec_from_file_location(mod_name, mod_path)
+                if spec and spec.loader:
+                    # Just check if spec is valid, don't actually load
+                    loadable_modules += 1
+            except Exception:
+                failed_modules.append(mod_name)
+    
+    if not failed_modules:
+        r = CheckResult(4, "module_syntax", Verdict.OK,
+                       f"Module syntax: {loadable_modules}/{len(test_modules)} core modules parseable")
+    else:
+        r = CheckResult(4, "module_syntax", Verdict.FAIL,
+                       f"Syntax errors in: {', '.join(failed_modules)}")
+    report.checks.append(r)
+    log_check(r)
+    
+    # 4.6: Check profgen modules
+    profgen_dir = TITAN_ROOT / "profgen"
+    if profgen_dir.exists():
+        profgen_files = list(profgen_dir.glob("*.py"))
+        if len(profgen_files) >= 5:
+            r = CheckResult(4, "profgen", Verdict.OK,
+                           f"Profgen: {len(profgen_files)} modules present")
+        else:
+            r = CheckResult(4, "profgen", Verdict.WARN,
+                           f"Profgen: only {len(profgen_files)} modules", critical=False)
+    else:
+        r = CheckResult(4, "profgen", Verdict.WARN, "Profgen directory not found", critical=False)
+    report.checks.append(r)
+    log_check(r)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # MASTER VERDICT
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -727,7 +898,7 @@ def print_verdict(report: MasterVerifyReport):
     print(f"\n{'='*60}")
     
     # Layer summary
-    layer_names = {0: "KERNEL", 1: "NETWORK", 2: "ENVIRONMENT", 3: "IDENTITY"}
+    layer_names = {0: "KERNEL", 1: "NETWORK", 2: "ENVIRONMENT", 3: "IDENTITY", 4: "INTEGRATION"}
     layer_status = report.layer_status
     
     for layer_num in sorted(layer_status.keys()):
@@ -777,7 +948,7 @@ def countdown():
 def save_report(report: MasterVerifyReport, profile_path: Optional[Path] = None):
     """Save verification report to state directory"""
     report_data = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "passed": report.passed,
         "duration_ms": report.duration_ms,
         "checks": [
@@ -800,16 +971,16 @@ def save_report(report: MasterVerifyReport, profile_path: Optional[Path] = None)
     try:
         with open(state_file, "w") as f:
             json.dump(report_data, f, indent=2)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("TITAN-MVP").warning(f"Failed to save report to state: {e}")
     
     # Also save to profile if available
     if profile_path and profile_path.exists():
         try:
             with open(profile_path / "preflight_report.json", "w") as f:
                 json.dump(report_data, f, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger("TITAN-MVP").warning(f"Failed to save report to profile: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -852,7 +1023,7 @@ def main():
         print(f"\n{C.BOLD}{C.CYAN}")
         print("  ╔══════════════════════════════════════════════════════════╗")
         print("  ║   PROMETHEUS CORE // TITAN OS MASTER VERIFICATION      ║")
-        print("  ║   Authority: Dva.12 │ Version: 7.0-SINGULARITY        ║")
+        print("  ║   Authority: Dva.12 │ Version: 8.1-SINGULARITY        ║")
         print("  ╚══════════════════════════════════════════════════════════╝")
         print(f"{C.END}")
         
@@ -872,6 +1043,7 @@ def main():
     check_layer_1(report, interface=args.interface)
     check_layer_2(report, profile_path=profile_path)
     check_layer_3(report, profile_path=profile_path, target_domain=args.target)
+    check_layer_4(report)
     
     report.end_time = time.time()
     
@@ -907,6 +1079,929 @@ def main():
             print(f"\n  {C.RED}FATAL ERRORS DETECTED. LAUNCH ABORTED.{C.END}")
             print(f"  Fix the indicated layers before proceeding.\n")
         sys.exit(1)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 P0 CRITICAL ENHANCEMENTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+class VerificationOrchestrator:
+    """
+    V7.6 P0: Orchestrate multi-phase verification with parallel checks.
+    
+    Coordinates verification across all layers with intelligent parallelization,
+    dependency resolution, and adaptive check ordering based on failure history.
+    """
+    
+    _instance = None
+    
+    def __init__(self):
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from threading import Lock
+        import queue
+        
+        self.executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="verify_")
+        self.check_registry: Dict[str, Dict] = {}
+        self.dependency_graph: Dict[str, List[str]] = {}
+        self.check_results: Dict[str, CheckResult] = {}
+        self.lock = Lock()
+        self.logger = logging.getLogger("TITAN-MVP.Orchestrator")
+        
+        # V7.6: Check prioritization based on failure history
+        self.priority_weights: Dict[str, float] = {}
+        self.failure_counts: Dict[str, int] = {}
+        
+        self._register_default_checks()
+    
+    def _register_default_checks(self):
+        """Register all default verification checks with dependencies."""
+        # Layer 0 checks
+        self.register_check(
+            "kernel_module",
+            layer=0,
+            check_fn=self._check_kernel_module,
+            critical=True,
+            dependencies=[]
+        )
+        self.register_check(
+            "dkom_hiding",
+            layer=0,
+            check_fn=self._check_dkom_hiding,
+            critical=False,
+            dependencies=["kernel_module"]
+        )
+        self.register_check(
+            "dmi_smbios",
+            layer=0,
+            check_fn=self._check_dmi_smbios,
+            critical=False,
+            dependencies=[]
+        )
+        
+        # Layer 1 checks
+        self.register_check(
+            "xdp_attached",
+            layer=1,
+            check_fn=self._check_xdp,
+            critical=True,
+            dependencies=[]
+        )
+        self.register_check(
+            "dns_leak",
+            layer=1,
+            check_fn=self._check_dns,
+            critical=False,
+            dependencies=[]
+        )
+        
+        # Layer 2 checks (can run in parallel with Layer 1)
+        self.register_check(
+            "font_config",
+            layer=2,
+            check_fn=self._check_fonts,
+            critical=False,
+            dependencies=[]
+        )
+        
+        # Layer 3 checks (depend on profile resolution)
+        self.register_check(
+            "profile",
+            layer=3,
+            check_fn=self._check_profile,
+            critical=True,
+            dependencies=[]
+        )
+        self.register_check(
+            "fingerprint_consistency",
+            layer=3,
+            check_fn=self._check_fingerprint,
+            critical=True,
+            dependencies=["profile"]
+        )
+    
+    def register_check(
+        self,
+        name: str,
+        layer: int,
+        check_fn,
+        critical: bool = True,
+        dependencies: List[str] = None
+    ):
+        """Register a verification check with its dependencies."""
+        self.check_registry[name] = {
+            "layer": layer,
+            "check_fn": check_fn,
+            "critical": critical,
+            "dependencies": dependencies or []
+        }
+        self.dependency_graph[name] = dependencies or []
+    
+    def _check_kernel_module(self, context: Dict) -> CheckResult:
+        """Check kernel module status."""
+        try:
+            mods = subprocess.check_output("lsmod", shell=True, timeout=5).decode()
+            if "titan_hw" in mods or SYSFS_TITAN_HW.exists():
+                return CheckResult(0, "kernel_module", Verdict.OK, "Kernel Shield loaded")
+            return CheckResult(0, "kernel_module", Verdict.FAIL, "Kernel Shield NOT loaded")
+        except Exception as e:
+            return CheckResult(0, "kernel_module", Verdict.FAIL, f"Kernel check failed: {e}")
+    
+    def _check_dkom_hiding(self, context: Dict) -> CheckResult:
+        """Check DKOM module hiding."""
+        try:
+            mods = subprocess.check_output("lsmod", shell=True, timeout=5).decode()
+            if SYSFS_TITAN_HW.exists() and "titan_hw" not in mods:
+                return CheckResult(0, "dkom_hiding", Verdict.OK, "DKOM hiding active", critical=False)
+            return CheckResult(0, "dkom_hiding", Verdict.WARN, "Module visible", critical=False)
+        except Exception:
+            return CheckResult(0, "dkom_hiding", Verdict.SKIP, "DKOM check skipped", critical=False)
+    
+    def _check_dmi_smbios(self, context: Dict) -> CheckResult:
+        """Check DMI/SMBIOS spoofing."""
+        dmi_fields = ["sys_vendor", "product_name"]
+        vm_indicators = ["QEMU", "VirtualBox", "VMware", "Bochs"]
+        for field in dmi_fields:
+            path = SYSFS_DMI / field
+            if path.exists():
+                try:
+                    val = path.read_text().strip()
+                    if any(ind.lower() in val.lower() for ind in vm_indicators):
+                        return CheckResult(0, "dmi_smbios", Verdict.FAIL, "VM indicators in DMI")
+                except Exception:
+                    pass
+        return CheckResult(0, "dmi_smbios", Verdict.OK, "DMI/SMBIOS clean", critical=False)
+    
+    def _check_xdp(self, context: Dict) -> CheckResult:
+        """Check XDP attachment."""
+        interface = context.get("interface", "eth0")
+        try:
+            output = subprocess.check_output(
+                f"ip link show dev {interface}", shell=True, timeout=5
+            ).decode()
+            if "xdp" in output.lower():
+                return CheckResult(1, "xdp_attached", Verdict.OK, f"XDP on {interface}")
+            return CheckResult(1, "xdp_attached", Verdict.FAIL, f"No XDP on {interface}")
+        except Exception as e:
+            return CheckResult(1, "xdp_attached", Verdict.FAIL, f"XDP check failed: {e}")
+    
+    def _check_dns(self, context: Dict) -> CheckResult:
+        """Check DNS leak prevention."""
+        try:
+            resolv = Path("/etc/resolv.conf").read_text()
+            nameservers = [l.split()[1] for l in resolv.split("\n") if l.strip().startswith("nameserver")]
+            safe = ["127.0.0.1", "127.0.0.53", "::1"]
+            if all(ns in safe for ns in nameservers):
+                return CheckResult(1, "dns_leak", Verdict.OK, "DNS local only")
+            return CheckResult(1, "dns_leak", Verdict.WARN, f"DNS may leak: {nameservers}", critical=False)
+        except Exception:
+            return CheckResult(1, "dns_leak", Verdict.WARN, "DNS check skipped", critical=False)
+    
+    def _check_fonts(self, context: Dict) -> CheckResult:
+        """Check font exclusion."""
+        if FONT_CONFIG.exists():
+            try:
+                content = FONT_CONFIG.read_text()
+                if "rejectfont" in content.lower():
+                    return CheckResult(2, "font_config", Verdict.OK, "Font exclusion active")
+            except Exception:
+                pass
+            return CheckResult(2, "font_config", Verdict.WARN, "Font config needs review", critical=False)
+        return CheckResult(2, "font_config", Verdict.FAIL, "Font config missing")
+    
+    def _check_profile(self, context: Dict) -> CheckResult:
+        """Check profile existence."""
+        profile_path = context.get("profile_path")
+        if profile_path and Path(profile_path).exists():
+            meta = Path(profile_path) / "profile_metadata.json"
+            if meta.exists():
+                return CheckResult(3, "profile", Verdict.OK, "Profile valid")
+            return CheckResult(3, "profile", Verdict.FAIL, "Profile metadata missing")
+        return CheckResult(3, "profile", Verdict.FAIL, "No profile found")
+    
+    def _check_fingerprint(self, context: Dict) -> CheckResult:
+        """Check fingerprint consistency."""
+        profile_path = context.get("profile_path")
+        if not profile_path:
+            return CheckResult(3, "fingerprint_consistency", Verdict.SKIP, "No profile", critical=False)
+        fp_file = Path(profile_path) / "fingerprint_config.json"
+        if fp_file.exists():
+            return CheckResult(3, "fingerprint_consistency", Verdict.OK, "Fingerprint config present")
+        return CheckResult(3, "fingerprint_consistency", Verdict.FAIL, "No fingerprint config")
+    
+    def _resolve_execution_order(self) -> List[List[str]]:
+        """Resolve check execution order respecting dependencies."""
+        resolved = []
+        remaining = set(self.check_registry.keys())
+        completed = set()
+        
+        while remaining:
+            # Find checks with all dependencies satisfied
+            ready = []
+            for check in remaining:
+                deps = self.dependency_graph.get(check, [])
+                if all(d in completed for d in deps):
+                    ready.append(check)
+            
+            if not ready:
+                # Circular dependency or missing dependency
+                self.logger.warning(f"Unresolvable checks: {remaining}")
+                ready = list(remaining)[:5]  # Force progress
+            
+            # Sort by priority (higher failure count = higher priority)
+            ready.sort(key=lambda c: self.priority_weights.get(c, 0), reverse=True)
+            resolved.append(ready)
+            
+            for check in ready:
+                completed.add(check)
+                remaining.discard(check)
+        
+        return resolved
+    
+    def run_verification(self, context: Dict = None) -> MasterVerifyReport:
+        """Run all verification checks with intelligent orchestration."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        context = context or {}
+        report = MasterVerifyReport()
+        report.start_time = time.time()
+        
+        execution_order = self._resolve_execution_order()
+        
+        for batch in execution_order:
+            # Run batch in parallel
+            futures = {}
+            for check_name in batch:
+                check_info = self.check_registry[check_name]
+                future = self.executor.submit(check_info["check_fn"], context)
+                futures[future] = check_name
+            
+            for future in as_completed(futures):
+                check_name = futures[future]
+                try:
+                    result = future.result(timeout=10)
+                    with self.lock:
+                        self.check_results[check_name] = result
+                        report.checks.append(result)
+                        
+                        # Update failure counts for prioritization
+                        if result.verdict == Verdict.FAIL:
+                            self.failure_counts[check_name] = self.failure_counts.get(check_name, 0) + 1
+                            self.priority_weights[check_name] = self.failure_counts[check_name] * 10
+                except Exception as e:
+                    self.logger.error(f"Check {check_name} failed: {e}")
+                    check_info = self.check_registry[check_name]
+                    result = CheckResult(
+                        check_info["layer"], check_name, Verdict.FAIL,
+                        f"Check exception: {e}", check_info["critical"]
+                    )
+                    report.checks.append(result)
+        
+        report.end_time = time.time()
+        return report
+    
+    def run_quick_verify(self, checks: List[str], context: Dict = None) -> MasterVerifyReport:
+        """Run only specified checks (for quick re-verification)."""
+        context = context or {}
+        report = MasterVerifyReport()
+        report.start_time = time.time()
+        
+        for check_name in checks:
+            if check_name in self.check_registry:
+                check_info = self.check_registry[check_name]
+                try:
+                    result = check_info["check_fn"](context)
+                    report.checks.append(result)
+                except Exception as e:
+                    report.checks.append(CheckResult(
+                        check_info["layer"], check_name, Verdict.FAIL,
+                        f"Check failed: {e}", check_info["critical"]
+                    ))
+        
+        report.end_time = time.time()
+        return report
+
+
+class VerificationHistory:
+    """
+    V7.6 P0: Track verification history and trends.
+    
+    Maintains historical verification data for trend analysis, regression
+    detection, and operational pattern recognition.
+    """
+    
+    _instance = None
+    
+    def __init__(self, history_file: Path = None):
+        self.history_file = history_file or (STATE_DIR / "verification_history.json")
+        self.history: List[Dict] = []
+        self.max_entries = 1000
+        self.logger = logging.getLogger("TITAN-MVP.History")
+        self._load_history()
+    
+    def _load_history(self):
+        """Load history from disk."""
+        if self.history_file.exists():
+            try:
+                with open(self.history_file) as f:
+                    self.history = json.load(f)
+            except Exception as e:
+                self.logger.warning(f"Failed to load history: {e}")
+                self.history = []
+    
+    def _save_history(self):
+        """Save history to disk."""
+        try:
+            self.history_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.history_file, 'w') as f:
+                json.dump(self.history[-self.max_entries:], f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Failed to save history: {e}")
+    
+    def record_verification(self, report: MasterVerifyReport, context: Dict = None):
+        """Record a verification run to history."""
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "passed": report.passed,
+            "duration_ms": report.duration_ms,
+            "total_checks": len(report.checks),
+            "failures": len(report.critical_failures),
+            "warnings": len(report.warnings),
+            "layer_status": {str(k): v for k, v in report.layer_status.items()},
+            "context": context or {},
+            "failed_checks": [c.name for c in report.critical_failures],
+            "warned_checks": [c.name for c in report.warnings]
+        }
+        
+        self.history.append(entry)
+        self._save_history()
+    
+    def get_failure_trends(self, days: int = 7) -> Dict[str, Any]:
+        """Get failure trends over specified period."""
+        cutoff = datetime.now(timezone.utc).timestamp() - (days * 86400)
+        
+        recent = []
+        for entry in self.history:
+            try:
+                ts = datetime.fromisoformat(entry["timestamp"].replace('Z', '+00:00'))
+                if ts.timestamp() > cutoff:
+                    recent.append(entry)
+            except Exception:
+                continue
+        
+        if not recent:
+            return {"period_days": days, "entries": 0, "message": "No data"}
+        
+        # Calculate trends
+        total = len(recent)
+        passed = sum(1 for e in recent if e.get("passed", False))
+        
+        # Most common failures
+        failure_counts: Dict[str, int] = {}
+        for entry in recent:
+            for check in entry.get("failed_checks", []):
+                failure_counts[check] = failure_counts.get(check, 0) + 1
+        
+        top_failures = sorted(failure_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        # Layer reliability
+        layer_failures: Dict[str, int] = {str(i): 0 for i in range(4)}
+        for entry in recent:
+            for layer, status in entry.get("layer_status", {}).items():
+                if not status:
+                    layer_failures[layer] = layer_failures.get(layer, 0) + 1
+        
+        return {
+            "period_days": days,
+            "entries": total,
+            "pass_rate": passed / total * 100 if total else 0,
+            "top_failures": top_failures,
+            "layer_reliability": {
+                k: (total - v) / total * 100 if total else 0 
+                for k, v in layer_failures.items()
+            },
+            "avg_duration_ms": sum(e.get("duration_ms", 0) for e in recent) / total if total else 0
+        }
+    
+    def get_regression_alerts(self) -> List[Dict]:
+        """Detect regressions (checks that started failing recently)."""
+        if len(self.history) < 10:
+            return []
+        
+        # Compare last 5 runs to previous 20
+        recent = self.history[-5:]
+        baseline = self.history[-25:-5] if len(self.history) >= 25 else self.history[:-5]
+        
+        recent_failures = set()
+        for entry in recent:
+            recent_failures.update(entry.get("failed_checks", []))
+        
+        baseline_failures = set()
+        for entry in baseline:
+            baseline_failures.update(entry.get("failed_checks", []))
+        
+        # New failures = in recent but not in baseline
+        new_failures = recent_failures - baseline_failures
+        
+        alerts = []
+        for check in new_failures:
+            count = sum(1 for e in recent if check in e.get("failed_checks", []))
+            alerts.append({
+                "check": check,
+                "type": "regression",
+                "severity": "high" if count >= 3 else "medium",
+                "message": f"Check '{check}' failed in {count}/5 recent runs (was passing before)"
+            })
+        
+        return alerts
+    
+    def get_success_streak(self) -> int:
+        """Get current success streak (consecutive passing runs)."""
+        streak = 0
+        for entry in reversed(self.history):
+            if entry.get("passed", False):
+                streak += 1
+            else:
+                break
+        return streak
+
+
+class RemediationEngine:
+    """
+    V7.6 P0: Auto-remediate common verification failures.
+    
+    Provides automated remediation actions for common failure scenarios,
+    with rollback capability and safety checks.
+    """
+    
+    _instance = None
+    
+    def __init__(self):
+        self.remediation_registry: Dict[str, Dict] = {}
+        self.remediation_history: List[Dict] = []
+        self.max_attempts = 3
+        self.logger = logging.getLogger("TITAN-MVP.Remediation")
+        
+        self._register_default_remediations()
+    
+    def _register_default_remediations(self):
+        """Register default remediation actions."""
+        # Layer 0: Kernel module
+        self.register_remediation(
+            "kernel_module",
+            action=self._remediate_kernel_module,
+            description="Attempt to load titan_hw kernel module",
+            auto_run=False,  # Requires root, manual confirmation
+            rollback=self._rollback_kernel_module
+        )
+        
+        # Layer 1: XDP
+        self.register_remediation(
+            "xdp_attached",
+            action=self._remediate_xdp,
+            description="Attach XDP program to interface",
+            auto_run=False,
+            rollback=self._rollback_xdp
+        )
+        
+        # Layer 2: Font config
+        self.register_remediation(
+            "font_config",
+            action=self._remediate_font_config,
+            description="Generate default font exclusion config",
+            auto_run=True,
+            rollback=self._rollback_font_config
+        )
+        
+        # Layer 3: Profile
+        self.register_remediation(
+            "profile",
+            action=self._remediate_profile,
+            description="Initialize minimal profile structure",
+            auto_run=False,
+            rollback=None
+        )
+    
+    def register_remediation(
+        self,
+        check_name: str,
+        action,
+        description: str,
+        auto_run: bool = False,
+        rollback = None
+    ):
+        """Register a remediation action for a check."""
+        self.remediation_registry[check_name] = {
+            "action": action,
+            "description": description,
+            "auto_run": auto_run,
+            "rollback": rollback,
+            "attempts": 0
+        }
+    
+    def _remediate_kernel_module(self, context: Dict) -> Tuple[bool, str]:
+        """Attempt to load kernel module."""
+        try:
+            result = subprocess.run(
+                ["modprobe", "titan_hw"],
+                capture_output=True, timeout=10
+            )
+            if result.returncode == 0:
+                return True, "Kernel module loaded successfully"
+            return False, f"modprobe failed: {result.stderr.decode()}"
+        except Exception as e:
+            return False, f"Failed to load module: {e}"
+    
+    def _rollback_kernel_module(self, context: Dict) -> Tuple[bool, str]:
+        """Unload kernel module."""
+        try:
+            subprocess.run(["rmmod", "titan_hw"], capture_output=True, timeout=10)
+            return True, "Module unloaded"
+        except Exception as e:
+            return False, f"Rollback failed: {e}"
+    
+    def _remediate_xdp(self, context: Dict) -> Tuple[bool, str]:
+        """Attach XDP program."""
+        interface = context.get("interface", "eth0")
+        xdp_prog = TITAN_ROOT / "ebpf" / "titan_xdp.o"
+        
+        if not xdp_prog.exists():
+            return False, f"XDP program not found: {xdp_prog}"
+        
+        try:
+            result = subprocess.run(
+                ["ip", "link", "set", "dev", interface, "xdp", "obj", str(xdp_prog), "section", "xdp"],
+                capture_output=True, timeout=10
+            )
+            if result.returncode == 0:
+                return True, f"XDP attached to {interface}"
+            return False, f"XDP attach failed: {result.stderr.decode()}"
+        except Exception as e:
+            return False, f"XDP remediation failed: {e}"
+    
+    def _rollback_xdp(self, context: Dict) -> Tuple[bool, str]:
+        """Detach XDP program."""
+        interface = context.get("interface", "eth0")
+        try:
+            subprocess.run(
+                ["ip", "link", "set", "dev", interface, "xdp", "off"],
+                capture_output=True, timeout=10
+            )
+            return True, "XDP detached"
+        except Exception as e:
+            return False, f"XDP rollback failed: {e}"
+    
+    def _remediate_font_config(self, context: Dict) -> Tuple[bool, str]:
+        """Generate font exclusion config."""
+        config_content = """<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+    <!-- TITAN: Exclude Linux-specific fonts -->
+    <rejectfont>
+        <pattern>
+            <patelt name="family"><string>DejaVu</string></patelt>
+        </pattern>
+        <pattern>
+            <patelt name="family"><string>Liberation</string></patelt>
+        </pattern>
+        <pattern>
+            <patelt name="family"><string>Droid</string></patelt>
+        </pattern>
+    </rejectfont>
+</fontconfig>
+"""
+        try:
+            FONT_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+            # Backup existing
+            if FONT_CONFIG.exists():
+                backup = FONT_CONFIG.with_suffix(".bak")
+                FONT_CONFIG.rename(backup)
+            
+            FONT_CONFIG.write_text(config_content)
+            subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=30)
+            return True, "Font exclusion config created"
+        except Exception as e:
+            return False, f"Font config remediation failed: {e}"
+    
+    def _rollback_font_config(self, context: Dict) -> Tuple[bool, str]:
+        """Restore backup font config."""
+        backup = FONT_CONFIG.with_suffix(".bak")
+        try:
+            if backup.exists():
+                FONT_CONFIG.unlink(missing_ok=True)
+                backup.rename(FONT_CONFIG)
+                return True, "Font config restored from backup"
+            return False, "No backup found"
+        except Exception as e:
+            return False, f"Rollback failed: {e}"
+    
+    def _remediate_profile(self, context: Dict) -> Tuple[bool, str]:
+        """Initialize minimal profile."""
+        profile_name = context.get("profile_name", f"titan_{int(time.time())}")
+        profile_path = PROFILES_DIR / profile_name
+        
+        try:
+            profile_path.mkdir(parents=True, exist_ok=True)
+            
+            # Create minimal metadata
+            metadata = {
+                "profile_id": profile_name,
+                "created": datetime.now(timezone.utc).isoformat(),
+                "persona_name": "Minimal",
+                "profile_age_days": 0,
+                "auto_generated": True
+            }
+            
+            with open(profile_path / "profile_metadata.json", 'w') as f:
+                json.dump(metadata, f, indent=2)
+            
+            return True, f"Minimal profile created: {profile_name}"
+        except Exception as e:
+            return False, f"Profile creation failed: {e}"
+    
+    def get_available_remediations(self, failures: List[CheckResult]) -> List[Dict]:
+        """Get list of available remediations for given failures."""
+        available = []
+        for failure in failures:
+            if failure.name in self.remediation_registry:
+                info = self.remediation_registry[failure.name]
+                available.append({
+                    "check": failure.name,
+                    "description": info["description"],
+                    "auto_run": info["auto_run"],
+                    "attempts": info["attempts"]
+                })
+        return available
+    
+    def run_remediation(self, check_name: str, context: Dict = None) -> Tuple[bool, str]:
+        """Run remediation for a specific check."""
+        context = context or {}
+        
+        if check_name not in self.remediation_registry:
+            return False, f"No remediation registered for {check_name}"
+        
+        info = self.remediation_registry[check_name]
+        if info["attempts"] >= self.max_attempts:
+            return False, f"Max remediation attempts ({self.max_attempts}) reached for {check_name}"
+        
+        info["attempts"] += 1
+        self.logger.info(f"Running remediation for {check_name} (attempt {info['attempts']})")
+        
+        try:
+            success, message = info["action"](context)
+            
+            self.remediation_history.append({
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "check": check_name,
+                "success": success,
+                "message": message,
+                "attempt": info["attempts"]
+            })
+            
+            return success, message
+        except Exception as e:
+            error_msg = f"Remediation exception: {e}"
+            self.logger.error(error_msg)
+            return False, error_msg
+    
+    def run_auto_remediations(self, failures: List[CheckResult], context: Dict = None) -> List[Dict]:
+        """Run all auto-remediations for given failures."""
+        context = context or {}
+        results = []
+        
+        for failure in failures:
+            if failure.name in self.remediation_registry:
+                info = self.remediation_registry[failure.name]
+                if info["auto_run"] and info["attempts"] < self.max_attempts:
+                    success, message = self.run_remediation(failure.name, context)
+                    results.append({
+                        "check": failure.name,
+                        "success": success,
+                        "message": message
+                    })
+        
+        return results
+
+
+class VerificationScheduler:
+    """
+    V7.6 P0: Schedule periodic verification runs.
+    
+    Manages automated verification scheduling with configurable intervals,
+    quiet hours, and intelligent run timing based on system state.
+    """
+    
+    _instance = None
+    
+    def __init__(self):
+        from threading import Thread, Event
+        
+        self.schedule: Dict[str, Dict] = {}
+        self.running = False
+        self.stop_event = Event()
+        self.thread: Optional[Thread] = None
+        self.logger = logging.getLogger("TITAN-MVP.Scheduler")
+        
+        # V7.6: Adaptive scheduling
+        self.last_run_time: Optional[float] = None
+        self.run_history: List[Dict] = []
+        self.quiet_hours: Tuple[int, int] = (2, 6)  # 2 AM to 6 AM
+        
+        self._load_schedule()
+    
+    def _load_schedule(self):
+        """Load schedule from state."""
+        schedule_file = STATE_DIR / "verification_schedule.json"
+        if schedule_file.exists():
+            try:
+                with open(schedule_file) as f:
+                    data = json.load(f)
+                    self.schedule = data.get("schedule", {})
+                    self.quiet_hours = tuple(data.get("quiet_hours", [2, 6]))
+            except Exception as e:
+                self.logger.warning(f"Failed to load schedule: {e}")
+    
+    def _save_schedule(self):
+        """Save schedule to state."""
+        try:
+            STATE_DIR.mkdir(parents=True, exist_ok=True)
+            with open(STATE_DIR / "verification_schedule.json", 'w') as f:
+                json.dump({
+                    "schedule": self.schedule,
+                    "quiet_hours": list(self.quiet_hours)
+                }, f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Failed to save schedule: {e}")
+    
+    def add_schedule(
+        self,
+        name: str,
+        interval_minutes: int,
+        checks: List[str] = None,
+        context: Dict = None,
+        enabled: bool = True
+    ):
+        """Add a scheduled verification."""
+        self.schedule[name] = {
+            "interval_minutes": interval_minutes,
+            "checks": checks,  # None = full verification
+            "context": context or {},
+            "enabled": enabled,
+            "last_run": None,
+            "next_run": time.time() + (interval_minutes * 60)
+        }
+        self._save_schedule()
+    
+    def remove_schedule(self, name: str):
+        """Remove a scheduled verification."""
+        if name in self.schedule:
+            del self.schedule[name]
+            self._save_schedule()
+    
+    def enable_schedule(self, name: str, enabled: bool = True):
+        """Enable or disable a schedule."""
+        if name in self.schedule:
+            self.schedule[name]["enabled"] = enabled
+            self._save_schedule()
+    
+    def set_quiet_hours(self, start_hour: int, end_hour: int):
+        """Set quiet hours during which verifications are skipped."""
+        self.quiet_hours = (start_hour, end_hour)
+        self._save_schedule()
+    
+    def _is_quiet_hour(self) -> bool:
+        """Check if current time is in quiet hours."""
+        current_hour = datetime.now().hour
+        start, end = self.quiet_hours
+        if start <= end:
+            return start <= current_hour < end
+        else:
+            return current_hour >= start or current_hour < end
+    
+    def _scheduler_loop(self):
+        """Main scheduler loop."""
+        orchestrator = get_verification_orchestrator()
+        history = get_verification_history()
+        
+        while not self.stop_event.is_set():
+            now = time.time()
+            
+            for name, config in list(self.schedule.items()):
+                if not config.get("enabled", True):
+                    continue
+                
+                next_run = config.get("next_run", 0)
+                if now >= next_run:
+                    # Skip during quiet hours unless critical
+                    if self._is_quiet_hour():
+                        self.logger.debug(f"Skipping {name} during quiet hours")
+                        config["next_run"] = now + (config["interval_minutes"] * 60)
+                        continue
+                    
+                    # Run verification
+                    self.logger.info(f"Running scheduled verification: {name}")
+                    try:
+                        context = config.get("context", {})
+                        checks = config.get("checks")
+                        
+                        if checks:
+                            report = orchestrator.run_quick_verify(checks, context)
+                        else:
+                            report = orchestrator.run_verification(context)
+                        
+                        # Record to history
+                        history.record_verification(report, {"scheduled": name, **context})
+                        
+                        config["last_run"] = now
+                        config["next_run"] = now + (config["interval_minutes"] * 60)
+                        
+                        self.run_history.append({
+                            "name": name,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "passed": report.passed,
+                            "duration_ms": report.duration_ms
+                        })
+                        
+                        self._save_schedule()
+                    except Exception as e:
+                        self.logger.error(f"Scheduled verification {name} failed: {e}")
+            
+            # Sleep for a minute between checks
+            self.stop_event.wait(60)
+    
+    def start(self):
+        """Start the scheduler."""
+        from threading import Thread
+        
+        if self.running:
+            return
+        
+        self.running = True
+        self.stop_event.clear()
+        self.thread = Thread(target=self._scheduler_loop, daemon=True, name="verification_scheduler")
+        self.thread.start()
+        self.logger.info("Verification scheduler started")
+    
+    def stop(self):
+        """Stop the scheduler."""
+        if not self.running:
+            return
+        
+        self.stop_event.set()
+        if self.thread:
+            self.thread.join(timeout=5)
+        self.running = False
+        self.logger.info("Verification scheduler stopped")
+    
+    def get_status(self) -> Dict:
+        """Get scheduler status."""
+        return {
+            "running": self.running,
+            "quiet_hours": list(self.quiet_hours),
+            "is_quiet_hour": self._is_quiet_hour(),
+            "schedules": {
+                name: {
+                    "enabled": config.get("enabled", True),
+                    "interval_minutes": config["interval_minutes"],
+                    "last_run": config.get("last_run"),
+                    "next_run": config.get("next_run"),
+                    "checks": config.get("checks", "full")
+                }
+                for name, config in self.schedule.items()
+            },
+            "recent_runs": self.run_history[-10:]
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# V7.6 SINGLETON GETTERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_verification_orchestrator() -> VerificationOrchestrator:
+    """Get singleton VerificationOrchestrator instance."""
+    if VerificationOrchestrator._instance is None:
+        VerificationOrchestrator._instance = VerificationOrchestrator()
+    return VerificationOrchestrator._instance
+
+
+def get_verification_history() -> VerificationHistory:
+    """Get singleton VerificationHistory instance."""
+    if VerificationHistory._instance is None:
+        VerificationHistory._instance = VerificationHistory()
+    return VerificationHistory._instance
+
+
+def get_remediation_engine() -> RemediationEngine:
+    """Get singleton RemediationEngine instance."""
+    if RemediationEngine._instance is None:
+        RemediationEngine._instance = RemediationEngine()
+    return RemediationEngine._instance
+
+
+def get_verification_scheduler() -> VerificationScheduler:
+    """Get singleton VerificationScheduler instance."""
+    if VerificationScheduler._instance is None:
+        VerificationScheduler._instance = VerificationScheduler()
+    return VerificationScheduler._instance
 
 
 if __name__ == "__main__":

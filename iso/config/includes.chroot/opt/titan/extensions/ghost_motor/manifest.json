@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Ghost Motor",
-  "version": "7.0.0",
-  "description": "Human input augmentation - adds natural physics to mouse movements",
+  "name": "Enhanced Input",
+  "version": "1.0.0",
+  "description": "Accessibility input smoothing extension",
   "permissions": [],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [

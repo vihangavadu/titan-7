@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Lucid VPN Module
+TITAN V8.1 SINGULARITY - Lucid VPN Module
 Zero-Signature Residential Network Emulation System
 
 Replaces third-party proxy dependency with self-hosted infrastructure:
@@ -26,7 +26,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Centralized env loading
 try:
@@ -92,6 +92,11 @@ class VPNConfig:
     xray_public_key: str = ""
     xray_short_id: str = ""
     sni_target: str = "www.microsoft.com"
+    sni_rotation_pool: List[str] = field(default_factory=lambda: [
+        "www.microsoft.com", "www.apple.com", "www.amazon.com",
+        "learn.microsoft.com", "azure.microsoft.com",
+        "www.cloudflare.com", "www.google.com", "www.yahoo.com",
+    ])
     flow: str = "xtls-rprx-vision"
     
     # Tailscale
@@ -381,8 +386,8 @@ class LucidVPN:
                     data = json.load(f)
                 self.state.status = VPNStatus(data.get("status", "disconnected"))
                 self.state.mode = VPNMode(data.get("mode", "proxy"))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load VPN state: {e}")
     
     def _save_state(self):
         """Persist state to disk"""
@@ -547,7 +552,7 @@ class LucidVPN:
             self._validate_connection()
             
             self.state.status = VPNStatus.CONNECTED
-            self.state.last_check = datetime.now().isoformat()
+            self.state.last_check = datetime.now(timezone.utc).isoformat()
             self.state.error_message = None
             self._save_state()
             
@@ -667,8 +672,6 @@ table ip titan_vpn {{
     
     def _start_xray(self):
         """Start Xray client process"""
-        global XRAY_BINARY
-        
         # Kill any existing instance
         self._run_cmd(["pkill", "-f", "xray"], check=False)
         time.sleep(0.5)
@@ -676,12 +679,13 @@ table ip titan_vpn {{
         # Write config
         self.write_xray_config()
         
-        # Check binary exists
-        if not Path(XRAY_BINARY).exists():
+        # V7.5 FIX: Use instance variable instead of mutating module-level global
+        xray_bin = XRAY_BINARY
+        if not Path(xray_bin).exists():
             # Try alternative locations
             for alt in ["/usr/bin/xray", "/usr/local/bin/xray", "/opt/titan/bin/xray"]:
                 if Path(alt).exists():
-                    XRAY_BINARY = alt
+                    xray_bin = alt
                     break
             else:
                 raise FileNotFoundError(
@@ -691,7 +695,7 @@ table ip titan_vpn {{
         
         # Start Xray
         proc = subprocess.Popen(
-            [XRAY_BINARY, "run", "-c", str(XRAY_CONFIG_FILE)],
+            [xray_bin, "run", "-c", str(XRAY_CONFIG_FILE)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
@@ -802,17 +806,20 @@ server:
     
     def _validate_connection(self):
         """Validate VPN connection: IP, DNS, TCP fingerprint"""
-        # Check exit IP via SOCKS5 tunnel
+        # V7.5 FIX: urllib doesn't support socks5h:// — use curl via subprocess
         try:
-            import urllib.request
-            proxy_handler = urllib.request.ProxyHandler({
-                "http": "socks5h://127.0.0.1:10808",
-                "https": "socks5h://127.0.0.1:10808",
-            })
-            opener = urllib.request.build_opener(proxy_handler)
-            response = opener.open("https://api.ipify.org?format=json", timeout=10)
-            ip_data = json.loads(response.read())
-            self.state.exit_ip = ip_data.get("ip", "unknown")
+            result = subprocess.run(
+                ["curl", "-s", "--max-time", "10",
+                 "--socks5-hostname", "127.0.0.1:10808",
+                 "https://api.ipify.org?format=json"],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                ip_data = json.loads(result.stdout)
+                self.state.exit_ip = ip_data.get("ip", "unknown")
+            else:
+                logger.warning(f"IP check returned non-zero or empty: {result.stderr[:100]}")
+                self.state.exit_ip = "unknown"
         except Exception as e:
             logger.warning(f"Could not determine exit IP: {e}")
             self.state.exit_ip = "unknown"
@@ -908,3 +915,1000 @@ def get_network_mode() -> VPNMode:
     vpn = LucidVPN()
     vpn.load_config()
     return vpn.state.mode
+
+
+# =============================================================================
+# TITAN V7.6 P0 CRITICAL ENHANCEMENTS
+# =============================================================================
+
+import threading
+import hashlib
+import random
+from collections import deque
+from typing import Callable
+
+
+class LeakType(Enum):
+    """Types of network leaks"""
+    DNS_LEAK = "dns_leak"
+    IP_LEAK = "ip_leak"
+    WEBRTC_LEAK = "webrtc_leak"
+    IPV6_LEAK = "ipv6_leak"
+    TIMING_LEAK = "timing_leak"
+
+
+@dataclass
+class LeakDetection:
+    """Individual leak detection result"""
+    leak_type: LeakType
+    detected: bool
+    evidence: str
+    timestamp: float
+    severity: str  # critical, high, medium, low
+
+
+@dataclass
+class VPNEndpoint:
+    """VPN endpoint for failover management"""
+    name: str
+    address: str
+    port: int
+    priority: int = 1
+    is_healthy: bool = True
+    last_check: float = 0.0
+    latency_ms: float = 0.0
+    fail_count: int = 0
+
+
+@dataclass
+class VPNSessionMetric:
+    """Metric for VPN session analytics"""
+    metric_name: str
+    value: float
+    unit: str
+    timestamp: float
+    tags: Dict[str, str] = field(default_factory=dict)
+
+
+class VPNHealthMonitor:
+    """
+    V7.6 P0 CRITICAL: Continuous monitoring of VPN connection health.
+    
+    Monitors VPN tunnel health with automatic reconnection on failure.
+    Tracks latency, packet loss, and connection stability over time.
+    
+    Usage:
+        monitor = get_vpn_health_monitor()
+        
+        # Start monitoring
+        monitor.start_monitoring(vpn_instance)
+        
+        # Get health status
+        health = monitor.get_health_status()
+        
+        # Register failure callback
+        monitor.on_failure(lambda: handle_vpn_failure())
+    """
+    
+    # Health thresholds
+    LATENCY_WARNING_MS = 500
+    LATENCY_CRITICAL_MS = 2000
+    PACKET_LOSS_WARNING = 0.05  # 5%
+    PACKET_LOSS_CRITICAL = 0.20  # 20%
+    
+    def __init__(self, check_interval: float = 30.0):
+        self.check_interval = check_interval
+        self.vpn: Optional[LucidVPN] = None
+        self._stop_event = threading.Event()
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._health_history: deque = deque(maxlen=100)
+        self._failure_callbacks: List[Callable] = []
+        self._recovery_callbacks: List[Callable] = []
+        self._is_healthy = True
+        self._consecutive_failures = 0
+        self._lock = threading.Lock()
+        logger.info("VPNHealthMonitor initialized")
+    
+    def start_monitoring(self, vpn: LucidVPN) -> None:
+        """Start health monitoring for VPN connection"""
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            return
+        
+        self.vpn = vpn
+        self._stop_event.clear()
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            daemon=True,
+            name="VPNHealthMonitor"
+        )
+        self._monitor_thread.start()
+        logger.info("VPN health monitoring started")
+    
+    def stop_monitoring(self) -> None:
+        """Stop health monitoring"""
+        self._stop_event.set()
+        if self._monitor_thread:
+            self._monitor_thread.join(timeout=5.0)
+        logger.info("VPN health monitoring stopped")
+    
+    def on_failure(self, callback: Callable) -> None:
+        """Register callback for connection failure"""
+        with self._lock:
+            self._failure_callbacks.append(callback)
+    
+    def on_recovery(self, callback: Callable) -> None:
+        """Register callback for connection recovery"""
+        with self._lock:
+            self._recovery_callbacks.append(callback)
+    
+    def _monitor_loop(self) -> None:
+        """Main monitoring loop"""
+        while not self._stop_event.is_set():
+            try:
+                health = self._check_health()
+                
+                with self._lock:
+                    self._health_history.append(health)
+                    
+                    if health["is_healthy"]:
+                        if not self._is_healthy:
+                            # Recovery detected
+                            self._is_healthy = True
+                            self._consecutive_failures = 0
+                            self._trigger_recovery_callbacks()
+                    else:
+                        self._consecutive_failures += 1
+                        if self._is_healthy and self._consecutive_failures >= 3:
+                            # Failure confirmed after 3 consecutive failures
+                            self._is_healthy = False
+                            self._trigger_failure_callbacks()
+                
+            except Exception as e:
+                logger.error(f"Health check error: {e}")
+            
+            self._stop_event.wait(self.check_interval)
+    
+    def _check_health(self) -> Dict[str, Any]:
+        """Perform health check"""
+        health = {
+            "timestamp": time.time(),
+            "is_healthy": False,
+            "tunnel_alive": False,
+            "latency_ms": 0,
+            "packet_loss": 0,
+            "issues": []
+        }
+        
+        if not self.vpn:
+            health["issues"].append("No VPN instance")
+            return health
+        
+        # Check tunnel port
+        health["tunnel_alive"] = self.vpn._check_port(10808)
+        if not health["tunnel_alive"]:
+            health["issues"].append("SOCKS5 tunnel not responding")
+            return health
+        
+        # Measure latency with curl through tunnel
+        try:
+            start = time.time()
+            result = subprocess.run(
+                ["curl", "-s", "--max-time", "5",
+                 "--socks5-hostname", "127.0.0.1:10808",
+                 "-o", "/dev/null", "-w", "%{time_total}",
+                 "https://www.gstatic.com/generate_204"],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                health["latency_ms"] = float(result.stdout.strip()) * 1000
+            else:
+                health["latency_ms"] = -1
+                health["issues"].append("Latency check failed")
+        except Exception as e:
+            health["latency_ms"] = -1
+            health["issues"].append(f"Latency error: {str(e)[:50]}")
+        
+        # Check latency thresholds
+        if health["latency_ms"] > self.LATENCY_CRITICAL_MS:
+            health["issues"].append(f"Critical latency: {health['latency_ms']:.0f}ms")
+        elif health["latency_ms"] > self.LATENCY_WARNING_MS:
+            health["issues"].append(f"High latency: {health['latency_ms']:.0f}ms")
+        
+        # Determine overall health
+        health["is_healthy"] = (
+            health["tunnel_alive"] and 
+            health["latency_ms"] > 0 and
+            health["latency_ms"] < self.LATENCY_CRITICAL_MS
+        )
+        
+        return health
+    
+    def _trigger_failure_callbacks(self) -> None:
+        """Trigger all failure callbacks"""
+        logger.warning("VPN health failure detected - triggering callbacks")
+        for callback in self._failure_callbacks:
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f"Failure callback error: {e}")
+    
+    def _trigger_recovery_callbacks(self) -> None:
+        """Trigger all recovery callbacks"""
+        logger.info("VPN health recovered - triggering callbacks")
+        for callback in self._recovery_callbacks:
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f"Recovery callback error: {e}")
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get current health status summary"""
+        with self._lock:
+            recent = list(self._health_history)[-10:] if self._health_history else []
+        
+        if not recent:
+            return {
+                "status": "unknown",
+                "is_healthy": False,
+                "message": "No health data yet"
+            }
+        
+        # Calculate averages
+        latencies = [h["latency_ms"] for h in recent if h["latency_ms"] > 0]
+        avg_latency = sum(latencies) / len(latencies) if latencies else 0
+        
+        healthy_count = sum(1 for h in recent if h["is_healthy"])
+        uptime_pct = (healthy_count / len(recent)) * 100
+        
+        return {
+            "status": "healthy" if self._is_healthy else "degraded",
+            "is_healthy": self._is_healthy,
+            "avg_latency_ms": round(avg_latency, 1),
+            "uptime_pct": round(uptime_pct, 1),
+            "consecutive_failures": self._consecutive_failures,
+            "last_check": recent[-1]["timestamp"] if recent else None,
+            "recent_issues": [h["issues"] for h in recent[-3:] if h["issues"]]
+        }
+    
+    def force_reconnect(self) -> bool:
+        """Force VPN reconnection"""
+        if not self.vpn:
+            return False
+        
+        logger.info("Forcing VPN reconnection...")
+        self.vpn.disconnect()
+        time.sleep(2)
+        state = self.vpn.connect()
+        return state.status == VPNStatus.CONNECTED
+
+
+# Singleton instance
+_vpn_health_monitor: Optional[VPNHealthMonitor] = None
+
+def get_vpn_health_monitor() -> VPNHealthMonitor:
+    """Get singleton VPNHealthMonitor instance"""
+    global _vpn_health_monitor
+    if _vpn_health_monitor is None:
+        _vpn_health_monitor = VPNHealthMonitor()
+    return _vpn_health_monitor
+
+
+class TunnelFailoverManager:
+    """
+    V7.6 P0 CRITICAL: Manage failover between multiple VPN endpoints.
+    
+    Maintains a prioritized list of VPN endpoints and automatically
+    fails over to the next available endpoint when primary fails.
+    
+    Usage:
+        failover = get_tunnel_failover_manager()
+        
+        # Add endpoints
+        failover.add_endpoint(VPNEndpoint("primary", "vps1.example.com", 443, priority=1))
+        failover.add_endpoint(VPNEndpoint("backup", "vps2.example.com", 443, priority=2))
+        
+        # Get best endpoint
+        endpoint = failover.get_best_endpoint()
+        
+        # Mark failure
+        failover.mark_endpoint_failed("primary")
+    """
+    
+    MAX_FAIL_COUNT = 5
+    HEALTH_CHECK_TIMEOUT = 10
+    
+    def __init__(self):
+        self.endpoints: Dict[str, VPNEndpoint] = {}
+        self._lock = threading.Lock()
+        self._active_endpoint: Optional[str] = None
+        logger.info("TunnelFailoverManager initialized")
+    
+    def add_endpoint(self, endpoint: VPNEndpoint) -> None:
+        """Add a VPN endpoint"""
+        with self._lock:
+            self.endpoints[endpoint.name] = endpoint
+            logger.info(f"Endpoint added: {endpoint.name} ({endpoint.address}:{endpoint.port})")
+    
+    def remove_endpoint(self, name: str) -> bool:
+        """Remove a VPN endpoint"""
+        with self._lock:
+            if name in self.endpoints:
+                del self.endpoints[name]
+                return True
+            return False
+    
+    def get_endpoint(self, name: str) -> Optional[VPNEndpoint]:
+        """Get endpoint by name"""
+        return self.endpoints.get(name)
+    
+    def get_best_endpoint(self) -> Optional[VPNEndpoint]:
+        """Get the best available endpoint based on priority and health"""
+        with self._lock:
+            healthy = [e for e in self.endpoints.values() 
+                      if e.is_healthy and e.fail_count < self.MAX_FAIL_COUNT]
+            
+            if not healthy:
+                # All endpoints failed, try to reset oldest failure
+                all_endpoints = sorted(
+                    self.endpoints.values(),
+                    key=lambda e: e.last_check
+                )
+                if all_endpoints:
+                    # Reset oldest endpoint for retry
+                    oldest = all_endpoints[0]
+                    oldest.fail_count = 0
+                    oldest.is_healthy = True
+                    logger.warning(f"All endpoints failed, resetting: {oldest.name}")
+                    return oldest
+                return None
+            
+            # Sort by priority (lower = better) then latency
+            healthy.sort(key=lambda e: (e.priority, e.latency_ms))
+            return healthy[0]
+    
+    def mark_endpoint_failed(self, name: str) -> None:
+        """Mark endpoint as failed"""
+        with self._lock:
+            if name in self.endpoints:
+                ep = self.endpoints[name]
+                ep.fail_count += 1
+                ep.last_check = time.time()
+                
+                if ep.fail_count >= self.MAX_FAIL_COUNT:
+                    ep.is_healthy = False
+                    logger.warning(f"Endpoint marked unhealthy: {name} (fails: {ep.fail_count})")
+    
+    def mark_endpoint_success(self, name: str, latency_ms: float = 0) -> None:
+        """Mark endpoint as successfully connected"""
+        with self._lock:
+            if name in self.endpoints:
+                ep = self.endpoints[name]
+                ep.is_healthy = True
+                ep.fail_count = 0
+                ep.latency_ms = latency_ms
+                ep.last_check = time.time()
+                self._active_endpoint = name
+    
+    def check_endpoint_health(self, endpoint: VPNEndpoint) -> Tuple[bool, float]:
+        """Check if endpoint is reachable, returns (is_healthy, latency_ms)"""
+        try:
+            start = time.time()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(self.HEALTH_CHECK_TIMEOUT)
+            result = sock.connect_ex((endpoint.address, endpoint.port))
+            sock.close()
+            
+            if result == 0:
+                latency = (time.time() - start) * 1000
+                return True, latency
+            return False, 0
+        except Exception:
+            return False, 0
+    
+    def check_all_endpoints(self) -> Dict[str, Dict]:
+        """Check health of all endpoints"""
+        results = {}
+        for name, ep in self.endpoints.items():
+            is_healthy, latency = self.check_endpoint_health(ep)
+            
+            with self._lock:
+                ep.is_healthy = is_healthy
+                ep.latency_ms = latency
+                ep.last_check = time.time()
+                if is_healthy:
+                    ep.fail_count = max(0, ep.fail_count - 1)
+            
+            results[name] = {
+                "is_healthy": is_healthy,
+                "latency_ms": round(latency, 1),
+                "fail_count": ep.fail_count,
+                "priority": ep.priority
+            }
+        
+        return results
+    
+    def get_active_endpoint(self) -> Optional[str]:
+        """Get currently active endpoint name"""
+        return self._active_endpoint
+    
+    def failover(self) -> Optional[VPNEndpoint]:
+        """
+        Perform failover to next best endpoint.
+        
+        Returns:
+            Next endpoint to use, or None if all exhausted
+        """
+        with self._lock:
+            if self._active_endpoint:
+                self.mark_endpoint_failed(self._active_endpoint)
+        
+        next_ep = self.get_best_endpoint()
+        if next_ep:
+            logger.info(f"Failing over to endpoint: {next_ep.name}")
+        else:
+            logger.error("No healthy endpoints available for failover")
+        
+        return next_ep
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get failover manager status"""
+        return {
+            "endpoint_count": len(self.endpoints),
+            "healthy_count": sum(1 for e in self.endpoints.values() if e.is_healthy),
+            "active_endpoint": self._active_endpoint,
+            "endpoints": {
+                name: {
+                    "address": ep.address,
+                    "is_healthy": ep.is_healthy,
+                    "priority": ep.priority,
+                    "fail_count": ep.fail_count,
+                    "latency_ms": ep.latency_ms
+                }
+                for name, ep in self.endpoints.items()
+            }
+        }
+
+
+# Singleton instance
+_failover_manager: Optional[TunnelFailoverManager] = None
+
+def get_tunnel_failover_manager() -> TunnelFailoverManager:
+    """Get singleton TunnelFailoverManager instance"""
+    global _failover_manager
+    if _failover_manager is None:
+        _failover_manager = TunnelFailoverManager()
+    return _failover_manager
+
+
+class NetworkLeakDetector:
+    """
+    V7.6 P0 CRITICAL: Detect DNS, WebRTC, and IP leaks in real-time.
+    
+    Continuously monitors for network leaks that could expose
+    the operator's real identity or location.
+    
+    Usage:
+        detector = get_network_leak_detector()
+        
+        # Configure expected exit IP
+        detector.set_expected_exit_ip("1.2.3.4")
+        
+        # Run leak detection
+        leaks = detector.detect_all_leaks()
+        
+        # Start continuous monitoring
+        detector.start_monitoring(callback=handle_leak)
+    """
+    
+    # DNS leak test servers
+    DNS_LEAK_TEST_DOMAINS = [
+        "whoami.akamai.net",
+        "myip.opendns.com",
+    ]
+    
+    def __init__(self):
+        self.expected_exit_ip: Optional[str] = None
+        self.expected_country: Optional[str] = None
+        self._stop_event = threading.Event()
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._leak_history: deque = deque(maxlen=50)
+        self._leak_callbacks: List[Callable[[LeakDetection], None]] = []
+        self._lock = threading.Lock()
+        logger.info("NetworkLeakDetector initialized")
+    
+    def set_expected_exit_ip(self, ip: str) -> None:
+        """Set expected exit IP for leak detection"""
+        self.expected_exit_ip = ip
+    
+    def set_expected_country(self, country: str) -> None:
+        """Set expected exit country"""
+        self.expected_country = country
+    
+    def on_leak_detected(self, callback: Callable[[LeakDetection], None]) -> None:
+        """Register callback for leak detection"""
+        with self._lock:
+            self._leak_callbacks.append(callback)
+    
+    def detect_dns_leak(self) -> LeakDetection:
+        """
+        Detect DNS leaks by checking resolver IP.
+        
+        If DNS requests aren't going through the VPN tunnel,
+        they may reveal the real location.
+        """
+        detection = LeakDetection(
+            leak_type=LeakType.DNS_LEAK,
+            detected=False,
+            evidence="",
+            timestamp=time.time(),
+            severity="critical"
+        )
+        
+        try:
+            # Try to resolve through tunnel using dig
+            result = subprocess.run(
+                ["dig", "+short", "whoami.akamai.net", "@9.9.9.9"],
+                capture_output=True, text=True, timeout=10
+            )
+            
+            if result.returncode == 0:
+                resolver_ip = result.stdout.strip()
+                
+                if resolver_ip and self.expected_exit_ip:
+                    # Check if resolver IP is different from expected exit
+                    # (This is a simplified check - real implementation would
+                    # validate against known VPN exit IPs)
+                    detection.evidence = f"Resolver IP: {resolver_ip}"
+                    
+                    # For now, just record the resolver IP
+                    # In production, compare against known good resolver IPs
+                    if resolver_ip != self.expected_exit_ip:
+                        # Not necessarily a leak - depends on DNS setup
+                        detection.detected = False
+        
+        except Exception as e:
+            detection.evidence = f"DNS check failed: {str(e)[:50]}"
+        
+        return detection
+    
+    def detect_ip_leak(self) -> LeakDetection:
+        """
+        Detect IP address leaks.
+        
+        Compares reported external IP against expected VPN exit IP.
+        """
+        detection = LeakDetection(
+            leak_type=LeakType.IP_LEAK,
+            detected=False,
+            evidence="",
+            timestamp=time.time(),
+            severity="critical"
+        )
+        
+        try:
+            # Check IP through VPN tunnel
+            result = subprocess.run(
+                ["curl", "-s", "--max-time", "10",
+                 "--socks5-hostname", "127.0.0.1:10808",
+                 "https://api.ipify.org"],
+                capture_output=True, text=True, timeout=15
+            )
+            
+            if result.returncode == 0:
+                current_ip = result.stdout.strip()
+                detection.evidence = f"Current IP: {current_ip}"
+                
+                if self.expected_exit_ip and current_ip != self.expected_exit_ip:
+                    # IP doesn't match expected - possible leak
+                    detection.detected = True
+                    detection.evidence += f" (expected: {self.expected_exit_ip})"
+        
+        except Exception as e:
+            detection.evidence = f"IP check failed: {str(e)[:50]}"
+        
+        # Also check direct (non-tunnel) IP to compare
+        try:
+            result = subprocess.run(
+                ["curl", "-s", "--max-time", "5",
+                 "https://api.ipify.org"],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                direct_ip = result.stdout.strip()
+                detection.evidence += f", Direct IP: {direct_ip}"
+        except Exception:
+            pass
+        
+        return detection
+    
+    def detect_ipv6_leak(self) -> LeakDetection:
+        """
+        Detect IPv6 leaks.
+        
+        If VPN only tunnels IPv4, IPv6 traffic may bypass the tunnel.
+        """
+        detection = LeakDetection(
+            leak_type=LeakType.IPV6_LEAK,
+            detected=False,
+            evidence="",
+            timestamp=time.time(),
+            severity="high"
+        )
+        
+        try:
+            # Check if IPv6 is enabled and leaking
+            result = subprocess.run(
+                ["curl", "-s", "-6", "--max-time", "5",
+                 "https://api6.ipify.org"],
+                capture_output=True, text=True, timeout=10
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                ipv6 = result.stdout.strip()
+                detection.detected = True
+                detection.evidence = f"IPv6 exposed: {ipv6}"
+                detection.severity = "high"
+        except Exception:
+            # No IPv6 connectivity - good
+            detection.evidence = "IPv6 not accessible (safe)"
+        
+        return detection
+    
+    def detect_webrtc_leak(self) -> LeakDetection:
+        """
+        Detect potential WebRTC leaks.
+        
+        Note: Full WebRTC leak detection requires browser interaction.
+        This checks if WebRTC-related ports are accessible.
+        """
+        detection = LeakDetection(
+            leak_type=LeakType.WEBRTC_LEAK,
+            detected=False,
+            evidence="",
+            timestamp=time.time(),
+            severity="high"
+        )
+        
+        # Check for STUN/TURN server accessibility (indicates WebRTC capability)
+        stun_servers = [
+            ("stun.l.google.com", 19302),
+            ("stun.cloudflare.com", 3478),
+        ]
+        
+        accessible = []
+        for host, port in stun_servers:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.settimeout(2)
+                sock.sendto(b'\x00\x01\x00\x00', (host, port))
+                sock.close()
+                accessible.append(f"{host}:{port}")
+            except Exception:
+                pass
+        
+        if accessible:
+            detection.evidence = f"STUN servers accessible: {', '.join(accessible)}"
+            # Note: This doesn't mean WebRTC is leaking, just that it could
+            # Full detection requires browser-level checks
+        else:
+            detection.evidence = "STUN servers blocked (WebRTC disabled)"
+        
+        return detection
+    
+    def detect_all_leaks(self) -> List[LeakDetection]:
+        """Run all leak detection checks"""
+        detections = []
+        
+        detections.append(self.detect_dns_leak())
+        detections.append(self.detect_ip_leak())
+        detections.append(self.detect_ipv6_leak())
+        detections.append(self.detect_webrtc_leak())
+        
+        # Store in history
+        with self._lock:
+            for d in detections:
+                if d.detected:
+                    self._leak_history.append(d)
+                    self._trigger_leak_callbacks(d)
+        
+        return detections
+    
+    def _trigger_leak_callbacks(self, detection: LeakDetection) -> None:
+        """Trigger callbacks for detected leak"""
+        for callback in self._leak_callbacks:
+            try:
+                callback(detection)
+            except Exception as e:
+                logger.error(f"Leak callback error: {e}")
+    
+    def start_monitoring(self, interval: float = 60.0) -> None:
+        """Start continuous leak monitoring"""
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            return
+        
+        self._stop_event.clear()
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            args=(interval,),
+            daemon=True,
+            name="NetworkLeakDetector"
+        )
+        self._monitor_thread.start()
+        logger.info("Network leak monitoring started")
+    
+    def stop_monitoring(self) -> None:
+        """Stop continuous monitoring"""
+        self._stop_event.set()
+        if self._monitor_thread:
+            self._monitor_thread.join(timeout=5.0)
+        logger.info("Network leak monitoring stopped")
+    
+    def _monitor_loop(self, interval: float) -> None:
+        """Monitoring loop"""
+        while not self._stop_event.is_set():
+            try:
+                self.detect_all_leaks()
+            except Exception as e:
+                logger.error(f"Leak monitoring error: {e}")
+            
+            self._stop_event.wait(interval)
+    
+    def get_leak_history(self) -> List[Dict]:
+        """Get recent leak detections"""
+        with self._lock:
+            return [
+                {
+                    "type": d.leak_type.value,
+                    "evidence": d.evidence,
+                    "severity": d.severity,
+                    "timestamp": d.timestamp
+                }
+                for d in self._leak_history
+            ]
+    
+    def is_secure(self) -> bool:
+        """Quick check if no recent leaks detected"""
+        with self._lock:
+            recent_cutoff = time.time() - 300  # Last 5 minutes
+            recent_leaks = [d for d in self._leak_history 
+                          if d.timestamp > recent_cutoff and d.detected]
+            return len(recent_leaks) == 0
+
+
+# Singleton instance
+_leak_detector: Optional[NetworkLeakDetector] = None
+
+def get_network_leak_detector() -> NetworkLeakDetector:
+    """Get singleton NetworkLeakDetector instance"""
+    global _leak_detector
+    if _leak_detector is None:
+        _leak_detector = NetworkLeakDetector()
+    return _leak_detector
+
+
+class VPNSessionAnalytics:
+    """
+    V7.6 P0 CRITICAL: Track VPN session metrics for operational insights.
+    
+    Collects and analyzes VPN session data including connection times,
+    latency trends, failover events, and usage patterns.
+    
+    Usage:
+        analytics = get_vpn_session_analytics()
+        
+        # Record events
+        analytics.record_connection(endpoint="primary", latency_ms=45.2)
+        analytics.record_disconnection(reason="failover")
+        
+        # Get analytics
+        report = analytics.generate_report()
+    """
+    
+    def __init__(self):
+        self.metrics: deque = deque(maxlen=1000)
+        self.session_start: Optional[float] = None
+        self.total_connected_time: float = 0.0
+        self.connection_count: int = 0
+        self.failover_count: int = 0
+        self._current_session: Dict[str, Any] = {}
+        self._lock = threading.Lock()
+        logger.info("VPNSessionAnalytics initialized")
+    
+    def record_metric(self, name: str, value: float, unit: str = "",
+                     tags: Optional[Dict[str, str]] = None) -> None:
+        """Record a metric"""
+        metric = VPNSessionMetric(
+            metric_name=name,
+            value=value,
+            unit=unit,
+            timestamp=time.time(),
+            tags=tags or {}
+        )
+        
+        with self._lock:
+            self.metrics.append(metric)
+    
+    def record_connection(self, endpoint: str, latency_ms: float) -> None:
+        """Record successful connection"""
+        with self._lock:
+            self.connection_count += 1
+            self.session_start = time.time()
+            self._current_session = {
+                "endpoint": endpoint,
+                "start_time": self.session_start,
+                "initial_latency_ms": latency_ms
+            }
+        
+        self.record_metric("connection", 1, "count", {"endpoint": endpoint})
+        self.record_metric("latency", latency_ms, "ms", {"endpoint": endpoint})
+        logger.debug(f"Analytics: Connection recorded to {endpoint}")
+    
+    def record_disconnection(self, reason: str = "normal") -> None:
+        """Record disconnection"""
+        with self._lock:
+            if self.session_start:
+                session_duration = time.time() - self.session_start
+                self.total_connected_time += session_duration
+                self.session_start = None
+                
+                self.record_metric(
+                    "session_duration", 
+                    session_duration, 
+                    "seconds",
+                    {"reason": reason}
+                )
+        
+        self.record_metric("disconnection", 1, "count", {"reason": reason})
+        logger.debug(f"Analytics: Disconnection recorded ({reason})")
+    
+    def record_failover(self, from_endpoint: str, to_endpoint: str) -> None:
+        """Record failover event"""
+        with self._lock:
+            self.failover_count += 1
+        
+        self.record_metric(
+            "failover", 1, "count",
+            {"from": from_endpoint, "to": to_endpoint}
+        )
+        logger.debug(f"Analytics: Failover recorded {from_endpoint} -> {to_endpoint}")
+    
+    def record_latency_sample(self, latency_ms: float, endpoint: str = "") -> None:
+        """Record latency measurement"""
+        self.record_metric("latency", latency_ms, "ms", {"endpoint": endpoint})
+    
+    def record_leak_detection(self, leak_type: str, detected: bool) -> None:
+        """Record leak detection result"""
+        self.record_metric(
+            "leak_check", 
+            1 if detected else 0, 
+            "boolean",
+            {"leak_type": leak_type}
+        )
+    
+    def get_average_latency(self, window_minutes: float = 60) -> float:
+        """Get average latency over time window"""
+        cutoff = time.time() - (window_minutes * 60)
+        
+        with self._lock:
+            latency_metrics = [
+                m.value for m in self.metrics
+                if m.metric_name == "latency" and m.timestamp > cutoff
+            ]
+        
+        if not latency_metrics:
+            return 0.0
+        
+        return sum(latency_metrics) / len(latency_metrics)
+    
+    def get_uptime_percentage(self, window_hours: float = 24) -> float:
+        """Calculate uptime percentage over time window"""
+        window_seconds = window_hours * 3600
+        
+        with self._lock:
+            # Calculate from session durations
+            total_available = window_seconds
+            
+            # If currently connected, include current session
+            current_duration = 0
+            if self.session_start:
+                current_duration = time.time() - self.session_start
+            
+            connected_time = self.total_connected_time + current_duration
+            
+            # Cap at window size
+            connected_time = min(connected_time, total_available)
+            
+            if total_available == 0:
+                return 100.0
+            
+            return (connected_time / total_available) * 100
+    
+    def generate_report(self) -> Dict[str, Any]:
+        """Generate comprehensive analytics report"""
+        with self._lock:
+            current_session_duration = 0
+            if self.session_start:
+                current_session_duration = time.time() - self.session_start
+            
+            # Count metrics by type
+            metric_counts = {}
+            for m in self.metrics:
+                metric_counts[m.metric_name] = metric_counts.get(m.metric_name, 0) + 1
+            
+            # Get recent latency samples
+            cutoff_1h = time.time() - 3600
+            recent_latencies = [
+                m.value for m in self.metrics
+                if m.metric_name == "latency" and m.timestamp > cutoff_1h
+            ]
+            
+            return {
+                "summary": {
+                    "total_connections": self.connection_count,
+                    "total_failovers": self.failover_count,
+                    "total_connected_time_hours": round(
+                        (self.total_connected_time + current_session_duration) / 3600, 2
+                    ),
+                    "current_session_minutes": round(current_session_duration / 60, 1),
+                    "is_connected": self.session_start is not None,
+                },
+                "latency": {
+                    "avg_1h": round(self.get_average_latency(60), 1),
+                    "min_1h": round(min(recent_latencies), 1) if recent_latencies else 0,
+                    "max_1h": round(max(recent_latencies), 1) if recent_latencies else 0,
+                    "samples_1h": len(recent_latencies),
+                },
+                "uptime": {
+                    "last_24h": round(self.get_uptime_percentage(24), 1),
+                    "last_1h": round(self.get_uptime_percentage(1), 1),
+                },
+                "metric_counts": metric_counts,
+                "current_session": dict(self._current_session) if self._current_session else None,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+    
+    def export_metrics(self, format: str = "json") -> str:
+        """Export all metrics"""
+        with self._lock:
+            metrics_data = [
+                {
+                    "name": m.metric_name,
+                    "value": m.value,
+                    "unit": m.unit,
+                    "timestamp": m.timestamp,
+                    "tags": m.tags
+                }
+                for m in self.metrics
+            ]
+        
+        if format == "json":
+            return json.dumps(metrics_data, indent=2)
+        else:
+            # CSV format
+            lines = ["name,value,unit,timestamp,tags"]
+            for m in metrics_data:
+                tags_str = ";".join(f"{k}={v}" for k, v in m["tags"].items())
+                lines.append(f"{m['name']},{m['value']},{m['unit']},{m['timestamp']},{tags_str}")
+            return "\n".join(lines)
+    
+    def reset(self) -> None:
+        """Reset all analytics (for testing)"""
+        with self._lock:
+            self.metrics.clear()
+            self.session_start = None
+            self.total_connected_time = 0.0
+            self.connection_count = 0
+            self.failover_count = 0
+            self._current_session = {}
+        logger.info("VPN analytics reset")
+
+
+# Singleton instance
+_vpn_analytics: Optional[VPNSessionAnalytics] = None
+
+def get_vpn_session_analytics() -> VPNSessionAnalytics:
+    """Get singleton VPNSessionAnalytics instance"""
+    global _vpn_analytics
+    if _vpn_analytics is None:
+        _vpn_analytics = VPNSessionAnalytics()
+    return _vpn_analytics

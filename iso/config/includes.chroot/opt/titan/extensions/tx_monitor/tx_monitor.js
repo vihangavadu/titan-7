@@ -1,5 +1,5 @@
 /**
- * TITAN V7.0.3 SINGULARITY — TX Monitor (Content Script)
+ * TITAN V7.5 SINGULARITY — TX Monitor (Content Script)
  * 
  * Intercepts payment-related network requests and captures:
  * - PSP response codes (Stripe, Adyen, Braintree, Auth.net, Shopify)
@@ -245,12 +245,16 @@
     // SEND TO BACKEND
     // ═══════════════════════════════════════════════════════════════════
 
+    // Save originals BEFORE hooking — sendToBackend must bypass our hooks
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    const originalXHRSend = XMLHttpRequest.prototype.send;
+
     function sendToBackend(txData) {
         try {
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', BACKEND_URL, true);
+            originalXHROpen.call(xhr, 'POST', BACKEND_URL, true);
             xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.send(JSON.stringify(txData));
+            originalXHRSend.call(xhr, JSON.stringify(txData));
         } catch(e) {
             // Backend not running — silently ignore
         }
@@ -260,17 +264,14 @@
     // INTERCEPT XMLHttpRequest
     // ═══════════════════════════════════════════════════════════════════
 
-    const originalXHROpen = XMLHttpRequest.prototype.open;
-    const originalXHRSend = XMLHttpRequest.prototype.send;
-
     XMLHttpRequest.prototype.open = function(method, url) {
-        this._txMonUrl = url;
-        this._txMonMethod = method;
+        this._rqU = url;
+        this._rqM = method;
         return originalXHROpen.apply(this, arguments);
     };
 
     XMLHttpRequest.prototype.send = function(body) {
-        const url = this._txMonUrl || '';
+        const url = this._rqU || '';
         const psp = detectPSP(url);
         const is3ds = is3DSRequest(url);
 
@@ -286,7 +287,7 @@
                             domain: window.location.hostname,
                             url: url.substring(0, 200),
                             psp: psp || 'unknown',
-                            method: this._txMonMethod,
+                            method: this._rqM,
                             http_status: this.status,
                             response_code: parsed.code,
                             status: parsed.status,

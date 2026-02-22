@@ -1,45 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  TITAN V7.0 SINGULARITY - Kiosk Menu
-  Minimal right-click menu with Trinity Apps only
+  Titan OS V7.0.3 — Desktop Context Menu
+  Clean, professional right-click menu
 -->
 <openbox_menu xmlns="http://openbox.org/3.4/menu">
-  <menu id="root-menu" label="TITAN V5.2">
-    <separator label="🔱 TRINITY APPS"/>
+  <menu id="root-menu" label="Titan OS">
+    <separator label="Operations"/>
     
-    <item label="🔥 Genesis - Profile Forge">
+    <item label="Operation Center">
+      <action name="Execute">
+        <command>python3 /opt/titan/apps/app_unified.py</command>
+      </action>
+    </item>
+    
+    <item label="Genesis — Profile Forge">
       <action name="Execute">
         <command>python3 /opt/titan/apps/app_genesis.py</command>
       </action>
     </item>
     
-    <item label="🛡️ Cerberus - Card Validator">
+    <item label="Cerberus — Card Validator">
       <action name="Execute">
         <command>python3 /opt/titan/apps/app_cerberus.py</command>
       </action>
     </item>
     
-    <item label="🎭 KYC - Virtual Camera">
+    <item label="KYC — Virtual Camera">
       <action name="Execute">
         <command>python3 /opt/titan/apps/app_kyc.py</command>
       </action>
     </item>
     
-    <separator label="🌐 BROWSERS"/>
+    <separator label="Browser"/>
     
-    <item label="Firefox (Lucid)">
+    <item label="Titan Browser">
       <action name="Execute">
-        <command>/opt/lucid-empire/bin/lucid-firefox</command>
+        <command>bash /opt/titan/bin/titan-browser</command>
       </action>
     </item>
     
-    <item label="Chromium (Lucid)">
-      <action name="Execute">
-        <command>/opt/lucid-empire/bin/lucid-chromium</command>
-      </action>
-    </item>
-    
-    <separator label="🔧 SYSTEM"/>
+    <separator label="System"/>
     
     <item label="Terminal">
       <action name="Execute">
@@ -53,15 +53,21 @@
       </action>
     </item>
     
+    <item label="Bug Reporter">
+      <action name="Execute">
+        <command>python3 /opt/titan/apps/app_bug_reporter.py</command>
+      </action>
+    </item>
+    
     <separator/>
     
-    <item label="⏻ Shutdown">
+    <item label="Shutdown">
       <action name="Execute">
         <command>systemctl poweroff</command>
       </action>
     </item>
     
-    <item label="🔄 Reboot">
+    <item label="Reboot">
       <action name="Execute">
         <command>systemctl reboot</command>
       </action>

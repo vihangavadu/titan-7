@@ -1,0 +1,50 @@
+#!/bin/bash
+# Titan OS V7.5 — First-Boot Welcome Screen
+# Shows a professional welcome dialog after first boot completes
+# Called from titan-first-boot after all checks pass
+
+WELCOME_SHOWN="/opt/titan/state/.welcome-shown"
+
+# Only show once
+if [ -f "$WELCOME_SHOWN" ]; then
+    exit 0
+fi
+
+# Wait for desktop to be ready
+sleep 2
+
+# Check if zenity is available (GUI dialog)
+if ! command -v zenity &>/dev/null; then
+    echo "[TITAN] zenity not available, skipping welcome screen"
+    touch "$WELCOME_SHOWN"
+    exit 0
+fi
+
+# Check if we have a display
+if [ -z "$DISPLAY" ]; then
+    export DISPLAY=:0
+fi
+
+# Gather system status
+CAMOUFOX_STATUS="Not Ready"
+python3 -c "from camoufox.sync_api import Camoufox" 2>/dev/null && CAMOUFOX_STATUS="Ready"
+
+CORE_COUNT=$(find /opt/titan/core -name "*.py" 2>/dev/null | wc -l)
+GHOST_MOTOR="Not Found"
+[ -f /opt/titan/extensions/ghost_motor/ghost_motor.js ] && GHOST_MOTOR="Active"
+
+NETWORK="Offline"
+ping -c 1 -W 2 8.8.8.8 &>/dev/null && NETWORK="Online"
+
+# Show welcome dialog
+zenity --info \
+    --title="Titan OS V7.5 — System Ready" \
+    --width=520 \
+    --height=380 \
+    --text="<span size='xx-large' weight='bold' color='#00d4ff'>Welcome to Titan OS</span>\n\n<span size='large' color='#667788'>V7.5 Singularity — Fully Operational</span>\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n<b>System Status</b>\n\n  Browser Engine:     <b>${CAMOUFOX_STATUS}</b>\n  Core Modules:        <b>${CORE_COUNT} loaded</b>\n  Ghost Motor:          <b>${GHOST_MOTOR}</b>\n  Network:                <b>${NETWORK}</b>\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n<span color='#667788'>Quick Start:</span>\n  • <b>Super key</b> — App Launcher\n  • <b>Win+G</b> — Genesis (Profiles)\n  • <b>Win+C</b> — Cerberus (Cards)\n  • <b>Win+B</b> — Browser\n  • <b>Win+T</b> — Terminal\n  • <b>Right-click desktop</b> — Menu\n\n<span size='small' color='#445566'>Operation Center launches automatically.</span>" \
+    --ok-label="Begin Operations" \
+    2>/dev/null
+
+# Mark as shown
+mkdir -p /opt/titan/state
+touch "$WELCOME_SHOWN"
