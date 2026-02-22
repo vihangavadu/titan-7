@@ -4,14 +4,14 @@ TITAN V8.0 MAXIMUM — Unified Operations Dashboard
 Complete GUI for end-to-end operations
 
 Integrates:
-- Infrastructure assessment with presets + V7.5 target intelligence
+- Infrastructure assessment with presets + V8.0 target intelligence
 - Network configuration with DNS leak prevention
 - Asset validation (Cerberus) + AVS intelligence + freshness scoring
 - Identity synthesis (Genesis)
 - Browser launch with fingerprint verification checklist
 - Verification compliance module (when needed)
 - Operational handover
-- V7.5 Intelligence Panel (AVS, Visa Alerts, PayPal Defense, 3DS v2, Proxy Intel)
+- V8.0 Intelligence Panel (AVS, Visa Alerts, PayPal Defense, 3DS v2, Proxy Intel)
 
 Flow:
 1. User inputs: Target, Proxy, Card, Persona
@@ -50,7 +50,7 @@ except ImportError as e:
     print(f"Warning: Core modules not fully available: {e}")
     CORE_AVAILABLE = False
 
-# V7.5 Intelligence imports
+# V8.0 Intelligence imports
 try:
     from target_intelligence import (
         get_avs_intelligence, get_visa_alerts_intel, check_visa_alerts_eligible,
@@ -61,10 +61,10 @@ try:
     from three_ds_strategy import get_3ds_v2_intelligence, get_3ds_detection_guide
     INTEL_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: V7.5 Intelligence modules not available: {e}")
+    print(f"Warning: V8.0 Intelligence modules not available: {e}")
     INTEL_AVAILABLE = False
 
-# V7.5 KYC imports
+# V8.0 KYC imports
 try:
     from kyc_core import KYCController, ReenactmentConfig, CameraState
     KYC_AVAILABLE = True
@@ -72,7 +72,7 @@ except ImportError as e:
     print(f"Warning: KYC module not available: {e}")
     KYC_AVAILABLE = False
 
-# V7.5 Feature imports
+# V8.0 Feature imports
 try:
     from transaction_monitor import TransactionMonitor, DeclineDecoder, decode_decline
     from target_discovery import TargetDiscovery, AutoDiscovery, get_site_stats, auto_discover
@@ -85,10 +85,10 @@ try:
     from titan_services import TitanServiceManager, get_service_manager, start_all_services
     V703_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: V7.5 modules not available: {e}")
+    print(f"Warning: V8.0 modules not available: {e}")
     V703_AVAILABLE = False
 
-# V7.5 Hardening imports (Phase 2-3)
+# V8.0 Hardening imports (Phase 2-3)
 try:
     from font_sanitizer import FontSanitizer, TargetOS as FontTargetOS, check_fonts
     from audio_hardener import AudioHardener, AudioTargetOS
@@ -99,10 +99,10 @@ try:
     from preflight_validator import PreFlightValidator
     HARDENING_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: V7.5 Hardening modules not available: {e}")
+    print(f"Warning: V8.0 Hardening modules not available: {e}")
     HARDENING_AVAILABLE = False
 
-# V7.5 AI Intelligence Engine
+# V8.0 AI Intelligence Engine
 try:
     from ai_intelligence_engine import (
         is_ai_available, get_ai_status, analyze_bin, recon_target,
@@ -115,7 +115,7 @@ except ImportError as e:
     print(f"Warning: AI Intelligence Engine not available: {e}")
     AI_AVAILABLE = False
 
-# V7.5/V7.6 Architectural Modules (P0 Critical Enhancements)
+# V8.0 Architectural Modules (P0 Critical Enhancements)
 try:
     from ja4_permutation_engine import (
         JA4PermutationEngine, ClientHelloSpec, PermutationConfig,
@@ -146,10 +146,10 @@ try:
     )
     V76_ARCH_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: V7.6 Architectural modules not available: {e}")
+    print(f"Warning: V8.0 Architectural modules not available: {e}")
     V76_ARCH_AVAILABLE = False
 
-# V7.6 KYC Enhancements
+# V8.0 KYC Enhancements
 try:
     from kyc_core import (
         LivenessDetectionBypass, KYCProviderDetector, KYCSessionManager,
@@ -159,7 +159,7 @@ try:
 except ImportError as e:
     V76_KYC_ENHANCED = False
 
-# V7.6 Integration Bridge Enhancements
+# V8.0 Integration Bridge Enhancements
 try:
     from integration_bridge import (
         BridgeHealthMonitor, ModuleDiscoveryEngine, IntegrationAnalytics,
@@ -170,12 +170,22 @@ try:
 except ImportError as e:
     V76_BRIDGE_ENHANCED = False
 
-# V7.6 Extended Modules (Orphan Integration)
+# V8.0 Extended Modules (Orphan Integration)
 try:
     from ghost_motor_v6 import GhostMotorEngine, HumanBehaviorProfile, generate_human_trajectory
     GHOST_MOTOR_AVAILABLE = True
 except ImportError:
     GHOST_MOTOR_AVAILABLE = False
+
+# Payment Reliability Modules
+try:
+    from payment_preflight import PaymentPreflightValidator, quick_check, PreflightStatus
+    from payment_sandbox_tester import PaymentSandboxTester, quick_test, predict_success
+    from payment_success_metrics import PaymentSuccessMetricsDB, PaymentSuccessScorer, get_metrics_db, get_metrics_scorer
+    PAYMENT_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Payment Reliability modules not available: {e}")
+    PAYMENT_AVAILABLE = False
 
 try:
     from webgl_angle import WebGLAngleEngine, AngleConfig
@@ -820,7 +830,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(op_tab, "OPERATION")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 2: V7.5 INTELLIGENCE DASHBOARD
+        # Tab 2: V8.0 INTELLIGENCE DASHBOARD
         # ═══════════════════════════════════════════════════════════════════
         intel_tab = QWidget()
         intel_layout = QVBoxLayout(intel_tab)
@@ -1053,7 +1063,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(intel_tab, "INTELLIGENCE")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 3: V7.5 SHIELDS & HARDENING
+        # Tab 3: V8.0 SHIELDS & HARDENING
         # ═══════════════════════════════════════════════════════════════════
         shields_tab = QWidget()
         shields_layout = QVBoxLayout(shields_tab)
@@ -1123,20 +1133,20 @@ class UnifiedOperationCenter(QMainWindow):
         env_btn_row.addStretch()
         env_form.addRow("Actions:", env_btn_row)
         
-        # V7.5 Extended hardening row
+        # V8.0 Extended hardening row
         env_btn_row2 = QHBoxLayout()
         self.canvas_shim_btn = QPushButton("🖼️ Canvas Shim")
-        self.canvas_shim_btn.setToolTip("V7.5: Sub-pixel measureText() correction for Windows consistency")
+        self.canvas_shim_btn.setToolTip("V8.0: Sub-pixel measureText() correction for Windows consistency")
         self.canvas_shim_btn.clicked.connect(self._run_canvas_shim)
         env_btn_row2.addWidget(self.canvas_shim_btn)
         
         self.cpuid_shield_btn = QPushButton("🔒 CPUID Shield")
-        self.cpuid_shield_btn.setToolTip("V7.5: DMI bind-mount overrides + hypervisor suppression")
+        self.cpuid_shield_btn.setToolTip("V8.0: DMI bind-mount overrides + hypervisor suppression")
         self.cpuid_shield_btn.clicked.connect(self._run_cpuid_shield)
         env_btn_row2.addWidget(self.cpuid_shield_btn)
         
         self.font_prov_btn = QPushButton("📦 Font Provision")
-        self.font_prov_btn.setToolTip("V7.5: Install Windows fonts + block Linux fonts + alias Segoe UI")
+        self.font_prov_btn.setToolTip("V8.0: Install Windows fonts + block Linux fonts + alias Segoe UI")
         self.font_prov_btn.clicked.connect(self._run_font_provisioner)
         env_btn_row2.addWidget(self.font_prov_btn)
         
@@ -1145,7 +1155,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.immutable_btn.clicked.connect(self._run_immutable_os)
         env_btn_row2.addWidget(self.immutable_btn)
         env_btn_row2.addStretch()
-        env_form.addRow("V7.5:", env_btn_row2)
+        env_form.addRow("V8.0:", env_btn_row2)
         
         # Ghost Motor + Fingerprint row
         env_btn_row3 = QHBoxLayout()
@@ -1161,7 +1171,7 @@ class UnifiedOperationCenter(QMainWindow):
         
         self.run_all_shields_btn = QPushButton("⚡ RUN ALL SHIELDS")
         self.run_all_shields_btn.setStyleSheet("QPushButton{background:#E6A817;color:#000;font-weight:bold;}")
-        self.run_all_shields_btn.setToolTip("Run all V7.5 hardening in sequence")
+        self.run_all_shields_btn.setToolTip("Run all V8.0 hardening in sequence")
         self.run_all_shields_btn.clicked.connect(self._run_all_shields)
         env_btn_row3.addWidget(self.run_all_shields_btn)
         env_btn_row3.addStretch()
@@ -1172,7 +1182,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.env_result_text = QTextEdit()
         self.env_result_text.setReadOnly(True)
         self.env_result_text.setPlaceholderText(
-            "V7.5 Environment Hardening:\n"
+            "V8.0 Environment Hardening:\n"
             "  Phase 3.1 — Font Purge: Reject Linux fonts, inject Windows core fonts\n"
             "  Phase 3.2 — Audio Harden: 44100Hz + noise injection + PulseAudio mask\n"
             "  Phase 3.3 — Timezone Sync: Kill browsers → set TZ → NTP sync\n"
@@ -1630,7 +1640,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(forensic_tab, "FORENSIC")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 7: V7.5 TRANSACTION MONITOR
+        # Tab 7: V8.0 TRANSACTION MONITOR
         # ═══════════════════════════════════════════════════════════════════
         tx_tab = QWidget()
         tx_layout = QVBoxLayout(tx_tab)
@@ -1704,7 +1714,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(tx_tab, "TX MONITOR")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 7: V7.5 TARGET DISCOVERY + 3DS BYPASS
+        # Tab 7: V8.0 TARGET DISCOVERY + 3DS BYPASS
         # ═══════════════════════════════════════════════════════════════════
         disc_tab = QWidget()
         disc_layout = QVBoxLayout(disc_tab)
@@ -2054,7 +2064,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.ai_tls_result = QTextEdit()
         self.ai_tls_result.setReadOnly(True)
         self.ai_tls_result.setPlaceholderText(
-            "TLS Parrot Engine V7.5:\n"
+            "TLS Parrot Engine V8.0:\n"
             "  • JA4+ fingerprint parroting\n"
             "  • Per-session cipher/extension shuffling\n"
             "  • Dynamic GREASE rotation\n"
@@ -2079,7 +2089,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.main_tabs.addTab(ai_tab, "🧠 AI INTEL")
         
         # ═══════════════════════════════════════════════════════════════════
-        # Tab 10: V7.6 ARCHITECTURE — Advanced Evasion Modules
+        # Tab 10: V8.0 ARCHITECTURE — Advanced Evasion Modules
         # ═══════════════════════════════════════════════════════════════════
         arch_tab = QWidget()
         arch_layout = QVBoxLayout(arch_tab)
@@ -2132,7 +2142,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.ja4_result = QTextEdit()
         self.ja4_result.setReadOnly(True)
         self.ja4_result.setPlaceholderText(
-            "JA4+ Fingerprint Engine — V7.5 SINGULARITY\n\n"
+            "JA4+ Fingerprint Engine — V8.0 MAXIMUM\n\n"
             "Neutralizes TLS fingerprinting detection:\n"
             "  • Dynamic GREASE value rotation\n"
             "  • Extension array shuffling\n"
@@ -2419,7 +2429,7 @@ class UnifiedOperationCenter(QMainWindow):
         self.bh_result = QTextEdit()
         self.bh_result.setReadOnly(True)
         self.bh_result.setPlaceholderText(
-            "V7.6 Integration Bridge\n\n"
+            "V8.0 Integration Bridge\n\n"
             "Monitors:\n"
             "  • Component health status\n"
             "  • Module discovery & loading\n"
@@ -2430,7 +2440,203 @@ class UnifiedOperationCenter(QMainWindow):
         bh_l.addWidget(self.bh_result)
         self.arch_tabs.addTab(bh_w, "Bridge")
         
-        self.main_tabs.addTab(arch_tab, "⚙️ V7.6 ARCH")
+        self.main_tabs.addTab(arch_tab, "⚙️ V8.0 ARCH")
+        
+        # ═══════════════════════════════════════════════════════════════════════════
+        # Tab 5: PAYMENT RELIABILITY (Safe Testing Framework)
+        # ═══════════════════════════════════════════════════════════════════════════
+        payment_tab = QWidget()
+        payment_layout = QVBoxLayout(payment_tab)
+        payment_layout.setSpacing(4)
+        
+        self.payment_tabs = QTabWidget()
+        self.payment_tabs.setTabPosition(QTabWidget.TabPosition.West)
+        self.payment_tabs.setStyleSheet("""
+            QTabBar::tab { padding: 10px 6px; min-width: 30px; background: #1C2330; color: #64748B; }
+            QTabBar::tab:selected { background: #1A2D4A; color: #4A8AD8; font-weight: bold; border-left: 2px solid #3A75C4; }
+            QTabBar::tab:hover { background: #232B3A; color: #E2E8F0; }
+        """)
+        payment_layout.addWidget(self.payment_tabs)
+        
+        # --- Preflight Validator Sub-Tab ---
+        preflight_widget = QWidget()
+        preflight_layout = QVBoxLayout(preflight_widget)
+        preflight_header = QLabel("💳 PAYMENT PREFLIGHT VALIDATOR")
+        preflight_header.setFont(QFont("JetBrains Mono", 14, QFont.Weight.Bold))
+        preflight_header.setStyleSheet("color: #00d4ff;")
+        preflight_layout.addWidget(preflight_header)
+        preflight_layout.addWidget(QLabel("Validate checkout readiness before human proceeds - NO REAL CHARGES"))
+        
+        preflight_form = QFormLayout()
+        self.preflight_card = QLineEdit()
+        self.preflight_card.setPlaceholderText("4242424242424242 (test card)")
+        preflight_form.addRow("Card Number:", self.preflight_card)
+        
+        self.preflight_country = QComboBox()
+        self.preflight_country.addItems(["US", "CA", "GB", "DE", "FR", "AU", "JP", "BR", "MX"])
+        preflight_form.addRow("Billing Country:", self.preflight_country)
+        
+        self.preflight_amount = QSpinBox()
+        self.preflight_amount.setRange(1, 10000)
+        self.preflight_amount.setValue(99)
+        self.preflight_amount.setPrefix("$")
+        preflight_form.addRow("Amount:", self.preflight_amount)
+        
+        self.preflight_cvv = QLineEdit()
+        self.preflight_cvv.setPlaceholderText("123")
+        self.preflight_cvv.setMaxLength(4)
+        self.preflight_cvv.setMaximumWidth(60)
+        preflight_form.addRow("CVV:", self.preflight_cvv)
+        
+        self.preflight_zip = QLineEdit()
+        self.preflight_zip.setPlaceholderText("10001")
+        self.preflight_zip.setMaximumWidth(80)
+        preflight_form.addRow("ZIP Code:", self.preflight_zip)
+        
+        preflight_btn_row = QHBoxLayout()
+        preflight_check_btn = QPushButton("✅ Run Preflight Check")
+        preflight_check_btn.setStyleSheet("QPushButton{background:#00d4ff;color:#000;font-weight:bold;}")
+        preflight_check_btn.clicked.connect(self._run_preflight_check)
+        preflight_btn_row.addWidget(preflight_check_btn)
+        preflight_btn_row.addStretch()
+        preflight_form.addRow("", preflight_btn_row)
+        
+        preflight_layout.addLayout(preflight_form)
+        
+        self.preflight_result_text = QTextEdit()
+        self.preflight_result_text.setReadOnly(True)
+        self.preflight_result_text.setPlaceholderText(
+            "PAYMENT PREFLIGHT VALIDATION\n"
+            "=" * 50 + "\n\n"
+            "This tool validates payment readiness BEFORE checkout:\n\n"
+            "  1. Card format validation (Luhn check)\n"
+            "  2. Billing address completeness\n"
+            "  3. Geo-match (BIN country vs billing country)\n"
+            "  4. CVV/AVS presence check\n"
+            "  5. Amount reasonableness\n"
+            "  6. Velocity/rate limit check\n"
+            "  7. High-risk country screening\n\n"
+            "Output: GREEN (go), AMBER (caution), RED (no-go)\n"
+            "NO REAL TRANSACTIONS ARE PERFORMED"
+        )
+        preflight_layout.addWidget(self.preflight_result_text)
+        self.payment_tabs.addTab(preflight_widget, "Preflight")
+        
+        # --- Sandbox Tester Sub-Tab ---
+        sandbox_widget = QWidget()
+        sandbox_layout = QVBoxLayout(sandbox_widget)
+        sandbox_header = QLabel("🧪 SANDBOX AUTHORIZATION TESTER")
+        sandbox_header.setFont(QFont("JetBrains Mono", 14, QFont.Weight.Bold))
+        sandbox_header.setStyleSheet("color: #00d4ff;")
+        sandbox_layout.addWidget(sandbox_header)
+        sandbox_layout.addWidget(QLabel("Simulate payment authorizations using test cards - NO REAL MONEY"))
+        
+        sandbox_form = QFormLayout()
+        self.sandbox_gateway = QComboBox()
+        self.sandbox_gateway.addItems(["stripe", "adyen", "braintree"])
+        sandbox_form.addRow("Gateway:", self.sandbox_gateway)
+        
+        self.sandbox_scenario = QComboBox()
+        self.sandbox_scenario.addItems([
+            "success_visa", "success_mastercard", "success_amex",
+            "decline_generic", "decline_insufficient", "decline_expired",
+            "decline_incorrect_cvv", "3ds_required", "3ds_success"
+        ])
+        sandbox_form.addRow("Test Scenario:", self.sandbox_scenario)
+        
+        sandbox_btn_row = QHBoxLayout()
+        sandbox_test_btn = QPushButton("▶ Run Test")
+        sandbox_test_btn.setStyleSheet("QPushButton{background:#00d4ff;color:#000;font-weight:bold;}")
+        sandbox_test_btn.clicked.connect(self._run_sandbox_test)
+        sandbox_btn_row.addWidget(sandbox_test_btn)
+        
+        sandbox_suite_btn = QPushButton("🧪 Full Test Suite")
+        sandbox_suite_btn.clicked.connect(self._run_sandbox_suite)
+        sandbox_btn_row.addWidget(sandbox_suite_btn)
+        
+        sandbox_predict_btn = QPushButton("🔮 Predict Success Rate")
+        sandbox_predict_btn.clicked.connect(self._run_sandbox_predict)
+        sandbox_btn_row.addWidget(sandbox_predict_btn)
+        sandbox_btn_row.addStretch()
+        sandbox_form.addRow("", sandbox_btn_row)
+        
+        sandbox_layout.addLayout(sandbox_form)
+        
+        self.sandbox_result_text = QTextEdit()
+        self.sandbox_result_text.setReadOnly(True)
+        self.sandbox_result_text.setPlaceholderText(
+            "SANDBOX PAYMENT TESTING\n"
+            "=" * 50 + "\n\n"
+            "Simulates authorization flows using TEST cards:\n\n"
+            "  • Stripe test cards (4242424242424242 = success)\n"
+            "  • Adyen test scenarios\n"
+            "  • Braintree test cards\n\n"
+            "Scenarios: approve, soft-decline, hard-decline, 3DS challenge\n\n"
+            "Results: predicted success rate, risk score, retryability\n\n"
+            "⚠️ NO REAL MONEY IS CHARGED - PURE SIMULATION"
+        )
+        sandbox_layout.addWidget(self.sandbox_result_text)
+        self.payment_tabs.addTab(sandbox_widget, "Sandbox")
+        
+        # --- Success Metrics Sub-Tab ---
+        metrics_widget = QWidget()
+        metrics_layout = QVBoxLayout(metrics_widget)
+        metrics_header = QLabel("📊 SUCCESS RATE METRICS")
+        metrics_header.setFont(QFont("JetBrains Mono", 14, QFont.Weight.Bold))
+        metrics_header.setStyleSheet("color: #00d4ff;")
+        metrics_layout.addWidget(metrics_header)
+        metrics_layout.addWidget(QLabel("Track and analyze payment success rates by multiple dimensions"))
+        
+        metrics_form = QFormLayout()
+        self.metrics_target = QLineEdit()
+        self.metrics_target.setPlaceholderText("example.com (optional filter)")
+        metrics_form.addRow("Target Filter:", self.metrics_target)
+        
+        self.metrics_hours = QSpinBox()
+        self.metrics_hours.setRange(1, 168)
+        self.metrics_hours.setValue(24)
+        self.metrics_hours.setSuffix(" hours")
+        metrics_form.addRow("Time Window:", self.metrics_hours)
+        
+        metrics_btn_row = QHBoxLayout()
+        metrics_report_btn = QPushButton("📈 Generate Report")
+        metrics_report_btn.setStyleSheet("QPushButton{background:#00d4ff;color:#000;font-weight:bold;}")
+        metrics_report_btn.clicked.connect(self._generate_metrics_report)
+        metrics_btn_row.addWidget(metrics_report_btn)
+        
+        metrics_score_btn = QPushButton("🎯 Reliability Score")
+        metrics_score_btn.clicked.connect(self._calculate_reliability_score)
+        metrics_btn_row.addWidget(metrics_score_btn)
+        
+        metrics_predict_btn = QPushButton("🔮 Predict Transaction")
+        metrics_predict_btn.clicked.connect(self._predict_transaction_success)
+        metrics_btn_row.addWidget(metrics_predict_btn)
+        metrics_btn_row.addStretch()
+        metrics_form.addRow("", metrics_btn_row)
+        
+        metrics_layout.addLayout(metrics_form)
+        
+        self.metrics_result_text = QTextEdit()
+        self.metrics_result_text.setReadOnly(True)
+        self.metrics_result_text.setPlaceholderText(
+            "SUCCESS RATE METRICS ENGINE\n"
+            "=" * 50 + "\n\n"
+            "Tracks payment success by:\n\n"
+            "  • Merchant/target domain\n"
+            "  • Card BIN range\n"
+            "  • Billing country\n"
+            "  • Amount band\n"
+            "  • Time window\n\n"
+            "Calculates:\n"
+            "  • Overall reliability score (0-100)\n"
+            "  • Confidence level (low/medium/high)\n"
+            "  • Predicted success probability\n\n"
+            "Use for data-driven decision making"
+        )
+        metrics_layout.addWidget(self.metrics_result_text)
+        self.payment_tabs.addTab(metrics_widget, "Metrics")
+        
+        self.main_tabs.addTab(payment_tab, "💳 PAYMENT")
         
         # Start HUD auto-refresh timer (every 5 seconds)
         self._hud_timer = QTimer(self)
@@ -2935,7 +3141,7 @@ class UnifiedOperationCenter(QMainWindow):
 
 
     # ═══════════════════════════════════════════════════════════════════
-    # V7.5 INTELLIGENCE HANDLERS
+    # V8.0 INTELLIGENCE HANDLERS
     # ═══════════════════════════════════════════════════════════════════
     
     def _check_avs(self):
@@ -3048,7 +3254,7 @@ class UnifiedOperationCenter(QMainWindow):
 
 
     # ═══════════════════════════════════════════════════════════════════
-    # V7.5 SHIELDS & HARDENING HANDLERS
+    # V8.0 SHIELDS & HARDENING HANDLERS
     # ═══════════════════════════════════════════════════════════════════
     
     def _run_master_verify(self):
@@ -3337,7 +3543,7 @@ class UnifiedOperationCenter(QMainWindow):
 
 
     # ═══════════════════════════════════════════════════════════════════
-    # V7.5 HANDLER METHODS
+    # V8.0 HANDLER METHODS
     # ═══════════════════════════════════════════════════════════════════
 
     def _auto_start_services(self):
@@ -3369,7 +3575,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _refresh_tx_monitor(self):
         """Refresh TX monitor with recent transactions"""
         if not V703_AVAILABLE:
-            self.tx_log.setPlainText("V7.5 modules not available")
+            self.tx_log.setPlainText("V8.0 modules not available")
             return
         try:
             monitor = TransactionMonitor()
@@ -3396,7 +3602,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _decode_decline(self):
         """Decode a decline code"""
         if not V703_AVAILABLE:
-            self.tx_log.setPlainText("V7.5 modules not available")
+            self.tx_log.setPlainText("V8.0 modules not available")
             return
         code = self.decode_input.text().strip()
         if not code:
@@ -3456,7 +3662,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _run_auto_discovery(self):
         """Run auto-discovery immediately"""
         if not V703_AVAILABLE:
-            self.disc_result_text.setPlainText("V7.5 modules not available")
+            self.disc_result_text.setPlainText("V8.0 modules not available")
             return
         self.disc_result_text.setPlainText("Running Auto-Discovery... (this may take 2-5 minutes)\n")
         try:
@@ -3537,7 +3743,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _score_3ds_bypass(self):
         """Score a site's 3DS bypass potential"""
         if not V703_AVAILABLE:
-            self.bypass_result_text.setPlainText("V7.5 modules not available")
+            self.bypass_result_text.setPlainText("V8.0 modules not available")
             return
         domain = self.bypass_domain.text().strip()
         if not domain:
@@ -3643,7 +3849,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _get_nvbv_recommendations(self):
         """Get Non-VBV BIN recommendations"""
         if not V703_AVAILABLE:
-            self.nvbv_result_text.setPlainText("V7.5 modules not available")
+            self.nvbv_result_text.setPlainText("V8.0 modules not available")
             return
         try:
             country = self.nvbv_country.currentText()
@@ -3706,7 +3912,7 @@ class UnifiedOperationCenter(QMainWindow):
     def _start_all_services(self):
         """Start all background services"""
         if not V703_AVAILABLE:
-            self.svc_result_text.setPlainText("V7.5 modules not available")
+            self.svc_result_text.setPlainText("V8.0 modules not available")
             return
         try:
             mgr = get_service_manager()
@@ -3769,7 +3975,7 @@ class UnifiedOperationCenter(QMainWindow):
             self.svc_result_text.setPlainText(f"Error: {e}")
 
 
-    # ─── V7.5 EXTENDED SHIELD HANDLERS ───────────────────────────────
+    # ─── V8.0 EXTENDED SHIELD HANDLERS ───────────────────────────────
 
     def _run_canvas_shim(self):
         """Generate and deploy Canvas sub-pixel correction shim"""
@@ -3889,7 +4095,7 @@ class UnifiedOperationCenter(QMainWindow):
             traj = motor.generate((100, 100), (500, 400), persona=PersonaType.CASUAL_SHOPPER)
             forter = get_forter_safe_params()
             warmup = get_warmup_pattern()
-            text = f"GHOST MOTOR V7.5 — DIFFUSION TRAJECTORY\n{'='*50}\n\n"
+            text = f"GHOST MOTOR V8.0 — DIFFUSION TRAJECTORY\n{'='*50}\n\n"
             text += f"  Trajectory points: {len(traj.points)}\n"
             text += f"  Duration: {traj.total_duration_ms:.0f}ms\n"
             text += f"  Persona: CASUAL_SHOPPER\n"
@@ -3929,8 +4135,8 @@ class UnifiedOperationCenter(QMainWindow):
             self.env_result_text.setPlainText(f"Fingerprint Injector Error: {e}")
 
     def _run_all_shields(self):
-        """Run all V7.5 shields in sequence"""
-        self.env_result_text.setPlainText("⚡ RUNNING ALL V7.5 SHIELDS...\n")
+        """Run all V8.0 shields in sequence"""
+        self.env_result_text.setPlainText("⚡ RUNNING ALL V8.0 SHIELDS...\n")
         QApplication.processEvents()
         results = []
         steps = [
@@ -3944,7 +4150,7 @@ class UnifiedOperationCenter(QMainWindow):
             ("Ghost Motor", self._run_ghost_motor_test),
             ("Fingerprint Inject", self._run_fingerprint_inject),
         ]
-        text = f"⚡ ALL V7.5 SHIELDS — SEQUENTIAL RUN\n{'='*50}\n\n"
+        text = f"⚡ ALL V8.0 SHIELDS — SEQUENTIAL RUN\n{'='*50}\n\n"
         for name, func in steps:
             try:
                 func()
@@ -4200,7 +4406,7 @@ class UnifiedOperationCenter(QMainWindow):
                 self.ai_tls_result.setPlainText("TLS Parrot module not available")
                 return
             engine = TLSParrotEngine()
-            text = f"TLS PARROT ENGINE V7.5\n{'='*50}\n\n"
+            text = f"TLS PARROT ENGINE V8.0\n{'='*50}\n\n"
             text += f"  Templates loaded: {len(engine.templates)}\n\n"
             for target, tmpl in engine.templates.items():
                 text += f"  {target.value}:\n"
@@ -4243,7 +4449,7 @@ class UnifiedOperationCenter(QMainWindow):
             self.ai_status_result.setPlainText(f"Error: {e}")
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # V7.6 ARCHITECTURE TAB — Handler Methods
+    # V8.0 ARCHITECTURE TAB — Handler Methods
     # ═══════════════════════════════════════════════════════════════════════════
 
     def _generate_ja4_fingerprint(self):
@@ -4644,7 +4850,7 @@ class UnifiedOperationCenter(QMainWindow):
         """Check integration bridge health"""
         try:
             if not V76_BRIDGE_ENHANCED:
-                self.bh_result.setPlainText("❌ V7.6 Bridge enhancements not available.\nCheck integration_bridge.py for BridgeHealthMonitor class.")
+                self.bh_result.setPlainText("❌ V8.0 Bridge enhancements not available.\nCheck integration_bridge.py for BridgeHealthMonitor class.")
                 return
             
             # Create a minimal bridge config for health check
@@ -4705,26 +4911,20 @@ class UnifiedOperationCenter(QMainWindow):
         """Show integration analytics"""
         try:
             if not V76_BRIDGE_ENHANCED:
-                self.bh_result.setPlainText("❌ Integration analytics not available.")
+                self.bh_result.setPlainText("❌ Analytics not available.")
                 return
             
             analytics = get_integration_analytics()
-            summary = analytics.get_performance_summary()
+            report = analytics.get_usage_report(hours=24)
             
-            text = f"INTEGRATION ANALYTICS\n{'='*50}\n\n"
-            text += f"Total Events: {summary.get('total_events', 0)}\n"
-            text += f"Total Duration: {summary.get('total_duration_ms', 0):.1f}ms\n"
-            text += f"Success Rate: {summary.get('success_rate', 0):.1%}\n\n"
+            text = f"INTEGRATION ANALYTICS (24h)\n{'='*50}\n\n"
+            text += f"Total Calls: {report['total_calls']}\n"
+            text += f"Avg Latency: {report['avg_latency_ms']:.1f}ms\n"
+            text += f"Error Rate: {report['error_rate']:.1%}\n\n"
             
-            if summary.get('event_types'):
-                text += "Event Types:\n"
-                for et, data in summary['event_types'].items():
-                    text += f"  • {et}: {data['count']} calls, avg {data['avg_duration_ms']:.1f}ms\n"
-            
-            if summary.get('top_modules'):
-                text += "\nTop Modules:\n"
-                for name, stats in summary['top_modules'][:5]:
-                    text += f"  • {name}: {stats['calls']} calls\n"
+            text += "Top Modules:\n"
+            for mod, count in report['top_modules'].items():
+                text += f"  {mod}: {count} calls\n"
             
             self.bh_result.setPlainText(text)
         except Exception as e:
@@ -4787,7 +4987,7 @@ class UnifiedOperationCenter(QMainWindow):
         )
         self._sb_clock = QLabel()
         self._sb_clock.setStyleSheet("color: #40E0FF; font-family: 'JetBrains Mono', monospace; padding: 0 12px;")
-        self._sb_version = QLabel("TITAN V7.5 SINGULARITY")
+        self._sb_version = QLabel("TITAN V8.0 MAXIMUM")
         self._sb_version.setStyleSheet("color: #64748B; font-family: 'JetBrains Mono', monospace;")
         self._sb_mode = QLabel("MODE: KINETIC")
         self._sb_mode.setStyleSheet("color: #4CAF50; font-family: 'JetBrains Mono', monospace; padding: 0 12px;")
@@ -4803,6 +5003,354 @@ class UnifiedOperationCenter(QMainWindow):
         from datetime import datetime
         now = datetime.now()
         self._sb_clock.setText(now.strftime("⏱ %H:%M:%S  |  %Y-%m-%d"))
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PAYMENT RELIABILITY TAB — Handler Methods
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _run_preflight_check(self):
+        """Run payment preflight validation (V2 ultra-realistic)"""
+        if not PAYMENT_AVAILABLE:
+            self.preflight_result_text.setPlainText("❌ Payment Reliability modules not available.")
+            return
+        
+        try:
+            card = self.preflight_card.text().replace(" ", "").replace("-", "")
+            country = self.preflight_country.currentText()
+            amount = self.preflight_amount.value()
+            cvv = self.preflight_cvv.text()
+            zip_code = self.preflight_zip.text()
+            
+            if not card:
+                self.preflight_result_text.setPlainText("❌ Please enter a card number")
+                return
+            
+            self.preflight_result_text.setPlainText("🔄 Running preflight validation (V2 ultra-realistic)...")
+            QApplication.processEvents()
+            
+            payment_data = {
+                "card_number": card,
+                "billing_country": country,
+                "amount": amount,
+                "currency": "USD",
+                "cvv": cvv,
+                "billing_zip": zip_code,
+                "billing_name": "Test User",
+                "billing_address": "123 Test St",
+                "billing_city": "Test City",
+                "recent_attempts_1h": 0,
+                "sandbox_mode": True
+            }
+            
+            validator = PaymentPreflightValidator()
+            report = validator.validate(payment_data)
+            
+            status_icon = "🟢" if report.status.value == "green" else "🟡" if report.status.value == "amber" else "🔴"
+            text = f"PREFLIGHT VALIDATION REPORT V2\n{'='*55}\n\n"
+            text += f"Status: {status_icon} {report.status.value.upper()}\n"
+            text += f"Overall Score: {report.overall_score:.1f}/100\n"
+            text += f"Predicted Auth Rate: {report.predicted_auth_rate:.1f}%\n"
+            text += f"Confidence: {report.confidence.upper()}\n"
+            text += f"Go/No-Go: {report.go_no_go}\n\n"
+            
+            if report.risk_breakdown:
+                text += "RISK BREAKDOWN:\n" + "-"*45 + "\n"
+                for factor, value in report.risk_breakdown.items():
+                    bar = "█" * int(abs(value) / 2)
+                    sign = "+" if value > 0 else ""
+                    text += f"  {factor:28s} {sign}{value:+.1f}  {bar}\n"
+                text += "\n"
+            
+            text += "DETAILED CHECKS:\n" + "-"*45 + "\n"
+            for check in report.checks:
+                icon = "✅" if check.passed else "❌" if check.severity == "error" else "⚠️"
+                text += f"{icon} {check.check}\n"
+                text += f"   {check.message}\n"
+                if hasattr(check, 'score_impact') and check.score_impact != 0:
+                    text += f"   Score impact: {check.score_impact:+.1f} (weight: {check.weight:.2f})\n"
+                if check.remediation and not check.passed:
+                    text += f"   → Fix: {check.remediation}\n"
+                text += "\n"
+            
+            if report.recommendations:
+                text += "RECOMMENDATIONS:\n" + "-"*45 + "\n"
+                for rec in report.recommendations:
+                    text += f"  • {rec}\n"
+            
+            self.preflight_result_text.setPlainText(text)
+            
+        except Exception as e:
+            self.preflight_result_text.setPlainText(f"❌ Error: {e}")
+    
+    def _run_sandbox_test(self):
+        """Run sandbox payment authorization test (V2 ultra-realistic)"""
+        if not PAYMENT_AVAILABLE:
+            self.sandbox_result_text.setPlainText("❌ Payment Reliability modules not available.")
+            return
+        
+        try:
+            gateway = self.sandbox_gateway.currentText()
+            scenario = self.sandbox_scenario.currentText()
+            
+            self.sandbox_result_text.setPlainText(f"🧪 Running {gateway} test: {scenario}...")
+            QApplication.processEvents()
+            
+            tester = PaymentSandboxTester(gateway=gateway)
+            result = tester.run_test(scenario)
+            
+            approved_results = ["approved", "3ds_completed"]
+            retryable_results = ["soft_decline", "issuer_unavailable", "3ds_required", "timeout"]
+            status_icon = "✅" if result.result.value in approved_results else "⚠️" if result.result.value in retryable_results else "❌"
+            
+            text = f"SANDBOX TEST RESULT V2\n{'='*55}\n\n"
+            text += f"Gateway: {gateway.upper()}\n"
+            text += f"Scenario: {scenario}\n"
+            text += f"Card: {result.test_card}\n\n"
+            
+            text += f"Result: {status_icon} {result.result.value.upper()}\n"
+            text += f"Code: {result.result_code}\n"
+            text += f"Message: {result.message}\n"
+            text += f"Risk Score: {result.risk_score}/100\n"
+            text += f"Latency: {result.latency_ms}ms\n"
+            text += f"Retryable: {'Yes' if result.retryable else 'No'}\n"
+            if result.decline_category:
+                text += f"Decline Category: {result.decline_category}\n"
+            text += "\n"
+            
+            text += "SIMULATION DETAILS:\n" + "-"*45 + "\n"
+            text += f"  • No real transaction was performed\n"
+            text += f"  • Test card used: {result.test_card}\n"
+            text += f"  • Gateway simulation: {gateway}\n"
+            text += f"  • Simulated latency: {result.latency_ms}ms\n"
+            text += f"  • Timestamp: {result.timestamp}\n"
+            
+            self.sandbox_result_text.setPlainText(text)
+            
+        except Exception as e:
+            self.sandbox_result_text.setPlainText(f"❌ Error: {e}")
+    
+    def _run_sandbox_suite(self):
+        """Run full sandbox test suite"""
+        if not PAYMENT_AVAILABLE:
+            self.sandbox_result_text.setPlainText("❌ Payment Reliability modules not available.")
+            return
+        
+        try:
+            gateway = self.sandbox_gateway.currentText()
+            
+            self.sandbox_result_text.setPlainText(f"🧪 Running full {gateway} test suite...")
+            QApplication.processEvents()
+            
+            tester = PaymentSandboxTester(gateway=gateway)
+            session = tester.run_full_suite()
+            
+            text = tester.generate_report(session)
+            self.sandbox_result_text.setPlainText(text)
+            
+        except Exception as e:
+            self.sandbox_result_text.setPlainText(f"❌ Error: {e}")
+    
+    def _run_sandbox_predict(self):
+        """Predict real-world success probability (V2 multi-factor model)"""
+        if not PAYMENT_AVAILABLE:
+            self.sandbox_result_text.setPlainText("❌ Payment Reliability modules not available.")
+            return
+        
+        try:
+            gateway = self.sandbox_gateway.currentText()
+            amount = self.preflight_amount.value()
+            country = self.preflight_country.currentText()
+            
+            self.sandbox_result_text.setPlainText("🔮 Predicting success probability (V2 multi-factor)...")
+            QApplication.processEvents()
+            
+            tester = PaymentSandboxTester(gateway=gateway)
+            profile = {
+                "amount": amount,
+                "billing_country": country,
+                "cross_border": False,
+                "has_3ds": True,
+                "card_network": "visa",
+                "profile_age_hours": 168,
+                "recent_attempts_1h": 0,
+            }
+            prediction = tester.predict_real_success_rate(profile)
+            
+            rate = prediction['predicted_auth_rate']
+            rate_icon = "🟢" if rate >= 80 else "🟡" if rate >= 65 else "🔴"
+            text = f"SUCCESS PROBABILITY PREDICTION V2\n{'='*55}\n\n"
+            text += f"Predicted Auth Rate: {rate_icon} {rate:.1f}%\n"
+            text += f"Predicted 3DS Rate: {prediction['predicted_3ds_rate']:.1f}%\n"
+            text += f"Confidence: {prediction['confidence'].upper()}\n"
+            text += f"Avg Latency: {prediction['avg_latency_ms']}ms\n"
+            text += f"P95 Latency: {prediction['p95_latency_ms']}ms\n\n"
+            text += f"Recommendation: {prediction['recommendation']}\n\n"
+            
+            if prediction['factors']:
+                text += "FACTOR ANALYSIS:\n" + "-"*50 + "\n"
+                for factor, value in prediction['factors']:
+                    sign = "+" if value > 0 else ""
+                    text += f"  {factor:42s} {sign}{value:.1f}\n"
+                text += "\n"
+            
+            dd = prediction.get('decline_distribution', {})
+            if dd:
+                text += "PREDICTED DECLINE DISTRIBUTION:\n" + "-"*50 + "\n"
+                for dtype, pct in dd.items():
+                    bar = "█" * int(pct)
+                    text += f"  {dtype:18s} {pct:5.1f}%  {bar}\n"
+            
+            self.sandbox_result_text.setPlainText(text)
+            
+        except Exception as e:
+            self.sandbox_result_text.setPlainText(f"❌ Error: {e}")
+    
+    def _generate_metrics_report(self):
+        """Generate payment success metrics report (V2 Bayesian)"""
+        if not PAYMENT_AVAILABLE:
+            self.metrics_result_text.setPlainText("❌ Payment Reliability modules not available.")
+            return
+        
+        try:
+            target = self.metrics_target.text().strip() or None
+            hours = self.metrics_hours.value()
+            
+            self.metrics_result_text.setPlainText(f"📊 Generating V2 Bayesian metrics report ({hours}h)...")
+            QApplication.processEvents()
+            
+            scorer = get_metrics_scorer()
+            report = scorer.generate_reliability_report(target=target)
+            
+            text = f"SUCCESS METRICS REPORT V2 — BAYESIAN\n{'='*55}\n\n"
+            text += f"Generated: {report['generated_at']}\n"
+            text += f"Target: {report['target_filter'] or 'All targets'}\n"
+            text += f"Merchant Type: {report.get('merchant_type', 'generic')}\n\n"
+            
+            rs = report['reliability_score']
+            score_icon = "🟢" if rs['overall'] >= 80 else "🟡" if rs['overall'] >= 65 else "🔴"
+            text += f"RELIABILITY SCORE: {score_icon} {rs['overall']}/100\n"
+            text += f"Bayesian Estimate: {rs.get('bayesian_estimate', 'N/A')}%\n"
+            ci = rs.get('credible_interval_95', ('N/A', 'N/A'))
+            text += f"95% Credible Interval: [{ci[0]}%, {ci[1]}%]\n"
+            text += f"Confidence: {rs['confidence'].upper()}\n"
+            text += f"Recommendation: {rs['recommendation']}\n\n"
+            
+            text += "METRICS BY TIME WINDOW:\n" + "-"*50 + "\n"
+            for window in ['1h', '6h', '24h', '7d']:
+                m = report['metrics'].get(window, {})
+                if m:
+                    text += f"  {window:4s}: {m.get('attempts',0):4d} attempts | "
+                    text += f"{m.get('success_rate',0):.1f}% success | "
+                    text += f"soft:{m.get('soft_declines',0)} hard:{m.get('hard_declines',0)} "
+                    text += f"fraud:{m.get('fraud_blocks',0)} timeout:{m.get('timeouts',0)}\n"
+            text += "\n"
+            
+            lat = report.get('latency_stats', {})
+            if lat and lat.get('count', 0) > 0:
+                text += "LATENCY STATS:\n" + "-"*50 + "\n"
+                text += f"  p50: {lat.get('p50',0)}ms | p95: {lat.get('p95',0)}ms | "
+                text += f"p99: {lat.get('p99',0)}ms | avg: {lat.get('avg',0):.0f}ms\n\n"
+            
+            if report.get('top_merchants'):
+                text += "TOP MERCHANTS:\n" + "-"*50 + "\n"
+                for merchant, data in list(report['top_merchants'].items())[:5]:
+                    text += f"  {merchant}: {data['attempts']} attempts, {data['success_rate']}%\n"
+                text += "\n"
+            
+            if report.get('decline_codes'):
+                text += "DECLINE CODE DISTRIBUTION:\n" + "-"*50 + "\n"
+                for code, count in list(report['decline_codes'].items())[:8]:
+                    text += f"  [{code}]: {count}\n"
+                text += "\n"
+            
+            if report.get('failure_reasons'):
+                text += "FAILURE REASONS:\n" + "-"*50 + "\n"
+                for reason, count in list(report['failure_reasons'].items())[:5]:
+                    text += f"  {reason}: {count}\n"
+            
+            self.metrics_result_text.setPlainText(text)
+            
+        except Exception as e:
+            self.metrics_result_text.setPlainText(f"❌ Error: {e}")
+    
+    def _calculate_reliability_score(self):
+        """Calculate reliability score for target (V2 Bayesian)"""
+        if not PAYMENT_AVAILABLE:
+            self.metrics_result_text.setPlainText("❌ Payment Reliability modules not available.")
+            return
+        
+        try:
+            target = self.metrics_target.text().strip() or None
+            
+            self.metrics_result_text.setPlainText("🎯 Calculating Bayesian reliability score...")
+            QApplication.processEvents()
+            
+            scorer = get_metrics_scorer()
+            score = scorer.calculate_reliability_score(target=target)
+            
+            score_icon = "🟢" if score.overall_score >= 80 else "🟡" if score.overall_score >= 65 else "🔴"
+            text = f"RELIABILITY SCORE ANALYSIS V2\n{'='*55}\n\n"
+            text += f"Overall Score: {score_icon} {score.overall_score}/100\n"
+            text += f"Bayesian Estimate: {score.bayesian_estimate:.1f}%\n"
+            text += f"95% Credible Interval: [{score.credible_interval[0]:.1f}%, {score.credible_interval[1]:.1f}%]\n"
+            text += f"Confidence: {score.confidence.upper()}\n"
+            text += f"\nRecommendation:\n  {score.recommendation}\n\n"
+            
+            text += "FACTOR BREAKDOWN:\n" + "-"*55 + "\n"
+            for factor, status, impact in score.factors:
+                sign = "+" if impact > 0 else ""
+                impact_str = f"({sign}{impact:.1f})" if impact != 0 else ""
+                text += f"  {factor:30s} {status}  {impact_str}\n"
+            
+            self.metrics_result_text.setPlainText(text)
+            
+        except Exception as e:
+            self.metrics_result_text.setPlainText(f"❌ Error: {e}")
+    
+    def _predict_transaction_success(self):
+        """Predict success probability for a specific transaction (V2 Bayesian)"""
+        if not PAYMENT_AVAILABLE:
+            self.metrics_result_text.setPlainText("❌ Payment Reliability modules not available.")
+            return
+        
+        try:
+            target = self.metrics_target.text().strip() or None
+            amount = self.preflight_amount.value()
+            country = self.preflight_country.currentText()
+            
+            self.metrics_result_text.setPlainText("🔮 Predicting transaction success (V2 Bayesian)...")
+            QApplication.processEvents()
+            
+            scorer = get_metrics_scorer()
+            prediction = scorer.predict_success_probability(
+                target=target,
+                amount=amount,
+                billing_country=country
+            )
+            
+            prob = prediction['predicted_probability']
+            prob_icon = "🟢" if prob >= 80 else "🟡" if prob >= 65 else "🔴"
+            text = f"TRANSACTION SUCCESS PREDICTION V2\n{'='*55}\n\n"
+            text += f"Predicted Probability: {prob_icon} {prob:.1f}%\n"
+            text += f"Bayesian Base Rate: {prediction['bayesian_base_rate']:.1f}%\n"
+            ci = prediction.get('credible_interval_95', ('N/A', 'N/A'))
+            text += f"95% Credible Interval: [{ci[0]}%, {ci[1]}%]\n"
+            text += f"Effective Sample Size: {prediction.get('effective_sample_size', 0):.1f}\n"
+            text += f"Time Decay Factor: {prediction.get('time_decay_factor', 0):.3f}\n"
+            text += f"Confidence: {prediction['confidence'].upper()}\n"
+            text += f"Merchant Risk Tier: {prediction.get('merchant_risk_tier', 'N/A')}\n"
+            text += f"Similar Transactions: {prediction['similar_transactions']}\n\n"
+            
+            if prediction['adjustments']:
+                text += "ADJUSTMENTS APPLIED:\n" + "-"*50 + "\n"
+                for factor, adjustment in prediction['adjustments']:
+                    sign = "+" if adjustment > 0 else ""
+                    text += f"  {factor:35s} {sign}{adjustment:.1f}\n"
+            
+            self.metrics_result_text.setPlainText(text)
+            
+        except Exception as e:
+            self.metrics_result_text.setPlainText(f"❌ Error: {e}")
 
 
 def show_splash(app):
@@ -4842,7 +5390,7 @@ def show_splash(app):
 
         painter.setFont(QFont("Inter", 11))
         painter.setPen(QColor(58, 117, 196, 150))
-        painter.drawText(0, 130, 600, 30, Qt.AlignmentFlag.AlignCenter, "V7.5  SINGULARITY")
+        painter.drawText(0, 130, 600, 30, Qt.AlignmentFlag.AlignCenter, "V8.0  MAXIMUM")
 
         # Subtitle
         painter.setFont(QFont("Inter", 9))

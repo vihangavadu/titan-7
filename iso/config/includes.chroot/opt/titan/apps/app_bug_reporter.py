@@ -626,6 +626,15 @@ class BugReporterWindow(QMainWindow):
         # Tab 4: Logs (real-time log viewer, filter, export)
         tabs.addTab(self._build_logs_tab(), "Logs")
 
+        # Tab 5: Reports List
+        tabs.addTab(self._build_reports_list_tab(), "Reports")
+
+        # Tab 6: Decline Patterns
+        tabs.addTab(self._build_decline_tab(), "Decline Patterns")
+
+        # Tab 7: Patches
+        tabs.addTab(self._build_patches_tab(), "Patches")
+
         # Status bar
         self.statusBar().showMessage("Ready")
 
