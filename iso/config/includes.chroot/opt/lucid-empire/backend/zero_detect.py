@@ -181,7 +181,7 @@ class ZeroDetectEngine:
     into the TITAN Console and browser automation workflows.
     """
     
-    VERSION = "7.0.0-TITAN"
+    VERSION = "8.1.0-TITAN"
     
     def __init__(self, profile: ZeroDetectProfile = None, profile_uuid: str = None):
         """

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY - Core Controller
+TITAN V8.1 SINGULARITY - Core Controller
 
 This is the central orchestration module for the TITAN architecture.
 It integrates all sub-systems:
@@ -753,7 +753,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="TITAN V7.0 SINGULARITY Controller"
+        description="TITAN V8.1 SINGULARITY Controller"
     )
     
     subparsers = parser.add_subparsers(dest="command", help="Commands")

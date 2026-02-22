@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — TLS Hello Parroting Engine
+TITAN V8.1 SINGULARITY — TLS Hello Parroting Engine
 JA4+ Fingerprint Evasion via Client Hello Template Injection
 
 Defeats JA4+ / JA3 / JA3S network fingerprinting by parroting the exact

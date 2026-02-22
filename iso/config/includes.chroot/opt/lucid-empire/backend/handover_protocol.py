@@ -1,5 +1,5 @@
 """
-LUCID EMPIRE v7.0-TITAN - Handover Protocol
+LUCID EMPIRE v8.1-TITAN - Handover Protocol
 ============================================
 The "Prepare -> Handover -> Execute" model.
 
@@ -7,7 +7,7 @@ Phase 1 (Genesis): Playwright runs headless, builds trust signals
 Phase 2 (Freeze): Automation terminates, navigator.webdriver is naturally false
 Phase 3 (Handover): Standard Firefox opens with grafted "Golden Profile"
 
-AUTHORITY: Dva.12 | TITAN V7.0 FINAL
+AUTHORITY: Dva.12 | TITAN V8.1 FINAL
 """
 
 import asyncio

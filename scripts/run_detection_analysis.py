@@ -1,4 +1,4 @@
-"""TITAN V7.0 — Full Detection Vector Analysis against generated profile"""
+"""TITAN V8.1 — Full Detection Vector Analysis against generated profile"""
 import sqlite3, json, re
 from pathlib import Path
 from datetime import datetime, timedelta

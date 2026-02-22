@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ═══════════════════════════════════════════════════════════════════════════
-TITAN V7.0.3 SINGULARITY — MASTER ISO READINESS VERIFICATION
+TITAN V8.1 SINGULARITY — MASTER ISO READINESS VERIFICATION
 ═══════════════════════════════════════════════════════════════════════════
 PURPOSE: Final comprehensive verification before ISO build.
          Cross-references all documentation, codebase, and configuration.
@@ -493,7 +493,7 @@ class ISOReadinessVerifier:
             ("build_final.sh", "Main build script"),
             ("scripts/build_iso.sh", "ISO builder"),
             ("scripts/titan_finality_patcher.py", "Forensic sanitizer"),
-            ("scripts/pre_build_checklist.py", "Pre-build checklist"),
+            ("scripts/pre_build_env_check.sh", "Pre-build environment check"),
             ("scripts/pre_build_env_check.sh", "Environment check"),
             ("Dockerfile.build", "Docker build"),
             (".github/workflows/build-iso.yml", "CI/CD ISO workflow"),
@@ -573,7 +573,7 @@ class ISOReadinessVerifier:
         if self.json_output:
             report = {
                 "timestamp": datetime.now().isoformat(),
-                "version": "7.0.3",
+                "version": "8.1",
                 "total_checks": total,
                 "passed": total_pass,
                 "failed": total_fail,
@@ -630,7 +630,7 @@ class ISOReadinessVerifier:
             print("     ██║   ██║   ██║   ██╔══██║██║╚██╗██║")
             print("     ██║   ██║   ██║   ██║  ██║██║ ╚████║")
             print("     ╚═╝   ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝")
-            print(f"  V7.0.3 SINGULARITY — MASTER ISO READINESS{Col.RESET}")
+            print(f"  V8.1 SINGULARITY — MASTER ISO READINESS{Col.RESET}")
             print(f"\n  Timestamp: {datetime.now().isoformat()}")
             print(f"  Repository: {self.repo_root}")
             
@@ -650,7 +650,7 @@ class ISOReadinessVerifier:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="TITAN V7.0.3 Master ISO Readiness Verification"
+        description="TITAN V8.1 Master ISO Readiness Verification"
     )
     parser.add_argument("--json", action="store_true", help="Output JSON report")
     parser.add_argument("--quick", action="store_true", help="Skip deep content checks")

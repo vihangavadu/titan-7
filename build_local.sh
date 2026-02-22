@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.0.3 — LOCAL BUILD SCRIPT
+# TITAN V8.1 — LOCAL BUILD SCRIPT
 # AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 # OBJECTIVE: Build Titan OS ISO on local Debian 12 machine
 #
@@ -32,7 +32,7 @@ PROFGEN_DIR="${REPO_ROOT}/profgen"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  TITAN V7.0.3 SINGULARITY — LOCAL ISO BUILD                ║"
+echo "║  TITAN V8.1 SINGULARITY — LOCAL ISO BUILD                   ║"
 echo "║  Authority: Dva.12 | Status: OBLIVION_ACTIVE               ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""

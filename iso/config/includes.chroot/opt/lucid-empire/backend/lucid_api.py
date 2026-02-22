@@ -56,7 +56,7 @@ class LucidAPI:
     def check_font_hygiene(self, target_os: str = "windows_11") -> Dict:
         """V7.0: Check font environment for Linux leaks."""
         if not TITAN_V7_AVAILABLE:
-            return {"available": False, "error": "Titan V7.0 modules not loaded"}
+            return {"available": False, "error": "Titan V8.1 modules not loaded"}
         return check_fonts(target_os)
     
     def get_timezone(self, state: str = "", country: str = "US") -> str:
@@ -70,7 +70,7 @@ class LucidAPI:
     def run_preflight(self, profile_path: str = "", proxy_url: str = "") -> Dict:
         """V7.0: Run preflight validation on profile."""
         if not TITAN_V7_AVAILABLE:
-            return {"available": False, "error": "Titan V7.0 modules not loaded"}
+            return {"available": False, "error": "Titan V8.1 modules not loaded"}
         try:
             validator = PreFlightValidator()
             result = validator.validate(profile_path=profile_path, proxy_url=proxy_url)

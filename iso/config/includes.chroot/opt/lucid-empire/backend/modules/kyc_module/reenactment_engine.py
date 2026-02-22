@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY :: KYC REENACTMENT ENGINE
+TITAN V8.1 SINGULARITY :: KYC REENACTMENT ENGINE
 Authority: Dva.12 | Status: TITAN_ACTIVE
 
 Production-ready neural face reenactment using LivePortrait.

@@ -1,2 +1,4 @@
 #!/bin/bash
-echo 'Xt7mKp9wRv3n.Jq2026'
+# DEPRECATED — This file has been neutralized for security.
+# Credentials have been removed. Use SSH keys instead.
+echo 'ERROR: This script is deprecated. Use SSH keys for authentication.'

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY - Temporal Displacement Wrapper
+TITAN V8.1 SINGULARITY - Temporal Displacement Wrapper
 
 This script provides a command-line interface for launching programs
 with time displacement (libfaketime). It allows programs to perceive

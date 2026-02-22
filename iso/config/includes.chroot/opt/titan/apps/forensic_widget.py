@@ -1,5 +1,5 @@
 """
-TITAN V7.5 SINGULARITY — Forensic Detection Widget
+TITAN V8.1 SINGULARITY — Forensic Detection Widget
 Real-time forensic monitoring dashboard with LLM-powered analysis.
 """
 
@@ -24,10 +24,14 @@ except ImportError:
 
 # Import forensic monitor
 try:
-    from core.forensic_monitor import ForensicMonitor
+    from forensic_monitor import ForensicMonitor
     MONITOR_AVAILABLE = True
 except ImportError:
-    MONITOR_AVAILABLE = False
+    try:
+        from core.forensic_monitor import ForensicMonitor
+        MONITOR_AVAILABLE = True
+    except ImportError:
+        MONITOR_AVAILABLE = False
 
 class ForensicAnalysisThread(QThread):
     """Background thread for forensic analysis."""

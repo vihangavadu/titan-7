@@ -95,7 +95,7 @@ class Backend(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Lucid TITAN V7.0 :: KYC Module")
+        self.setWindowTitle("Lucid TITAN V8.1 :: KYC Module")
         self.resize(1024, 768)
 
         # Setup Scheme Handler

@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Form Autofill Injector
+TITAN V8.1 SINGULARITY - Form Autofill Injector
 Injects form history and saved payment methods for zero-decline
 
 Critical for:
@@ -451,7 +451,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
     # Demo
-    print("TITAN V7.0 Form Autofill Injector Demo")
+    print("TITAN V8.1 Form Autofill Injector Demo")
     print("-" * 40)
     
     success = inject_autofill_to_profile(

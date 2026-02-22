@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Manual Handover Protocol
+TITAN V8.1 SINGULARITY - Manual Handover Protocol
 Reference: Report Section 7.2 - The Manual Handover Protocol and the "Final 5%"
 
 The "Final 5%" of success probability requires Human-in-the-Loop execution.

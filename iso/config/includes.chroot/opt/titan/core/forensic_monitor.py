@@ -1,5 +1,5 @@
 """
-TITAN V7.5 SINGULARITY — Forensic Detection Monitor
+TITAN V8.1 SINGULARITY — Forensic Detection Monitor
 Real-time OS analysis using LLM to detect forensic artifacts, missing components, and detectable traces.
 """
 

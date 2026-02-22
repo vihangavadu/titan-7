@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Linux Location Spoofer
+TITAN V8.1 SINGULARITY - Linux Location Spoofer
 Cross-platform location spoofing for Linux-based TITAN OS
 
 Implements location spoofing without Windows registry:

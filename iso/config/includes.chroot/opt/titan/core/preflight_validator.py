@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Pre-Flight Validator
+TITAN V8.1 SINGULARITY - Pre-Flight Validator
 Comprehensive validation before operation to ensure 100% success
 
 This module performs all critical checks BEFORE launching browser:
@@ -1078,7 +1078,7 @@ class PreFlightValidator:
     def print_report(self):
         """Print formatted report to console"""
         print("\n" + "=" * 60)
-        print("  TITAN V7.0 PRE-FLIGHT VALIDATION REPORT")
+        print("  TITAN V8.1 PRE-FLIGHT VALIDATION REPORT")
         print("=" * 60)
         
         for check in self.report.checks:

@@ -1,13 +1,13 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.6 — AI Enhancement Stack Installer
+# TITAN V8.1 — AI Enhancement Stack Installer
 # Installs: ChromaDB, LangChain, SerpAPI, DuckDuckGo Search
-# ═══════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════
 
 set -e
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  TITAN V7.6 — AI Enhancement Stack Installer                ║"
+echo "║  TITAN V8.1 — AI Enhancement Stack Installer                ║"
 echo "║  ChromaDB + LangChain + Web Intelligence                    ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""

@@ -2,7 +2,7 @@
 """
 TITAN AI Assistant — Local LLM/VLM Integration via Ollama
 
-Authority: Dva.12 | Status: TITAN_ACTIVE | Version: 7.0
+Authority: Dva.12 | Status: TITAN_ACTIVE | Version: 8.1
 
 Provides on-device AI capabilities for the human operator:
   - CAPTCHA analysis: VLM analyzes screenshot, displays solution to user

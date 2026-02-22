@@ -1,5 +1,5 @@
 """
-TITAN V7.5 — Programmatic Window Icon Generator
+TITAN V8.1 — Programmatic Window Icon Generator
 Generates a branded hex icon via QPainter — no external files needed.
 
 Usage:

@@ -2,7 +2,7 @@
 """
 TITAN Network Behavioral Shaper — TC/NetEm Residential Wire Signature
 
-Authority: Dva.12 | Status: TITAN_ACTIVE | Version: 7.0
+Authority: Dva.12 | Status: TITAN_ACTIVE | Version: 8.1
 
 Defeats temporal network fingerprinting by injecting realistic latency,
 jitter, and packet loss patterns using Linux Traffic Control (TC) with

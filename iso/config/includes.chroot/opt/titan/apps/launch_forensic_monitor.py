@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.5 SINGULARITY — Forensic Monitor Launcher
+TITAN V8.1 SINGULARITY — Forensic Monitor Launcher
 Quick launcher for the forensic detection widget.
 """
 
@@ -26,7 +26,7 @@ def main():
         
         # Apply enterprise theme if available
         try:
-            from core.titan_enterprise_theme import apply_enterprise_theme
+            from titan_enterprise_theme import apply_enterprise_theme
             apply_enterprise_theme(app)
             print("✅ Enterprise theme applied")
         except ImportError:

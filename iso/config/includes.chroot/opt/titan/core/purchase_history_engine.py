@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Purchase History Engine
+TITAN V8.1 SINGULARITY - Purchase History Engine
 Generates realistic aged purchase history with CC holder data, billing address,
 order confirmations, and commerce session artifacts for browser profiles.
 

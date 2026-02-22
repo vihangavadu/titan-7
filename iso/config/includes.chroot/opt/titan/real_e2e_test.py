@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 — Real End-to-End Test with Deep Storage Analysis
+TITAN V8.1 — Real End-to-End Test with Deep Storage Analysis
 ================================================================
 1. Generate a REAL profile with sample persona data
 2. Run Cerberus card validation pipeline
@@ -66,7 +66,7 @@ TARGET = 'eneba'
 PROFILE_AGE_DAYS = 120
 
 print('╔══════════════════════════════════════════════════════════════╗')
-print('║  TITAN V7.0.3 — REAL END-TO-END TEST + STORAGE ANALYSIS    ║')
+print('║  TITAN V8.1 — REAL END-TO-END TEST + STORAGE ANALYSIS    ║')
 print('╚══════════════════════════════════════════════════════════════╝')
 
 # ═══════════════════════════════════════════════════════════════

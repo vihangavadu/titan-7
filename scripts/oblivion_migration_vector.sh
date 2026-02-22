@@ -139,9 +139,9 @@ else
 fi
 
 # Run verifiers (non-fatal; report status)
-if [ -x "scripts/verify_v7_readiness.py" ]; then
-    echo "[+] RUNNING: Full V7 readiness verifier"
-    python3 scripts/verify_v7_readiness.py || echo "[!] V7 readiness verifier reported issues"
+if [ -x "scripts/final_iso_readiness.py" ]; then
+    echo "[+] RUNNING: Full readiness verifier"
+    python3 scripts/final_iso_readiness.py || echo "[!] Readiness verifier reported issues"
 fi
 
 if [ -x "scripts/oblivion_verifier.py" ]; then
@@ -159,4 +159,4 @@ rm -f /var/log/auth.log /var/log/syslog
 
 echo "[*] MIGRATION COMPLETE."
 echo "[*] SYSTEM STATUS: OBLIVION READY."
-echo "[*] VERIFY WITH: python3 scripts/verify_v7_readiness.py"
+echo "[*] VERIFY WITH: python3 scripts/final_iso_readiness.py"

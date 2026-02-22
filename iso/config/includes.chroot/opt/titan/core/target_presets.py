@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Target Presets
+TITAN V8.1 SINGULARITY - Target Presets
 Pre-configured target site profiles for optimized profile generation
 
 Each target has:
@@ -800,7 +800,7 @@ def list_all_targets() -> List[Dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    print("TITAN V7.0 Target Presets")
+    print("TITAN V8.1 Target Presets")
     print("=" * 50)
     
     for target in list_targets():
@@ -866,7 +866,7 @@ class PresetVersionManager:
     - Rollback support
     """
     
-    VERSION = "7.6.0"
+    VERSION = "8.1.0"
     
     def __init__(self):
         self._versions: Dict[str, List[PresetVersion]] = defaultdict(list)
@@ -1167,7 +1167,7 @@ class PresetMigrator:
                 for m in migrations
             ]
     
-    def migrate_all(self, to_version: str = "7.6.0") -> Dict[str, bool]:
+    def migrate_all(self, to_version: str = "8.1.0") -> Dict[str, bool]:
         """Migrate all presets to target version"""
         results = {}
         

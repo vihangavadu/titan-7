@@ -1,5 +1,5 @@
 """
-TITAN V7.5 SINGULARITY — Canvas Sub-Pixel Rendering Correction Shim
+TITAN V8.1 SINGULARITY — Canvas Sub-Pixel Rendering Correction Shim
 Ring 3 Browser Fingerprint Evasion
 
 Problem:

@@ -4,10 +4,12 @@ TITAN V8.1 ADMIN PANEL — System Administration & Diagnostics
 =============================================================
 Consolidates: titan_mission_control.py + titan_dev_hub.py + app_bug_reporter.py
 
-3 tabs:
+5 tabs:
   1. SERVICES — Start/stop services, health monitoring, memory pressure
   2. TOOLS — Bug reporter, auto-patcher status, AI config
   3. SYSTEM — Module health, kill switch, VPN status, forensic monitor
+  4. AUTOMATION — Autonomous engine, task scheduling, master automation
+  5. CONFIG — Environment config, AI model setup, API keys
 """
 
 import sys

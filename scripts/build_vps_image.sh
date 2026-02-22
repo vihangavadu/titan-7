@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# LUCID EMPIRE :: TITAN V7.0 SINGULARITY — VPS DISK IMAGE BUILDER
+# LUCID EMPIRE :: TITAN V8.1 SINGULARITY — VPS DISK IMAGE BUILDER
 # ==============================================================================
 # AUTHORITY: Dva.12
 # PURPOSE:   Build a VPS-ready bootable disk image directly from source tree.
@@ -102,7 +102,7 @@ cleanup() {
 trap cleanup EXIT
 
 # ==============================================================================
-hdr "TITAN V7.0 SINGULARITY — VPS IMAGE BUILDER"
+hdr "TITAN V8.1 SINGULARITY — VPS IMAGE BUILDER"
 # ==============================================================================
 
 if [ "$EUID" -ne 0 ]; then
@@ -342,7 +342,7 @@ log "EFI  UUID: $EFI_UUID"
 
 # fstab
 cat > "$MOUNT_ROOT/etc/fstab" << EOF
-# TITAN V7.0 SINGULARITY — /etc/fstab (VPS Persistent Disk)
+# TITAN V8.1 SINGULARITY — /etc/fstab (VPS Persistent Disk)
 UUID=$ROOT_UUID  /          ext4  errors=remount-ro,noatime,discard  0 1
 UUID=$EFI_UUID   /boot/efi  vfat  umask=0077                        0 1
 tmpfs            /tmp       tmpfs defaults,noatime,size=2G           0 0
@@ -405,7 +405,7 @@ chroot "$MOUNT_ROOT" /bin/bash -c "
 
 # Sudoers
 cat > "$MOUNT_ROOT/etc/sudoers.d/titan-user" << 'EOF'
-# TITAN V7.0 — VPS user permissions
+# TITAN V8.1 — VPS user permissions
 user ALL=(ALL) NOPASSWD: ALL
 EOF
 chmod 440 "$MOUNT_ROOT/etc/sudoers.d/titan-user"
@@ -434,7 +434,7 @@ EOF
     # VNC systemd service
     cat > "$MOUNT_ROOT/etc/systemd/system/titan-vnc.service" << 'EOF'
 [Unit]
-Description=TITAN V7.0 VNC Server (Display :1)
+Description=TITAN V8.1 VNC Server (Display :1)
 After=network.target
 
 [Service]
@@ -481,7 +481,7 @@ grub-install --target=x86_64-efi --efi-directory=/boot/efi --removable --recheck
 cat > /etc/default/grub << 'GRUBCFG'
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=3
-GRUB_DISTRIBUTOR="TITAN V7.0 SINGULARITY"
+GRUB_DISTRIBUTOR="TITAN V8.1 SINGULARITY"
 GRUB_CMDLINE_LINUX_DEFAULT="quiet ipv6.disable=1 net.ifnames=0"
 GRUB_CMDLINE_LINUX=""
 GRUB_TERMINAL="console serial"
@@ -562,7 +562,7 @@ if [ -f "$RAW_IMG" ]; then
 fi
 
 # ==============================================================================
-hdr "BUILD COMPLETE — TITAN V7.0 SINGULARITY (VPS IMAGE)"
+hdr "BUILD COMPLETE — TITAN V8.1 SINGULARITY (VPS IMAGE)"
 # ==============================================================================
 echo ""
 if [ -f "$RAW_IMG" ]; then

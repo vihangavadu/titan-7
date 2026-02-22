@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — eBPF-Driven Network Micro-Jitter & Background Noise
+TITAN V8.1 SINGULARITY — eBPF-Driven Network Micro-Jitter & Background Noise
 Defeats traffic analysis by simulating realistic network entropy
 
 V7 Enhancement: The eBPF network shield is augmented with micro-jitter injection

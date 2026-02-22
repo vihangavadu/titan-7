@@ -6,7 +6,7 @@ Injects cookies, history, form data, and localStorage into Firefox profiles.
 Compatible with Firefox/Camoufox profile structure.
 
 Author: LUCID EMPIRE
-Version: 7.0.0-TITAN
+Version: 8.1.0-TITAN
 """
 
 import sqlite3

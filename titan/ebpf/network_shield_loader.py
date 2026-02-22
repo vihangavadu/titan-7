@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY - eBPF Network Shield Loader
+TITAN V8.1 SINGULARITY - eBPF Network Shield Loader
 
 This module provides a Python interface for loading and controlling
 the eBPF network shield program. It handles:
@@ -468,7 +468,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="TITAN V7.0 SINGULARITY Network Shield"
+        description="TITAN V8.1 SINGULARITY Network Shield"
     )
     parser.add_argument(
         "-i", "--interface",

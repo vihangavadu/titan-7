@@ -1,7 +1,7 @@
 #!/bin/bash
-# TITAN V7.5 — Complete VPS Sync & Verification
-echo "╔══════════════════════════════════════════════════════════════════════╗"
-echo "║  TITAN V7.5 — COMPLETE VPS SYNC                                     ║"
+# TITAN V8.1 — Complete VPS Sync & Verification
+echo "╔════════════════════════════════════════════════════════════════════╗"
+echo "║  TITAN V8.1 — COMPLETE VPS SYNC                                     ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 
 # ─── 1. Check what's different between local upload and VPS ──────────────
@@ -11,7 +11,7 @@ echo "  Apps:"
 for f in app_unified app_genesis app_cerberus app_kyc; do
     echo "    ${f}.py: $(wc -l < /opt/titan/apps/${f}.py 2>/dev/null || echo MISSING) lines"
 done
-echo "  Core (new V7.5 modules):"
+echo "  Core (V8.1 modules):"
 for f in ai_intelligence_engine canvas_subpixel_shim cpuid_rdtsc_shield windows_font_provisioner tls_parrot ollama_bridge ghost_motor_v6 fingerprint_injector immutable_os dynamic_data forensic_monitor; do
     if [ -f "/opt/titan/core/${f}.py" ]; then
         echo "    ✅ ${f}.py: $(wc -l < /opt/titan/core/${f}.py) lines"

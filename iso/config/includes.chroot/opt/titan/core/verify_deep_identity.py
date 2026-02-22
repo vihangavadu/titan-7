@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY — Deep Identity Verifier (Phase 3 Validation)
+TITAN V8.1 SINGULARITY — Deep Identity Verifier (Phase 3 Validation)
 AUTHORITY: Dva.12
 PURPOSE: Detect subtle environmental leaks (Fonts, Audio, Time) that
          bypass Kernel Shields. Confirms if a 'Windows' profile

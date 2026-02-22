@@ -2037,7 +2037,7 @@ def create_bridge(profile_uuid: str, **kwargs) -> TitanIntegrationBridge:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    print("TITAN V7.0 Integration Bridge — use create_bridge() from code or GUI")
+    print("TITAN V8.1 Integration Bridge — use create_bridge() from code or GUI")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

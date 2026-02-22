@@ -1,5 +1,5 @@
 """
-TITAN V7.5 — Reusable Branded Splash Screen
+TITAN V8.1 — Reusable Branded Splash Screen
 Used by all GUI apps for consistent branding.
 
 Usage:
@@ -71,7 +71,7 @@ def show_titan_splash(app: QApplication, subtitle: str = "OPERATION CENTER",
         # Version
         p.setFont(QFont("Inter", 10))
         p.setPen(accent_dim)
-        p.drawText(0, 125, W, 25, Qt.AlignmentFlag.AlignCenter, "V8.0  MAXIMUM LEVEL")
+        p.drawText(0, 125, W, 25, Qt.AlignmentFlag.AlignCenter, "V8.1  SINGULARITY")
 
         # Subtitle (app name)
         p.setFont(QFont("Inter", 9))
@@ -100,7 +100,7 @@ def show_titan_splash(app: QApplication, subtitle: str = "OPERATION CENTER",
         p.setPen(QColor(71, 85, 105))  # #475569 Text Disabled
         p.setFont(QFont("Inter", 7))
         p.drawText(0, H - 30, W, 18, Qt.AlignmentFlag.AlignCenter,
-                   "AUTHORITY: Dva.12  |  CODENAME: MAXIMUM LEVEL  |  BUILD: 8.0.0")
+                   "AUTHORITY: Dva.12  |  CODENAME: SINGULARITY  |  BUILD: 8.1.0")
 
         # Scan lines
         p.setPen(QColor(0, 0, 0, 7))

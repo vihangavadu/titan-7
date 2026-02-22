@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - eBPF Network Shield Module
+TITAN V8.1 SINGULARITY - eBPF Network Shield Module
 
 This module provides kernel-level packet manipulation capabilities
 using eBPF (Extended Berkeley Packet Filter) and XDP (eXpress Data Path).

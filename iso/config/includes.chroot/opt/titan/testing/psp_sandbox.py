@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 PSP Sandbox - Payment Service Provider Emulators
+TITAN V8.1 PSP Sandbox - Payment Service Provider Emulators
 
 Emulates real PSP APIs for testing without hitting production endpoints.
 Implements realistic decline logic, fraud detection, and 3DS challenges.

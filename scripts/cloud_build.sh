@@ -1,6 +1,6 @@
 #!/bin/bash
 # ══════════════════════════════════════════════════════════════════════════════
-# TITAN V7.0 SINGULARITY — One-Shot Cloud ISO Builder
+# TITAN V8.1 SINGULARITY — One-Shot Cloud ISO Builder
 # ══════════════════════════════════════════════════════════════════════════════
 # Run this on a fresh Debian 12 / Ubuntu 22.04+ VPS with root access.
 #
@@ -41,7 +41,7 @@ hdr()  {
 
 # ── Pre-flight ────────────────────────────────────────────────────────────────
 
-hdr "TITAN V7.0 SINGULARITY — Cloud ISO Builder"
+hdr "TITAN V8.1 SINGULARITY — Cloud ISO Builder"
 
 if [ "$EUID" -ne 0 ]; then
     err "Must run as root. Use: sudo bash scripts/cloud_build.sh"

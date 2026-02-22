@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.0 MAXIMUM — Verification Compliance Module
+TITAN V8.1 SINGULARITY — Verification Compliance Module
 Virtual Camera Controller GUI
 
 PyQt6 Desktop Application for system-level virtual camera control.
@@ -31,10 +31,16 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QPixmap, QImage, QPalette, QColor
 
-from kyc_core import (
-    KYCController, ReenactmentConfig, VirtualCameraConfig,
-    CameraState, MotionType, IntegrityShield
-)
+try:
+    from kyc_core import (
+        KYCController, ReenactmentConfig, VirtualCameraConfig,
+        CameraState, MotionType, IntegrityShield
+    )
+    KYC_CORE_AVAILABLE = True
+except ImportError:
+    KYCController = ReenactmentConfig = VirtualCameraConfig = None
+    CameraState = MotionType = IntegrityShield = None
+    KYC_CORE_AVAILABLE = False
 
 # Enhanced KYC imports (document injection, liveness, provider profiles)
 try:

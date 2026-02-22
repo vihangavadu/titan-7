@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Residential Proxy Manager
+TITAN V8.1 SINGULARITY - Residential Proxy Manager
 Unified proxy management for high-trust operations
 
 Features:

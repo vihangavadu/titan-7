@@ -289,7 +289,7 @@ class BugDatabase:
             info["python"] = sys.version.split()[0]
         except Exception:
             pass
-        info["titan_version"] = "7.0.3"
+        info["titan_version"] = "8.1.0"
         return json.dumps(info)
 
 

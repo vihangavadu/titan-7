@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.6 — Self-Hosted Tool Stack Installer
+# TITAN V8.1 — Self-Hosted Tool Stack Installer
 # One-shot installer for all self-hosted services
 # ═══════════════════════════════════════════════════════════════════════════
 #

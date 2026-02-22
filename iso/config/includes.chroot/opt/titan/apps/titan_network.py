@@ -902,7 +902,28 @@ class TitanNetwork(QMainWindow):
                 pass
 
     def _update_forensic(self):
-        pass  # Timer-driven forensic status update
+        """Timer-driven forensic status update — polls forensic monitor for live alerts."""
+        if not hasattr(self, '_forensic_mon') or not FORENSIC_OK:
+            return
+        try:
+            if hasattr(self._forensic_mon, 'get_status'):
+                status = self._forensic_mon.get_status()
+                if isinstance(status, dict):
+                    alerts = status.get('alerts', [])
+                    if alerts:
+                        for alert in alerts[-5:]:
+                            self.forensic_display.append(
+                                f"[{datetime.now().strftime('%H:%M:%S')}] ⚠ {alert}"
+                            )
+            elif hasattr(self._forensic_mon, 'scan_system_state'):
+                state = self._forensic_mon.scan_system_state()
+                if state and isinstance(state, dict):
+                    threat_level = state.get('threat_level', 'UNKNOWN')
+                    self.forensic_display.append(
+                        f"[{datetime.now().strftime('%H:%M:%S')}] Threat Level: {threat_level}"
+                    )
+        except Exception:
+            pass  # Silently continue on forensic monitor errors
 
     def _forensic_clean(self):
         if FORENSIC_CLEAN_OK:

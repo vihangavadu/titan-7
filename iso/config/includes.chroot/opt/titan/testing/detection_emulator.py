@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 Detection System Emulators
+TITAN V8.1 Detection System Emulators
 
 Emulates real-world fraud detection systems:
 - Fingerprint detection (Canvas, WebGL, Audio, Fonts)

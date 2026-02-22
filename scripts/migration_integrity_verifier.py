@@ -116,7 +116,7 @@ class MigrationVerifier:
         critical_files = [
             "config/titan.env",
             "apps/app_unified.py",
-            "core/titan_core.py",
+            "core/genesis_core.py",
         ]
         
         for file_path in critical_files:

@@ -1,5 +1,5 @@
 """
-TITAN V7.0 Testing Environment
+TITAN V8.1 Testing Environment
 Virtualized PSP and Detection System Testing Framework
 
 This module provides:

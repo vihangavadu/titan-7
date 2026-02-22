@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - KYC Core Engine
+TITAN V8.1 SINGULARITY - KYC Core Engine
 The Mask: System-level virtual camera controller for identity verification bypass
 
 This is the CORE LOGIC for the KYC GUI App.

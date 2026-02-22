@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0.3 SINGULARITY — Deep Verification Suite
+TITAN V8.1 SINGULARITY — Deep Verification Suite
 ====================================================
 Process-to-process, button-to-button, module-to-module verification.
 Tests every functional path from OS kernel to GUI launch readiness.
@@ -946,7 +946,7 @@ def phase7_browser(profile_path):
     @test('P7-BROWSER', 'titan-browser version string')
     def t():
         c = open('/opt/titan/bin/titan-browser').read()
-        has_version = '7.0' in c or 'SINGULARITY' in c
+        has_version = '8.1' in c or 'SINGULARITY' in c
         return has_version, 'Version string found'
     t()
 
@@ -1310,7 +1310,7 @@ def phase9_report():
 
     # Save JSON report
     report = {
-        'version': '7.0.3',
+        'version': '8.1.0',
         'date': datetime.now().isoformat(),
         'summary': {'total': total, 'pass': passed, 'fail': failed, 'pct': pct},
         'phases': {p: {'pass': d['pass'], 'fail': d['fail']} for p, d in phases.items()},

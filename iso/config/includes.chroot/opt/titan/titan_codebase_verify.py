@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.6 SINGULARITY — Complete Codebase Verification Script
+TITAN V8.1 SINGULARITY — Complete Codebase Verification Script
 ═══════════════════════════════════════════════════════════════════════════════
 
 This script provides comprehensive analysis of the TITAN codebase including:
@@ -19,7 +19,7 @@ Usage:
     python titan_codebase_verify.py --export     # Export report to file
 
 Author: TITAN OS Team
-Version: 7.6.0
+Version: 8.1.0
 """
 
 import os
@@ -148,7 +148,7 @@ class ModuleInfo:
 class VerificationReport:
     """Complete verification report"""
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    titan_version: str = "7.6.0"
+    titan_version: str = "8.1.0"
     
     # Module counts
     total_modules: int = 0
@@ -378,7 +378,7 @@ class TitanCodebaseVerifier:
     def run(self, quick: bool = False) -> VerificationReport:
         """Run full verification"""
         print("=" * 70)
-        print("  TITAN V7.6 SINGULARITY — Codebase Verification")
+        print("  TITAN V8.1 SINGULARITY — Codebase Verification")
         print("=" * 70)
         print()
         
@@ -673,7 +673,7 @@ def export_json(report: VerificationReport, output_path: Path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="TITAN V7.6 Codebase Verification Script"
+        description="TITAN V8.1 Codebase Verification Script"
     )
     parser.add_argument("--quick", action="store_true", help="Quick scan only")
     parser.add_argument("--json", action="store_true", help="Output as JSON")

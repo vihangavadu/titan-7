@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Genesis Core Engine
+TITAN V8.1 SINGULARITY - Genesis Core Engine
 Profile Forge: Creates aged browser profiles with target-specific configurations
 
 This is the CORE LOGIC extracted from the backend for use by the Genesis GUI App.
@@ -2340,7 +2340,7 @@ AUTHORITY: Dva.12 | STATUS: READY_FOR_EXECUTION
         profile_reqs = requirements.get("profile_requirements", {})
         
         handover = f"""================================================================================
-TITAN V7.0 - DETECTION-AWARE OPERATION CARD
+TITAN V8.1 - DETECTION-AWARE OPERATION CARD
 ================================================================================
 TARGET: {intel.name} ({intel.domain})
 FRAUD ENGINE: {intel.fraud_engine.value.upper()}
@@ -2391,7 +2391,7 @@ EXECUTION STRATEGY
    [ ] Complete purchase
 
 ================================================================================
-TITAN V7.0 SINGULARITY - Zero Detect / Zero Decline
+TITAN V8.1 SINGULARITY - Zero Detect / Zero Decline
 ================================================================================
 """
         
@@ -2752,5 +2752,5 @@ class OSConsistencyValidator:
                 break
 
         profile["_os_consistency_validated"] = True
-        profile["_os_consistency_version"] = "7.5"
+        profile["_os_consistency_version"] = "8.1"
         return profile

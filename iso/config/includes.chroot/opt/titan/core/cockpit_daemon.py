@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — Cockpit Middleware Daemon
+TITAN V8.1 SINGULARITY — Cockpit Middleware Daemon
 Privileged backend daemon for zero-terminal GUI operations
 
 The Cockpit daemon implements the Principle of Least Privilege:

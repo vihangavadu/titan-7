@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Ghost Motor V7 (DMTG)
+TITAN V8.1 SINGULARITY - Ghost Motor V7 (DMTG)
 Diffusion Mouse Trajectory Generation
 
 Replaces v5.2 GAN-based Ghost Motor with Entropy-Controlled Diffusion.

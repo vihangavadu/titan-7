@@ -2,7 +2,7 @@
 """
 TITAN USB Peripheral Synthesis — ConfigFS Virtual Device Enumeration
 
-Authority: Dva.12 | Status: TITAN_ACTIVE | Version: 7.0
+Authority: Dva.12 | Status: TITAN_ACTIVE | Version: 8.1
 
 Defeats USB device tree fingerprinting by creating virtual USB gadgets via
 Linux ConfigFS that match the target persona's expected peripherals.

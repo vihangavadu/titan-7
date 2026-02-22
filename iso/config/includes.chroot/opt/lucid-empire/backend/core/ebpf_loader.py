@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY :: LINUX eBPF LOADER
+TITAN V8.1 SINGULARITY :: LINUX eBPF LOADER
 Authority: Dva.12
 Platform: Linux (Kernel-level network masking)
 

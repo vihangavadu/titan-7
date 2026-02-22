@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "=== TITAN OS V7.0 EXTERNAL API SCAN ==="
+echo "=== TITAN OS V8.1 EXTERNAL API SCAN ==="
 echo
 
 echo "--- HTTP/HTTPS URLs ---"

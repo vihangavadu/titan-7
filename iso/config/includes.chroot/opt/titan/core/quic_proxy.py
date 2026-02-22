@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Userspace QUIC Proxy
+TITAN V8.1 SINGULARITY - Userspace QUIC Proxy
 Transparent QUIC Decoupling for TLS Fingerprint Modification
 
 V5.2 Problem: Blocking QUIC creates "TCP Fallback" fingerprint

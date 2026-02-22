@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Cerberus Core Engine
+TITAN V8.1 SINGULARITY - Cerberus Core Engine
 The Gatekeeper: Zero-touch card validation without burning assets
 
 This is the CORE LOGIC for the Cerberus GUI App.

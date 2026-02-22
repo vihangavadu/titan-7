@@ -1,5 +1,5 @@
 #!/bin/bash
-# Patch /opt/lucid-empire/backend/server.py to V8.0 MAXIMUM
+# Patch /opt/lucid-empire/backend/server.py to V8.1 SINGULARITY
 set -e
 
 FILE="/opt/lucid-empire/backend/server.py"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# TITAN V7.0 Backend Init — Kernel Shield + Profile Loader
+# TITAN V8.1 Backend Init — Kernel Shield + Profile Loader
 # =============================================================================
 # Called by lucid-titan.service at boot (before GUI session starts)
 # Loads kernel modules and prepares the identity synthesis environment.
@@ -15,7 +15,7 @@ LOG_TAG="TITAN-INIT"
 log() { echo "[$LOG_TAG] $*"; logger -t "$LOG_TAG" "$*"; }
 warn() { echo "[$LOG_TAG] WARNING: $*"; logger -t "$LOG_TAG" -p user.warning "$*"; }
 
-log "=== TITAN V7.0 Backend Initialization ==="
+log "=== TITAN V8.1 Backend Initialization ==="
 
 # ── 1. Load Hardware Shield kernel module ─────────────────────────────────────
 TITAN_KO="$TITAN_HOME/kernel-modules/titan_hw.ko"
@@ -93,7 +93,7 @@ if id "$LIVE_USER" &>/dev/null; then
     # Allow the live user to run privileged commands needed by the console
     if [ ! -f /etc/sudoers.d/lucid-titan ]; then
         cat > /etc/sudoers.d/lucid-titan << 'SUDOEOF'
-# TITAN V7.0 — Allow live user to manage kernel modules and network
+# TITAN V8.1 — Allow live user to manage kernel modules and network
 user ALL=(root) NOPASSWD: /sbin/insmod, /sbin/rmmod, /sbin/modprobe
 user ALL=(root) NOPASSWD: /usr/sbin/tc, /sbin/ip
 user ALL=(root) NOPASSWD: /opt/lucid-empire/bin/load-ebpf.sh
@@ -115,5 +115,5 @@ else
     log "Backend server not found — web dashboard unavailable"
 fi
 
-log "=== TITAN V7.0 Backend Ready ==="
+log "=== TITAN V8.1 Backend Ready ==="
 log "GUI will launch via XDG autostart in user session"

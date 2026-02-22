@@ -2746,7 +2746,7 @@ Provide specific code modifications using the [MODIFY:] format."""
         name: str,
         description: str,
         upgrade_type: str = "module",
-        target_version: str = "7.6.0",
+        target_version: str = "8.1.0",
         components: List[str] = None
     ) -> UpgradeTask:
         """
@@ -3827,7 +3827,7 @@ class TitanDevGUI:
                      values=["module", "gui", "system", "full"], width=15).pack(side=tk.LEFT, padx=5)
         
         ttk.Label(type_row, text="Target Version:").pack(side=tk.LEFT, padx=10)
-        self.upgrade_version_var = tk.StringVar(value="7.6.0")
+        self.upgrade_version_var = tk.StringVar(value="8.1.0")
         ttk.Entry(type_row, textvariable=self.upgrade_version_var, width=15).pack(side=tk.LEFT, padx=5)
         
         # Components
@@ -4642,7 +4642,7 @@ class TitanDevGUI:
             name="TITAN V7.6 Full Upgrade",
             description="Complete system upgrade to V7.6 SINGULARITY",
             upgrade_type="full",
-            target_version="7.6.0",
+            target_version="8.1.0",
             components=["core/", "apps/", "config/"]
         )
         

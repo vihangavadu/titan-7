@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — Phase 3.1: Font Sanitization Engine
+TITAN V8.1 SINGULARITY — Phase 3.1: Font Sanitization Engine
 OS-Specific Font Injection, Linux Font Rejection, Metric Spoofing
 
 VULNERABILITY: The host OS includes Linux-exclusive fonts like 'Liberation Sans',
@@ -218,7 +218,7 @@ class FontSanitizer:
         conf = f"""<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
 <!--
-  TITAN V7.0 SINGULARITY — Font Sanitization (Phase 3.1)
+  TITAN V8.1 SINGULARITY — Font Sanitization (Phase 3.1)
   Target OS: {self.target_os.value}
   Generated: {datetime.now(timezone.utc).isoformat()}
   

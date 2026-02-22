@@ -1,11 +1,11 @@
 #!/bin/bash
-# TITAN V8.0 MAXIMUM — VPS Upgrade Script
-# Applies complete V8.0 rebranding to live VPS
+# TITAN V8.1 SINGULARITY — VPS Upgrade Script
+# Applies complete V8.1 rebranding to live VPS
 set -e
 
-echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  TITAN V8.0 MAXIMUM — VPS Upgrade Script                ║"
-echo "║  Rebranding OS identity + syncing V8.0 modules           ║"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║  TITAN V8.1 SINGULARITY — VPS Upgrade Script                ║"
+echo "║  Rebranding OS identity + syncing V8.1 modules           ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 

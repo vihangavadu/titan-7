@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.6 — Deep Module Connectivity Map Generator
+TITAN V8.1 — Deep Module Connectivity Map Generator
 ═══════════════════════════════════════════════════════════════════════════════
 
 Generates a complete connectivity map showing all module relationships.
@@ -18,7 +18,7 @@ Usage:
     python module_connectivity_map.py --html       # Export interactive HTML
 
 Author: TITAN OS Team
-Version: 7.6.0
+Version: 8.1.0
 """
 
 import os
@@ -290,7 +290,7 @@ class ConnectivityMapper:
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TITAN V7.6 Module Connectivity Map</title>
+    <title>TITAN V8.1 Module Connectivity Map</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{ font-family: 'Segoe UI', Tahoma, sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 20px; }}
@@ -324,7 +324,7 @@ class ConnectivityMapper:
     </style>
 </head>
 <body>
-    <h1>🔱 TITAN V7.6 Module Connectivity Map</h1>
+    <h1>🔱 TITAN V8.1 Module Connectivity Map</h1>
     <p style="color:#888; margin-bottom:20px;">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     
     <h2>📊 Statistics</h2>
@@ -413,7 +413,7 @@ class ConnectivityMapper:
         """Print text report"""
         print()
         print("=" * 80)
-        print("  TITAN V7.6 MODULE CONNECTIVITY MAP")
+        print("  TITAN V8.1 MODULE CONNECTIVITY MAP")
         print("=" * 80)
         print()
         

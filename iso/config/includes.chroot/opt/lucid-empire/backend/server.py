@@ -40,7 +40,7 @@ except ImportError:
 app = FastAPI(
     title="TITAN V7.5 SINGULARITY API",
     description="Backend API for Lucid Empire Titan operations",
-    version="7.5.0",
+    version="8.1.0",
 )
 
 app.add_middleware(

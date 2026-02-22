@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# LUCID EMPIRE :: TITAN V7.0.3 — USB DEPLOYMENT SCRIPT
+# LUCID EMPIRE :: TITAN V8.1 — USB DEPLOYMENT SCRIPT
 # ==============================================================================
 # Writes the TITAN ISO to a USB drive for live boot deployment.
 #
@@ -33,7 +33,7 @@ ISO_FILE="$2"
 
 if [ -z "$DEVICE" ]; then
     echo ""
-    echo -e "${CYAN}${BOLD}TITAN V7.0.3 — USB Deployment${NC}"
+    echo -e "${CYAN}${BOLD}TITAN V8.1 — USB Deployment${NC}"
     echo ""
     echo "Usage: sudo bash $0 /dev/sdX [path/to/iso]"
     echo ""
@@ -94,7 +94,7 @@ DEV_MODEL=$(lsblk -no MODEL "$DEVICE" | head -1 | xargs)
 
 echo ""
 echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}${BOLD}  TITAN V7.0.3 — USB DEPLOYMENT                   ${NC}"
+echo -e "${CYAN}${BOLD}  TITAN V8.1 — USB DEPLOYMENT                   ${NC}"
 echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ISO:     ${GREEN}$ISO_NAME${NC} ($ISO_SIZE)"

@@ -1,12 +1,12 @@
 #!/bin/bash
-# LUCID EMPIRE: TITAN V7.0 DEPLOYMENT BRIDGE
+# LUCID EMPIRE: TITAN V8.1 DEPLOYMENT BRIDGE
 # ----------------------------------------
 # Deploys TITAN V6 source code into the ISO build structure.
 # Handles BOTH legacy /opt/lucid-empire AND new /opt/titan/ paths.
 
 set -eo pipefail
 
-echo "[*] LUCID TITAN V7.0 :: DEPLOYMENT SEQUENCE STARTED"
+echo "[*] LUCID TITAN V8.1 :: DEPLOYMENT SEQUENCE STARTED"
 
 # 1. Define Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,8 +27,8 @@ mkdir -p "$ISO_DEST_V6/bin"
 mkdir -p "$ISO_DEST_V6/extensions/ghost_motor"
 mkdir -p "$SYSTEMD_DIR"
 
-# 3. Legacy core removed in V7.0 — all user-facing code is in /opt/titan/
-echo "[*] V7.0: Legacy core (TITAN_CONSOLE.py, titan_core.py) removed — using app_unified.py"
+# 3. Legacy core removed in V8.1 — all user-facing code is in /opt/titan/
+echo "[*] V8.1: Legacy core (TITAN_CONSOLE.py, titan_core.py) removed — using app_unified.py"
 
 # 4. Deploy eBPF Network Shield (no-clobber)
 if [ -d "$SOURCE_ROOT/ebpf" ]; then
@@ -74,8 +74,8 @@ if [ -d "$SOURCE_ROOT/mobile" ]; then
     done
 fi
 
-# 7. V7.0: Ensure /opt/titan/ core library is present
-echo "[*] Verifying V7.0 Core Library at $ISO_DEST_V6/core/..."
+# 7. V8.1: Ensure /opt/titan/ core library is present
+echo "[*] Verifying V8.1 Core Library at $ISO_DEST_V6/core/..."
 for f in __init__.py genesis_core.py cerberus_core.py kyc_core.py \
          advanced_profile_generator.py purchase_history_engine.py \
          cerberus_enhanced.py kyc_enhanced.py \
@@ -89,41 +89,41 @@ for f in __init__.py genesis_core.py cerberus_core.py kyc_core.py \
          proxy_manager.py lucid_vpn.py handover_protocol.py \
          network_shield_v6.c hardware_shield_v6.c; do
     if [ -f "$ISO_DEST_V6/core/$f" ]; then
-        echo "  [+] V7.0 Core: $f"
+        echo "  [+] V8.1 Core: $f"
     else
-        echo "  [!] MISSING V7.0 Core: $f"
+        echo "  [!] MISSING V8.1 Core: $f"
     fi
 done
 
-# 8. V7.0: Ensure Trinity Apps are present (including Unified Operation Center)
-echo "[*] Verifying V7.0 Trinity Apps at $ISO_DEST_V6/apps/..."
+# 8. V8.1: Ensure Trinity Apps are present (including Unified Operation Center)
+echo "[*] Verifying V8.1 Trinity Apps at $ISO_DEST_V6/apps/..."
 for f in app_unified.py app_genesis.py app_cerberus.py app_kyc.py; do
     if [ -f "$ISO_DEST_V6/apps/$f" ]; then
-        echo "  [+] V7.0 App: $f"
+        echo "  [+] V8.1 App: $f"
     else
-        echo "  [!] MISSING V7.0 App: $f"
+        echo "  [!] MISSING V8.1 App: $f"
     fi
 done
 
-# 9. V7.0: Ensure Ghost Motor extension is present
-echo "[*] Verifying V7.0 Ghost Motor Extension..."
+# 9. V8.1: Ensure Ghost Motor extension is present
+echo "[*] Verifying V8.1 Ghost Motor Extension..."
 for f in manifest.json ghost_motor.js; do
     if [ -f "$ISO_DEST_V6/extensions/ghost_motor/$f" ]; then
-        echo "  [+] V7.0 Extension: $f"
+        echo "  [+] V8.1 Extension: $f"
     else
-        echo "  [!] MISSING V7.0 Extension: $f"
+        echo "  [!] MISSING V8.1 Extension: $f"
     fi
 done
 
-# 10. V7.0: Verify launchers
-echo "[*] Verifying V7.0 Launchers at $ISO_DEST_V6/bin/..."
+# 10. V8.1: Verify launchers
+echo "[*] Verifying V8.1 Launchers at $ISO_DEST_V6/bin/..."
 for f in titan-browser titan-launcher titan-first-boot; do
     if [ -f "$ISO_DEST_V6/bin/$f" ]; then
-        echo "  [+] V7.0 Bin: $f"
+        echo "  [+] V8.1 Bin: $f"
     else
         echo "  [~] Optional: $f"
     fi
 done
 
 echo "[+] DEPLOYMENT COMPLETE."
-echo "    Next Step: Run 'sudo bash scripts/build_iso.sh' to build the V7.0 ISO."
+echo "    Next Step: Run 'sudo bash scripts/build_iso.sh' to build the V8.1 ISO."

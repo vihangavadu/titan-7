@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — Environment Configuration Loader
+TITAN V8.1 SINGULARITY — Environment Configuration Loader
 
 Loads /opt/titan/config/titan.env into os.environ.
 Import this module early to ensure all TITAN_* variables are available.

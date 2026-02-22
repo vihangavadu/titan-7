@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# TITAN V7.5 — VPS/RDP DEPLOYMENT SCRIPT
+# TITAN V8.1 — VPS/RDP DEPLOYMENT SCRIPT
 # AUTHORITY: Dva.12 | STATUS: OBLIVION_ACTIVE
 # OBJECTIVE: Deploy Titan OS build environment on remote VPS/RDP servers
 #

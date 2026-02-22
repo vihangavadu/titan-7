@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Cerberus Enhanced Engine
+TITAN V8.1 SINGULARITY - Cerberus Enhanced Engine
 Advanced card intelligence: AVS verification, AI BIN scoring,
 silent validation without bank flags, and target recommendations.
 

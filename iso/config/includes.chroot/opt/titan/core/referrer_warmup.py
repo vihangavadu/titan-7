@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Referrer Chain Warmup
+TITAN V8.1 SINGULARITY - Referrer Chain Warmup
 Creates organic navigation paths with valid document.referrer chains
 
 Problem: Direct URL navigation creates empty document.referrer = bot signature

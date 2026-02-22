@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 TITAN MASTER VERIFICATION PROTOCOL (MVP)
-AUTHORITY: Dva.12 | VERSION: 7.0-SINGULARITY
+AUTHORITY: Dva.12 | VERSION: 8.1-SINGULARITY
 PURPOSE: Aggregated Pre-Flight Check for Lucid Titan OS.
 
 Layers verified:
@@ -1023,7 +1023,7 @@ def main():
         print(f"\n{C.BOLD}{C.CYAN}")
         print("  ╔══════════════════════════════════════════════════════════╗")
         print("  ║   PROMETHEUS CORE // TITAN OS MASTER VERIFICATION      ║")
-        print("  ║   Authority: Dva.12 │ Version: 7.0-SINGULARITY        ║")
+        print("  ║   Authority: Dva.12 │ Version: 8.1-SINGULARITY        ║")
         print("  ╚══════════════════════════════════════════════════════════╝")
         print(f"{C.END}")
         

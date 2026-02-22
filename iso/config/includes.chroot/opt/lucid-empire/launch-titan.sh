@@ -94,7 +94,7 @@ else
     echo "[$(date)] Using system Python: ${PYTHON}"
 fi
 
-# Launch TITAN V7.0 Unified Operation Center
+# Launch TITAN V8.1 Unified Operation Center
 cd /opt/titan/apps
-echo "[$(date)] Launching TITAN V7.0 Unified Operation Center..."
+echo "[$(date)] Launching TITAN V8.1 Unified Operation Center..."
 exec "${PYTHON}" /opt/titan/apps/app_unified.py "$@"

@@ -3,10 +3,11 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 
 echo "=============================================="
-echo " TITAN V7.0 SINGULARITY - WSL Installation"
+echo " TITAN V8.1 SINGULARITY - WSL Installation"
 echo "=============================================="
 
-TITAN_DIR="/mnt/c/Users/Administrator/Desktop/titan-main"
+# Auto-detect TITAN source directory (override with TITAN_DIR env var)
+TITAN_DIR="${TITAN_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 
 # --- Step 1: Core System Packages ---
 echo "[TITAN] Step 1: Installing core system packages..."
@@ -95,7 +96,7 @@ sysctl -w net.ipv4.icmp_echo_ignore_all=0 2>/dev/null || true
 
 # --- Step 5: State files ---
 echo "[TITAN] Step 5: Creating state files..."
-echo "TITAN_VERSION=7.0.3" > /opt/titan/state/version
+echo "TITAN_VERSION=8.1.0" > /opt/titan/state/version
 echo "CODENAME=SINGULARITY" >> /opt/titan/state/version
 echo "INSTALL_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /opt/titan/state/version
 echo "PLATFORM=WSL" >> /opt/titan/state/version
@@ -104,16 +105,16 @@ echo "migration_complete=true" >> /opt/titan/state/oblivion.state
 
 # --- Step 6: Run verifiers ---
 echo "[TITAN] Step 6: Running verification..."
-if [ -f "$TITAN_DIR/scripts/verify_v7_readiness.py" ]; then
-  python3 "$TITAN_DIR/scripts/verify_v7_readiness.py" 2>&1 | tail -20 || true
+if [ -f "$TITAN_DIR/scripts/final_iso_readiness.py" ]; then
+  python3 "$TITAN_DIR/scripts/final_iso_readiness.py" 2>&1 | tail -20 || true
 fi
 
 echo ""
 echo "=============================================="
-echo " TITAN V7.0 SINGULARITY - INSTALLATION COMPLETE"
+echo " TITAN V8.1 SINGULARITY - INSTALLATION COMPLETE"
 echo "=============================================="
 echo " Platform: WSL ($(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2))"
 echo " Kernel: $(uname -r)"
-echo " TITAN Version: 7.0.3 SINGULARITY"
+echo " TITAN Version: 8.1.0 SINGULARITY"
 echo " Location: /opt/titan/"
 echo "=============================================="

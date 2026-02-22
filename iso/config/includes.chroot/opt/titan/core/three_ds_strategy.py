@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - 3DS Strategy Module
+TITAN V8.1 SINGULARITY - 3DS Strategy Module
 Provides guidance on 3DS avoidance and handling
 
 3DS (3D Secure) is a major friction point that can block transactions.

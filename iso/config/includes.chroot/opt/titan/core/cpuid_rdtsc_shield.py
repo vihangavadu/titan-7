@@ -1,5 +1,5 @@
 """
-TITAN V7.5 SINGULARITY — CPUID/RDTSC Timing Hardening
+TITAN V8.1 SINGULARITY — CPUID/RDTSC Timing Hardening
 Ring 0 Anti-Virtualization Evasion
 
 Defeats hypervisor detection via:

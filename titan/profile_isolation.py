@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 SINGULARITY - Profile Isolation Manager
+TITAN V8.1 SINGULARITY - Profile Isolation Manager
 
 This module provides process isolation using Linux namespaces and cgroups
 to prevent data leakage between browser profiles and ensure each identity
@@ -438,7 +438,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="TITAN V7.0 SINGULARITY Profile Isolator"
+        description="TITAN V8.1 SINGULARITY Profile Isolator"
     )
     
     parser.add_argument(

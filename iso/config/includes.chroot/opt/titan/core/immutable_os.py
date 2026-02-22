@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — Immutable OS Manager & A/B Partition Controller
+TITAN V8.1 SINGULARITY — Immutable OS Manager & A/B Partition Controller
 Implements read-only root with OverlayFS and atomic A/B partition updates
 
 V7 Architecture: The live system foundation is hardened into a pseudo-immutable

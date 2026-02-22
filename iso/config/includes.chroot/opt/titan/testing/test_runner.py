@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.0 Test Runner
+TITAN V8.1 Test Runner
 
 Automated test execution framework for PSP and detection system testing.
 Runs comprehensive test suites and generates detailed failure reports.
@@ -145,7 +145,7 @@ class TestRunSummary:
 
 class TestRunner:
     """
-    Main test runner for TITAN V7.0 testing environment
+    Main test runner for TITAN V8.1 testing environment
     
     Executes test suites against PSP sandboxes and detection emulators,
     collecting results and generating detailed failure analysis.
@@ -478,7 +478,7 @@ class TestRunner:
 def create_default_test_suite() -> TestSuite:
     """Create a default comprehensive test suite"""
     suite = TestSuite(
-        name="TITAN V7.0 Comprehensive Test Suite",
+        name="TITAN V8.1 Comprehensive Test Suite",
         description="Full test coverage for PSP and detection systems",
     )
     

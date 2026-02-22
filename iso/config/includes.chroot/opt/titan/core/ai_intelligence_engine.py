@@ -1,5 +1,5 @@
 """
-TITAN V7.5 SINGULARITY — AI Intelligence Engine
+TITAN V8.1 SINGULARITY — AI Intelligence Engine
 Unified Ollama-powered intelligence for all operational modules.
 
 Hooks local Ollama (qwen2.5:7b + mistral:7b) into:

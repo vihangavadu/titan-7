@@ -1,5 +1,5 @@
 """
-TITAN V7.5 SINGULARITY — Dynamic Data Generator
+TITAN V8.1 SINGULARITY — Dynamic Data Generator
 Replaces hardcoded databases with Ollama-powered dynamic generation + caching.
 
 Modules that benefit:

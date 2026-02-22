@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY - Target Intelligence Database
+TITAN V8.1 SINGULARITY - Target Intelligence Database
 PSP, Fraud Engine, and Detection System Intelligence for 35 core targets + expansion framework
 """
 
@@ -1515,7 +1515,7 @@ def get_paypal_defense_intel() -> Dict:
 
 
 if __name__ == "__main__":
-    print("TITAN V7.0 Target Intelligence Database")
+    print("TITAN V8.1 Target Intelligence Database")
     print("=" * 60)
     
     for target in list_targets():
@@ -1588,7 +1588,7 @@ class IntelligenceSyncManager:
     """
     
     def __init__(self):
-        self._version = "7.6.0"
+        self._version = "8.1.0"
         self._last_sync = 0.0
         self._sync_history: List[Dict] = []
         self._pending_updates: List[Dict] = []

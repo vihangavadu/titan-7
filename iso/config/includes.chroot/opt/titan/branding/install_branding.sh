@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════
-# TITAN V7.5 SINGULARITY — Branding Installer
+# TITAN V8.1 SINGULARITY — Branding Installer
 # Installs wallpapers, icons, desktop shortcuts, GRUB theme,
 # login screen, and XFCE desktop configuration.
 #
@@ -18,7 +18,7 @@ BOLD='\033[1m'
 
 echo -e "${CYAN}${BOLD}"
 echo "  ╔══════════════════════════════════════════════════╗"
-echo "  ║  TITAN V7.5 — BRANDING INSTALLER              ║"
+echo "  ║  TITAN V8.1 — BRANDING INSTALLER              ║"
 echo "  ╚══════════════════════════════════════════════════╝"
 echo -e "${NC}"
 

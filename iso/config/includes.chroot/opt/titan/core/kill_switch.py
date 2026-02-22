@@ -1,5 +1,5 @@
 """
-TITAN V7.0 SINGULARITY — Phase 2.3: Kill Switch (Panic Sequence)
+TITAN V8.1 SINGULARITY — Phase 2.3: Kill Switch (Panic Sequence)
 Automated Detection Response & Hardware ID Flush
 
 Problem: When a fraud detection system flags the session (fraud score
@@ -691,6 +691,67 @@ WantedBy=multi-user.target
             logger.error(f"[PANIC] MAC randomize error: {e}")
             return False
     
+    def _shred_ephemeral_data(self) -> bool:
+        """Forensic wipe of all ephemeral/session data — no recoverable artifacts.
+
+        Shreds: browser session files, WAL journals, temp profiles, RAM-backed
+        state files, and any .titan/ operational artifacts from the profile dir.
+        Uses 3-pass overwrite on sensitive files when secure_delete is available.
+        """
+        try:
+            shredded = 0
+            profile_dir = Path(self.config.profile_path) / self.config.profile_uuid
+
+            # Patterns of ephemeral data to shred
+            SHRED_PATTERNS = [
+                "*.sqlite-wal", "*.sqlite-shm",
+                "sessionstore*", "recovery.jsonlz4",
+                ".titan/*.json", ".titan/*.log",
+                "crashes/", "minidumps/",
+            ]
+
+            def _overwrite_and_delete(p: Path):
+                nonlocal shredded
+                try:
+                    if p.is_file():
+                        size = p.stat().st_size
+                        with open(p, "r+b") as f:
+                            for _ in range(3):  # 3-pass overwrite
+                                f.seek(0)
+                                f.write(os.urandom(size))
+                                f.flush()
+                                os.fsync(f.fileno())
+                        p.unlink()
+                        shredded += 1
+                    elif p.is_dir():
+                        shutil.rmtree(p, ignore_errors=True)
+                        shredded += 1
+                except Exception:
+                    pass
+
+            if profile_dir.exists():
+                import glob as _glob
+                for pattern in SHRED_PATTERNS:
+                    for match in profile_dir.glob(pattern):
+                        _overwrite_and_delete(match)
+
+            # Also shred /tmp titan artifacts
+            for tmp_file in Path("/tmp").glob("titan_*"):
+                _overwrite_and_delete(tmp_file)
+
+            # Shred state dir operational logs
+            state_dir = Path(self.config.state_dir)
+            if state_dir.exists():
+                for log_file in state_dir.glob("*.log"):
+                    _overwrite_and_delete(log_file)
+
+            logger.critical(f"[PANIC] Shredded {shredded} ephemeral artifacts")
+            return True
+
+        except Exception as e:
+            logger.error(f"[PANIC] Shred error: {e}")
+            return False
+
     # ═══════════════════════════════════════════════════════════════════
     # STATE & LOGGING
     # ═══════════════════════════════════════════════════════════════════

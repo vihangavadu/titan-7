@@ -16,7 +16,7 @@ Implements:
 - Quota Manager .metadata-v2 files
 
 Author: LUCID EMPIRE
-Version: 7.0.0-TITAN
+Version: 8.1.0-TITAN
 """
 
 import sqlite3
