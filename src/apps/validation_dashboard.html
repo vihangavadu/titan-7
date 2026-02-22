@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUCID EMPIRE - Forensic Validation Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #050505 0%, #1a1a2e 100%);
+        }
+        .blood-red {
+            color: #ff003c;
+        }
+        .toxic-cyan {
+            color: #00f3ff;
+        }
+        .success-green {
+            color: #00ff88;
+        }
+        .warning-yellow {
+            color: #ffaa00;
+        }
+        .error-red {
+            color: #ff4444;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .rotate-animation {
+            animation: rotate 20s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="gradient-bg text-white min-h-screen">
+    <!-- Header -->
+    <header class="glass-effect border-b border-gray-700">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center rotate-animation">
+                        <span class="text-white font-bold text-xl">L</span>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold">LUCID EMPIRE</h1>
+                        <p class="text-sm text-gray-400">Forensic Validation Dashboard</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="runValidation" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition-colors">
+                        Run Validation
+                    </button>
+                    <button id="exportResults" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition-colors">
+                        Export Results
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8">
+        <!-- Status Overview -->
+        <section class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Validation Status</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="glass-effect rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-400">Overall Score</span>
+                        <span id="overallScore" class="text-2xl font-bold">--</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2">
+                        <div id="overallProgress" class="bg-gradient-to-r from-red-600 to-cyan-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="glass-effect rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-400">Tests Passed</span>
+                        <span id="testsPassed" class="text-2xl font-bold">--</span>
+                    </div>
+                    <div class="text-sm text-gray-400">
+                        <span id="passedCount">0</span> / <span id="totalCount">0</span>
+                    </div>
+                </div>
+                <div class="glass-effect rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-400">Critical Issues</span>
+                        <span id="criticalIssues" class="text-2xl font-bold text-red-400">--</span>
+                    </div>
+                    <div class="text-sm text-gray-400" id="criticalIssuesList">
+                        No issues detected
+                    </div>
+                </div>
+                <div class="glass-effect rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-gray-400">Last Run</span>
+                        <span id="lastRun" class="text-sm">Never</span>
+                    </div>
+                    <div class="text-sm text-gray-400" id="validationStatus">
+                        Ready to validate
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tool Results -->
+        <section class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Tool Results</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="toolResults">
+                <!-- Tool cards will be dynamically inserted here -->
+            </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Performance Metrics</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="glass-effect rounded-lg p-4">
+                    <h3 class="text-lg font-semibold mb-4">Trust Scores</h3>
+                    <canvas id="trustScoreChart"></canvas>
+                </div>
+                <div class="glass-effect rounded-lg p-4">
+                    <h3 class="text-lg font-semibold mb-4">Consistency Analysis</h3>
+                    <canvas id="consistencyChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Detailed Results -->
+        <section class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Detailed Analysis</h2>
+            <div class="glass-effect rounded-lg p-4">
+                <div id="detailedResults" class="space-y-4">
+                    <!-- Detailed results will be dynamically inserted here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        class ValidationDashboard {
+            constructor() {
+                this.validationResults = {};
+                this.charts = {};
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.initCharts();
+                this.loadStoredResults();
+            }
+
+            bindEvents() {
+                document.getElementById('runValidation').addEventListener('click', () => this.runValidation());
+                document.getElementById('exportResults').addEventListener('click', () => this.exportResults());
+            }
+
+            initCharts() {
+                // Trust Scores Chart
+                const trustCtx = document.getElementById('trustScoreChart').getContext('2d');
+                this.charts.trustScore = new Chart(trustCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['CreepJS', 'Pixelscan', 'IPhey', 'FingerprintJS', 'AmIUnique'],
+                        datasets: [{
+                            label: 'Trust Score',
+                            data: [0, 0, 0, 0, 0],
+                            backgroundColor: [
+                                'rgba(255, 0, 60, 0.7)',
+                                'rgba(0, 243, 255, 0.7)',
+                                'rgba(0, 255, 136, 0.7)',
+                                'rgba(255, 170, 0, 0.7)',
+                                'rgba(255, 68, 68, 0.7)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 0, 60, 1)',
+                                'rgba(0, 243, 255, 1)',
+                                'rgba(0, 255, 136, 1)',
+                                'rgba(255, 170, 0, 1)',
+                                'rgba(255, 68, 68, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { color: '#9ca3af' },
+                                grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                            },
+                            x: {
+                                ticks: { color: '#9ca3af' },
+                                grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+
+                // Consistency Chart
+                const consistencyCtx = document.getElementById('consistencyChart').getContext('2d');
+                this.charts.consistency = new Chart(consistencyCtx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['Fingerprint', 'Hardware', 'Geolocation', 'Privacy', 'Consistency'],
+                        datasets: [{
+                            label: 'Current Profile',
+                            data: [0, 0, 0, 0, 0],
+                            backgroundColor: 'rgba(255, 0, 60, 0.2)',
+                            borderColor: 'rgba(255, 0, 60, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { color: '#9ca3af' },
+                                grid: { color: 'rgba(156, 163, 175, 0.1)' },
+                                pointLabels: { color: '#9ca3af' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            }
+
+            async runValidation() {
+                this.updateStatus('Running validation...', 'text-yellow-400');
+                document.getElementById('runValidation').disabled = true;
+                document.getElementById('runValidation').innerHTML = '<span class="pulse-animation">⚡</span> Running...';
+
+                try {
+                    // Simulate API call to validation service
+                    const response = await fetch('/api/validation/run', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            profile_id: 'Titan_SoftwareEng_USA_001',
+                            tools: ['creepjs', 'pixelscan', 'iphey', 'fingerprintjs', 'amiunique']
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Validation request failed');
+                    }
+
+                    const results = await response.json();
+                    this.validationResults = results;
+                    this.displayResults(results);
+                    this.updateCharts(results);
+                    this.updateStatus('Validation complete', 'text-green-400');
+
+                } catch (error) {
+                    console.error('Validation error:', error);
+                    this.updateStatus('Validation failed', 'text-red-400');
+                    this.showError('Validation failed: ' + error.message);
+                } finally {
+                    document.getElementById('runValidation').disabled = false;
+                    document.getElementById('runValidation').innerHTML = 'Run Validation';
+                }
+            }
+
+            displayResults(results) {
+                // Update overview
+                this.updateOverview(results);
+
+                // Update tool cards
+                this.updateToolCards(results);
+
+                // Update detailed results
+                this.updateDetailedResults(results);
+
+                // Update last run time
+                document.getElementById('lastRun').textContent = new Date().toLocaleTimeString();
+            }
+
+            updateOverview(results) {
+                const scores = Object.values(results).map(r => r.score);
+                const overallScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+                const passed = scores.filter(s => s >= 80).length;
+                const criticalIssues = Object.values(results).reduce((count, r) => count + r.errors.length, 0);
+
+                document.getElementById('overallScore').textContent = overallScore.toFixed(1);
+                document.getElementById('overallProgress').style.width = `${overallScore}%`;
+                document.getElementById('testsPassed').textContent = passed;
+                document.getElementById('passedCount').textContent = passed;
+                document.getElementById('totalCount').textContent = scores.length;
+                document.getElementById('criticalIssues').textContent = criticalIssues;
+
+                if (criticalIssues > 0) {
+                    document.getElementById('criticalIssuesList').textContent = `${criticalIssues} issues found`;
+                }
+            }
+
+            updateToolCards(results) {
+                const container = document.getElementById('toolResults');
+                container.innerHTML = '';
+
+                Object.entries(results).forEach(([tool, result]) => {
+                    const status = result.score >= 80 ? 'success' : result.score >= 60 ? 'warning' : 'error';
+                    const statusColor = result.score >= 80 ? 'text-green-400' : result.score >= 60 ? 'text-yellow-400' : 'text-red-400';
+                    const statusIcon = result.score >= 80 ? '✅' : result.score >= 60 ? '⚠️' : '❌';
+
+                    const card = document.createElement('div');
+                    card.className = 'glass-effect rounded-lg p-4';
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-semibold">${tool}</h3>
+                            <span class="${statusColor} text-2xl">${statusIcon}</span>
+                        </div>
+                        <div class="mb-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-gray-400">Trust Score</span>
+                                <span class="${statusColor} font-bold">${result.trust_score}</span>
+                            </div>
+                            <div class="w-full bg-gray-700 rounded-full h-2">
+                                <div class="bg-gradient-to-r from-red-600 to-cyan-600 h-2 rounded-full" style="width: ${result.score}%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            ${result.warnings.length > 0 ? `
+                                <div class="text-yellow-400 text-sm">
+                                    <strong>Warnings:</strong>
+                                    <ul class="list-disc list-inside ml-2">
+                                        ${result.warnings.map(w => `<li>${w}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            ${result.errors.length > 0 ? `
+                                <div class="text-red-400 text-sm">
+                                    <strong>Errors:</strong>
+                                    <ul class="list-disc list-inside ml-2">
+                                        ${result.errors.map(e => `<li>${e}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            ${result.recommendations.length > 0 ? `
+                                <div class="text-cyan-400 text-sm">
+                                    <strong>Recommendations:</strong>
+                                    <ul class="list-disc list-inside ml-2">
+                                        ${result.recommendations.slice(0, 2).map(r => `<li>${r}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            updateDetailedResults(results) {
+                const container = document.getElementById('detailedResults');
+                container.innerHTML = '';
+
+                Object.entries(results).forEach(([tool, result]) => {
+                    const section = document.createElement('div');
+                    section.className = 'border-l-4 border-red-600 pl-4';
+                    section.innerHTML = `
+                        <h3 class="text-lg font-semibold mb-2">${tool} Detailed Results</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <h4 class="font-semibold text-gray-400 mb-2">Metrics</h4>
+                                <ul class="space-y-1 text-sm">
+                                    <li>Score: <span class="text-cyan-400">${result.score.toFixed(1)}/100</span></li>
+                                    <li>Trust Score: <span class="text-cyan-400">${result.trust_score}</span></li>
+                                    <li>Warnings: <span class="text-yellow-400">${result.warnings.length}</span></li>
+                                    <li>Errors: <span class="text-red-400">${result.errors.length}</span></li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-400 mb-2">Raw Data</h4>
+                                <pre class="text-xs bg-gray-800 p-2 rounded overflow-x-auto">
+                                    ${JSON.stringify(result.raw_data, null, 2)}
+                                </pre>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(section);
+                });
+            }
+
+            updateCharts(results) {
+                // Update trust scores chart
+                const trustScores = Object.values(results).map(r => {
+                    const score = parseInt(r.trust_score) || 0;
+                    return isNaN(score) ? parseFloat(r.trust_score) : score;
+                });
+                this.charts.trustScore.data.datasets[0].data = trustScores;
+                this.charts.trustScore.update();
+
+                // Update consistency chart
+                const avgConsistency = Object.values(results).reduce((acc, r) => {
+                    const score = r.score || 0;
+                    return acc + score;
+                }, 0) / Object.values(results).length;
+
+                this.charts.consistency.data.datasets[0].data = [
+                    avgConsistency,
+                    avgConsistency * 0.95,
+                    avgConsistency * 0.98,
+                    avgConsistency * 0.92,
+                    avgConsistency * 0.90
+                ];
+                this.charts.consistency.update();
+            }
+
+            updateStatus(message, colorClass) {
+                const statusElement = document.getElementById('validationStatus');
+                statusElement.textContent = message;
+                statusElement.className = `text-sm text-gray-400 ${colorClass}`;
+            }
+
+            showError(message) {
+                // Create error notification
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+                notification.textContent = message;
+                document.body.appendChild(notification);
+
+                setTimeout(() => {
+                    notification.remove();
+                }, 5000);
+            }
+
+            exportResults() {
+                const dataStr = JSON.stringify(this.validationResults, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `validation_results_${new Date().toISOString().slice(0, 10)}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+            }
+
+            loadStoredResults() {
+                // Load any previously stored results
+                const stored = localStorage.getItem('validationResults');
+                if (stored) {
+                    try {
+                        const results = JSON.parse(stored);
+                        this.validationResults = results;
+                        this.displayResults(results);
+                        this.updateCharts(results);
+                    } catch (error) {
+                        console.error('Failed to load stored results:', error);
+                    }
+                }
+            }
+
+            saveResults() {
+                // Save results to localStorage
+                localStorage.setItem('validationResults', JSON.stringify(this.validationResults));
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            window.validationDashboard = new ValidationDashboard();
+        });
+    </script>
+</body>
+</html>
