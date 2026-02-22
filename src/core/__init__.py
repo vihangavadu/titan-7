@@ -468,6 +468,37 @@ try:
 except ImportError:
     ProfileIsolator = CgroupManager = ResourceLimits = None
 
+# V8.1 Recovered from previous builds (Cookie-main, vehicle-main, aged-web-v)
+try:
+    from .ga_triangulation import GAMPTriangulation
+except ImportError:
+    GAMPTriangulation = None
+
+try:
+    from .temporal_entropy import EntropyGenerator
+except ImportError:
+    EntropyGenerator = None
+
+try:
+    from .journey_simulator import JourneySimulator
+except ImportError:
+    JourneySimulator = None
+
+try:
+    from .time_dilator import TimeDilator
+except ImportError:
+    TimeDilator = None
+
+try:
+    from .profile_burner import ProfileBurner
+except ImportError:
+    ProfileBurner = None
+
+try:
+    from .chromium_cookie_engine import ChromeCryptoEngine
+except ImportError:
+    ChromeCryptoEngine = None
+
 # V8.1 Network Shield Mullvad extensions
 try:
     from .network_shield_loader import (
@@ -677,4 +708,7 @@ __all__ = [
     # V8.1 Recovered Modules
     'DetectionLab', 'DetectionLabV2',
     'ProfileIsolator', 'CgroupManager', 'ResourceLimits',
+    # V8.1 Recovered from Previous Builds
+    'GAMPTriangulation', 'EntropyGenerator', 'JourneySimulator',
+    'TimeDilator', 'ProfileBurner', 'ChromeCryptoEngine',
 ]
