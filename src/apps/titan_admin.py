@@ -69,6 +69,26 @@ try:
 except ImportError:
     BUG_BRIDGE_AVAILABLE = False
 
+# V8.1 Recovered: Detection Lab (stealth testing)
+try:
+    from titan_detection_lab import DetectionLab
+    DETECTION_LAB_AVAILABLE = True
+except ImportError:
+    DETECTION_LAB_AVAILABLE = False
+
+try:
+    from titan_detection_lab_v2 import DetectionLabV2
+    DETECTION_LAB_V2_AVAILABLE = True
+except ImportError:
+    DETECTION_LAB_V2_AVAILABLE = False
+
+# V8.1 Recovered: Profile Isolation (namespace/cgroup)
+try:
+    from profile_isolation import ProfileIsolator, ResourceLimits
+    PROFILE_ISOLATION_AVAILABLE = True
+except ImportError:
+    PROFILE_ISOLATION_AVAILABLE = False
+
 try:
     from titan_auto_patcher import AutoPatcher as TitanAutoPatcher
     PATCHER_AVAILABLE = True

@@ -452,6 +452,22 @@ except ImportError:
     ObfuscationMode = ConnectionStatus = DAITAVersion = ExitNodeTrust = None
     create_mullvad = quick_connect = get_mullvad_status = check_ip_reputation = None
 
+# V8.1 Recovered from previous versions
+try:
+    from .titan_detection_lab import DetectionLab
+except ImportError:
+    DetectionLab = None
+
+try:
+    from .titan_detection_lab_v2 import DetectionLabV2
+except ImportError:
+    DetectionLabV2 = None
+
+try:
+    from .profile_isolation import ProfileIsolator, CgroupManager, ResourceLimits
+except ImportError:
+    ProfileIsolator = CgroupManager = ResourceLimits = None
+
 # V8.1 Network Shield Mullvad extensions
 try:
     from .network_shield_loader import (
@@ -658,4 +674,7 @@ __all__ = [
     'create_mullvad', 'quick_connect', 'get_mullvad_status', 'check_ip_reputation',
     'detect_wireguard_interface', 'attach_shield_to_mullvad', 'safe_boot_mullvad',
     'MULLVAD_RESIDENTIAL_PROFILE',
+    # V8.1 Recovered Modules
+    'DetectionLab', 'DetectionLabV2',
+    'ProfileIsolator', 'CgroupManager', 'ResourceLimits',
 ]

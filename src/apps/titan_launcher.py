@@ -259,10 +259,20 @@ class TitanLauncher(QMainWindow):
         bottom_row.addWidget(AppCard(
             title="Admin",
             subtitle="SYSTEM MGMT \u2022 14 MODULES",
-            description="Services \u2022 Automation \u2022 Config\nBug Reporter \u2022 AI Setup \u2022 Kill Switch",
+            description="Services \u2022 Automation \u2022 Config\nDetection Lab \u2022 AI Setup \u2022 Kill Switch",
             accent="#f59e0b",
             icon_char="\u2699\ufe0f",
             script="titan_admin.py",
+        ))
+
+        # Card 6: Bug Reporter (recovered V8.0)
+        bottom_row.addWidget(AppCard(
+            title="Bug Reporter",
+            subtitle="DIAGNOSTICS \u2022 AUTO-PATCH",
+            description="Issue Reporting \u2022 Decline Intel\nWindsurf Patching \u2022 Log Analysis",
+            accent="#ef4444",
+            icon_char="\ud83d\udc1b",
+            script="app_bug_reporter.py",
         ))
 
         bottom_row.addStretch()
