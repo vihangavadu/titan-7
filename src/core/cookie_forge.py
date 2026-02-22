@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
-# MULTILOGIN COOKIE FORGE SUITE v4.0
-# FULL OPERATIONAL DEPLOYMENT - NO RESTRICTIONS
+"""
+TITAN V8.1 SINGULARITY — Cookie Forge Engine
+
+Multi-browser cookie/history/localStorage/cache injection with JSON batch mode.
+Supports both Chrome/Chromium and Firefox cookie database formats.
+
+Recovered from Cookie-main (Oblivion Forge). Adapted for Titan V8.1.
+
+Integration points:
+  - genesis_core.py: Inject cookies after profile generation
+  - time_dilator.py: Pair with history injection for temporal consistency
+  - profile_burner.py: Use after browser-driven aging to add specific cookies
+  - chromium_cookie_engine.py: Uses Chrome encryption engine for V10/V11 cookies
+"""
 
 import os
 import sys

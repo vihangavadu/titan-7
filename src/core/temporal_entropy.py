@@ -1,416 +1,316 @@
-def get_human_jitter(min_ms=8, max_ms=32):
-    """
-    Returns a cryptographically secure, human-like jitter (in seconds) for mouse movement delays.
-    Args:
-        min_ms: Minimum jitter in milliseconds (default 8)
-        max_ms: Maximum jitter in milliseconds (default 32)
-    Returns:
-        float: Jitter in seconds
-    """
-    import secrets
-    ms = min_ms + secrets.randbelow(max_ms - min_ms + 1)
-    return ms / 1000.0
+#!/usr/bin/env python3
 """
-Entropy Generator: Advanced temporal entropy generation with Poisson distribution.
-Creates realistic browsing patterns and time advancement strategies.
+TITAN V8.1 SINGULARITY — Temporal Entropy Generator
+
+Advanced temporal entropy generation with Poisson distribution.
+Creates realistic browsing patterns, circadian rhythms, and organic pause timing
+for profile aging and behavioral simulation.
+
+Recovered from Prometheus-Core and adapted for Titan V8.1.
+numpy/scipy are OPTIONAL — pure-Python fallbacks provided.
+
+Integration points:
+  - genesis_core.py: Use generate_segments() for profile aging timeline
+  - referrer_warmup.py: Use organic_pause() between warmup visits
+  - integration_bridge.py: Use circadian patterns for session timing
+  - ghost_motor_v6.py: Use get_human_jitter() for mouse movement delays
 """
-import numpy as np
-from scipy import stats
+import math
 import random
+import secrets
 import time
+import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Tuple, Optional
-import logging
+
+logger = logging.getLogger("TITAN-TEMPORAL-ENTROPY")
+
+# Optional numpy/scipy — graceful fallback to pure Python
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    np = None
+    NUMPY_AVAILABLE = False
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONSTANTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+LONG_PAUSE_MEAN_SECONDS = 60
+LONG_PAUSE_STD_SECONDS = 15
+LONG_PAUSE_MIN_SECONDS = 30
+LONG_PAUSE_MAX_SECONDS = 90
+REGULAR_PAUSE_MIN_SECONDS = 1
+REGULAR_PAUSE_MAX_SECONDS = 5
 
 
-import secrets
-import random
-LONG_PAUSE_MEAN_SECONDS = 60  # Mean duration for long pauses
-LONG_PAUSE_STD_SECONDS = 15   # Standard deviation for long pauses
-LONG_PAUSE_MIN_SECONDS = 30   # Minimum long pause duration
-LONG_PAUSE_MAX_SECONDS = 90   # Maximum long pause duration
-REGULAR_PAUSE_MIN_SECONDS = 1 # Minimum regular pause duration
-REGULAR_PAUSE_MAX_SECONDS = 5 # Maximum regular pause duration
+# ═══════════════════════════════════════════════════════════════════════════════
+# STANDALONE HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
 
+def get_human_jitter(min_ms=8, max_ms=32):
+    """Cryptographically secure human-like jitter in seconds for mouse delays."""
+    ms = min_ms + secrets.randbelow(max_ms - min_ms + 1)
+    return ms / 1000.0
+
+
+def get_secure_delay(min_seconds, max_seconds):
+    """Cryptographically secure delay to prevent pattern prediction."""
+    rand_float = secrets.randbelow(1000000) / 1000000.0
+    return min_seconds + ((max_seconds - min_seconds) * rand_float)
+
+
+def _poisson_pure_python(lam, size):
+    """Pure-Python Poisson random variate generator (no numpy needed)."""
+    results = []
+    rng = secrets.SystemRandom()
+    for _ in range(size):
+        L = math.exp(-lam)
+        k = 0
+        p = 1.0
+        while True:
+            k += 1
+            p *= rng.random()
+            if p < L:
+                break
+        results.append(k - 1)
+    return results
+
+
+def _normal_pure_python(mean, std):
+    """Pure-Python normal variate (no numpy needed)."""
+    rng = secrets.SystemRandom()
+    return max(0, rng.gauss(mean, std))
+
+
+def _clip(value, low, high):
+    """Clip value to range [low, high]."""
+    return max(low, min(high, value))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN CLASS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 class EntropyGenerator:
     """
-    Generates temporal entropy using Poisson distribution for realistic aging patterns.
+    Generates temporal entropy using Poisson distribution for realistic aging.
     Simulates organic user behavior over extended time periods.
+
+    Usage:
+        from temporal_entropy import EntropyGenerator
+
+        gen = EntropyGenerator(config={'random_seed': 42})
+        segments = gen.generate_segments(total_days=90, num_segments=12)
+        pause = gen.organic_pause()
+        pattern = gen.generate_circadian_pattern(days=90)
     """
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """Initialize Entropy Generator with configuration."""
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
-        
-        # Configuration
+        self._rng = secrets.SystemRandom()
+
         self.poisson_lambda = self.config.get('poisson_lambda', 2.5)
         self.min_interval = self.config.get('min_interval_hours', 2)
         self.max_interval = self.config.get('max_interval_hours', 168)
-        
-        # Seed for reproducibility
-        self.random_seed = self.config.get('random_seed', None)
-        if self.random_seed:
-            random.seed(self.random_seed)
-            np.random.seed(self.random_seed)
-        
-        # Veritas V5: Organic pause tracking
+
+        seed = self.config.get('random_seed')
+        if seed:
+            random.seed(seed)
+            if NUMPY_AVAILABLE:
+                np.random.seed(seed)
+
         self.page_visit_count = 0
-        self.long_pause_threshold = random.randint(3, 5)  # Trigger long pause every 3-5 pages
-    
+        self.long_pause_threshold = random.randint(3, 5)
+
+    # ─── Segment Generation ──────────────────────────────────────────
+
     def generate_segments(self, total_days: int, num_segments: Optional[int] = None) -> List[Dict]:
         """
         Generate time advancement segments using Poisson distribution.
-        
+
         Args:
             total_days: Total number of days to age
-            num_segments: Number of segments (auto-calculated if None)
-            
+            num_segments: Number of segments (default 12)
+
         Returns:
-            List of segment dictionaries with timing information
+            List of segment dicts with timing, activity level, and actions
         """
         if num_segments is None:
             num_segments = self.config.get('entropy_segments', 12)
-        
+
         total_hours = total_days * 24
-        segments = []
-        
-        # Generate Poisson-distributed intervals
         intervals = self._generate_poisson_intervals(num_segments, total_hours)
-        
+
+        segments = []
         current_time = 0
         base_date = datetime.utcnow() - timedelta(days=total_days)
-        
+
         for i, interval in enumerate(intervals):
-            # Activity level based on time of day
             segment_date = base_date + timedelta(hours=current_time)
-            activity_level = self._calculate_activity_level(segment_date)
-            
-            segment = {
+            activity = self._calculate_activity_level(segment_date)
+
+            segments.append({
                 'index': i,
                 'advance_hours': interval,
                 'cumulative_hours': current_time + interval,
                 'timestamp': segment_date + timedelta(hours=interval),
-                'activity_level': activity_level,
-                'checkpoint': i % 3 == 0,  # GAMP checkpoint every 3rd segment
+                'activity_level': activity,
+                'checkpoint': i % 3 == 0,
                 'is_weekend': segment_date.weekday() >= 5,
                 'hour_of_day': segment_date.hour,
-                'actions': self._generate_segment_actions(activity_level)
-            }
-            
-            segments.append(segment)
+                'actions': self._generate_segment_actions(activity),
+            })
             current_time += interval
-        
-                # Long Pause: 30-90 seconds (simulates reading or multitasking)
-                # Use normal distribution centered at LONG_PAUSE_MEAN_SECONDS
-                pause_duration = float(secrets.SystemRandom().normalvariate(LONG_PAUSE_MEAN_SECONDS, LONG_PAUSE_STD_SECONDS))
-                pause_duration = float(np.clip(pause_duration, LONG_PAUSE_MIN_SECONDS, LONG_PAUSE_MAX_SECONDS))
-                # Log before resetting counter for clarity
-                pages_before_reset = self.page_visit_count
-                self.logger.info(f"[Organic Gap] Long Pause triggered (after {pages_before_reset} pages): {pause_duration:.1f}s")
-                # Reset counter and set new threshold
-                self.page_visit_count = 0
-                self.long_pause_threshold = self._secure_random.randint(3, 5)
-        intervals = raw_intervals * scale_factor
-        
-        # Apply constraints
-        intervals = np.clip(intervals, self.min_interval, self.max_interval)
-        
-        # Normalize to fit total time
-        current_total = np.sum(intervals)
-        if current_total > 0:
-            intervals = intervals * (total_hours / current_total)
-        
-        # Add some noise
-        noise = np.random.normal(0, 0.1, num_segments)
-        intervals = intervals * (1 + noise)
-        
-        # Final constraint check
-        intervals = np.maximum(intervals, self.min_interval)
-        # Hardened entropy: cryptographically secure delay
-        def get_secure_delay(min_seconds, max_seconds):
-            """
-            Uses cryptographic randomness to prevent mathematical prediction of sleep patterns.
-            """
-            rand_float = secrets.randbelow(1000000) / 1000000.0
-            range_span = max_seconds - min_seconds
-            return min_seconds + (range_span * rand_float)
-        
-        return intervals.tolist()
-    
-    def _calculate_activity_level(self, timestamp: datetime) -> str:
-        """Calculate activity level based on time patterns."""
-        
-        hour = timestamp.hour
-        is_weekend = timestamp.weekday() >= 5
-        
-        # Weekend patterns
-        if is_weekend:
-            if 10 <= hour <= 22:
-                return 'high'
-            elif 8 <= hour <= 23:
-                return 'medium'
-            else:
-                return 'low'
-        
-        # Weekday patterns
+
+        return segments
+
+    def _generate_poisson_intervals(self, num_segments: int, total_hours: float) -> List[float]:
+        """Generate Poisson-distributed time intervals."""
+        if NUMPY_AVAILABLE:
+            raw = np.random.poisson(self.poisson_lambda, num_segments).astype(float)
+            raw = np.maximum(raw, 0.5)
+            scale = total_hours / max(np.sum(raw), 1)
+            intervals = raw * scale
+            intervals = np.clip(intervals, self.min_interval, self.max_interval)
+            noise = np.random.normal(0, 0.1, num_segments)
+            intervals = intervals * (1 + noise)
+            intervals = np.maximum(intervals, self.min_interval)
+            return intervals.tolist()
+        else:
+            raw = _poisson_pure_python(self.poisson_lambda, num_segments)
+            raw = [max(r, 0.5) for r in raw]
+            total_raw = sum(raw) or 1
+            scale = total_hours / total_raw
+            intervals = [r * scale for r in raw]
+            intervals = [_clip(i, self.min_interval, self.max_interval) for i in intervals]
+            return intervals
+
+    # ─── Activity Level ──────────────────────────────────────────────
+
+    def _calculate_activity_level(self, ts: datetime) -> str:
+        hour = ts.hour
+        weekend = ts.weekday() >= 5
+        if weekend:
+            return 'high' if 10 <= hour <= 22 else ('medium' if 8 <= hour <= 23 else 'low')
         else:
             if 9 <= hour <= 11 or 14 <= hour <= 16 or 19 <= hour <= 21:
                 return 'high'
-            elif 7 <= hour <= 22:
-                return 'medium'
-            else:
-                return 'low'
-    
+            return 'medium' if 7 <= hour <= 22 else 'low'
+
     def _generate_segment_actions(self, activity_level: str) -> List[str]:
-        """Generate list of actions for a segment based on activity level."""
-        
-        action_pools = {
-            'high': [
-                'browse_products', 'add_to_cart', 'search', 'watch_video',
-                'read_article', 'click_ads', 'form_submission', 'download',
-                'share_social', 'comment', 'review', 'purchase'
-            ],
-            'medium': [
-                'browse_homepage', 'read_article', 'search', 'scroll',
-                'click_link', 'view_image', 'check_email', 'update_profile'
-            ],
-            'low': [
-                'idle', 'scroll', 'refresh', 'check_notifications'
-            ]
+        pools = {
+            'high': ['browse_products', 'add_to_cart', 'search', 'watch_video',
+                     'read_article', 'click_ads', 'form_submission', 'download',
+                     'share_social', 'comment', 'review', 'purchase'],
+            'medium': ['browse_homepage', 'read_article', 'search', 'scroll',
+                       'click_link', 'view_image', 'check_email', 'update_profile'],
+            'low': ['idle', 'scroll', 'refresh', 'check_notifications'],
         }
-        self._secure_random = secrets.SystemRandom()
-        num_actions = self._secure_random.randint(min_actions, max_actions)
-        pool = action_pools.get(activity_level, action_pools['medium'])
-        return [self._secure_random.choice(pool) for _ in range(num_actions)]
-        # Number of actions based on activity level
-        num_actions_map = {'high': (5, 15), 'medium': (3, 8), 'low': (1, 3)}
-        min_actions, max_actions = num_actions_map.get(activity_level, (3, 8))
-        
-        num_actions = random.randint(min_actions, max_actions)
-        
-        return [random.choice(pool) for _ in range(num_actions)]
-    
-    def generate_actions(self, activity_level: str) -> List[Dict]:
-        """
-        Generate detailed action specifications for browser automation.
-        
-        Args:
-            activity_level: Level of activity (high/medium/low)
-            
-        Returns:
-            List of action dictionaries with parameters
-        """
-        actions = []
-        base_actions = self._generate_segment_actions(activity_level)
-        
-        for action_type in base_actions:
-            action = self._create_action_spec(action_type)
-            actions.append(action)
-        
-        return actions
-    
-    def _create_action_spec(self, action_type: str) -> Dict:
-        """Create detailed action specification."""
-        
-        action = {
-            'type': action_type,
-            'timestamp': datetime.utcnow(),
-            'parameters': {}
-        }
-        
-        if action_type == 'scroll':
-            action['parameters'] = {
-                'direction': self._secure_random.choice(['down', 'up']),
-                'amount': self._secure_random.randint(100, 800),
-                'duration': self._secure_random.uniform(0.5, 2.0)
-            }
-        
-        elif action_type == 'click_link':
-            action['parameters'] = {
-                'selector': self._secure_random.choice(['a', 'button', '.btn', '[role="button"]']),
-                'index': self._secure_random.randint(0, 10),
-                'wait_after': self._secure_random.uniform(1, 3)
-            }
-        
-        elif action_type == 'search':
-            action['parameters'] = {
-                'query': self._generate_search_query(),
-                'submit_delay': self._secure_random.uniform(0.5, 2),
-                'typing_speed': self._secure_random.uniform(0.05, 0.15)
-            }
-        
-        elif action_type == 'mouse_movement':
-            action['parameters'] = {
-                'pattern': self._secure_random.choice(['bezier', 'linear', 'random']),
-                'duration': self._secure_random.uniform(0.3, 1.5),
-                'points': self._generate_mouse_path()
-            }
-        
-        elif action_type == 'form_submission':
-            action['parameters'] = {
-                'fields': self._secure_random.randint(2, 6),
-                'typing_delays': [self._secure_random.uniform(0.05, 0.2) for _ in range(6)],
-                'submit_delay': self._secure_random.uniform(1, 3)
-            }
-        
-        return action
-    
-    def _generate_search_query(self) -> str:
-        """Generate realistic search query."""
-        
-        query_templates = [
-            "best {} 2024",
-            "how to {}",
-            "{} reviews",
-            "{} vs {}",
-            "cheap {}",
-            "{} near me",
-            "{} tutorial",
-            "buy {} online"
-        ]
-        
-        topics = [
-            "laptop", "phone", "shoes", "restaurant", "hotel",
-            "camera", "headphones", "watch", "book", "course",
-            "software", "game", "movie", "recipe", "workout"
-        ]
-        
-        template = self._secure_random.choice(query_templates)
-        
-        if '{}' in template:
-            if template.count('{}') == 2:
-                return template.format(self._secure_random.choice(topics), self._secure_random.choice(topics))
-            else:
-                return template.format(self._secure_random.choice(topics))
-        
-        return template
-    
-    def _generate_mouse_path(self) -> List[Tuple[int, int]]:
-        """Generate realistic mouse movement path."""
-        
-        num_points = self._secure_random.randint(3, 8)
-        points = []
-        
-        for _ in range(num_points):
-            x = self._secure_random.randint(100, 1800)
-            y = self._secure_random.randint(100, 900)
-            points.append((x, y))
-        
-        return points
-    
+        counts = {'high': (5, 15), 'medium': (3, 8), 'low': (1, 3)}
+        lo, hi = counts.get(activity_level, (3, 8))
+        n = self._rng.randint(lo, hi)
+        pool = pools.get(activity_level, pools['medium'])
+        return [self._rng.choice(pool) for _ in range(n)]
+
+    # ─── Circadian Pattern ───────────────────────────────────────────
+
     def generate_circadian_pattern(self, days: int) -> List[Dict]:
         """
         Generate activity pattern following circadian rhythm.
-        
-        Args:
-            days: Number of days to generate pattern for
-            
-        Returns:
-            List of activity windows with timing
+
+        Returns list of activity windows with day, period, start time, duration, intensity.
         """
         pattern = []
-        
         for day in range(days):
-            base_date = datetime.utcnow() - timedelta(days=days-day)
-            
-            # Morning activity (6-9 AM)
-                morning_start = base_date.replace(hour=self._secure_random.randint(6, 7), 
-                                                 minute=self._secure_random.randint(0, 59))
-                morning_duration = self._secure_random.uniform(0.5, 2)
-            
-            # Midday activity (11 AM - 2 PM)
-                midday_start = base_date.replace(hour=self._secure_random.randint(11, 12),
-                                                minute=self._secure_random.randint(0, 59))
-                midday_duration = self._secure_random.uniform(1, 2.5)
-            
-            # Evening activity (6-10 PM)
-                evening_start = base_date.replace(hour=self._secure_random.randint(18, 20),
-                                                 minute=self._secure_random.randint(0, 59))
-                evening_duration = self._secure_random.uniform(1.5, 3)
-            
-            # Add some days with night activity
-                if self._secure_random.random() < 0.2:  # 20% chance
-                    night_start = base_date.replace(hour=self._secure_random.randint(22, 23),
-                                                   minute=self._secure_random.randint(0, 59))
-                    night_duration = self._secure_random.uniform(0.5, 1.5)
-                
+            base = datetime.utcnow() - timedelta(days=days - day)
+
+            windows = [
+                ('morning', self._rng.randint(6, 7), self._rng.uniform(0.5, 2), 'medium'),
+                ('midday', self._rng.randint(11, 12), self._rng.uniform(1, 2.5), 'medium'),
+                ('evening', self._rng.randint(18, 20), self._rng.uniform(1.5, 3), 'high'),
+            ]
+
+            if self._rng.random() < 0.2:
+                windows.append(('night', self._rng.randint(22, 23), self._rng.uniform(0.5, 1.5), 'low'))
+
+            for period, hour, duration, intensity in windows:
+                start = base.replace(hour=hour, minute=self._rng.randint(0, 59),
+                                     second=0, microsecond=0)
                 pattern.append({
                     'day': day,
-                    'date': base_date,
-                    'period': 'night',
-                    'start': night_start,
-                    'duration': night_duration,
-                    'intensity': 'low'
-                })
-            
-            # Add regular periods
-            for period, start, duration in [
-                ('morning', morning_start, morning_duration),
-                ('midday', midday_start, midday_duration),
-                ('evening', evening_start, evening_duration)
-            ]:
-                pattern.append({
-                    'day': day,
-                    'date': base_date,
+                    'date': base,
                     'period': period,
                     'start': start,
-                    'duration': duration,
-                    'intensity': 'high' if period == 'evening' else 'medium'
+                    'duration_hours': duration,
+                    'intensity': intensity,
                 })
-        
         return pattern
-    
+
+    # ─── Organic Pause ───────────────────────────────────────────────
+
     def organic_pause(self, force_long: bool = False) -> float:
         """
-        Generate organic browsing pauses with localized random distribution.
-        
-        Veritas V5 Protocol: Organic Gaps
-        - Robots browse linearly with uniform delays
-        - Humans browse in bursts with long pauses
-        - Every 3-5 pages: trigger "Long Pause" (30-90 seconds) to simulate reading/multitasking
-        - Regular pauses: 1-5 seconds with localized distribution
-        
-        This adds time to generation but drastically increases trust scores.
-        
-        Args:
-            force_long: Force a long pause regardless of page count
-            
+        Generate organic browsing pause with realistic timing.
+
+        Humans browse in bursts then pause 30-90s every 3-5 pages.
+        Regular pauses 1-5s use gamma distribution for natural feel.
+
         Returns:
-            float: Pause duration in seconds
+            Pause duration in seconds (also sleeps for that duration).
         """
         self.page_visit_count += 1
-        
-        # Check if we should trigger a long pause
-        should_long_pause = (self.page_visit_count >= self.long_pause_threshold) or force_long
-        
-        if should_long_pause:
-            # Long Pause: 30-90 seconds (simulates reading or multitasking)
-            # Use normal distribution centered at LONG_PAUSE_MEAN_SECONDS
-            pause_duration = np.random.normal(LONG_PAUSE_MEAN_SECONDS, LONG_PAUSE_STD_SECONDS)
-            pause_duration = np.clip(pause_duration, LONG_PAUSE_MIN_SECONDS, LONG_PAUSE_MAX_SECONDS)
-            
-            # Log before resetting counter for clarity
-            pages_before_reset = self.page_visit_count
-            self.logger.info(f"[Organic Gap] Long Pause triggered (after {pages_before_reset} pages): {pause_duration:.1f}s")
-            
-            # Reset counter and set new threshold
+        should_long = (self.page_visit_count >= self.long_pause_threshold) or force_long
+
+        if should_long:
+            dur = _normal_pure_python(LONG_PAUSE_MEAN_SECONDS, LONG_PAUSE_STD_SECONDS)
+            dur = _clip(dur, LONG_PAUSE_MIN_SECONDS, LONG_PAUSE_MAX_SECONDS)
+            self.logger.info(f"[Organic Gap] Long pause after {self.page_visit_count} pages: {dur:.1f}s")
             self.page_visit_count = 0
             self.long_pause_threshold = random.randint(3, 5)
-            
         else:
-            # Regular pause: 1-5 seconds with localized random distribution
-            # Use gamma distribution for more realistic human timing
-            shape = 2.0  # Shape parameter for gamma distribution
-            scale = 1.0  # Scale parameter
-            
-            pause_duration = np.random.gamma(shape, scale)
-            pause_duration = np.clip(pause_duration, REGULAR_PAUSE_MIN_SECONDS, REGULAR_PAUSE_MAX_SECONDS)
-            
-            self.logger.debug(f"[Organic Gap] Regular pause: {pause_duration:.2f}s")
-        
-        # Execute the pause
-        time.sleep(pause_duration)
-        
-        return pause_duration
+            if NUMPY_AVAILABLE:
+                dur = float(np.random.gamma(2.0, 1.0))
+            else:
+                dur = self._rng.gammavariate(2.0, 1.0)
+            dur = _clip(dur, REGULAR_PAUSE_MIN_SECONDS, REGULAR_PAUSE_MAX_SECONDS)
+
+        time.sleep(dur)
+        return dur
+
+    # ─── Search Query Generation ─────────────────────────────────────
+
+    def generate_search_query(self) -> str:
+        """Generate a realistic search query for warmup browsing."""
+        templates = [
+            "best {} 2024", "how to {}", "{} reviews", "{} vs {}",
+            "cheap {}", "{} near me", "{} tutorial", "buy {} online",
+        ]
+        topics = [
+            "laptop", "phone", "shoes", "restaurant", "hotel",
+            "camera", "headphones", "watch", "book", "course",
+            "software", "game", "movie", "recipe", "workout",
+        ]
+        tpl = self._rng.choice(templates)
+        if tpl.count('{}') == 2:
+            return tpl.format(self._rng.choice(topics), self._rng.choice(topics))
+        return tpl.format(self._rng.choice(topics))
+
+    # ─── Mouse Path Generation ───────────────────────────────────────
+
+    def generate_mouse_path(self, num_points: int = 5) -> List[Tuple[int, int]]:
+        """Generate realistic random mouse path coordinates."""
+        return [(self._rng.randint(100, 1800), self._rng.randint(100, 900))
+                for _ in range(num_points)]
+
+    def get_status(self) -> Dict[str, Any]:
+        """Return module status for health checks."""
+        return {
+            "available": True,
+            "numpy": NUMPY_AVAILABLE,
+            "scipy": SCIPY_AVAILABLE,
+            "poisson_lambda": self.poisson_lambda,
+            "version": "8.1",
+        }

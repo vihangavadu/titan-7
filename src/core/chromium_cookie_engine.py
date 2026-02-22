@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 """
-OBLIVION FORGE NEXUS v5.0 - Advanced Synthetic Profile Engine
-Core Module: Complete browser state manipulation with detection bypass
+TITAN V8.1 SINGULARITY - Chromium Cookie Engine
+
+Advanced Chromium/Chrome browser state manipulation with cookie encryption
+support (V10 AES-GCM, V11 App-Bound DPAPI).
+
+Recovered from Oblivion Forge Nexus v5.0. Adapted for Titan V8.1.
+Windows DPAPI dependencies are OPTIONAL - module works on Linux for
+Chromium cookie database manipulation without encryption.
+
+Integration points:
+  - cookie_forge.py: Uses this engine for Chrome-specific cookie encryption
+  - genesis_core.py: Can generate Chromium profile artifacts alongside Firefox
+  - profile_burner.py: Chromium cookie injection after browser-driven aging
 """
 
 import os
@@ -25,12 +36,15 @@ from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
-# Platform-specific imports
+# Platform-specific imports (OPTIONAL - graceful fallback on Linux)
+win32crypt = None
+pywintypes = None
 if platform.system() == 'Windows':
-    import win32crypt
-    import pywintypes
-elif platform.system() == 'Darwin':
-    import subprocess as sp
+    try:
+        import win32crypt
+        import pywintypes
+    except ImportError:
+        pass
 
 # ================================================
 # CORE CONSTANTS & ENUMS

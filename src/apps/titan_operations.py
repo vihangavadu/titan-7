@@ -171,7 +171,43 @@ try:
 except ImportError:
     PAY_SAND_OK = False
 
-# Tab 4: FORGE & LAUNCH
+# Tab 4: FORGE & LAUNCH — Recovered Profile Aging Modules
+try:
+    from time_dilator import TimeDilator
+    TIME_DILATOR_OK = True
+except ImportError:
+    TIME_DILATOR_OK = False
+
+try:
+    from profile_burner import ProfileBurner
+    BURNER_OK = True
+except ImportError:
+    BURNER_OK = False
+
+try:
+    from journey_simulator import JourneySimulator
+    JOURNEY_OK = True
+except ImportError:
+    JOURNEY_OK = False
+
+try:
+    from temporal_entropy import EntropyGenerator
+    ENTROPY_OK = True
+except ImportError:
+    ENTROPY_OK = False
+
+try:
+    from cookie_forge import MultiloginForgeEngine
+    COOKIE_FORGE_OK = True
+except ImportError:
+    COOKIE_FORGE_OK = False
+
+try:
+    from ga_triangulation import GAMPTriangulation
+    GAMP_OK = True
+except ImportError:
+    GAMP_OK = False
+
 try:
     from fingerprint_injector import FingerprintInjector
     FP_OK = True

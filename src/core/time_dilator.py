@@ -1,177 +1,234 @@
+#!/usr/bin/env python3
 """
-PROMETHEUS-CORE v3.1 :: MODULE: TIME DILATOR
-AUTHORITY: Dva.13 | STATUS: OPERATIONAL
-PURPOSE: Temporal Manipulation of Chromium History Artifacts.
-         Injects synthetic browsing history backdated to create an 'Aged' narrative.
+TITAN V8.1 SINGULARITY — Time Dilator
+
+Injects backdated browsing history into Firefox/Camoufox profiles to create
+an 'aged' browsing narrative. Adapted from Prometheus-Core for Titan V8.1.
+
+Original: Targeted Chrome's Default/History with WebKit timestamps (1601 epoch).
+Adapted:  Targets Firefox's places.sqlite with Mozilla microsecond timestamps (Unix epoch).
+
+Integration points:
+  - genesis_core.py: Call after profile generation to densify history
+  - advanced_profile_generator.py: Complement synthetic profiles with temporal depth
+  - profile_realism_engine.py: Add realistic visit distribution after realism pass
+  - temporal_entropy.py: Use EntropyGenerator for realistic timing patterns
 """
 
 import sqlite3
 import random
 import time
 import os
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import List, Tuple, Optional, Dict, Any
+
+logger = logging.getLogger("TITAN-TIME-DILATOR")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HIGH-TRUST DOMAIN POOL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+HIGH_TRUST_DOMAINS = [
+    ("https://www.google.com/search?q=weather", "Google Search - Weather"),
+    ("https://www.youtube.com", "YouTube"),
+    ("https://www.amazon.com", "Amazon.com: Online Shopping"),
+    ("https://www.reddit.com", "Reddit - Dive into anything"),
+    ("https://en.wikipedia.org/wiki/Main_Page", "Wikipedia, the free encyclopedia"),
+    ("https://github.com", "GitHub: Let's build from here"),
+    ("https://stackoverflow.com", "Stack Overflow - Where Developers Learn"),
+    ("https://www.cnn.com", "CNN - Breaking News"),
+    ("https://www.bbc.com", "BBC Home"),
+    ("https://www.netflix.com", "Netflix"),
+    ("https://www.linkedin.com", "LinkedIn: Log In or Sign Up"),
+    ("https://www.microsoft.com", "Microsoft - Cloud, Computers, Apps"),
+    ("https://www.apple.com", "Apple"),
+    ("https://www.twitch.tv", "Twitch"),
+    ("https://www.espn.com", "ESPN: Serving Sports Fans"),
+    ("https://www.adobe.com", "Adobe: Creative, marketing and document management solutions"),
+    ("https://www.dropbox.com", "Dropbox"),
+    ("https://www.salesforce.com", "Salesforce: The Customer Company"),
+    ("https://chat.openai.com", "ChatGPT"),
+    ("https://www.walmart.com", "Walmart.com"),
+    ("https://www.ebay.com", "Electronics, Cars, Fashion | eBay"),
+    ("https://www.target.com", "Target"),
+    ("https://www.bestbuy.com", "Best Buy"),
+    ("https://www.nytimes.com", "The New York Times"),
+    ("https://www.weather.com", "Weather.com"),
+]
+
 
 class TimeDilator:
-    def __init__(self, profile_path):
-        self.profile_path = Path(profile_path)
-        self.history_db = self.profile_path / "Default" / "History"
-        
-        # High-Trust Domain Pool for History Injection
-        self.domains = [
-            ("https://www.google.com/search?q=weather", "Google Search - Weather"),
-            ("https://www.youtube.com", "YouTube"),
-            ("https://www.amazon.com", "Amazon.com: Online Shopping"),
-            ("https://www.reddit.com", "Reddit - Dive into anything"),
-            ("https://en.wikipedia.org/wiki/Main_Page", "Wikipedia, the free encyclopedia"),
-            ("https://github.com", "GitHub: Let's build from here"),
-            ("https://stackoverflow.com", "Stack Overflow - Where Developers Learn"),
-            ("https://www.cnn.com", "CNN - Breaking News"),
-            ("https://www.bbc.com", "BBC Home"),
-            ("https://www.netflix.com", "Netflix"),
-            ("https://www.linkedin.com", "LinkedIn: Log In or Sign Up"),
-            ("https://www.microsoft.com", "Microsoft - Cloud, Computers, Apps"),
-            ("https://www.apple.com", "Apple"),
-            ("https://www.twitch.tv", "Twitch"),
-            ("https://www.espn.com", "ESPN: Serving Sports Fans"),
-            ("https://www.adobe.com", "Adobe: Creative, marketing and document management solutions"),
-            ("https://www.dropbox.com", "Dropbox"),
-            ("https://www.salesforce.com", "Salesforce: The Customer Company"),
-            ("https://chat.openai.com", "ChatGPT")
-        ]
+    """
+    Injects backdated browsing history into Firefox/Camoufox places.sqlite.
 
-    def to_webkit(self, dt_obj):
-        """Converts Python datetime to WebKit microsecond timestamp."""
-        # WebKit epoch: Jan 1, 1601
-        epoch_start = datetime(1601, 1, 1)
-        delta = dt_obj - epoch_start
-        return int(delta.total_seconds() * 1000000)
+    Uses Mozilla microsecond timestamps (microseconds since Unix epoch 1970-01-01),
+    NOT Chrome WebKit timestamps (microseconds since 1601-01-01).
+
+    Usage:
+        td = TimeDilator("/opt/titan/profiles/TITAN-XXXX")
+        td.inject_history(days_back=90, target_entries=2000)
+    """
+
+    def __init__(self, profile_path, domains=None):
+        self.profile_path = Path(profile_path)
+        self.places_db = self.profile_path / "places.sqlite"
+        self.domains = domains or HIGH_TRUST_DOMAINS
+
+    @staticmethod
+    def to_mozilla_timestamp(dt_obj):
+        """Convert Python datetime to Mozilla microsecond timestamp (Unix epoch)."""
+        return int(dt_obj.timestamp() * 1_000_000)
 
     def generate_timeline(self, days_back=90, target_entries=2000):
         """
-        Generates a realistic list of timestamps over the last `days_back` days,
-        continuing until at least `target_entries` timestamps are generated.
-        Uses a probability curve to simulate human sleep/wake cycles.
+        Generate realistic timestamps with human sleep/wake cycle filtering.
+
+        Returns sorted list of datetime objects distributed over days_back.
         """
         timeline = []
         now = datetime.now()
         start_date = now - timedelta(days=days_back)
 
-        # Seed the generation loop across the time window, creating clusters
         current = start_date
         attempts = 0
-        while current < now or len(timeline) < target_entries:
-            # Safety to avoid infinite loops
+        while len(timeline) < target_entries:
             attempts += 1
             if attempts > target_entries * 10:
                 break
 
-            # Skip ahead by random minutes (5 mins to 240 minutes)
             step_minutes = random.randint(5, 240)
             current += timedelta(minutes=step_minutes)
 
             if current > now:
-                # Wrap sampling back to start_date with a small offset to densify
                 current = start_date + timedelta(seconds=random.randint(0, 3600))
 
-            # "Human Filter": Reduce probability of browsing at night hours
             hour = current.hour
             if 1 <= hour <= 6 and random.random() > 0.15:
-                # Mostly sleep hours, skip most samples
                 continue
 
-            # Add a cluster of visits (1-6 pages) at this time
             cluster_size = random.randint(1, 6)
             for _ in range(cluster_size):
                 visit_time = current + timedelta(seconds=random.randint(5, 300))
                 timeline.append(visit_time)
 
-        # Trim or sort timeline
-        timeline = sorted(timeline)[:max(len(timeline), target_entries)]
-        return timeline
+        timeline.sort()
+        return timeline[:max(len(timeline), target_entries)]
 
     def inject_history(self, days_back=90, target_entries=2000, seed=None):
         """
-        Writes the backdated timeline into the SQLite database.
-        days_back: how far back to distribute visits
-        target_entries: minimum number of visit rows to insert
-        seed: RNG seed for deterministic injection
+        Write backdated history into Firefox places.sqlite.
+
+        Args:
+            days_back: How far back to distribute visits
+            target_entries: Minimum number of visit rows
+            seed: RNG seed for deterministic injection
         """
         if seed is not None:
             random.seed(seed)
 
-        print(f"[TIME DILATOR] Initiating temporal shift on: {self.history_db}")
+        logger.info(f"Initiating temporal shift on: {self.places_db}")
 
-        if not self.history_db.exists():
-            print("  [!] History DB not found. Run the Burner first.")
-            return
+        if not self.places_db.exists():
+            logger.error("places.sqlite not found. Generate profile first via genesis_core.")
+            return False
 
         timeline = self.generate_timeline(days_back=days_back, target_entries=target_entries)
-        print(f"  > Generated {len(timeline)} historical vectors spanning {days_back} days (target {target_entries}).")
+        logger.info(f"Generated {len(timeline)} visit vectors spanning {days_back} days")
 
-        conn = sqlite3.connect(self.history_db)
+        conn = sqlite3.connect(str(self.places_db))
         c = conn.cursor()
 
-        # 1. Populate URLs table
-        url_map = {} # map url to ID
-
-        # Check existing max ID
+        # Get next available place ID
         try:
-            c.execute("SELECT MAX(id) FROM urls")
-            max_id = c.fetchone()[0]
-            current_id = (max_id if max_id else 0) + 1
-        except:
-            current_id = 1
+            c.execute("SELECT MAX(id) FROM moz_places")
+            row = c.fetchone()
+            next_id = (row[0] if row[0] else 0) + 1
+        except Exception:
+            next_id = 1
 
-        print("  > Injecting URL references and updating visit counts...")
+        # Insert URLs into moz_places
+        url_map = {}
         for url, title in self.domains:
-            # Insert URL or update existing
             try:
-                c.execute("INSERT INTO urls (id, url, title, visit_count, typed_count, last_visit_time, hidden) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                          (current_id, url, title, random.randint(5, 50), 0, self.to_webkit(datetime.now()), 0))
-                url_map[url] = current_id
-                current_id += 1
+                frecency = random.randint(100, 2000)
+                visit_count = random.randint(5, 50)
+                last_visit = self.to_mozilla_timestamp(datetime.now() - timedelta(hours=random.randint(0, 48)))
+
+                c.execute("""
+                    INSERT OR IGNORE INTO moz_places
+                    (id, url, title, rev_host, visit_count, hidden, typed, frecency, last_visit_date)
+                    VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?)
+                """, (next_id, url, title, self._reverse_host(url), visit_count, frecency, last_visit))
+
+                url_map[url] = next_id
+                next_id += 1
             except sqlite3.IntegrityError:
-                # URL might already exist from the Burner phase, fetch its ID and update
-                c.execute("SELECT id, visit_count FROM urls WHERE url=?", (url,))
+                c.execute("SELECT id FROM moz_places WHERE url=?", (url,))
                 row = c.fetchone()
                 if row:
                     url_map[url] = row[0]
-                    try:
-                        c.execute("UPDATE urls SET visit_count = visit_count + ? WHERE id=?", (random.randint(1, 30), row[0]))
-                    except Exception:
-                        pass
+                    c.execute("UPDATE moz_places SET visit_count = visit_count + ? WHERE id=?",
+                              (random.randint(1, 20), row[0]))
 
-        # 2. Populate Visits table (The Timeline)
-        print("  > Weaving temporal visit chains... this may take a while for large targets...")
+        # Insert visits into moz_historyvisits
         inserted = 0
         for dt in timeline:
             url, _ = random.choice(self.domains)
-            url_id = url_map.get(url)
+            place_id = url_map.get(url)
+            if not place_id:
+                continue
 
-            if url_id:
-                webkit_time = self.to_webkit(dt)
-                # visit_duration: random microseconds (simulated)
-                # transition: 806936371 (Link) or 268435457 (Typed) - using Link primarily
-                try:
-                    c.execute("INSERT INTO visits (url, visit_time, from_visit, transition, segment_id, visit_duration) VALUES (?, ?, ?, ?, ?, ?)",
-                              (url_id, webkit_time, 0, 806936371, 0, random.randint(1000000, 60000000)))
-                    inserted += 1
-                except Exception as e:
-                    # If a constraint error occurs, skip
-                    continue
+            moz_ts = self.to_mozilla_timestamp(dt)
+            # visit_type: 1=LINK, 2=TYPED, 3=BOOKMARK, 5=EMBED, 6=FRECENCY
+            visit_type = random.choice([1, 1, 1, 2, 1])
+            try:
+                c.execute("""
+                    INSERT INTO moz_historyvisits (place_id, visit_date, visit_type, session)
+                    VALUES (?, ?, ?, 0)
+                """, (place_id, moz_ts, visit_type))
+                inserted += 1
+            except Exception:
+                continue
+
+        # Update frecency for visited places
+        for place_id in url_map.values():
+            c.execute("UPDATE moz_places SET frecency = visit_count * 100 WHERE id=?", (place_id,))
 
         conn.commit()
         conn.close()
-        print(f"[TIME DILATOR] History shift complete. Inserted {inserted} visits. Profile aged {days_back} days.")
+        logger.info(f"History shift complete. Inserted {inserted} visits. Profile aged {days_back} days.")
+        return True
 
-if __name__ == "__main__":
+    @staticmethod
+    def _reverse_host(url):
+        """Generate rev_host for moz_places (Firefox requirement)."""
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).hostname or ""
+            return host[::-1] + "."
+        except Exception:
+            return ".com."
+
+    def get_status(self) -> Dict[str, Any]:
+        """Return module status."""
+        return {
+            "available": True,
+            "places_db_exists": self.places_db.exists(),
+            "domain_pool_size": len(self.domains),
+            "version": "8.1",
+        }
+
+
+if __name__ == '__main__':
     import argparse
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(name)s | %(message)s')
 
-    ap = argparse.ArgumentParser(description='Inject backdated browsing history into a Chromium profile')
-    ap.add_argument('--profile', '-p', default='generated_profiles/37ab1612-c285-4314-b32a-6a06d35d6d84', help='Path to profile root')
+    ap = argparse.ArgumentParser(description='TITAN V8.1 — Inject backdated history into Firefox profile')
+    ap.add_argument('--profile', '-p', required=True, help='Path to Firefox/Camoufox profile directory')
     ap.add_argument('--days-back', type=int, default=90, help='Days to backdate')
-    ap.add_argument('--target', type=int, default=2000, help='Target number of visit rows to insert')
+    ap.add_argument('--target', type=int, default=2000, help='Target number of visit rows')
     ap.add_argument('--seed', type=int, default=None, help='RNG seed for deterministic injection')
     args = ap.parse_args()
 
@@ -179,4 +236,4 @@ if __name__ == "__main__":
         td = TimeDilator(args.profile)
         td.inject_history(days_back=args.days_back, target_entries=args.target, seed=args.seed)
     else:
-        print('[ERROR] Profile path not found:', args.profile)
+        print(f'[ERROR] Profile path not found: {args.profile}')
