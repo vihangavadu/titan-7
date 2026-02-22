@@ -1368,26 +1368,37 @@ def get_ai_enhancement_status() -> Dict:
         "web_intel": {"available": False},
     }
 
+    _log = logging.getLogger("TITAN-V7-BRAIN")
+
     try:
         from titan_vector_memory import get_vector_memory as _get_vm
         mem = _get_vm()
         status["vector_memory"] = mem.get_stats()
-    except Exception:
-        pass
+    except ImportError:
+        status["vector_memory"] = {"available": False, "reason": "not_installed"}
+    except Exception as e:
+        status["vector_memory"] = {"available": False, "reason": "crashed", "error": str(e)}
+        _log.warning(f"vector_memory crashed during init: {e}")
 
     try:
         from titan_agent_chain import get_titan_agent
         agent = get_titan_agent()
         status["agent_chain"] = agent.get_status()
-    except Exception:
-        pass
+    except ImportError:
+        status["agent_chain"] = {"available": False, "reason": "not_installed"}
+    except Exception as e:
+        status["agent_chain"] = {"available": False, "reason": "crashed", "error": str(e)}
+        _log.warning(f"agent_chain crashed during init: {e}")
 
     try:
         from titan_web_intel import get_web_intel as _get_wi
         intel = _get_wi()
         status["web_intel"] = intel.get_stats()
-    except Exception:
-        pass
+    except ImportError:
+        status["web_intel"] = {"available": False, "reason": "not_installed"}
+    except Exception as e:
+        status["web_intel"] = {"available": False, "reason": "crashed", "error": str(e)}
+        _log.warning(f"web_intel crashed during init: {e}")
 
     return status
 
@@ -1612,3 +1623,69 @@ def guard_post_op(target: str, result: str, decline_code: str = "",
         }
     except ImportError:
         return {"error": "titan_ai_operations_guard not available"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# P0-2 FIX: Module Health Reporter
+# Distinguishes "not installed" vs "crashed during init" vs "healthy"
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_module_health() -> Dict:
+    """
+    P0-2 FIX: Report health of all modules that cognitive_core wraps.
+    
+    Returns dict with status for each module:
+        "healthy"        — module imported and initialized successfully
+        "not_installed"  — ImportError (dependency missing)
+        "crashed"        — module exists but crashed during init
+    
+    This lets callers distinguish between "feature not available because
+    the pip package isn't installed" vs "feature crashed and needs debugging".
+    """
+    _log = logging.getLogger("TITAN-V7-BRAIN")
+    modules = {}
+
+    checks = [
+        ("vector_memory", "titan_vector_memory", "get_vector_memory"),
+        ("agent_chain", "titan_agent_chain", "get_titan_agent"),
+        ("web_intel", "titan_web_intel", "get_web_intel"),
+        ("self_hosted_stack", "titan_self_hosted_stack", "get_self_hosted_stack"),
+        ("operations_guard", "titan_ai_operations_guard", "get_operations_guard"),
+        ("target_intel_v2", "titan_target_intel_v2", "get_target_intel_v2"),
+        ("3ds_ai_engine", "titan_3ds_ai_exploits", "get_3ds_ai_engine"),
+        ("realtime_copilot", "titan_realtime_copilot", "get_realtime_copilot"),
+    ]
+
+    for name, module_path, factory_func in checks:
+        try:
+            mod = __import__(module_path)
+            factory = getattr(mod, factory_func, None)
+            if factory:
+                instance = factory()
+                modules[name] = {
+                    "status": "healthy",
+                    "has_instance": instance is not None,
+                }
+            else:
+                modules[name] = {"status": "healthy", "has_instance": False}
+        except ImportError:
+            modules[name] = {"status": "not_installed"}
+        except Exception as e:
+            modules[name] = {"status": "crashed", "error": str(e)}
+            _log.warning(f"Module '{name}' ({module_path}) crashed: {e}")
+
+    # Summary
+    healthy = sum(1 for m in modules.values() if m["status"] == "healthy")
+    crashed = sum(1 for m in modules.values() if m["status"] == "crashed")
+    missing = sum(1 for m in modules.values() if m["status"] == "not_installed")
+
+    return {
+        "modules": modules,
+        "summary": {
+            "total": len(modules),
+            "healthy": healthy,
+            "crashed": crashed,
+            "not_installed": missing,
+        },
+        "all_healthy": crashed == 0,
+    }

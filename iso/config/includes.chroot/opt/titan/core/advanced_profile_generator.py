@@ -351,6 +351,7 @@ class AdvancedProfileGenerator:
         self._generate_proxy_config(profile_path, config)
         self._generate_metadata(profile_path, config, template)
         self._generate_form_autofill(profile_path, config)  # Zero-decline autofill
+        self._generate_xulstore(profile_path, config)  # V7.0: Window state consistency
         self._generate_sessionstore(profile_path, config)  # V7.0: LZ4 session store
         
         # V7.6: P0 Critical Components for Maximum Operational Success
@@ -780,7 +781,7 @@ class AdvancedProfileGenerator:
             },
             "facebook.com": {
                 "dpr": str(random.choice([1, 1.5, 2])),
-                "wd": config.screen_resolution.replace("x", "x") if hasattr(config, 'screen_resolution') else "1920x1080",
+                "wd": f"{getattr(config, 'screen_width', 1920)}x{getattr(config, 'screen_height', 1080)}",
                 "datr": secrets.token_hex(16),
                 "presence": json.dumps({"t3": [], "utc3": int(base_time.timestamp()), "v": 1}),
             },
@@ -1396,7 +1397,7 @@ class AdvancedProfileGenerator:
                 try:
                     with open(prefs_file, 'r') as f:
                         prefs = json.load(f)
-                except:
+                except (json.JSONDecodeError, OSError, ValueError):
                     pass
             
             if "profile" not in prefs:
@@ -1832,6 +1833,40 @@ class AdvancedProfileGenerator:
         
         return visits
 
+    def _generate_xulstore(self, profile_path: Path, config: AdvancedProfileConfig):
+        """
+        V7.0 HARDENING: Generate xulstore.json — Firefox window position/size state.
+        Missing xulstore.json is a forensic indicator of a freshly-created profile.
+        Dimensions MUST match sessionstore viewport and Facebook wd cookie.
+        """
+        screen_w = getattr(config, 'screen_width', 1920)
+        screen_h = getattr(config, 'screen_height', 1080)
+        # Window is slightly smaller than screen (taskbar, title bar)
+        win_w = screen_w
+        win_h = screen_h - 40  # Taskbar height
+        
+        xulstore_data = {
+            "chrome://browser/content/browser.xhtml": {
+                "main-window": {
+                    "width": str(win_w),
+                    "height": str(win_h),
+                    "screenX": "0",
+                    "screenY": "0",
+                    "sizemode": "maximized",
+                },
+                "sidebar-box": {
+                    "sidebarcommand": "viewBookmarksSidebar",
+                    "width": "250",
+                },
+            }
+        }
+        
+        xulstore_file = profile_path / "xulstore.json"
+        with open(xulstore_file, 'w') as f:
+            json.dump(xulstore_data, f, separators=(',', ':'))
+        
+        logger.info(f"[+] xulstore.json: window {win_w}x{win_h} (screen {screen_w}x{screen_h})")
+
     def _generate_sessionstore(self, profile_path: Path, config: AdvancedProfileConfig):
         """
         V7.0 HARDENING: Generate sessionstore.jsonlz4 with LZ4 compression.
@@ -1839,7 +1874,15 @@ class AdvancedProfileGenerator:
         which uses a proprietary Mozilla compression format.'
         
         Mozilla uses a custom header 'mozLz40\0' + 4-byte LE size + lz4 block.
+        Viewport dimensions are bound to centralized screen config to prevent
+        cross-artifact dimension anomalies (xulstore.json, Facebook wd cookie).
         """
+        screen_w = getattr(config, 'screen_width', 1920)
+        screen_h = getattr(config, 'screen_height', 1080)
+        # Content viewport excludes browser chrome (~80px for toolbar + tab bar)
+        viewport_w = screen_w
+        viewport_h = screen_h - 120
+
         session_data = {
             "version": ["sessionrestore", 1],
             "windows": [{
@@ -1854,6 +1897,11 @@ class AdvancedProfileGenerator:
                 }],
                 "selected": 1,
                 "_closedTabs": [],
+                "width": viewport_w,
+                "height": viewport_h,
+                "screenX": 0,
+                "screenY": 0,
+                "sizemode": "maximized",
             }],
             "selectedWindow": 0,
             "_closedWindows": [],

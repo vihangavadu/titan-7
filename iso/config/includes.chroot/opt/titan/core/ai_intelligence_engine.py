@@ -1313,10 +1313,17 @@ class AIModelSelector:
     def __init__(self):
         self._available_models: Dict[str, bool] = {}
         self._model_latencies: Dict[str, float] = {}
-        self._refresh_available_models()
+        # P1-4 FIX: Don't call _refresh_available_models() here — it runs
+        # `ollama list` via subprocess which blocks for 5s if Ollama is down.
+        # Instead, defer to first select_model() call with 5-minute cache.
+        self._models_refreshed_at: float = 0.0
     
     def _refresh_available_models(self):
-        """Check which models are actually available."""
+        """Check which models are actually available. Cached for 5 min."""
+        import time as _t
+        now = _t.time()
+        if self._models_refreshed_at and (now - self._models_refreshed_at) < 300:
+            return  # Use cached result
         try:
             import subprocess
             result = subprocess.run(
@@ -1330,8 +1337,9 @@ class AIModelSelector:
                     if parts:
                         model_name = parts[0]
                         self._available_models[model_name] = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Ollama model list refresh failed: {e}")
+        self._models_refreshed_at = now
     
     def select_model(self, task_type: str, urgency: str = "normal") -> str:
         """
@@ -1344,6 +1352,9 @@ class AIModelSelector:
         Returns:
             Model name string
         """
+        # P1-4 FIX: Lazy model refresh on first use (not in __init__)
+        self._refresh_available_models()
+        
         requirements = self.TASK_REQUIREMENTS.get(task_type, {
             "min_reasoning": 0.70, "max_latency": "medium", "preferred_specialty": "general"
         })

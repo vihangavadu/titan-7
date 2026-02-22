@@ -273,22 +273,55 @@ class TimezoneEnforcer:
             except Exception:
                 exit_ip = "127.0.0.1"
 
-        # Query local Unbound DNS resolver for IP geoloc (offline-capable)
-        # Primary: use ip-api.com via the VPN tunnel itself
-        geo_tz = None
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                f"http://ip-api.com/json/{exit_ip}?fields=timezone",
-                headers={"User-Agent": "curl/7.88.1"}
-            )
-            with urllib.request.urlopen(req, timeout=2) as resp:
-                data = json.loads(resp.read().decode())
-                geo_tz = data.get("timezone", "")
-        except Exception:
-            pass
+        # P1-2 FIX: Use cached IP→timezone lookup (24h TTL) to avoid 200-2000ms HTTP per op
+        # Primary: use configured target timezone (instant, no HTTP)
+        geo_tz = self.config.target_timezone
 
-        # Fallback: derive expected timezone from configured target
+        # Secondary: use STATE_TIMEZONES mapping if state is known (instant, no HTTP)
+        if not geo_tz and hasattr(self.config, 'target_state') and self.config.target_state:
+            try:
+                geo_tz = STATE_TIMEZONES.get(self.config.target_state.upper(), "")
+            except Exception:
+                pass
+
+        # Tertiary: HTTP lookup with 24h disk cache (only if no local source)
+        if not geo_tz and exit_ip and exit_ip != "127.0.0.1":
+            _tz_cache_file = Path("/opt/titan/state/tz_cache.json")
+            _cached = {}
+            try:
+                if _tz_cache_file.exists():
+                    with open(_tz_cache_file, "r") as _f:
+                        _cached = json.load(_f)
+            except Exception:
+                _cached = {}
+
+            cache_key = exit_ip
+            cache_entry = _cached.get(cache_key, {})
+            cache_age = time.monotonic() - cache_entry.get("ts", 0) if "ts" in cache_entry else 999999
+
+            if cache_entry.get("tz") and cache_age < 86400:
+                geo_tz = cache_entry["tz"]
+            else:
+                try:
+                    import urllib.request
+                    req = urllib.request.Request(
+                        f"http://ip-api.com/json/{exit_ip}?fields=timezone",
+                        headers={"User-Agent": "curl/7.88.1"}
+                    )
+                    with urllib.request.urlopen(req, timeout=2) as resp:
+                        data = json.loads(resp.read().decode())
+                        geo_tz = data.get("timezone", "")
+                    if geo_tz:
+                        _cached[cache_key] = {"tz": geo_tz, "ts": time.monotonic()}
+                        try:
+                            _tz_cache_file.parent.mkdir(parents=True, exist_ok=True)
+                            with open(_tz_cache_file, "w") as _f:
+                                json.dump(_cached, _f)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
         if not geo_tz:
             geo_tz = self.config.target_timezone
 

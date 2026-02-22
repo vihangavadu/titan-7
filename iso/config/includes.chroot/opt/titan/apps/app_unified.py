@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.0 MAXIMUM — Unified Operations Dashboard
+TITAN V8.1 MAXIMUM — Unified Operations Dashboard
 Complete GUI for end-to-end operations
 
 Integrates:
@@ -326,6 +326,16 @@ try:
 except ImportError:
     PROXY_MANAGER_AVAILABLE = False
 
+# V8.1 Persona Enrichment Engine
+try:
+    from persona_enrichment_engine import (
+        PersonaEnrichmentEngine, DemographicProfiler,
+        PurchasePatternPredictor, CoherenceValidator,
+    )
+    PERSONA_ENRICHMENT_AVAILABLE = True
+except ImportError:
+    PERSONA_ENRICHMENT_AVAILABLE = False
+
 
 class ProxyTestWorker(QThread):
     """Background worker for proxy connectivity test"""
@@ -467,9 +477,10 @@ class ProfileForgeWorker(QThread):
 
 class UnifiedOperationCenter(QMainWindow):
     """
-    TITAN V8.0 Unified Operations Dashboard
+    TITAN V8.1 Unified Operations Dashboard
     
-    Complete GUI for end-to-end operations with Intelligence Dashboard.
+    Complete GUI for end-to-end operations with Intelligence Dashboard
+    and Persona Enrichment Engine.
     """
     
     def __init__(self):
@@ -487,7 +498,7 @@ class UnifiedOperationCenter(QMainWindow):
         self._start_status_bar_timer()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.0 — Unified Operations Dashboard")
+        self.setWindowTitle("TITAN V8.1 — Unified Operations Dashboard")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, "#00d4ff")
@@ -503,7 +514,7 @@ class UnifiedOperationCenter(QMainWindow):
         layout.setContentsMargins(8, 8, 8, 8)
         
         # Header
-        header = QLabel("TITAN V8.0 MAXIMUM")
+        header = QLabel("TITAN V8.1 MAXIMUM")
         header.setFont(QFont("Inter", 22, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet("color: #00d4ff; padding: 6px;")

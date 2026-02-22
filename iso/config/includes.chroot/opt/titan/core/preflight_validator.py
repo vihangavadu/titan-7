@@ -143,6 +143,10 @@ class PreFlightValidator:
         # V8 U14-FIX: Fingerprint readiness check
         self._check_fingerprint_readiness()
         
+        # V8.1: Persona-purchase coherence validation
+        if hasattr(self, '_persona_data') and hasattr(self, '_target_merchant'):
+            self._check_purchase_coherence()
+        
         # Determine overall status
         if self.report.critical_failures:
             self.report.passed = False
@@ -995,6 +999,90 @@ class PreFlightValidator:
         else:
             print(f"  ❌ PRE-FLIGHT FAILED - {self.report.abort_reason}")
         print("=" * 60 + "\n")
+    
+    def _check_purchase_coherence(self):
+        """
+        V8.1: Validate that the target purchase is coherent with persona demographics.
+        Prevents "generic bank decline" when purchase pattern doesn't match persona.
+        """
+        try:
+            from persona_enrichment_engine import PersonaEnrichmentEngine
+            
+            engine = PersonaEnrichmentEngine(enable_osint=False)  # OSINT optional
+            
+            # Extract persona data
+            name = self._persona_data.get('name', '')
+            email = self._persona_data.get('email', '')
+            age = self._persona_data.get('age', 30)
+            address = {
+                'city': self._persona_data.get('city', ''),
+                'state': self._persona_data.get('state', ''),
+                'country': self._persona_data.get('country', 'US'),
+                'zip': self._persona_data.get('zip', ''),
+            }
+            
+            # Run enrichment and validation
+            profile, patterns, coherence = engine.enrich_and_validate(
+                name=name,
+                email=email,
+                age=age,
+                address=address,
+                target_merchant=self._target_merchant,
+                target_item=getattr(self, '_target_item', ''),
+                amount=getattr(self, '_target_amount', 0.0),
+            )
+            
+            # Add check based on coherence result
+            if coherence.coherent:
+                if coherence.likelihood_score >= 0.6:
+                    status = CheckStatus.PASS
+                else:
+                    status = CheckStatus.WARN
+                
+                self.report.checks.append(PreFlightCheck(
+                    name="Purchase Coherence",
+                    status=status,
+                    message=coherence.warning_message,
+                    critical=False,
+                    details={
+                        "category": coherence.category_match,
+                        "likelihood": coherence.likelihood_score,
+                        "confidence": coherence.confidence,
+                        "top_categories": list(patterns.keys())[:3],
+                    }
+                ))
+            else:
+                # INCOHERENT — critical warning
+                self.report.checks.append(PreFlightCheck(
+                    name="Purchase Coherence",
+                    status=CheckStatus.WARN,  # Warn instead of fail — let operator decide
+                    message=coherence.warning_message,
+                    critical=False,  # Not blocking, but strongly discouraged
+                    details={
+                        "category": coherence.category_match,
+                        "likelihood": coherence.likelihood_score,
+                        "recommended_merchants": coherence.recommended_alternatives,
+                    }
+                ))
+                
+                logger.warning(f"[COHERENCE] {coherence.warning_message}")
+        
+        except ImportError:
+            # Enrichment engine not available — skip check
+            self.report.checks.append(PreFlightCheck(
+                name="Purchase Coherence",
+                status=CheckStatus.SKIP,
+                message="Persona enrichment engine not available",
+                critical=False,
+            ))
+        except Exception as e:
+            logger.debug(f"[COHERENCE] Check failed: {e}")
+            self.report.checks.append(PreFlightCheck(
+                name="Purchase Coherence",
+                status=CheckStatus.SKIP,
+                message=f"Coherence check error: {e}",
+                critical=False,
+            ))
 
 
 def run_preflight(profile_path: str = None, 

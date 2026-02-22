@@ -390,12 +390,34 @@ class TaskQueue:
         self._tasks: List[TaskInput] = []
         self._lock = threading.Lock()
     
+    @staticmethod
+    def _read_json_locked(filepath: Path) -> Any:
+        """P1-7 FIX: Read JSON file with file locking to prevent partial reads."""
+        f = open(filepath, "r")
+        try:
+            try:
+                import fcntl
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Shared read lock
+            except (ImportError, OSError):
+                pass  # Windows or unsupported — thread lock is sufficient
+            data = json.load(f)
+        finally:
+            try:
+                import fcntl
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            except (ImportError, OSError):
+                pass
+            f.close()
+        return data
+
     def load_from_directory(self):
         """Load all task JSON files from the tasks directory."""
         with self._lock:
             for json_file in sorted(self.queue_dir.glob("*.json")):
+                if json_file.name.startswith("_"):
+                    continue  # Skip internal state files
                 try:
-                    data = json.loads(json_file.read_text())
+                    data = self._read_json_locked(json_file)
                     if isinstance(data, list):
                         for item in data:
                             self._add_task_from_dict(item)
@@ -405,6 +427,8 @@ class TaskQueue:
                                 self._add_task_from_dict(item)
                         else:
                             self._add_task_from_dict(data)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Malformed JSON in {json_file.name} — skipping: {e}")
                 except Exception as e:
                     logger.warning(f"Failed to load task file {json_file}: {e}")
             

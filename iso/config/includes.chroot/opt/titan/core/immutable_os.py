@@ -21,6 +21,7 @@ Detection Vectors Neutralized:
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -30,8 +31,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-__version__ = "8.0.0"
+__version__ = "8.1.0"
 __author__ = "Dva.12"
+
+logger = logging.getLogger("TITAN-IMMUTABLE-OS")
 
 
 class PartitionSlot(Enum):
@@ -118,6 +121,19 @@ class ImmutableOSManager:
         self._overlay_state = OverlayState.UNMOUNTED
         self._active_slot: Optional[PartitionSlot] = None
         self._partitions: Dict[PartitionSlot, PartitionInfo] = {}
+        # P0-5 FIX: Check root permissions at init
+        self._is_root = os.geteuid() == 0 if hasattr(os, 'geteuid') else True
+        self._read_only_mode = not self._is_root
+        if self._read_only_mode:
+            logger.warning("ImmutableOS: Not running as root — write operations disabled. "
+                           "Run with sudo or via cockpit daemon for full functionality.")
+
+    def _require_root(self, operation: str) -> bool:
+        """Check if root is available for a write operation. Returns True if OK."""
+        if self._read_only_mode:
+            logger.error(f"ImmutableOS: '{operation}' requires root privileges — skipped")
+            return False
+        return True
 
     def _detect_active_slot(self) -> Optional[PartitionSlot]:
         """Detect which A/B slot is currently booted."""
@@ -289,6 +305,8 @@ class ImmutableOSManager:
         Apply staged update by switching the bootloader to target slot.
         The actual switch happens on next reboot.
         """
+        if not self._require_root("apply_update"):
+            return False
         try:
             # Update GRUB default to boot from target slot
             slot_flag = f"titan_slot={target_slot.value}"
@@ -301,7 +319,8 @@ class ImmutableOSManager:
             subprocess.run(["update-grub"], capture_output=True, timeout=30)
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
-                FileNotFoundError, PermissionError):
+                FileNotFoundError, PermissionError) as e:
+            logger.error(f"ImmutableOS: apply_update failed: {e}")
             return False
 
     def rollback(self) -> bool:
@@ -329,6 +348,8 @@ class ImmutableOSManager:
         Args:
             secure: If True, overwrite files before deletion to prevent forensic recovery
         """
+        if not self._require_root("wipe_ephemeral"):
+            return False
         try:
             for edir in self._config.ephemeral_dirs:
                 if os.path.isdir(edir):
@@ -348,7 +369,8 @@ class ImmutableOSManager:
                         except (PermissionError, OSError):
                             continue
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"ImmutableOS: wipe_ephemeral failed: {e}")
             return False
 
     @staticmethod
@@ -550,8 +572,8 @@ class IntegrityMonitor:
                     timestamp=time.time(),
                     severity="critical"
                 ))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"IntegrityMonitor: overlay check error: {e}")
         
         return events
     
@@ -623,8 +645,8 @@ class IntegrityMonitor:
             for callback in self._callbacks:
                 try:
                     callback(event)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"IntegrityMonitor: callback error: {e}")
         
         return all_events
     

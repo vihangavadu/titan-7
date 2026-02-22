@@ -342,7 +342,8 @@ class AIOperationsGuard:
                               pages_visited: int = 0,
                               antifraud_detected: List[str] = None,
                               proxy_latency_ms: int = 0,
-                              fingerprint_consistent: bool = True) -> GuardVerdict:
+                              fingerprint_consistent: bool = True,
+                              has_referrer: bool = True) -> GuardVerdict:
         """
         Monitor the active browsing session for health issues.
         Call this periodically (every 30-60 seconds) during the session.
@@ -350,6 +351,16 @@ class AIOperationsGuard:
         issues = []
         recommendations = []
         antifraud_detected = antifraud_detected or []
+
+        # ── Referrer chain enforcement ──
+        if not has_referrer:
+            issues.append({
+                "severity": "critical",
+                "message": "Empty document.referrer detected — direct URL entry to checkout",
+                "fix": ("Navigate via organic search (Google → product page → checkout). "
+                        "Direct URL entry generates an empty referrer header which instantly "
+                        "elevates risk score on Forter, Riskified, and Stripe Radar."),
+            })
 
         # ── Session duration analysis ──
         if session_duration_sec < 30:

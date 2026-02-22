@@ -2,6 +2,17 @@
 TITAN V8.0 SINGULARITY - Core Library
 Reality Synthesis Suite - Maximum Level
 
+V8.1 Upgrades (Persona Enrichment + Cognitive Profiling):
+- Persona Enrichment Engine — AI-powered demographic profiling from name/email/age/occupation
+- Purchase Pattern Prediction — 18 purchase categories with demographic-weighted likelihood scoring
+- Coherence Validation — Blocks out-of-pattern purchases before they trigger bank declines
+- OSINT Enrichment (optional) — Sherlock, Holehe, Maigret integration for interest inference
+- Preflight Coherence Check — Wired into PreFlightValidator for automatic persona-purchase alignment
+- Real-Time AI Co-Pilot — Continuous AI guidance during operations with timing intelligence
+- HITL Timing Guardrails — Per-phase dwell time enforcement to prevent bot-like behavior
+- Referrer Chain Enforcement — Blocks operations with empty document.referrer
+- Forensic SQLite PRAGMA coherence, screen dimension binding, OS-coherent download history
+
 V8.0 Upgrades (Maximum Level):
 - Ghost Motor seeded RNG (deterministic trajectories per profile)
 - DNS-over-HTTPS (DoH mode=3, Cloudflare) prevents DNS leak
@@ -66,7 +77,7 @@ This module provides the core logic for the Trinity Apps:
 - KYC (Identity Mask)
 """
 
-__version__ = "8.0.0"
+__version__ = "8.1.0"
 __author__ = "Dva.12"
 __status__ = "SINGULARITY_V8"
 __codename__ = "MAXIMUM_LEVEL"
@@ -253,6 +264,32 @@ from .tof_depth_synthesis import FaceDepthGenerator, DepthQuality, FacialLandmar
 from .issuer_algo_defense import IssuerDeclineDefenseEngine, DeclineReason, AmountOptimizer
 from .first_session_bias_eliminator import FirstSessionBiasEliminator
 
+# P1-10 FIX: Missing module exports
+try:
+    from .payment_preflight import PaymentPreflightV2, PreflightResult
+except ImportError:
+    PaymentPreflightV2 = PreflightResult = None
+
+try:
+    from .payment_sandbox_tester import PaymentSandboxTester
+except ImportError:
+    PaymentSandboxTester = None
+
+try:
+    from .payment_success_metrics import PaymentSuccessMetrics
+except ImportError:
+    PaymentSuccessMetrics = None
+
+try:
+    from .titan_operation_logger import OperationLogger
+except ImportError:
+    OperationLogger = None
+
+try:
+    from .cognitive_core import get_module_health
+except ImportError:
+    get_module_health = None
+
 # V8.0 Autonomous Self-Improving Engine
 try:
     from .titan_autonomous_engine import (
@@ -264,6 +301,32 @@ except ImportError:
     AutonomousEngine = get_autonomous_engine = start_autonomous = stop_autonomous = None
     get_autonomous_status = TaskQueue = TaskInput = MetricsDB = None
     DetectionAnalyzer = SelfPatcher = AdaptiveScheduler = CycleMetrics = None
+
+# V8.1 Real-Time AI Co-Pilot — continuous AI assistant during operations
+try:
+    from .titan_realtime_copilot import (
+        RealtimeCopilot, get_realtime_copilot, start_copilot, stop_copilot,
+        begin_op, end_op, get_guidance, get_dashboard,
+        OperatorPhase, GuidanceLevel, GuidanceMessage,
+        TimingIntelligence, MistakeDetector, OllamaRealtimeAdvisor,
+    )
+except ImportError:
+    RealtimeCopilot = get_realtime_copilot = start_copilot = stop_copilot = None
+    begin_op = end_op = get_guidance = get_dashboard = None
+    OperatorPhase = GuidanceLevel = GuidanceMessage = None
+    TimingIntelligence = MistakeDetector = OllamaRealtimeAdvisor = None
+
+# V8.1 Persona Enrichment Engine — AI-powered demographic profiling + coherence validation
+try:
+    from .persona_enrichment_engine import (
+        PersonaEnrichmentEngine, DemographicProfiler, PurchasePatternPredictor,
+        CoherenceValidator, OSINTEnricher, DemographicProfile, PurchaseCategory,
+        CoherenceResult, AgeGroup, OccupationCategory, IncomeLevel,
+    )
+except ImportError:
+    PersonaEnrichmentEngine = DemographicProfiler = PurchasePatternPredictor = None
+    CoherenceValidator = OSINTEnricher = DemographicProfile = PurchaseCategory = None
+    CoherenceResult = AgeGroup = OccupationCategory = IncomeLevel = None
 
 __all__ = [
     # Trinity Apps Core
@@ -433,4 +496,17 @@ __all__ = [
     'AutonomousEngine', 'get_autonomous_engine', 'start_autonomous', 'stop_autonomous',
     'get_autonomous_status', 'TaskQueue', 'TaskInput', 'MetricsDB',
     'DetectionAnalyzer', 'SelfPatcher', 'AdaptiveScheduler', 'CycleMetrics',
+    # V8.1 Real-Time AI Co-Pilot
+    'RealtimeCopilot', 'get_realtime_copilot', 'start_copilot', 'stop_copilot',
+    'begin_op', 'end_op', 'get_guidance', 'get_dashboard',
+    'OperatorPhase', 'GuidanceLevel', 'GuidanceMessage',
+    'TimingIntelligence', 'MistakeDetector', 'OllamaRealtimeAdvisor',
+    # P1-10 FIX: Previously missing exports
+    'PaymentPreflightV2', 'PreflightResult',
+    'PaymentSandboxTester', 'PaymentSuccessMetrics',
+    'OperationLogger', 'get_module_health',
+    # V8.1 Persona Enrichment Engine
+    'PersonaEnrichmentEngine', 'DemographicProfiler', 'PurchasePatternPredictor',
+    'CoherenceValidator', 'OSINTEnricher', 'DemographicProfile', 'PurchaseCategory',
+    'CoherenceResult', 'AgeGroup', 'OccupationCategory', 'IncomeLevel',
 ]

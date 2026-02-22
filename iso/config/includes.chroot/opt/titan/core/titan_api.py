@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V7.6 SINGULARITY — Unified REST API
+TITAN V8.1 SINGULARITY — Unified REST API
 ═══════════════════════════════════════════════════════════════════════════════
 
 Provides RESTful API access to all TITAN modules for programmatic integration.
@@ -36,7 +36,7 @@ Usage:
     result = api.generate_ja4_fingerprint("chrome_131", "windows_11")
 
 Author: Dva.12
-Version: 8.0.0
+Version: 8.1.0
 """
 
 import os
@@ -214,6 +214,8 @@ MODULES_AVAILABLE = {
     "windows_font_prov": False,
     # V8.0 Autonomous Engine
     "autonomous_engine": False,
+    # V8.1 Persona Enrichment
+    "persona_enrichment": False,
 }
 
 # Import modules with availability tracking
@@ -588,6 +590,16 @@ try:
 except ImportError:
     pass
 
+# V8.1 Persona Enrichment Engine
+try:
+    from persona_enrichment_engine import (
+        PersonaEnrichmentEngine, DemographicProfiler, PurchasePatternPredictor,
+        CoherenceValidator, DemographicProfile, CoherenceResult,
+    )
+    MODULES_AVAILABLE["persona_enrichment"] = True
+except ImportError:
+    pass
+
 
 @dataclass
 class APIResponse:
@@ -616,7 +628,7 @@ class TitanAPI:
     Can be used standalone or integrated with Flask/FastAPI.
     """
     
-    VERSION = "8.0.0"
+    VERSION = "8.1.0"
     
     def __init__(self, profile_uuid: str = None):
         """
@@ -1546,6 +1558,85 @@ class TitanAPI:
             return APIResponse(success=True, data=report)
         except Exception as e:
             return APIResponse(success=False, error=str(e))
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # V8.1 PERSONA ENRICHMENT ENDPOINTS
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def enrich_persona(
+        self,
+        name: str,
+        email: str,
+        age: int,
+        address: Dict,
+        target_merchant: str = "",
+        target_item: str = "",
+        amount: float = 0.0,
+    ) -> APIResponse:
+        """
+        Enrich persona with demographic profiling and purchase pattern prediction.
+        Optionally validates coherence against a target purchase.
+        """
+        if not MODULES_AVAILABLE["persona_enrichment"]:
+            return APIResponse(success=False, error="Persona enrichment module not available")
+        try:
+            engine = PersonaEnrichmentEngine(enable_osint=False)
+            profile, patterns, coherence = engine.enrich_and_validate(
+                name=name, email=email, age=age, address=address,
+                target_merchant=target_merchant, target_item=target_item, amount=amount,
+            )
+            return APIResponse(success=True, data={
+                "demographic": {
+                    "age_group": profile.age_group.value,
+                    "occupation": profile.occupation_category.value,
+                    "income_level": profile.income_level.value,
+                    "tech_savvy": profile.tech_savvy,
+                    "online_shopper": profile.online_shopper,
+                    "gender": profile.gender,
+                },
+                "top_categories": [
+                    {"name": cat.name, "likelihood": cat.likelihood,
+                     "merchants": cat.typical_merchants[:3]}
+                    for cat in list(patterns.values())[:5]
+                ],
+                "coherence": {
+                    "coherent": coherence.coherent,
+                    "likelihood": coherence.likelihood_score,
+                    "category": coherence.category_match,
+                    "message": coherence.warning_message,
+                    "alternatives": coherence.recommended_alternatives,
+                } if target_merchant else None,
+            })
+        except Exception as e:
+            return APIResponse(success=False, error=str(e))
+    
+    def validate_purchase_coherence(
+        self,
+        name: str,
+        email: str,
+        age: int,
+        target_merchant: str,
+        target_item: str = "",
+        amount: float = 0.0,
+    ) -> APIResponse:
+        """Quick coherence check — is this purchase consistent with this persona?"""
+        if not MODULES_AVAILABLE["persona_enrichment"]:
+            return APIResponse(success=False, error="Persona enrichment module not available")
+        try:
+            engine = PersonaEnrichmentEngine(enable_osint=False)
+            _, _, coherence = engine.enrich_and_validate(
+                name=name, email=email, age=age, address={},
+                target_merchant=target_merchant, target_item=target_item, amount=amount,
+            )
+            return APIResponse(success=True, data={
+                "coherent": coherence.coherent,
+                "likelihood": coherence.likelihood_score,
+                "category": coherence.category_match,
+                "message": coherence.warning_message,
+                "alternatives": coherence.recommended_alternatives,
+            })
+        except Exception as e:
+            return APIResponse(success=False, error=str(e))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1564,7 +1655,7 @@ def create_flask_app():
     api = TitanAPI()
     
     # R2-FIX: Public endpoints that don't require auth
-    PUBLIC_ENDPOINTS = {"/api/v1/health", "/api/v1/auth/token"}
+    PUBLIC_ENDPOINTS = {"/api/v1/health", "/api/v1/auth/token", "/api/copilot/event"}
     
     @app.before_request
     def _enforce_auth_and_rate_limit():
@@ -1716,6 +1807,32 @@ def create_flask_app():
             quality=data.get("quality", "high"),
         ).to_dict())
     
+    # V8.1 Persona Enrichment Routes
+    @app.route("/api/v1/persona/enrich", methods=["POST"])
+    def persona_enrich():
+        data = request.get_json() or {}
+        return jsonify(api.enrich_persona(
+            name=data.get("name", ""),
+            email=data.get("email", ""),
+            age=data.get("age", 30),
+            address=data.get("address", {}),
+            target_merchant=data.get("target_merchant", ""),
+            target_item=data.get("target_item", ""),
+            amount=data.get("amount", 0.0),
+        ).to_dict())
+    
+    @app.route("/api/v1/persona/coherence", methods=["POST"])
+    def persona_coherence():
+        data = request.get_json() or {}
+        return jsonify(api.validate_purchase_coherence(
+            name=data.get("name", ""),
+            email=data.get("email", ""),
+            age=data.get("age", 30),
+            target_merchant=data.get("target_merchant", ""),
+            target_item=data.get("target_item", ""),
+            amount=data.get("amount", 0.0),
+        ).to_dict())
+    
     # V8.0 Autonomous Engine Routes
     @app.route("/api/v1/autonomous/status", methods=["GET"])
     def autonomous_status():
@@ -1736,6 +1853,114 @@ def create_flask_app():
     def autonomous_report():
         return jsonify(api.autonomous_report().to_dict())
     
+    # ═══════════════════════════════════════════════════════════════════════
+    # V8.1 REAL-TIME AI CO-PILOT ROUTES
+    # ═══════════════════════════════════════════════════════════════════════
+    # Browser co-pilot (titan_3ds_ai_exploits.py) sends events here via
+    # navigator.sendBeacon. GUI polls guidance and dashboard endpoints.
+    
+    @app.route("/api/copilot/event", methods=["POST"])
+    def copilot_event():
+        """Ingest real-time browser event from co-pilot content script."""
+        try:
+            from titan_realtime_copilot import get_realtime_copilot
+            copilot = get_realtime_copilot()
+            data = request.get_json(silent=True) or {}
+            copilot.ingest_browser_event(data)
+            return "", 204
+        except Exception as e:
+            logger.debug(f"Copilot event error: {e}")
+            return "", 204  # Always 204 — sendBeacon is fire-and-forget
+    
+    @app.route("/api/v1/copilot/guidance", methods=["GET"])
+    def copilot_guidance():
+        """Get latest AI guidance messages (GUI polls this)."""
+        try:
+            from titan_realtime_copilot import get_realtime_copilot
+            copilot = get_realtime_copilot()
+            limit = request.args.get("limit", 10, type=int)
+            return jsonify({"success": True, "guidance": copilot.get_latest_guidance(limit)})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+    
+    @app.route("/api/v1/copilot/dashboard", methods=["GET"])
+    def copilot_dashboard():
+        """Get full co-pilot dashboard status."""
+        try:
+            from titan_realtime_copilot import get_realtime_copilot
+            return jsonify({"success": True, "dashboard": get_realtime_copilot().get_dashboard()})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+    
+    @app.route("/api/v1/copilot/begin", methods=["POST"])
+    def copilot_begin():
+        """Begin a new operation — runs pre-flight checks."""
+        try:
+            from titan_realtime_copilot import get_realtime_copilot
+            copilot = get_realtime_copilot()
+            data = request.get_json() or {}
+            msgs = copilot.begin_operation(
+                target=data.get("target", ""),
+                card_bin=data.get("card_bin", ""),
+                card_country=data.get("card_country", "US"),
+                proxy_ip=data.get("proxy_ip", ""),
+                proxy_country=data.get("proxy_country", ""),
+                proxy_state=data.get("proxy_state", ""),
+                billing_state=data.get("billing_state", ""),
+                billing_zip=data.get("billing_zip", ""),
+                amount=data.get("amount", 0.0),
+                psp=data.get("psp", "unknown"),
+                profile_id=data.get("profile_id", ""),
+            )
+            return jsonify({
+                "success": True,
+                "guidance": [{"level": m.level.value, "category": m.category,
+                              "message": m.message, "action": m.action} for m in msgs],
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+    
+    @app.route("/api/v1/copilot/end", methods=["POST"])
+    def copilot_end():
+        """End current operation — runs post-analysis."""
+        try:
+            from titan_realtime_copilot import get_realtime_copilot
+            copilot = get_realtime_copilot()
+            data = request.get_json() or {}
+            msgs = copilot.end_operation(
+                result=data.get("result", "unknown"),
+                decline_code=data.get("decline_code", ""),
+            )
+            return jsonify({
+                "success": True,
+                "analysis": [{"level": m.level.value, "category": m.category,
+                              "message": m.message, "action": m.action} for m in msgs],
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+    
+    @app.route("/api/v1/copilot/timing", methods=["GET"])
+    def copilot_timing():
+        """Get real-time timing intelligence (checkout countdown, velocity)."""
+        try:
+            from titan_realtime_copilot import get_realtime_copilot
+            return jsonify({"success": True, "timing": get_realtime_copilot().get_timing_status()})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+    
+    @app.route("/api/v1/copilot/history", methods=["GET"])
+    def copilot_history():
+        """Get operation history from this session."""
+        try:
+            from titan_realtime_copilot import get_realtime_copilot
+            limit = request.args.get("limit", 20, type=int)
+            return jsonify({
+                "success": True,
+                "history": get_realtime_copilot().get_operation_history(limit),
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+    
     return app
 
 
@@ -1747,14 +1972,14 @@ def main():
     """Main CLI entry point."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="TITAN V8.0 API Server")
+    parser = argparse.ArgumentParser(description="TITAN V8.1 API Server")
     parser.add_argument("--port", type=int, default=8443, help="Server port")
     parser.add_argument("--host", default="0.0.0.0", help="Server host")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     args = parser.parse_args()
     
     print("=" * 70)
-    print("  TITAN V8.0 MAXIMUM LEVEL — Unified REST API")
+    print("  TITAN V8.1 MAXIMUM LEVEL — Unified REST API")
     print("=" * 70)
     
     app = create_flask_app()

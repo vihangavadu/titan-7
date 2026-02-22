@@ -37,6 +37,10 @@ try:
     AIOQUIC_AVAILABLE = True
 except ImportError:
     AIOQUIC_AVAILABLE = False
+    logging.getLogger("TITAN-QUIC").warning(
+        "aioquic not installed — HTTP/3 TLS fingerprint protection DISABLED. "
+        "Install: pip install aioquic"
+    )
 
 
 class BrowserProfile(Enum):

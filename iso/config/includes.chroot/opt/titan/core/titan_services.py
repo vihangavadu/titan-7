@@ -534,10 +534,16 @@ class TitanServiceManager:
         self.feedback_loop = None
         self.memory_pressure = None
         self.autonomous_engine = None
+        self.realtime_copilot = None
         self._started = False
     
     def start_all(self, tx_port: int = None, discovery_hour: int = None) -> Dict:
         """Start all background services using titan.env configuration"""
+        # P1-9 FIX: Prevent duplicate service starts
+        if self._started:
+            logger.warning("Services already started — call stop_all() first to restart")
+            return {"error": "already_started", "status": self.get_status()}
+        
         # Read config from titan.env (falls back to sensible defaults)
         if tx_port is None:
             tx_port = int(get_config("TITAN_TX_MONITOR_PORT", "7443"))
@@ -607,6 +613,23 @@ class TitanServiceManager:
         else:
             results["autonomous_engine"] = {"status": "disabled_by_config"}
 
+        # 6. V8.1 Real-Time AI Co-Pilot (always on — monitors human operations)
+        if get_config("TITAN_COPILOT_AUTOSTART", "1") == "1":
+            try:
+                from titan_realtime_copilot import get_realtime_copilot
+                self.realtime_copilot = get_realtime_copilot()
+                self.realtime_copilot.start()
+                results["realtime_copilot"] = {
+                    "status": "started",
+                    "ollama": self.realtime_copilot._ollama.is_available,
+                }
+                logger.info("Real-Time AI Co-Pilot started")
+            except Exception as e:
+                results["realtime_copilot"] = {"status": "error", "error": str(e)}
+                logger.error(f"Real-Time Co-Pilot failed: {e}")
+        else:
+            results["realtime_copilot"] = {"status": "disabled_by_config"}
+
         self._started = True
         logger.info("All TITAN services started")
         return results
@@ -622,6 +645,8 @@ class TitanServiceManager:
             self.memory_pressure.stop()
         if self.autonomous_engine:
             self.autonomous_engine.stop()
+        if self.realtime_copilot:
+            self.realtime_copilot.stop()
         self._started = False
         logger.info("All TITAN services stopped")
     
@@ -633,6 +658,7 @@ class TitanServiceManager:
             "feedback_loop": self.feedback_loop.get_status() if self.feedback_loop else {"status": "not started"},
             "memory_pressure": self.memory_pressure.get_status() if self.memory_pressure else {"status": "not started"},
             "autonomous_engine": self.autonomous_engine.get_status() if self.autonomous_engine else {"status": "not started"},
+            "realtime_copilot": self.realtime_copilot.get_dashboard() if self.realtime_copilot else {"status": "not started"},
         }
     
     def run_discovery_now(self) -> Dict:

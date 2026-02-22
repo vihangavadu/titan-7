@@ -278,10 +278,51 @@ class AutoPatcher:
                 self._runtime_configs[module] = DEFAULT_CONFIGS.get(module, {})
                 self._save_config(module)
     
+    def _backup_config(self, module: str):
+        """P1-8 FIX: Save config snapshot before patching so rollback can restore original."""
+        if module not in PATCHABLE_CONFIGS:
+            return
+        config_path = Path(PATCHABLE_CONFIGS[module]["config_file"])
+        if config_path.exists():
+            backup_dir = self.patch_history_dir / "config_backups"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            backup_path = backup_dir / f"{module}_{int(time.time())}.json"
+            try:
+                import shutil
+                shutil.copy2(config_path, backup_path)
+                # Keep only last 10 backups per module
+                backups = sorted(backup_dir.glob(f"{module}_*.json"))
+                for old in backups[:-10]:
+                    old.unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"Config backup failed for {module}: {e}")
+
+    def _restore_config_backup(self, module: str) -> bool:
+        """P1-8 FIX: Restore most recent config backup for a module."""
+        backup_dir = self.patch_history_dir / "config_backups"
+        backups = sorted(backup_dir.glob(f"{module}_*.json"))
+        if not backups:
+            logger.warning(f"No config backup found for {module}")
+            return False
+        config_path = Path(PATCHABLE_CONFIGS[module]["config_file"])
+        try:
+            import shutil
+            shutil.copy2(backups[-1], config_path)
+            with open(config_path) as f:
+                self._runtime_configs[module] = json.load(f)
+            logger.info(f"Restored config backup for {module} from {backups[-1].name}")
+            return True
+        except Exception as e:
+            logger.error(f"Config restore failed for {module}: {e}")
+            return False
+
     def _save_config(self, module: str):
         """Save configuration for a module."""
         if module not in PATCHABLE_CONFIGS:
             return
+        
+        # P1-8 FIX: Backup before overwriting
+        self._backup_config(module)
         
         config_path = Path(PATCHABLE_CONFIGS[module]["config_file"])
         config_path.parent.mkdir(parents=True, exist_ok=True)

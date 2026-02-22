@@ -956,6 +956,63 @@ class GenesisEngine:
                 (0, i+1, entry["visit_time"], 1, 0)
             )
         
+        # Audit-3: Add download entries to places.sqlite (Firefox stores downloads as
+        # annotated history entries). Empty downloads on aged profile = forensic flag.
+        # OS-coherent: Windows .exe/.msi/.zip files with C:\Users\ paths only.
+        _dl_templates = [
+            ("zoom_installer.exe", "https://zoom.us/client/latest/ZoomInstaller.exe", "Zoom Installer"),
+            ("Order_Receipt.pdf", "https://www.amazon.com/gp/css/summary/print.html", "Amazon Receipt"),
+            ("vscode_setup.exe", "https://code.visualstudio.com/sha/download", "VS Code Setup"),
+            ("photo_backup.zip", "https://drive.google.com/uc?export=download", "Google Drive Download"),
+        ]
+        _age_days = getattr(config, 'age_days', 90)
+        _dl_base = datetime.now() - timedelta(days=_age_days)
+        for di, (fname, dl_url, dl_title) in enumerate(_dl_templates):
+            _dl_day = random.randint(5, max(6, _age_days - 5))
+            _dl_time = int((_dl_base + timedelta(days=_dl_day)).timestamp() * 1000000)
+            _dl_guid = secrets.token_urlsafe(9)[:12]
+            _dl_place_id = len(history) + di + 1
+            cursor.execute(
+                "INSERT OR IGNORE INTO moz_places (id, url, title, rev_host, visit_count, typed, last_visit_date, guid, url_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (_dl_place_id, dl_url, dl_title, "", 1, 0, _dl_time, _dl_guid, hash(dl_url) & 0x7FFFFFFFFFFFFFFF)
+            )
+        
+        # Create moz_annos for download metadata (file path, state)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moz_anno_attributes (
+                id INTEGER PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moz_annos (
+                id INTEGER PRIMARY KEY,
+                place_id INTEGER NOT NULL,
+                anno_attribute_id INTEGER,
+                content TEXT,
+                flags INTEGER DEFAULT 0,
+                expiration INTEGER DEFAULT 4,
+                type INTEGER DEFAULT 3,
+                dateAdded INTEGER DEFAULT 0,
+                lastModified INTEGER DEFAULT 0
+            )
+        """)
+        cursor.execute("INSERT OR IGNORE INTO moz_anno_attributes (id, name) VALUES (1, 'downloads/destinationFileURI')")
+        cursor.execute("INSERT OR IGNORE INTO moz_anno_attributes (id, name) VALUES (2, 'downloads/metaData')")
+        for di, (fname, dl_url, _) in enumerate(_dl_templates):
+            _dl_day = random.randint(5, max(6, _age_days - 5))
+            _dl_time = int((_dl_base + timedelta(days=_dl_day)).timestamp() * 1000000)
+            _dl_place_id = len(history) + di + 1
+            _win_path = f"file:///C:/Users/User/Downloads/{fname}"
+            cursor.execute(
+                "INSERT INTO moz_annos (place_id, anno_attribute_id, content, dateAdded, lastModified) VALUES (?, 1, ?, ?, ?)",
+                (_dl_place_id, _win_path, _dl_time, _dl_time)
+            )
+            cursor.execute(
+                "INSERT INTO moz_annos (place_id, anno_attribute_id, content, dateAdded, lastModified) VALUES (?, 2, ?, ?, ?)",
+                (_dl_place_id, json.dumps({"state": 1, "endTime": _dl_time + random.randint(5000000, 30000000)}), _dl_time, _dl_time)
+            )
+        
         conn.commit()
         conn.close()
         
@@ -998,10 +1055,25 @@ class GenesisEngine:
         
         # Write prefs.js
         prefs = profile_path / "prefs.js"
+        # Derive locale/region from billing country for geo-sync
+        _country = getattr(config, 'billing_country', 'US') or 'US'
+        _country_upper = _country.upper()[:2]
+        _locale_map = {
+            "US": "en-US", "GB": "en-GB", "CA": "en-CA", "AU": "en-AU",
+            "DE": "de-DE", "FR": "fr-FR", "IT": "it-IT", "ES": "es-ES",
+            "NL": "nl-NL", "BE": "nl-BE", "JP": "ja-JP", "BR": "pt-BR",
+            "MX": "es-MX",
+        }
+        _locale = _locale_map.get(_country_upper, "en-US")
         with open(prefs, "w") as f:
             f.write('user_pref("browser.startup.homepage_override.mstone", "ignore");\n')
             f.write('user_pref("privacy.resistFingerprinting", false);\n')
             f.write('user_pref("privacy.trackingprotection.enabled", false);\n')
+            # Geo-sync: region + locale must match billing country
+            f.write(f'user_pref("browser.search.region", "{_country_upper}");\n')
+            f.write(f'user_pref("intl.locale.requested", "{_locale}");\n')
+            f.write(f'user_pref("general.useragent.locale", "{_locale}");\n')
+            f.write(f'user_pref("intl.accept_languages", "{_locale}, {_locale.split("-")[0]}");\n')
     
     def _write_chromium_profile(self, profile_path: Path, history: List, cookies: List, storage: Dict):
         """Write Chromium profile files"""
@@ -1226,7 +1298,7 @@ class GenesisEngine:
             try:
                 with open(prefs_file, 'r') as f:
                     prefs = json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError, ValueError):
                 pass
         
         # Build notification permission settings

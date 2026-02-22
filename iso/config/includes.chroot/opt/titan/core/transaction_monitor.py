@@ -372,6 +372,26 @@ class TransactionDB:
         """)
         self.conn.commit()
     
+    def cleanup_old_records(self, retention_days: int = 30) -> int:
+        """
+        P2-2 FIX: Delete transaction records older than retention_days.
+        Prevents unbounded SQLite growth on long-running systems.
+        Returns number of rows deleted.
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+        with self._lock:
+            cursor = self.conn.execute(
+                "DELETE FROM transactions WHERE timestamp < ?", (cutoff,)
+            )
+            deleted = cursor.rowcount
+            if deleted > 0:
+                self.conn.execute("VACUUM")
+                self.conn.commit()
+                logging.getLogger("TITAN-TX").info(
+                    f"DB cleanup: removed {deleted} records older than {retention_days}d"
+                )
+            return deleted
+
     def insert(self, tx: Dict) -> int:
         with self._lock:
             cursor = self.conn.execute("""

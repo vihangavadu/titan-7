@@ -1333,8 +1333,8 @@ class TitanIntegrationBridge:
             profile = self._location.get_location_by_country(country)
             if profile:
                 return self._location.get_camoufox_config(profile)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[BRIDGE] Location fallback for {country} failed: {e}")
         
         # Ultimate fallback - US East Coast
         return {
@@ -1744,6 +1744,32 @@ class TitanIntegrationBridge:
             except Exception as e:
                 logger.debug(f"  Guard pre-op check skipped: {e}")
         
+        # V8.1: Real-Time AI Co-Pilot — start monitoring this operation
+        try:
+            from titan_realtime_copilot import get_realtime_copilot
+            copilot = get_realtime_copilot()
+            copilot.start()
+            country = billing_address.get("country", "US")
+            cop_guidance = copilot.begin_operation(
+                target=target_domain,
+                card_country=country,
+                billing_state=billing_address.get("state", ""),
+                billing_zip=billing_address.get("zip", billing_address.get("postal_code", "")),
+                proxy_country=country,
+                amount=float(billing_address.get("amount", 0)),
+            )
+            for g in cop_guidance:
+                if g.level.value in ("critical", "warning"):
+                    logger.warning(f"  ⚠ Co-Pilot: {g.message}")
+                    if g.action:
+                        logger.warning(f"    → {g.action}")
+                elif g.level.value == "suggest":
+                    logger.info(f"  💡 Co-Pilot: {g.message}")
+                else:
+                    logger.info(f"  ℹ Co-Pilot: {g.message}")
+        except Exception as e:
+            logger.debug(f"  Co-Pilot setup skipped: {e}")
+        
         # V7.6 P0-4: Referrer warmup — build a realistic referrer trail before browser launch
         if REFERRER_WARMUP_AVAILABLE and target_domain:
             try:
@@ -1774,15 +1800,21 @@ class TitanIntegrationBridge:
                 logger.debug(f"  Form autofill setup skipped: {e}")
         
         # V7.6 P0-6: Network jitter — apply realistic network timing patterns
+        # P0-6 FIX: Stop old jitter engine before creating new one (prevents thread leak on retry)
         if NETWORK_JITTER_AVAILABLE:
             try:
+                if hasattr(self, '_jitter_engine') and self._jitter_engine:
+                    try:
+                        self._jitter_engine.stop()
+                    except Exception:
+                        pass
                 jitter_profile = JitterProfile()
-                jitter_engine = NetworkJitterEngine(jitter_profile)
-                if hasattr(jitter_engine, 'activate') and callable(jitter_engine.activate):
-                    jitter_engine.activate()
+                self._jitter_engine = NetworkJitterEngine(jitter_profile)
+                if hasattr(self._jitter_engine, 'activate') and callable(self._jitter_engine.activate):
+                    self._jitter_engine.activate()
                     logger.info("  ✓ Network jitter active — realistic latency patterns applied")
-                elif hasattr(jitter_engine, 'start') and callable(jitter_engine.start):
-                    jitter_engine.start()
+                elif hasattr(self._jitter_engine, 'start') and callable(self._jitter_engine.start):
+                    self._jitter_engine.start()
                     logger.info("  ✓ Network jitter active")
             except Exception as e:
                 logger.debug(f"  Network jitter skipped: {e}")
@@ -2110,7 +2142,8 @@ class BridgeHealthMonitor:
         try:
             stats = self.bridge._proxy_manager.get_stats()
             return stats.get('total', 0) > 0
-        except Exception:
+        except Exception as e:
+            logger.debug(f"[PREFLIGHT] Proxy check failed: {e}")
             return False
     
     def _check_vpn(self) -> bool:
@@ -2655,15 +2688,15 @@ class CrossModuleSynchronizer:
         for callback in self._subscribers.get(key, []):
             try:
                 callback(state)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[STATE] Subscriber callback error for {key}: {e}")
         
         # Notify wildcard subscribers
         for callback in self._subscribers.get("*", []):
             try:
                 callback(state)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[STATE] Wildcard subscriber callback error: {e}")
     
     def sync_from_bridge(self, bridge: TitanIntegrationBridge):
         """Synchronize state from a bridge instance."""

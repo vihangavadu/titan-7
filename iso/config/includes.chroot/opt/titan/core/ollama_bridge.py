@@ -34,6 +34,59 @@ from datetime import datetime, timedelta, timezone
 logger = logging.getLogger("TITAN-LLM")
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# P1-3 FIX: Connection pooling via requests.Session + circuit breaker
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_SESSION = None  # requests.Session singleton for connection pooling
+
+def _get_session():
+    """Get or create a requests.Session with connection pooling."""
+    global _SESSION
+    if _SESSION is not None:
+        return _SESSION
+    try:
+        import requests
+        from requests.adapters import HTTPAdapter
+        _SESSION = requests.Session()
+        adapter = HTTPAdapter(pool_connections=4, pool_maxsize=8)
+        _SESSION.mount("http://", adapter)
+        _SESSION.mount("https://", adapter)
+        return _SESSION
+    except ImportError:
+        return None
+
+
+class _OllamaCircuitBreaker:
+    """P1-3 FIX: Skip Ollama for 60s after 3 consecutive failures."""
+    def __init__(self, threshold: int = 3, cooldown: float = 60.0):
+        self._failures = 0
+        self._threshold = threshold
+        self._cooldown = cooldown
+        self._open_until = 0.0
+
+    def is_open(self) -> bool:
+        if self._open_until and time.time() < self._open_until:
+            return True
+        if self._open_until and time.time() >= self._open_until:
+            self._open_until = 0.0
+            self._failures = 0
+        return False
+
+    def record_success(self):
+        self._failures = 0
+        self._open_until = 0.0
+
+    def record_failure(self):
+        self._failures += 1
+        if self._failures >= self._threshold:
+            self._open_until = time.time() + self._cooldown
+            logger.warning(f"Ollama circuit breaker OPEN — skipping for {self._cooldown}s")
+
+
+_ollama_breaker = _OllamaCircuitBreaker()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -337,11 +390,16 @@ def _write_cache(path: Path, result: Any, key: str, provider: str = "", model: s
 
 def _query_ollama(prompt: str, model: str, temperature: float,
                   max_tokens: int, timeout: int) -> Optional[str]:
-    """Send prompt to local Ollama instance."""
+    """Send prompt to local Ollama instance. Uses requests.Session if available."""
+    # P1-3 FIX: Circuit breaker check
+    if _ollama_breaker.is_open():
+        logger.debug("Ollama circuit breaker is OPEN — skipping")
+        return None
+
     pcfg = _provider_cfg("ollama")
     base = pcfg.get("base_url", "http://127.0.0.1:11434")
 
-    payload = json.dumps({
+    payload_dict = {
         "model": model,
         "prompt": prompt,
         "stream": False,
@@ -349,8 +407,31 @@ def _query_ollama(prompt: str, model: str, temperature: float,
             "temperature": temperature,
             "num_predict": max_tokens,
         }
-    })
+    }
 
+    # P1-3 FIX: Prefer requests.Session for connection pooling
+    session = _get_session()
+    if session:
+        try:
+            resp = session.post(
+                f"{base}/api/generate",
+                json=payload_dict,
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                result = data.get("response", "").strip()
+                if result:
+                    _ollama_breaker.record_success()
+                    return result
+            _ollama_breaker.record_failure()
+        except Exception as e:
+            logger.warning(f"Ollama query failed (requests): {e}")
+            _ollama_breaker.record_failure()
+        return None
+
+    # Fallback: curl subprocess
+    payload = json.dumps(payload_dict)
     try:
         proc = subprocess.run(
             ["curl", "-s", "--max-time", str(timeout),
@@ -361,11 +442,17 @@ def _query_ollama(prompt: str, model: str, temperature: float,
         )
         if proc.returncode == 0 and proc.stdout:
             data = json.loads(proc.stdout)
-            return data.get("response", "").strip()
+            result = data.get("response", "").strip()
+            if result:
+                _ollama_breaker.record_success()
+                return result
+        _ollama_breaker.record_failure()
     except subprocess.TimeoutExpired:
         logger.warning(f"Ollama timed out after {timeout}s")
+        _ollama_breaker.record_failure()
     except Exception as e:
         logger.warning(f"Ollama query failed: {e}")
+        _ollama_breaker.record_failure()
     return None
 
 
@@ -545,7 +632,8 @@ def query_llm(prompt: str, task_type: str = "default",
             if result is not None:
                 return result
             if attempt < retries:
-                time.sleep(1)
+                # P1-3 FIX: Exponential backoff (1s, 2s, 4s...)
+                time.sleep(min(2 ** attempt, 8))
         return None
 
     # Task-based routing: try each candidate
@@ -567,7 +655,8 @@ def query_llm(prompt: str, task_type: str = "default",
                 logger.info(f"[{task_type}] Success via {prov}/{mdl}")
                 return result
             if attempt < retries:
-                time.sleep(0.5)
+                # P1-3 FIX: Exponential backoff (0.5s, 1s, 2s...)
+                time.sleep(min(0.5 * (2 ** attempt), 8))
 
     return None
 

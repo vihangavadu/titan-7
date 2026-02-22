@@ -1,6 +1,85 @@
-# TITAN V7.0 SINGULARITY - Changelog
+# TITAN V8.1 SINGULARITY - Changelog
 
 ## Version History
+
+---
+
+## [8.1.0] - 2026-02-22
+
+### V8.1 SINGULARITY — Persona Enrichment + Cognitive Profiling
+
+#### New Modules
+- **persona_enrichment_engine.py** — AI-powered demographic profiling from name/email/age/occupation
+  - `DemographicProfiler` — Extract behavioral signals (age group, occupation, income, tech savviness)
+  - `PurchasePatternPredictor` — 18 purchase categories with demographic-weighted likelihood scoring
+  - `CoherenceValidator` — Blocks out-of-pattern purchases BEFORE bank declines (40%/25% thresholds)
+  - `OSINTEnricher` — Optional Sherlock/Holehe/Maigret/theHarvester/Photon integration
+  - CLI interface for testing: `python3 persona_enrichment_engine.py --name "John" --email "j@gmail.com" --age 35 --merchant "g2a.com"`
+
+- **install_osint_tools.sh** — Self-hosted OSINT tools installer (all/minimal/custom modes)
+
+#### Preflight Integration
+- `PreFlightValidator._check_purchase_coherence()` — Automatic persona-purchase alignment check
+- Wired into `run_all_checks()` — runs when `_persona_data` and `_target_merchant` are set
+- Returns PASS/WARN/SKIP based on coherence likelihood score
+
+#### API Endpoints (2 new)
+- `POST /api/v1/persona/enrich` — Full persona enrichment with demographic profiling + pattern prediction
+- `POST /api/v1/persona/coherence` — Quick coherence validation for target purchase
+
+#### Real-Time AI Co-Pilot Enhancements
+- HITL timing guardrails — Per-phase min/optimal/max dwell time enforcement
+- Behavioral anomaly detection — Clipboard paste, scroll behavior, checkout timing guards
+- Total checkout time guard — Minimum 120 seconds enforced
+- 7 copilot API routes wired into Flask app
+
+#### GUI Updates
+- `app_unified.py` — V8.1 branding, persona_enrichment_engine import connected
+- All GUI apps updated to V8.1 version references
+
+#### Core Updates
+- `__init__.py` — Version bumped to 8.1.0, persona_enrichment_engine exports added (11 symbols)
+- `titan_api.py` — Version bumped to 8.1.0, persona_enrichment module tracking + 2 API endpoints
+- `MODULES_AVAILABLE` — 51 modules tracked (was 50)
+
+#### Documentation
+- `PERSONA_ENRICHMENT_README.md` — Complete user guide (500 lines)
+- `PERSONA_ENRICHMENT_IMPLEMENTATION.md` — Technical reference (800 lines)
+- `README.md` — Updated to V8.1 with new release highlights
+- `CHANGELOG.md` — Updated with V8.1 + V8.0 entries
+- All version references updated across codebase
+
+---
+
+## [8.0.0] - 2026-02-21
+
+### V8.0 MAXIMUM LEVEL — Autonomous Engine + 16 Patches
+
+#### New Modules
+- **titan_autonomous_engine.py** — 24/7 self-improving operation loop with self-patching
+- **titan_realtime_copilot.py** — Real-time AI co-pilot for live operations
+
+#### Critical Patches (16)
+- Ghost Motor seeded RNG — 66 random calls replaced with deterministic per-profile
+- DNS-over-HTTPS — network.trr.mode=3, Cloudflare resolver
+- eBPF auto-load — TCP/IP masquerade in full_prepare()
+- CPUID/RDTSC shield — auto-applied for KVM marker suppression
+- Transaction monitor → Operations Guard feedback loop
+- Session IP monitor — 30s polling for silent proxy rotation
+- Profile validation before launch
+- Handover browser_type default → "camoufox"
+- Proxy pool auto-creation
+- Win10 22H2 audio profile (44100Hz, 32ms latency)
+- Preflight fingerprint readiness check
+- Ghost Motor model path fallback
+
+---
+
+## [7.6.0] - 2026-02-21
+
+### V7.6 SINGULARITY — Deep Hardening
+
+42 files changed, 5,395 insertions. All 56 core modules analyzed, hardened, verified.
 
 ---
 
