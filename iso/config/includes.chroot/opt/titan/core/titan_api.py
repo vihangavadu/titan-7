@@ -199,6 +199,7 @@ MODULES_AVAILABLE = {
     "kill_switch": False,
     "location_spoofer": False,
     "lucid_vpn": False,
+    "mullvad_vpn": False,
     "network_shield": False,
     "ollama_bridge": False,
     "proxy_manager": False,
@@ -499,6 +500,15 @@ except ImportError:
 try:
     from lucid_vpn import LucidVPN
     MODULES_AVAILABLE["lucid_vpn"] = True
+except ImportError:
+    pass
+
+try:
+    from mullvad_vpn import (
+        MullvadVPN, MullvadConfig, IPReputationChecker,
+        create_mullvad, quick_connect, get_mullvad_status, check_ip_reputation,
+    )
+    MODULES_AVAILABLE["mullvad_vpn"] = True
 except ImportError:
     pass
 

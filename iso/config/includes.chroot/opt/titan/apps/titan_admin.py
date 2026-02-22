@@ -103,6 +103,61 @@ try:
 except ImportError:
     IMMUTABLE_AVAILABLE = False
 
+# V8.1: Previously orphaned modules — now wired into Admin
+try:
+    from titan_automation_orchestrator import AutomationOrchestrator
+    ORCHESTRATOR_AVAILABLE = True
+except ImportError:
+    ORCHESTRATOR_AVAILABLE = False
+
+try:
+    from titan_autonomous_engine import TitanAutonomousEngine
+    AUTONOMOUS_AVAILABLE = True
+except ImportError:
+    AUTONOMOUS_AVAILABLE = False
+
+try:
+    from titan_env import ConfigValidator, TitanEnvManager
+    ENV_AVAILABLE = True
+except ImportError:
+    ENV_AVAILABLE = False
+
+try:
+    from titan_master_automation import TitanMasterAutomation
+    MASTER_AUTO_AVAILABLE = True
+except ImportError:
+    MASTER_AUTO_AVAILABLE = False
+
+try:
+    from titan_operation_logger import OperationLog
+    OP_LOG_AVAILABLE = True
+except ImportError:
+    OP_LOG_AVAILABLE = False
+
+try:
+    from titan_master_verify import MasterVerifier
+    MASTER_VERIFY_AVAILABLE = True
+except ImportError:
+    MASTER_VERIFY_AVAILABLE = False
+
+try:
+    from generate_trajectory_model import TrajectoryModelGenerator
+    TRAJECTORY_AVAILABLE = True
+except ImportError:
+    TRAJECTORY_AVAILABLE = False
+
+try:
+    from cockpit_daemon import CockpitDaemon
+    COCKPIT_AVAILABLE = True
+except ImportError:
+    COCKPIT_AVAILABLE = False
+
+try:
+    from integration_bridge import get_bridge_health_monitor, get_module_discovery
+    BRIDGE_AVAILABLE = True
+except ImportError:
+    BRIDGE_AVAILABLE = False
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # WORKERS
@@ -187,6 +242,8 @@ class TitanAdmin(QMainWindow):
     - Tab 1: SERVICES — health monitoring, start/stop, memory pressure
     - Tab 2: TOOLS — bug reporter, auto-patcher, AI configuration
     - Tab 3: SYSTEM — module health, kill switch, VPN, forensics
+    - Tab 4: AUTOMATION — orchestrator, autonomous engine, master automation
+    - Tab 5: CONFIG — environment config, operation logs, trajectory model
     """
 
     def __init__(self):
@@ -242,6 +299,8 @@ class TitanAdmin(QMainWindow):
         self._build_services_tab()
         self._build_tools_tab()
         self._build_system_tab()
+        self._build_automation_tab()
+        self._build_config_tab()
 
         # Status bar
         self.status_bar = QLabel("Ready")
@@ -720,6 +779,27 @@ class TitanAdmin(QMainWindow):
             self.ks_status.setStyleSheet(f"color: {RED}; font-weight: bold;")
 
     def _check_vpn(self):
+        # V8.1: Try Mullvad first
+        try:
+            from mullvad_vpn import MullvadVPN, get_mullvad_status
+            status = get_mullvad_status()
+            state = status.get("state", "Unknown")
+            if state == "Connected":
+                vpn = MullvadVPN()
+                ip = vpn._get_exit_ip() or "unknown"
+                self.vpn_status.setText(f"Mullvad Connected \u2014 {ip}")
+                self.vpn_status.setStyleSheet(f"color: {GREEN}; font-weight: bold;")
+                return
+            elif state == "Blocked":
+                self.vpn_status.setText("Mullvad Kill Switch (Blocked)")
+                self.vpn_status.setStyleSheet(f"color: {YELLOW};")
+                return
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        # Legacy: Lucid VPN
         if VPN_AVAILABLE:
             try:
                 vpn = LucidVPN()
@@ -757,6 +837,276 @@ class TitanAdmin(QMainWindow):
         self.integrity_log.append(f"Core modules: {py_count} files")
         self.integrity_log.append(f"Apps: {len(list(Path(__file__).parent.glob('*.py')))} files")
         self.integrity_log.append("Integrity check complete")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TAB 4: AUTOMATION (wires: titan_automation_orchestrator, titan_autonomous_engine, titan_master_automation)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _build_automation_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        # Automation Orchestrator
+        orch_grp = QGroupBox("Automation Orchestrator")
+        of = QVBoxLayout(orch_grp)
+
+        orch_status_row = QHBoxLayout()
+        dot = QLabel(f"{'●' if ORCHESTRATOR_AVAILABLE else '○'} Orchestrator")
+        dot.setStyleSheet(f"color: {GREEN if ORCHESTRATOR_AVAILABLE else RED};")
+        orch_status_row.addWidget(dot)
+        dot2 = QLabel(f"{'●' if AUTONOMOUS_AVAILABLE else '○'} Autonomous Engine")
+        dot2.setStyleSheet(f"color: {GREEN if AUTONOMOUS_AVAILABLE else RED};")
+        orch_status_row.addWidget(dot2)
+        dot3 = QLabel(f"{'●' if MASTER_AUTO_AVAILABLE else '○'} Master Automation")
+        dot3.setStyleSheet(f"color: {GREEN if MASTER_AUTO_AVAILABLE else RED};")
+        orch_status_row.addWidget(dot3)
+        orch_status_row.addStretch()
+        of.addLayout(orch_status_row)
+
+        orch_btn_row = QHBoxLayout()
+        self.orch_start_btn = QPushButton("Start Orchestrator")
+        self.orch_start_btn.setStyleSheet(f"background: {GREEN}; color: black; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        self.orch_start_btn.clicked.connect(self._start_orchestrator)
+        self.orch_start_btn.setEnabled(ORCHESTRATOR_AVAILABLE)
+        orch_btn_row.addWidget(self.orch_start_btn)
+
+        self.auto_engine_btn = QPushButton("Start Autonomous Engine")
+        self.auto_engine_btn.setStyleSheet(f"background: #6366f1; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        self.auto_engine_btn.clicked.connect(self._start_autonomous)
+        self.auto_engine_btn.setEnabled(AUTONOMOUS_AVAILABLE)
+        orch_btn_row.addWidget(self.auto_engine_btn)
+
+        self.master_btn = QPushButton("Master Automation")
+        self.master_btn.setStyleSheet(f"background: {ACCENT}; color: black; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        self.master_btn.clicked.connect(self._start_master_auto)
+        self.master_btn.setEnabled(MASTER_AUTO_AVAILABLE)
+        orch_btn_row.addWidget(self.master_btn)
+        orch_btn_row.addStretch()
+        of.addLayout(orch_btn_row)
+
+        self.orch_log = QTextEdit()
+        self.orch_log.setReadOnly(True)
+        self.orch_log.setMinimumHeight(200)
+        self.orch_log.setPlaceholderText("Automation engine logs...")
+        self.orch_log.setStyleSheet("font-family: 'JetBrains Mono'; font-size: 11px;")
+        of.addWidget(self.orch_log)
+
+        layout.addWidget(orch_grp)
+
+        # Operation Logs
+        log_grp = QGroupBox("Operation Logs")
+        lf = QVBoxLayout(log_grp)
+
+        log_btn_row = QHBoxLayout()
+        self.log_refresh_btn = QPushButton("Refresh Logs")
+        self.log_refresh_btn.setStyleSheet(f"background: {BG_CARD}; color: {TEXT_PRIMARY}; padding: 6px 12px; border: 1px solid #334155; border-radius: 6px;")
+        self.log_refresh_btn.clicked.connect(self._refresh_logs)
+        log_btn_row.addWidget(self.log_refresh_btn)
+        log_btn_row.addStretch()
+        lf.addLayout(log_btn_row)
+
+        self.op_log_display = QTextEdit()
+        self.op_log_display.setReadOnly(True)
+        self.op_log_display.setMinimumHeight(200)
+        self.op_log_display.setPlaceholderText("Operation history logs...")
+        self.op_log_display.setStyleSheet("font-family: 'JetBrains Mono'; font-size: 11px;")
+        lf.addWidget(self.op_log_display)
+
+        layout.addWidget(log_grp)
+        layout.addStretch()
+        self.tabs.addTab(scroll, "AUTOMATION")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TAB 5: CONFIG (wires: titan_env, cockpit_daemon, integration_bridge, generate_trajectory_model, titan_master_verify)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _build_config_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        # Environment Config
+        env_grp = QGroupBox("Environment Configuration (titan.env)")
+        ef = QVBoxLayout(env_grp)
+
+        env_btn_row = QHBoxLayout()
+        self.env_validate_btn = QPushButton("Validate Config")
+        self.env_validate_btn.setStyleSheet(f"background: {GREEN}; color: black; padding: 6px 12px; border-radius: 6px; font-weight: bold;")
+        self.env_validate_btn.clicked.connect(self._validate_env)
+        self.env_validate_btn.setEnabled(ENV_AVAILABLE)
+        env_btn_row.addWidget(self.env_validate_btn)
+
+        self.env_reload_btn = QPushButton("Reload Environment")
+        self.env_reload_btn.setStyleSheet(f"background: {ACCENT}; color: black; padding: 6px 12px; border-radius: 6px; font-weight: bold;")
+        self.env_reload_btn.clicked.connect(self._reload_env)
+        self.env_reload_btn.setEnabled(ENV_AVAILABLE)
+        env_btn_row.addWidget(self.env_reload_btn)
+        env_btn_row.addStretch()
+        ef.addLayout(env_btn_row)
+
+        self.env_output = QTextEdit()
+        self.env_output.setReadOnly(True)
+        self.env_output.setMaximumHeight(150)
+        self.env_output.setPlaceholderText("Environment validation results...")
+        self.env_output.setStyleSheet("font-family: 'JetBrains Mono'; font-size: 11px;")
+        ef.addWidget(self.env_output)
+
+        layout.addWidget(env_grp)
+
+        # Module Health Bridge
+        bridge_grp = QGroupBox("Integration Bridge & Health")
+        bf = QVBoxLayout(bridge_grp)
+
+        bridge_btn_row = QHBoxLayout()
+        modules_info = [
+            ("Bridge Health", BRIDGE_AVAILABLE),
+            ("Cockpit Daemon", COCKPIT_AVAILABLE),
+            ("Master Verify", MASTER_VERIFY_AVAILABLE),
+            ("Trajectory Model", TRAJECTORY_AVAILABLE),
+        ]
+        for name, avail in modules_info:
+            lbl = QLabel(f"{'●' if avail else '○'} {name}")
+            lbl.setStyleSheet(f"color: {GREEN if avail else RED}; font-size: 11px;")
+            bridge_btn_row.addWidget(lbl)
+        bridge_btn_row.addStretch()
+        bf.addLayout(bridge_btn_row)
+
+        bridge_action_row = QHBoxLayout()
+        self.bridge_health_btn = QPushButton("Bridge Health Check")
+        self.bridge_health_btn.setStyleSheet(f"background: {BG_CARD}; color: {TEXT_PRIMARY}; padding: 6px 12px; border: 1px solid #334155; border-radius: 6px;")
+        self.bridge_health_btn.clicked.connect(self._check_bridge_health)
+        self.bridge_health_btn.setEnabled(BRIDGE_AVAILABLE)
+        bridge_action_row.addWidget(self.bridge_health_btn)
+
+        self.verify_btn = QPushButton("Master Verify")
+        self.verify_btn.setStyleSheet(f"background: {BG_CARD}; color: {TEXT_PRIMARY}; padding: 6px 12px; border: 1px solid #334155; border-radius: 6px;")
+        self.verify_btn.clicked.connect(self._run_master_verify)
+        self.verify_btn.setEnabled(MASTER_VERIFY_AVAILABLE)
+        bridge_action_row.addWidget(self.verify_btn)
+
+        self.trajectory_btn = QPushButton("Generate Trajectory Model")
+        self.trajectory_btn.setStyleSheet(f"background: {BG_CARD}; color: {TEXT_PRIMARY}; padding: 6px 12px; border: 1px solid #334155; border-radius: 6px;")
+        self.trajectory_btn.clicked.connect(self._gen_trajectory)
+        self.trajectory_btn.setEnabled(TRAJECTORY_AVAILABLE)
+        bridge_action_row.addWidget(self.trajectory_btn)
+        bridge_action_row.addStretch()
+        bf.addLayout(bridge_action_row)
+
+        self.bridge_output = QTextEdit()
+        self.bridge_output.setReadOnly(True)
+        self.bridge_output.setMaximumHeight(150)
+        self.bridge_output.setPlaceholderText("Bridge/health results...")
+        self.bridge_output.setStyleSheet("font-family: 'JetBrains Mono'; font-size: 11px;")
+        bf.addWidget(self.bridge_output)
+
+        layout.addWidget(bridge_grp)
+        layout.addStretch()
+        self.tabs.addTab(scroll, "CONFIG")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AUTOMATION + CONFIG ACTIONS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _start_orchestrator(self):
+        if ORCHESTRATOR_AVAILABLE:
+            try:
+                orch = AutomationOrchestrator()
+                self.orch_log.append(f"[{datetime.now().strftime('%H:%M:%S')}] Orchestrator initialized")
+                status = orch.get_status() if hasattr(orch, 'get_status') else "ready"
+                self.orch_log.append(f"Status: {json.dumps(status, indent=2, default=str) if isinstance(status, dict) else status}")
+            except Exception as e:
+                self.orch_log.append(f"[ERROR] Orchestrator: {e}")
+
+    def _start_autonomous(self):
+        if AUTONOMOUS_AVAILABLE:
+            try:
+                engine = TitanAutonomousEngine()
+                self.orch_log.append(f"[{datetime.now().strftime('%H:%M:%S')}] Autonomous engine initialized")
+                status = engine.get_status() if hasattr(engine, 'get_status') else "ready"
+                self.orch_log.append(f"Status: {json.dumps(status, indent=2, default=str) if isinstance(status, dict) else status}")
+            except Exception as e:
+                self.orch_log.append(f"[ERROR] Autonomous engine: {e}")
+
+    def _start_master_auto(self):
+        if MASTER_AUTO_AVAILABLE:
+            try:
+                master = TitanMasterAutomation()
+                self.orch_log.append(f"[{datetime.now().strftime('%H:%M:%S')}] Master automation initialized")
+                status = master.get_status() if hasattr(master, 'get_status') else "ready"
+                self.orch_log.append(f"Status: {json.dumps(status, indent=2, default=str) if isinstance(status, dict) else status}")
+            except Exception as e:
+                self.orch_log.append(f"[ERROR] Master automation: {e}")
+
+    def _refresh_logs(self):
+        if OP_LOG_AVAILABLE:
+            try:
+                log = OperationLog()
+                entries = log.get_recent(20) if hasattr(log, 'get_recent') else log.entries[-20:] if hasattr(log, 'entries') else []
+                self.op_log_display.clear()
+                for entry in entries:
+                    self.op_log_display.append(json.dumps(entry.__dict__ if hasattr(entry, '__dict__') else str(entry), default=str)[:200])
+                if not entries:
+                    self.op_log_display.setPlainText("No operation logs found")
+            except Exception as e:
+                self.op_log_display.setPlainText(f"Log error: {e}")
+        else:
+            self.op_log_display.setPlainText("Operation Logger not available")
+
+    def _validate_env(self):
+        if ENV_AVAILABLE:
+            try:
+                validator = ConfigValidator()
+                result = validator.validate() if hasattr(validator, 'validate') else str(validator)
+                self.env_output.setPlainText(json.dumps(result.__dict__ if hasattr(result, '__dict__') else str(result), indent=2, default=str)[:2000])
+            except Exception as e:
+                self.env_output.setPlainText(f"Validation error: {e}")
+        else:
+            self.env_output.setPlainText("Config Validator not available")
+
+    def _reload_env(self):
+        if ENV_AVAILABLE:
+            try:
+                mgr = TitanEnvManager()
+                mgr.reload() if hasattr(mgr, 'reload') else mgr.load() if hasattr(mgr, 'load') else None
+                self.env_output.setPlainText("Environment reloaded successfully")
+            except Exception as e:
+                self.env_output.setPlainText(f"Reload error: {e}")
+
+    def _check_bridge_health(self):
+        if BRIDGE_AVAILABLE:
+            try:
+                monitor = get_bridge_health_monitor()
+                health = monitor.get_health() if hasattr(monitor, 'get_health') else monitor.check() if hasattr(monitor, 'check') else str(monitor)
+                self.bridge_output.setPlainText(json.dumps(health, indent=2, default=str) if isinstance(health, dict) else str(health))
+            except Exception as e:
+                self.bridge_output.setPlainText(f"Bridge health error: {e}")
+
+    def _run_master_verify(self):
+        if MASTER_VERIFY_AVAILABLE:
+            try:
+                verifier = MasterVerifier()
+                result = verifier.verify() if hasattr(verifier, 'verify') else verifier.run() if hasattr(verifier, 'run') else str(verifier)
+                self.bridge_output.setPlainText(json.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result))
+            except Exception as e:
+                self.bridge_output.setPlainText(f"Master verify error: {e}")
+
+    def _gen_trajectory(self):
+        if TRAJECTORY_AVAILABLE:
+            try:
+                gen = TrajectoryModelGenerator()
+                result = gen.generate() if hasattr(gen, 'generate') else str(gen)
+                self.bridge_output.setPlainText(f"Trajectory model: {json.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result)}")
+            except Exception as e:
+                self.bridge_output.setPlainText(f"Trajectory model error: {e}")
 
     def apply_theme(self):
         palette = QPalette()

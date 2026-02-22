@@ -440,6 +440,28 @@ try:
 except ImportError:
     MasterAutomation = None
 
+# V8.1 Mullvad VPN Integration (replaces legacy Lucid VPN)
+try:
+    from .mullvad_vpn import (
+        MullvadVPN, MullvadConfig, IPReputationChecker, IPReputationResult,
+        ObfuscationMode, ConnectionStatus, DAITAVersion, ExitNodeTrust,
+        create_mullvad, quick_connect, get_mullvad_status, check_ip_reputation,
+    )
+except ImportError:
+    MullvadVPN = MullvadConfig = IPReputationChecker = IPReputationResult = None
+    ObfuscationMode = ConnectionStatus = DAITAVersion = ExitNodeTrust = None
+    create_mullvad = quick_connect = get_mullvad_status = check_ip_reputation = None
+
+# V8.1 Network Shield Mullvad extensions
+try:
+    from .network_shield_loader import (
+        detect_wireguard_interface, attach_shield_to_mullvad, safe_boot_mullvad,
+        MULLVAD_RESIDENTIAL_PROFILE,
+    )
+except ImportError:
+    detect_wireguard_interface = attach_shield_to_mullvad = safe_boot_mullvad = None
+    MULLVAD_RESIDENTIAL_PROFILE = None
+
 __all__ = [
     # Trinity Apps Core
     'GenesisEngine', 'ProfileConfig', 'TargetPreset',
@@ -630,4 +652,10 @@ __all__ = [
     'OllamaBridge', 'USBPeripheralSynth', 'WindowsFontProvisioner',
     'AgentChain', 'TitanAutoPatcher', 'AutomationOrchestrator',
     'TitanDetectionAnalyzer', 'VectorMemory', 'WebIntelCollector', 'MasterAutomation',
+    # V8.1 Mullvad VPN Integration
+    'MullvadVPN', 'MullvadConfig', 'IPReputationChecker', 'IPReputationResult',
+    'ObfuscationMode', 'ConnectionStatus', 'DAITAVersion', 'ExitNodeTrust',
+    'create_mullvad', 'quick_connect', 'get_mullvad_status', 'check_ip_reputation',
+    'detect_wireguard_interface', 'attach_shield_to_mullvad', 'safe_boot_mullvad',
+    'MULLVAD_RESIDENTIAL_PROFILE',
 ]

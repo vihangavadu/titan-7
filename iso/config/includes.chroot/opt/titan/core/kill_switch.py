@@ -626,7 +626,32 @@ WantedBy=multi-user.target
             return False
     
     def _rotate_proxy(self) -> bool:
-        """Signal proxy manager to rotate connection"""
+        """Signal proxy manager to rotate connection.
+        
+        V8.1: If Mullvad VPN is active, reconnects to get a fresh exit IP.
+        The SOCKS5 binding to 10.64.0.1:1080 ensures the browser loses ALL
+        connectivity the instant the tunnel drops (fail-closed kill switch).
+        """
+        # V8.1: Try Mullvad reconnection first
+        try:
+            from mullvad_vpn import MullvadVPN
+            vpn = MullvadVPN()
+            status = vpn.get_status()
+            if status.get("state") == "Connected":
+                logger.critical("[PANIC] Mullvad VPN: disconnecting for IP rotation...")
+                vpn.disconnect()  # Browser instantly loses connectivity (SOCKS5 fail-closed)
+                import time as _time
+                _time.sleep(2)
+                vpn.connect()
+                new_ip = vpn._get_exit_ip()
+                logger.critical(f"[PANIC] Mullvad VPN: reconnected — new exit IP: {new_ip}")
+                return True
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(f"[PANIC] Mullvad reconnect failed: {e}")
+
+        # Legacy: Signal proxy manager via filesystem
         try:
             rotate_signal = Path(self.config.state_dir) / "proxy_rotate_signal"
             rotate_signal.write_text(json.dumps({

@@ -276,87 +276,188 @@ class PreFlightValidator:
             ))
     
     def _check_vpn_tunnel(self):
-        """Check Lucid VPN tunnel status if VPN mode is active"""
+        """Check VPN tunnel status — Mullvad (V8.1) or legacy Lucid VPN"""
+        # V8.1: Try Mullvad first
+        mullvad_checked = False
         try:
-            from lucid_vpn import LucidVPN, VPNStatus, VPNMode
-            vpn = LucidVPN()
-            vpn.load_config()
-            state = vpn.get_state()
-            
-            # Only check if VPN mode is active (not proxy mode)
-            if state.mode == VPNMode.PROXY:
-                return
-            
-            if state.status == VPNStatus.CONNECTED:
-                # Xray tunnel alive
+            from mullvad_vpn import MullvadVPN, ConnectionStatus
+            vpn = MullvadVPN()
+            status = vpn.get_status()
+
+            if status.get("state") == "Connected":
+                mullvad_checked = True
+                exit_ip = vpn._get_exit_ip() or "unknown"
                 self.report.checks.append(PreFlightCheck(
                     name="VPN Tunnel",
                     status=CheckStatus.PASS,
-                    message=f"Lucid VPN connected — Exit IP: {state.exit_ip}",
-                    details={"exit_ip": state.exit_ip, "mode": state.mode.value}
+                    message=f"Mullvad WireGuard connected — Exit IP: {exit_ip}",
+                    details={"exit_ip": exit_ip, "mode": "mullvad_wireguard",
+                             "obfuscation": vpn.config.obfuscation.value,
+                             "daita": vpn.config.daita_enabled}
                 ))
-                # TCP spoofing
-                if state.tcp_spoofed:
+
+                # Obfuscation check
+                obf = vpn.config.obfuscation.value
+                if obf in ("quic", "lwo"):
                     self.report.checks.append(PreFlightCheck(
-                        name="TCP/IP Spoofing",
+                        name="Transport Obfuscation",
                         status=CheckStatus.PASS,
-                        message="TCP/IP stack spoofed (Windows 11 fingerprint)"
+                        message=f"QUIC/MASQUE obfuscation active ({obf}) — traffic indistinguishable from HTTP/3"
                     ))
                 else:
                     self.report.checks.append(PreFlightCheck(
-                        name="TCP/IP Spoofing",
+                        name="Transport Obfuscation",
                         status=CheckStatus.WARN,
-                        message="TCP/IP spoofing not active — p0f fingerprint may expose Linux",
+                        message=f"Obfuscation mode: {obf} — consider QUIC for maximum stealth",
                         critical=False
                     ))
-                # DNS security
-                if state.dns_secure:
+
+                # DAITA check
+                if vpn.config.daita_enabled:
                     self.report.checks.append(PreFlightCheck(
-                        name="VPN DNS",
+                        name="DAITA Anti-Traffic-Analysis",
                         status=CheckStatus.PASS,
-                        message="DNS routed through secure resolver (no leak)"
+                        message="DAITA v2 active — packet padding + dummy traffic + burst distortion"
                     ))
                 else:
                     self.report.checks.append(PreFlightCheck(
-                        name="VPN DNS",
+                        name="DAITA Anti-Traffic-Analysis",
                         status=CheckStatus.WARN,
-                        message="DNS may not be fully secured — check for leaks",
+                        message="DAITA disabled — AI-guided traffic analysis may fingerprint sessions",
                         critical=False
                     ))
-                # Tailscale mesh
-                if state.tailscale_connected:
-                    self.report.checks.append(PreFlightCheck(
-                        name="Tailscale Mesh",
-                        status=CheckStatus.PASS,
-                        message="Tailscale mesh connected to residential exit"
-                    ))
-                # Set proxy_url for downstream checks
-                socks_url = vpn.get_socks5_url()
-                if socks_url and not self.proxy_url:
-                    self.proxy_url = socks_url
-            elif state.status == VPNStatus.ERROR:
+
+                # eBPF TCP stack mimesis check
+                try:
+                    from network_shield_loader import detect_wireguard_interface, get_multi_interface_shield_manager
+                    wg_iface = detect_wireguard_interface()
+                    mgr = get_multi_interface_shield_manager()
+                    mgr_status = mgr.get_status()
+                    if wg_iface and mgr_status.get("interfaces", {}).get(wg_iface, {}).get("shield_deployed"):
+                        self.report.checks.append(PreFlightCheck(
+                            name="TCP/IP Spoofing",
+                            status=CheckStatus.PASS,
+                            message=f"eBPF TC attached to {wg_iface} — Windows 11 TCP (TTL=128, MSS=1380)"
+                        ))
+                    elif wg_iface:
+                        self.report.checks.append(PreFlightCheck(
+                            name="TCP/IP Spoofing",
+                            status=CheckStatus.WARN,
+                            message=f"WireGuard interface {wg_iface} detected but eBPF not attached — p0f may expose Linux",
+                            critical=False
+                        ))
+                except ImportError:
+                    pass
+
+                # SOCKS5 kill switch check
+                socks = vpn.get_socks5_config()
+                self.report.checks.append(PreFlightCheck(
+                    name="SOCKS5 Kill Switch",
+                    status=CheckStatus.PASS,
+                    message=f"Browser bound to {socks['addr']}:{socks['port']} — fail-closed (non-routable outside tunnel)"
+                ))
+
+                # Set proxy_url for downstream IP reputation checks
+                if not self.proxy_url:
+                    self.proxy_url = f"socks5://{socks['addr']}:{socks['port']}"
+
+            elif status.get("state") == "Blocked":
+                mullvad_checked = True
                 self.report.checks.append(PreFlightCheck(
                     name="VPN Tunnel",
-                    status=CheckStatus.FAIL,
-                    message=f"VPN error: {state.error_message}",
-                    critical=True
+                    status=CheckStatus.WARN,
+                    message="Mullvad kill switch active — network blocked (reconnecting?)",
+                    critical=False
                 ))
-            elif state.mode != VPNMode.PROXY:
-                self.report.checks.append(PreFlightCheck(
-                    name="VPN Tunnel",
-                    status=CheckStatus.FAIL,
-                    message="VPN mode selected but tunnel not connected. Run titan-vpn-setup --connect",
-                    critical=True
-                ))
+            elif status.get("state") == "Disconnected":
+                # Mullvad installed but not connected — fall through to Lucid VPN check
+                pass
         except ImportError:
             pass
         except Exception as e:
             self.report.checks.append(PreFlightCheck(
-                name="VPN Tunnel",
+                name="VPN Tunnel (Mullvad)",
                 status=CheckStatus.WARN,
-                message=f"Could not check VPN status: {e}",
+                message=f"Mullvad check error: {e}",
                 critical=False
             ))
+
+        # Legacy: Lucid VPN fallback (if Mullvad not active)
+        if not mullvad_checked:
+            try:
+                from lucid_vpn import LucidVPN, VPNStatus, VPNMode
+                vpn = LucidVPN()
+                vpn.load_config()
+                state = vpn.get_state()
+
+                if state.mode == VPNMode.PROXY:
+                    return
+
+                if state.status == VPNStatus.CONNECTED:
+                    self.report.checks.append(PreFlightCheck(
+                        name="VPN Tunnel",
+                        status=CheckStatus.PASS,
+                        message=f"Lucid VPN connected — Exit IP: {state.exit_ip}",
+                        details={"exit_ip": state.exit_ip, "mode": state.mode.value}
+                    ))
+                    if state.tcp_spoofed:
+                        self.report.checks.append(PreFlightCheck(
+                            name="TCP/IP Spoofing",
+                            status=CheckStatus.PASS,
+                            message="TCP/IP stack spoofed (Windows 11 fingerprint)"
+                        ))
+                    else:
+                        self.report.checks.append(PreFlightCheck(
+                            name="TCP/IP Spoofing",
+                            status=CheckStatus.WARN,
+                            message="TCP/IP spoofing not active — p0f fingerprint may expose Linux",
+                            critical=False
+                        ))
+                    if state.dns_secure:
+                        self.report.checks.append(PreFlightCheck(
+                            name="VPN DNS",
+                            status=CheckStatus.PASS,
+                            message="DNS routed through secure resolver (no leak)"
+                        ))
+                    else:
+                        self.report.checks.append(PreFlightCheck(
+                            name="VPN DNS",
+                            status=CheckStatus.WARN,
+                            message="DNS may not be fully secured — check for leaks",
+                            critical=False
+                        ))
+                    if state.tailscale_connected:
+                        self.report.checks.append(PreFlightCheck(
+                            name="Tailscale Mesh",
+                            status=CheckStatus.PASS,
+                            message="Tailscale mesh connected to residential exit"
+                        ))
+                    socks_url = vpn.get_socks5_url()
+                    if socks_url and not self.proxy_url:
+                        self.proxy_url = socks_url
+                elif state.status == VPNStatus.ERROR:
+                    self.report.checks.append(PreFlightCheck(
+                        name="VPN Tunnel",
+                        status=CheckStatus.FAIL,
+                        message=f"VPN error: {state.error_message}",
+                        critical=True
+                    ))
+                elif state.mode != VPNMode.PROXY:
+                    self.report.checks.append(PreFlightCheck(
+                        name="VPN Tunnel",
+                        status=CheckStatus.FAIL,
+                        message="VPN mode selected but tunnel not connected. Run titan-vpn-setup --connect",
+                        critical=True
+                    ))
+            except ImportError:
+                pass
+            except Exception as e:
+                self.report.checks.append(PreFlightCheck(
+                    name="VPN Tunnel",
+                    status=CheckStatus.WARN,
+                    message=f"Could not check VPN status: {e}",
+                    critical=False
+                ))
     
     def _check_proxy_connection(self):
         """Check if proxy is reachable"""

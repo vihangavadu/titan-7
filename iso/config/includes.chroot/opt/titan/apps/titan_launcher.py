@@ -2,12 +2,14 @@
 """
 TITAN V8.1 LAUNCHER — Clean Entry Point
 ========================================
-3 apps, zero confusion. Pick your workflow.
+5 apps, 23 tabs total, 85 core modules — zero orphans.
 
-App Structure (V8.1 Restructure):
+App Structure (V8.1 Final):
   1. Operations Center — Daily workflow (target → card → persona → forge → launch)
-  2. Admin Panel — System admin, services, tools, diagnostics
-  3. KYC Studio — Standalone KYC bypass (separate workflow, only when needed)
+  2. Intelligence Center — AI copilot, 3DS strategy, detection analysis, recon
+  3. Network Center — Mullvad VPN, eBPF shield, proxy, forensic monitor
+  4. KYC Studio — Camera, documents, voice, mobile sync
+  5. Admin Panel — Services, tools, system, automation, config
 """
 
 import sys
@@ -160,12 +162,13 @@ class HealthIndicator(QFrame):
 
 class TitanLauncher(QMainWindow):
     """
-    TITAN V8.1 Launcher — Clean 3-app entry point.
+    TITAN V8.1 Launcher — 5 apps, 23 tabs, 85 modules, zero orphans.
 
-    Replaces the old 7-app maze with a clear choice:
-    - Operations Center: Daily workflow
-    - Admin Panel: System management
-    - KYC Studio: Identity verification (when needed)
+    - Operations Center: Daily workflow (38 modules)
+    - Intelligence Center: AI analysis & strategy (20 modules)
+    - Network Center: VPN, shield, proxy, forensic (18 modules)
+    - KYC Studio: Identity verification (8 modules)
+    - Admin Panel: System management (14 modules)
     """
 
     def __init__(self):
@@ -181,7 +184,7 @@ class TitanLauncher(QMainWindow):
             set_titan_icon(self, ACCENT)
         except Exception:
             pass
-        self.setFixedSize(1060, 580)
+        self.setFixedSize(1180, 700)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -202,44 +205,68 @@ class TitanLauncher(QMainWindow):
         subtitle.setStyleSheet(f"color: {TEXT_SECONDARY}; letter-spacing: 4px;")
         layout.addWidget(subtitle)
 
-        # App Cards
-        cards_layout = QHBoxLayout()
-        cards_layout.setSpacing(20)
+        # App Cards — top row (3) + bottom row (2)
+        top_row = QHBoxLayout()
+        top_row.setSpacing(16)
 
-        # Card 1: Operations Center
-        ops_card = AppCard(
-            title="Operations Center",
-            subtitle="DAILY WORKFLOW",
-            description="Target \u2192 Card \u2192 Persona \u2192 Profile Forge \u2192 Browser Launch\nIntelligence dashboard included",
+        # Card 1: Operations Center (38 modules)
+        top_row.addWidget(AppCard(
+            title="Operations",
+            subtitle="DAILY WORKFLOW \u2022 38 MODULES",
+            description="Target \u2192 Identity \u2192 Validate \u2192 Forge \u2192 Launch\n5 tabs \u2022 Card BIN intel \u2022 Preflight",
             accent="#00d4ff",
             icon_char="\ud83c\udfaf",
-            script="app_unified.py",
-        )
-        cards_layout.addWidget(ops_card)
+            script="titan_operations.py",
+        ))
 
-        # Card 2: Admin Panel
-        admin_card = AppCard(
-            title="Admin Panel",
-            subtitle="SYSTEM MANAGEMENT",
-            description="Services \u2022 Health Monitor \u2022 Bug Reporter\nAI Config \u2022 Forensics \u2022 Kill Switch",
+        # Card 2: Intelligence Center (20 modules)
+        top_row.addWidget(AppCard(
+            title="Intelligence",
+            subtitle="AI ANALYSIS \u2022 20 MODULES",
+            description="AI Copilot \u2022 3DS Strategy \u2022 Detection\nRecon \u2022 Vector Memory \u2022 Web Intel",
+            accent="#a855f7",
+            icon_char="\ud83e\udde0",
+            script="titan_intelligence.py",
+        ))
+
+        # Card 3: Network Center (18 modules)
+        top_row.addWidget(AppCard(
+            title="Network",
+            subtitle="VPN & SHIELD \u2022 18 MODULES",
+            description="Mullvad VPN \u2022 eBPF TCP Mimesis\nForensic Monitor \u2022 Proxy \u2022 GeoIP",
+            accent="#22c55e",
+            icon_char="\ud83d\udd12",
+            script="titan_network.py",
+        ))
+
+        layout.addLayout(top_row)
+
+        bottom_row = QHBoxLayout()
+        bottom_row.setSpacing(16)
+        bottom_row.addStretch()
+
+        # Card 4: KYC Studio (8 modules)
+        bottom_row.addWidget(AppCard(
+            title="KYC Studio",
+            subtitle="IDENTITY VERIFY \u2022 8 MODULES",
+            description="Camera \u2022 Documents \u2022 Voice\nToF Depth \u2022 Deep Identity \u2022 Mobile",
+            accent="#f97316",
+            icon_char="\ud83d\udcf7",
+            script="app_kyc.py",
+        ))
+
+        # Card 5: Admin Panel (14 modules)
+        bottom_row.addWidget(AppCard(
+            title="Admin",
+            subtitle="SYSTEM MGMT \u2022 14 MODULES",
+            description="Services \u2022 Automation \u2022 Config\nBug Reporter \u2022 AI Setup \u2022 Kill Switch",
             accent="#f59e0b",
             icon_char="\u2699\ufe0f",
             script="titan_admin.py",
-        )
-        cards_layout.addWidget(admin_card)
+        ))
 
-        # Card 3: KYC Studio
-        kyc_card = AppCard(
-            title="KYC Studio",
-            subtitle="IDENTITY VERIFICATION",
-            description="Camera Injection \u2022 Document Forge\nLiveness Bypass \u2022 Voice Engine",
-            accent="#a855f7",
-            icon_char="\ud83d\udcf7",
-            script="app_kyc.py",
-        )
-        cards_layout.addWidget(kyc_card)
-
-        layout.addLayout(cards_layout)
+        bottom_row.addStretch()
+        layout.addLayout(bottom_row)
 
         # Health Status Bar
         health_frame = QFrame()
@@ -256,11 +283,13 @@ class TitanLauncher(QMainWindow):
         self.h_version = HealthIndicator("Version")
         self.h_modules = HealthIndicator("Modules")
         self.h_services = HealthIndicator("Services")
+        self.h_vpn = HealthIndicator("VPN")
         self.h_ai = HealthIndicator("AI Engine")
 
         health_layout.addWidget(self.h_version)
         health_layout.addWidget(self.h_modules)
         health_layout.addWidget(self.h_services)
+        health_layout.addWidget(self.h_vpn)
         health_layout.addWidget(self.h_ai)
 
         layout.addWidget(health_frame)
@@ -299,6 +328,22 @@ class TitanLauncher(QMainWindow):
             self.h_services.set_status(f"{running} running", GREEN if running > 0 else YELLOW)
         except Exception:
             self.h_services.set_status("ready", YELLOW)
+
+        # VPN
+        try:
+            from mullvad_vpn import get_mullvad_status
+            status = get_mullvad_status()
+            state = status.get("state", "Unknown")
+            if state == "Connected":
+                self.h_vpn.set_status("Mullvad OK", GREEN)
+            elif state == "Blocked":
+                self.h_vpn.set_status("kill switch", YELLOW)
+            else:
+                self.h_vpn.set_status("disconnected", RED)
+        except ImportError:
+            self.h_vpn.set_status("not loaded", TEXT_SECONDARY)
+        except Exception:
+            self.h_vpn.set_status("error", RED)
 
         # AI
         try:

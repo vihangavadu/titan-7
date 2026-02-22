@@ -1457,3 +1457,147 @@ def get_multi_interface_shield_manager() -> MultiInterfaceShieldManager:
     if _multi_interface_manager is None:
         _multi_interface_manager = MultiInterfaceShieldManager()
     return _multi_interface_manager
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V8.1 MULLVAD WIREGUARD INTEGRATION
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# When using Mullvad VPN (WireGuard), the eBPF program MUST attach to the
+# virtual WireGuard interface (wg0 or wg-mullvad), NOT eth0.
+#
+# Reason: Packets on eth0 are already encrypted by WireGuard. The eBPF
+# program needs to rewrite raw TCP headers BEFORE encryption so the exit
+# node delivers clean Windows 11 TCP to the target server.
+#
+# Attach sequence:
+#   1. Detect WireGuard virtual interface name
+#   2. Attach eBPF TC egress program to clsact qdisc on wg interface
+#   3. Set persona to windows_11_residential (TTL=128, Window=64240, MSS=1380)
+#   4. Monitor health via ShieldHealthMonitor
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Residential Windows 11 profile (MSS=1380 mimics residential/mobile MTU)
+MULLVAD_RESIDENTIAL_PROFILE = PersonaProfile(
+    name="Windows 11 Residential (Mullvad)",
+    ttl=128,
+    tcp_window=64240,
+    tcp_mss=1380,          # Residential ISP / mobile carrier MTU
+    tcp_sack=True,
+    tcp_timestamps=False,  # Windows 11 default
+    tcp_window_scale=8,
+    tcp_options_order="MSS,NOP,WScale,NOP,NOP,SACK",
+    ip_id_behavior="increment",
+    df_flag=True,
+)
+
+# WireGuard interface candidates (in priority order)
+WG_INTERFACE_CANDIDATES = ["wg-mullvad", "wg0", "mullvad", "tun0"]
+
+
+def detect_wireguard_interface() -> Optional[str]:
+    """
+    Detect the active WireGuard virtual interface created by Mullvad.
+
+    Checks for common Mullvad interface names and verifies they exist
+    via `ip link show`. Returns the first match or None.
+    """
+    try:
+        result = subprocess.run(
+            ["ip", "-brief", "link", "show"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode != 0:
+            return None
+
+        active_interfaces = result.stdout.strip()
+        for candidate in WG_INTERFACE_CANDIDATES:
+            if candidate in active_interfaces:
+                logger.info(f"[MULLVAD] Detected WireGuard interface: {candidate}")
+                return candidate
+    except Exception as e:
+        logger.warning(f"[MULLVAD] Interface detection failed: {e}")
+
+    return None
+
+
+def attach_shield_to_mullvad(persona: str = "windows",
+                             mode: str = "tc",
+                             interface: str = "") -> Optional[NetworkShield]:
+    """
+    Attach eBPF TCP stack mimesis to the Mullvad WireGuard interface.
+
+    CRITICAL: Uses TC (Traffic Control) mode, NOT XDP. TC egress hook
+    rewrites packets on the virtual interface before WireGuard encrypts
+    and encapsulates them into UDP on the physical interface.
+
+    Args:
+        persona: OS persona ('windows', 'macos', 'linux')
+        mode: eBPF mode — 'tc' recommended for WireGuard virtual interfaces
+        interface: Override interface name (auto-detected if empty)
+
+    Returns:
+        NetworkShield instance if successful, None on failure
+    """
+    # Auto-detect WireGuard interface
+    iface = interface or detect_wireguard_interface()
+    if not iface:
+        logger.error("[MULLVAD] No WireGuard interface detected — is Mullvad connected?")
+        return None
+
+    try:
+        shield = NetworkShield(interface=iface)
+        shield.compile()
+        shield.load(mode=mode)
+        shield.set_persona(persona)
+
+        # Register the residential profile for the dynamic engine
+        engine = get_dynamic_persona_engine()
+        engine.add_custom_profile("windows_11_residential", MULLVAD_RESIDENTIAL_PROFILE)
+
+        # Register with multi-interface manager
+        mgr = get_multi_interface_shield_manager()
+        mgr.register_interface(iface, role="vpn_tunnel")
+        mgr.shields[iface] = shield
+        mgr.interfaces[iface]["shield_deployed"] = True
+        mgr.interfaces[iface]["persona"] = persona
+        mgr.interfaces[iface]["last_updated"] = time.time()
+
+        logger.info(
+            f"[MULLVAD] eBPF shield attached to {iface} (mode={mode}, persona={persona})"
+            f" — TTL={128 if persona == 'windows' else 64}"
+            f", Window={64240 if persona == 'windows' else 29200}"
+            f", MSS=1380, timestamps={'OFF' if persona == 'windows' else 'ON'}"
+        )
+        return shield
+
+    except NetworkShieldError as e:
+        logger.error(f"[MULLVAD] eBPF attach failed: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"[MULLVAD] Unexpected error: {e}")
+        return None
+
+
+def safe_boot_mullvad(timeout_seconds: int = 30) -> bool:
+    """
+    R3-FIX Safe boot for Mullvad WireGuard interface.
+
+    Same as NetworkShield.safe_boot() but automatically targets the
+    WireGuard virtual interface with TC mode and Windows 11 persona.
+
+    1. Block outbound traffic (nftables) to prevent fingerprint leak
+    2. Detect WireGuard interface
+    3. Attach eBPF TC program
+    4. Set Windows 11 persona
+    5. Remove nftables block
+
+    Returns True if eBPF loaded with zero fingerprint leak window.
+    """
+    iface = detect_wireguard_interface()
+    if not iface:
+        logger.error("[MULLVAD] Cannot safe-boot: no WireGuard interface detected")
+        return False
+
+    shield = NetworkShield(interface=iface)
+    return shield.safe_boot(mode="tc", persona="windows", timeout_seconds=timeout_seconds)
