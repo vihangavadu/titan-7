@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.1 SINGULARITY — Unified REST API
+TITAN V8.2 SINGULARITY — Unified REST API
 ═══════════════════════════════════════════════════════════════════════════════
 
 Provides RESTful API access to all TITAN modules for programmatic integration.
@@ -36,7 +36,7 @@ Usage:
     result = api.generate_ja4_fingerprint("chrome_131", "windows_11")
 
 Author: Dva.12
-Version: 8.1.0
+Version: 8.2.0
 """
 
 import os
@@ -262,7 +262,7 @@ except ImportError as e:
 
 try:
     from first_session_bias_eliminator import (
-        FirstSessionEliminator, IdentityMaturity, SessionType,
+        FirstSessionBiasEliminator, IdentityMaturity, SessionType,
     )
     MODULES_AVAILABLE["first_session_bias"] = True
 except ImportError as e:
@@ -270,7 +270,7 @@ except ImportError as e:
 
 try:
     from tra_exemption_engine import (
-        TRAExemptionEngine, ExemptionType, CardholderProfile,
+        TRAOptimizer, ExemptionType, CardholderProfile,
     )
     MODULES_AVAILABLE["tra_exemption"] = True
 except ImportError as e:
@@ -278,7 +278,7 @@ except ImportError as e:
 
 try:
     from indexeddb_lsng_synthesis import (
-        IndexedDBSynthesizer, StoragePersona, LSNGProfile,
+        IndexedDBShardSynthesizer, StoragePersona, LSNGProfile,
     )
     MODULES_AVAILABLE["indexeddb_lsng"] = True
 except ImportError as e:
@@ -286,7 +286,7 @@ except ImportError as e:
 
 try:
     from issuer_algo_defense import (
-        IssuerDefenseEngine, DeclineReason, RiskMitigation,
+        IssuerDeclineDefenseEngine, DeclineReason, RiskMitigation,
     )
     MODULES_AVAILABLE["issuer_defense"] = True
 except ImportError as e:
@@ -294,7 +294,7 @@ except ImportError as e:
 
 try:
     from tof_depth_synthesis import (
-        ToFDepthSynthesizer, SensorType, DepthQuality,
+        FaceDepthGenerator, SensorType, DepthQuality,
     )
     MODULES_AVAILABLE["tof_depth"] = True
 except ImportError as e:
@@ -302,25 +302,25 @@ except ImportError as e:
 
 # Extended Module Imports
 try:
-    from ghost_motor_v6 import GhostMotorEngine, HumanBehaviorProfile
+    from ghost_motor_v6 import GhostMotorV7, TrajectoryConfig
     MODULES_AVAILABLE["ghost_motor"] = True
 except ImportError:
     pass
 
 try:
-    from webgl_angle import WebGLAngleEngine, AngleConfig
+    from webgl_angle import WebGLAngleShim, GPUProfile
     MODULES_AVAILABLE["webgl_angle"] = True
 except ImportError:
     pass
 
 try:
-    from forensic_monitor import ForensicMonitor, ForensicConfig
+    from forensic_monitor import ForensicMonitor, ForensicDashboard
     MODULES_AVAILABLE["forensic_monitor"] = True
 except ImportError:
     pass
 
 try:
-    from form_autofill_injector import FormAutofillInjector, AutofillProfile
+    from form_autofill_injector import FormAutofillInjector, PersonaAutofill
     MODULES_AVAILABLE["form_autofill"] = True
 except ImportError:
     pass
@@ -332,13 +332,13 @@ except ImportError:
     pass
 
 try:
-    from referrer_warmup import ReferrerWarmupEngine, WarmupConfig
+    from referrer_warmup import ReferrerWarmup, WarmupPlan
     MODULES_AVAILABLE["referrer_warmup"] = True
 except ImportError:
     pass
 
 try:
-    from kyc_enhanced import KYCEnhancedEngine, EnhancedKYCConfig
+    from kyc_enhanced import KYCEnhancedController, KYCSessionConfig
     MODULES_AVAILABLE["kyc_enhanced"] = True
 except ImportError:
     pass
@@ -350,43 +350,43 @@ except ImportError:
     pass
 
 try:
-    from usb_peripheral_synth import USBPeripheralSynth, PeripheralConfig
+    from usb_peripheral_synth import USBDeviceManager, USBProfileGenerator
     MODULES_AVAILABLE["usb_synth"] = True
 except ImportError:
     pass
 
 try:
-    from verify_deep_identity import DeepIdentityVerifier, IdentityConfig
+    from verify_deep_identity import DeepIdentityOrchestrator, IdentityConsistencyChecker
     MODULES_AVAILABLE["deep_identity"] = True
 except ImportError:
     pass
 
 try:
-    from dynamic_data import DynamicDataEngine, DataConfig
+    from dynamic_data import DataFusionEngine, DataEnrichmentPipeline
     MODULES_AVAILABLE["dynamic_data"] = True
 except ImportError:
     pass
 
 try:
-    from intel_monitor import IntelMonitor, IntelConfig
+    from intel_monitor import IntelMonitor, IntelCorrelationEngine
     MODULES_AVAILABLE["intel_monitor"] = True
 except ImportError:
     pass
 
 try:
-    from titan_master_verify import MasterVerifier, VerifyConfig
+    from titan_master_verify import VerificationOrchestrator, MasterVerifyReport
     MODULES_AVAILABLE["master_verify"] = True
 except ImportError:
     pass
 
 try:
-    from handover_protocol import HandoverProtocol, HandoverDocument
+    from handover_protocol import ManualHandoverProtocol, HandoverOrchestrator
     MODULES_AVAILABLE["handover"] = True
 except ImportError:
     pass
 
 try:
-    from preflight_validator import PreFlightValidator, ValidationReport
+    from preflight_validator import PreFlightValidator, ValidationOrchestrator
     MODULES_AVAILABLE["preflight"] = True
 except ImportError:
     pass
@@ -432,13 +432,13 @@ except ImportError:
     pass
 
 try:
-    from canvas_subpixel_shim import CanvasSubpixelShim
+    from canvas_subpixel_shim import CanvasSubPixelShim
     MODULES_AVAILABLE["canvas_subpixel_shim"] = True
 except ImportError:
     pass
 
 try:
-    from cerberus_enhanced import CerberusEnhancedEngine
+    from cerberus_enhanced import BINScoringEngine, CardQualityGrader
     MODULES_AVAILABLE["cerberus_enhanced"] = True
 except ImportError:
     pass
@@ -474,13 +474,13 @@ except ImportError:
     pass
 
 try:
-    from generate_trajectory_model import TrajectoryModelGenerator
+    from generate_trajectory_model import TrajectoryPlanner
     MODULES_AVAILABLE["trajectory_model"] = True
 except ImportError:
     pass
 
 try:
-    from immutable_os import ImmutableOS
+    from immutable_os import ImmutableOSManager
     MODULES_AVAILABLE["immutable_os"] = True
 except ImportError:
     pass
@@ -492,7 +492,7 @@ except ImportError:
     pass
 
 try:
-    from location_spoofer_linux import LocationSpoofer
+    from location_spoofer_linux import LinuxLocationSpoofer
     MODULES_AVAILABLE["location_spoofer"] = True
 except ImportError:
     pass
@@ -513,19 +513,19 @@ except ImportError:
     pass
 
 try:
-    from network_shield_loader import NetworkShieldLoader
+    from network_shield_loader import NetworkShield
     MODULES_AVAILABLE["network_shield"] = True
 except ImportError:
     pass
 
 try:
-    from ollama_bridge import OllamaBridge
+    from ollama_bridge import LLMLoadBalancer
     MODULES_AVAILABLE["ollama_bridge"] = True
 except ImportError:
     pass
 
 try:
-    from proxy_manager import ProxyManager
+    from proxy_manager import ResidentialProxyManager
     MODULES_AVAILABLE["proxy_manager"] = True
 except ImportError:
     pass
@@ -537,7 +537,7 @@ except ImportError:
     pass
 
 try:
-    from quic_proxy import QUICProxyEngine
+    from quic_proxy import QUICProxyProtocol
     MODULES_AVAILABLE["quic_proxy"] = True
 except ImportError:
     pass
@@ -549,7 +549,7 @@ except ImportError:
     pass
 
 try:
-    from target_presets import TargetPresets
+    from target_presets import TargetPreset, DynamicPresetBuilder
     MODULES_AVAILABLE["target_presets"] = True
 except ImportError:
     pass
@@ -567,7 +567,7 @@ except ImportError:
     pass
 
 try:
-    from tls_parrot import TLSParrot
+    from tls_parrot import TLSParrotEngine
     MODULES_AVAILABLE["tls_parrot"] = True
 except ImportError:
     pass
@@ -579,7 +579,7 @@ except ImportError:
     pass
 
 try:
-    from waydroid_sync import WaydroidSync
+    from waydroid_sync import CrossDeviceActivityOrchestrator
     MODULES_AVAILABLE["waydroid_sync"] = True
 except ImportError:
     pass
@@ -673,35 +673,35 @@ class TitanAPI:
         # First Session Bias Eliminator
         if MODULES_AVAILABLE["first_session_bias"]:
             try:
-                self._engines["fsb"] = FirstSessionEliminator()
+                self._engines["fsb"] = FirstSessionBiasEliminator()
             except Exception:
                 pass
         
         # TRA Exemption Engine
         if MODULES_AVAILABLE["tra_exemption"]:
             try:
-                self._engines["tra"] = TRAExemptionEngine()
+                self._engines["tra"] = TRAOptimizer()
             except Exception:
                 pass
         
         # IndexedDB Synthesizer
         if MODULES_AVAILABLE["indexeddb_lsng"]:
             try:
-                self._engines["lsng"] = IndexedDBSynthesizer()
+                self._engines["lsng"] = IndexedDBShardSynthesizer()
             except Exception:
                 pass
         
         # Issuer Defense Engine
         if MODULES_AVAILABLE["issuer_defense"]:
             try:
-                self._engines["issuer"] = IssuerDefenseEngine()
+                self._engines["issuer"] = IssuerDeclineDefenseEngine()
             except Exception:
                 pass
         
         # ToF Depth Synthesizer
         if MODULES_AVAILABLE["tof_depth"]:
             try:
-                self._engines["tof"] = ToFDepthSynthesizer()
+                self._engines["tof"] = FaceDepthGenerator()
             except Exception:
                 pass
     
@@ -833,7 +833,7 @@ class TitanAPI:
         try:
             engine = self._engines.get("tra")
             if not engine:
-                engine = TRAExemptionEngine()
+                engine = TRAOptimizer()
             
             result = engine.get_optimal_exemption(amount, currency, issuer_country, merchant_country)
             
@@ -862,7 +862,7 @@ class TitanAPI:
         try:
             engine = self._engines.get("tra")
             if not engine:
-                engine = TRAExemptionEngine()
+                engine = TRAOptimizer()
             
             score = engine.calculate_score(amount, issuer_country)
             
@@ -901,7 +901,7 @@ class TitanAPI:
         try:
             engine = self._engines.get("issuer")
             if not engine:
-                engine = IssuerDefenseEngine()
+                engine = IssuerDeclineDefenseEngine()
             
             risk = engine.calculate_risk(bin_value, amount, mcc)
             
@@ -929,7 +929,7 @@ class TitanAPI:
         try:
             engine = self._engines.get("issuer")
             if not engine:
-                engine = IssuerDefenseEngine()
+                engine = IssuerDeclineDefenseEngine()
             
             strategy = engine.get_mitigation(bin_value, amount)
             
@@ -972,7 +972,7 @@ class TitanAPI:
         try:
             engine = self._engines.get("fsb")
             if not engine:
-                engine = FirstSessionEliminator()
+                engine = FirstSessionBiasEliminator()
             
             maturity_enum = IdentityMaturity(maturity)
             session_enum = SessionType(session_type)
@@ -1003,7 +1003,7 @@ class TitanAPI:
         try:
             engine = self._engines.get("fsb")
             if not engine:
-                engine = FirstSessionEliminator()
+                engine = FirstSessionBiasEliminator()
             
             maturity_enum = IdentityMaturity(maturity)
             score = engine.calculate_age_score(maturity_enum)
@@ -1047,7 +1047,7 @@ class TitanAPI:
         try:
             engine = self._engines.get("lsng")
             if not engine:
-                engine = IndexedDBSynthesizer()
+                engine = IndexedDBShardSynthesizer()
             
             persona_enum = StoragePersona(persona)
             result = engine.synthesize(profile_path, persona_enum, age_days, size_mb)
@@ -1144,7 +1144,7 @@ class TitanAPI:
         try:
             engine = self._engines.get("tof")
             if not engine:
-                engine = ToFDepthSynthesizer()
+                engine = FaceDepthGenerator()
             
             sensor_enum = SensorType(sensor)
             quality_enum = DepthQuality(quality)

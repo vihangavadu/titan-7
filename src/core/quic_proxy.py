@@ -275,7 +275,7 @@ class TitanQUICProxy:
             FINGERPRINT_DB[BrowserProfile.CHROME_131_WIN11]
         )
     
-    def create_client_config(self, server_name: str) -> QuicConfiguration:
+    def create_client_config(self, server_name: str) -> "QuicConfiguration":
         """Create QUIC configuration with modified fingerprint"""
         if not AIOQUIC_AVAILABLE:
             raise RuntimeError("aioquic not available")
@@ -320,7 +320,7 @@ class TitanQUICProxy:
         
         return config
     
-    def create_server_config(self) -> QuicConfiguration:
+    def create_server_config(self) -> "QuicConfiguration":
         """Create server configuration for accepting connections"""
         if not AIOQUIC_AVAILABLE:
             raise RuntimeError("aioquic not available")

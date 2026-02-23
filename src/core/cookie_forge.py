@@ -628,7 +628,7 @@ def create_template_config():
             {
                 "origin": "https://example.com",
                 "key": "user_preferences",
-                "value": "{\\"theme\\":\\"dark\\",\\"notifications\\":true}",
+                "value": '{"theme":"dark","notifications":true}',
                 "age_days": 90
             }
         ],

@@ -100,9 +100,12 @@ class OperatorPhase(Enum):
     WARMING_UP = "warming_up"            # Browsing product pages (building session)
     APPROACHING_CHECKOUT = "approaching" # Moving toward checkout
     CHECKOUT = "checkout"                # On checkout/cart page
+    ENTERING_SHIPPING = "shipping"       # Entering shipping details
     ENTERING_PAYMENT = "payment"         # Entering card details
+    REVIEWING_ORDER = "reviewing"        # Final order review before submit
     PROCESSING = "processing"            # Payment is being processed
     THREE_DS = "3ds"                     # 3DS challenge active
+    ORDER_COMPLETE = "order_complete"    # Order success page
     COMPLETED = "completed"              # Transaction finished (success or fail)
 
 

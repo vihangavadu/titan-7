@@ -33,6 +33,13 @@ except ImportError:
     except ImportError:
         MONITOR_AVAILABLE = False
 
+if not PYQT_AVAILABLE:
+    class _QThreadStub:
+        pass
+    QThread = _QThreadStub
+    def pyqtSignal(*args, **kwargs):
+        return None
+
 class ForensicAnalysisThread(QThread):
     """Background thread for forensic analysis."""
     analysis_complete = pyqtSignal(dict)

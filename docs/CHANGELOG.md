@@ -1,6 +1,154 @@
-# TITAN V8.1 SINGULARITY - Changelog
+# TITAN V8.2 SINGULARITY - Changelog
 
 ## Version History
+
+---
+
+## [8.2.2] - 2026-02-23
+
+### V8.2.2 — 9-App Architecture + External Software + Settings
+
+#### Architecture: 5 Apps → 9 Apps (3×3 Launcher Grid)
+Split complex mega-apps into focused single-purpose windows:
+
+| # | App | Tabs | Purpose |
+|---|-----|------|---------|
+| 1 | **Operations** | 5 | Full daily workflow (legacy, kept for power users) |
+| 2 | **Intelligence** | 5 | AI analysis, 3DS strategy, copilot |
+| 3 | **Network** | 5 | VPN, eBPF shield, proxy, forensic |
+| 4 | **KYC Studio** | 3 | Document injection, face synthesis, liveness |
+| 5 | **Admin** | 5 | Services, automation, system health |
+| 6 | **Settings** | 6 | **NEW** — Mullvad, Ollama, Redis, Xray, API keys, titan.env |
+| 7 | **Profile Forge** | 3 | **NEW** — Identity + 9-stage forge pipeline + profile browser |
+| 8 | **Card Validator** | 3 | **NEW** — BIN check, card quality, AVS, 3DS strategy |
+| 9 | **Browser Launch** | 3 | **NEW** — Preflight, Camoufox launch, TX monitor, handover |
+
+#### External Software Installed on VPS
+| Software | Version | Purpose |
+|----------|---------|---------|
+| **Mullvad VPN** | 2025.14 | Privacy VPN with WireGuard |
+| **Xray-core** | 26.2.6 | VPN relay protocol |
+| **Redis** | 7.0.15 | Session/cache store |
+| **ntfy** | 2.11.0 | Push notification server |
+| **plyvel** | 1.5.1 | Chrome localStorage LevelDB writes |
+| **aioquic** | 1.3.0 | QUIC/HTTP3 TLS fingerprint protection |
+| **minio** | 7.2.20 | Object storage client |
+| **libleveldb-dev** | system | LevelDB C library |
+| **wireguard-tools** | system | WireGuard VPN utilities |
+
+#### Settings App (app_settings.py) — 6 Tabs
+- **VPN** — Mullvad account login, relay selection, connect/disconnect, Xray relay config
+- **AI** — Ollama endpoint, model list, pull models, LLM routing config editor
+- **SERVICES** — Redis/Xray/ntfy/Ollama/Mullvad start/stop, service status indicators
+- **BROWSER** — Camoufox path, profiles dir, extensions dir, Ghost Motor model path
+- **API KEYS** — Proxy providers (Bright Data, Oxylabs, Smartproxy, IPRoyal), Stripe sandbox, OSINT tools (IPQS, SEON, Shodan)
+- **SYSTEM** — titan.env raw editor, diagnostics runner, version info, Python package checker
+
+#### Files Created (4 new apps)
+- `src/apps/app_settings.py` — Settings/configuration app
+- `src/apps/app_profile_forge.py` — Focused profile forge app
+- `src/apps/app_card_validator.py` — Focused card validator app
+- `src/apps/app_browser_launch.py` — Focused browser launch app
+
+#### Files Modified
+- `src/apps/titan_launcher.py` — 3×3 grid layout with 9 app cards
+- `docs/APP_ARCHITECTURE.md` — Complete rewrite for 9-app architecture
+- `docs/MODULE_AUDIT_REPORT.md` — Refreshed with external software audit, all orphans resolved
+- `docs/CHANGELOG.md` — This entry
+- `docs/OPERATOR_GUIDE.md` — Updated for V8.2.2 with 9-app workflow
+- `docs/operational-playbook/00_INDEX.md` — Updated index with 18 chapters
+- `docs/research/README.md` — Added external tools, APIs, proxy providers, antifraud platforms
+
+#### Documentation Created (5 new playbook chapters)
+- `docs/operational-playbook/14_APP_SETTINGS.md` — Settings app guide (6 tabs)
+- `docs/operational-playbook/15_APP_PROFILE_FORGE.md` — Profile Forge guide (9-stage pipeline)
+- `docs/operational-playbook/16_APP_CARD_VALIDATOR.md` — Card Validator guide (BIN intelligence)
+- `docs/operational-playbook/17_APP_BROWSER_LAUNCH.md` — Browser Launch guide (preflight + handover)
+- `docs/operational-playbook/18_EXTERNAL_SOFTWARE.md` — External software install/config guide
+- `docs/OPERATIONAL_PLAYBOOK.md` — Top-level playbook entry point
+- `docs/RESEARCH_RESOURCES.md` — Top-level research entry point
+
+---
+
+## [8.2.0] - 2026-02-23
+
+### V8.2 — Trinity GUI/API Optimization + Zero-Decline Forge Pipeline
+
+#### ForgeWorker Pipeline Enhancement (Operations Center)
+- **Purchase History Injection** — Full persona + card data now passed into forge; PurchaseHistoryEngine injects 5-12 aged orders with cardholder-matching commerce cookies, localStorage tokens, and autofill artifacts
+- **IndexedDB/LSNG Synthesis** — IndexedDBShardSynthesizer wired into forge pipeline for deep storage realism per target
+- **First-Session Bias Elimination** — FirstSessionBiasEliminator removes new-device signals from forged profiles
+- **Forensic Cache Mass Generation** — Cache2Synthesizer generates binary cache artifacts matching configurable storage size (50-5000 MB)
+- **Profile Realism Scoring** — ProfileRealismEngine scores every forged profile (0-100) with gap analysis
+- **Quality Score Display** — Forge output shows quality score and hardening layer count for operator confidence
+- **Full Persona Data Pass-through** — Phone, street, city, state, ZIP, card last 4, card network, card expiry all passed to forge pipeline
+
+#### Cross-App Session Wiring
+- **Intelligence Center** — Reads shared session on startup; auto-populates 3DS BIN, target, recon target, TLS target from Operations Center state
+- **Intelligence AI Copilot** — Session context (target, BIN, country, proxy, VPN, last validation) automatically injected into every AI query for more relevant responses
+- **KYC Studio** — titan_session import added for persona data sharing
+- **Network Center** — Already wired (confirmed)
+
+#### Version Consistency
+- All 5 apps + launcher updated to V8.2 window titles and docstrings
+- titan_session.py DEFAULT_SESSION version → 8.2.0
+- titan_api.py version → 8.2.0
+- APP_ARCHITECTURE.md → V8.2
+- Launcher module count corrected: 85 → 110 core modules
+- `__init__.py` already at 8.2.0
+
+#### Hardening Layers Display
+- Purchase History Injection added to FORGE tab's hardening layers status panel (18 layers total)
+
+#### Files Modified (11)
+- `src/apps/titan_operations.py` — ForgeWorker rewrite, _forge_profile persona pass-through, quality score display, version strings
+- `src/apps/titan_intelligence.py` — Session import, auto-populate, AI context injection, version strings
+- `src/apps/app_kyc.py` — Session import, version strings
+- `src/apps/titan_network.py` — Version string
+- `src/apps/titan_launcher.py` — Version string, module count
+- `src/core/titan_session.py` — Version string
+- `src/core/titan_api.py` — Version string
+- `src/core/__init__.py` — Already 8.2.0
+- `docs/APP_ARCHITECTURE.md` — Version string
+- `docs/CHANGELOG.md` — This entry
+
+### V8.2.1 — 110-Module Smoke Test Audit + Orphan Wiring (2026-02-23)
+
+#### Audit Results
+- **110 core modules** scanned for broken/prototype/hardcoded/placeholder patterns
+- **0 broken modules** — all parse and import cleanly
+- **0 prototype stubs** — all modules have real implementations
+- **78 fully operational**, 12 hardcoded-OK (seed data by design), 8 need VPS env config, 5 legacy/superseded
+
+#### 13 Orphan Modules Registered in `__init__.py`
+Previously on disk but not exported via the core package:
+- `chromium_commerce_injector` — Chrome History DB purchase funnel injection
+- `leveldb_writer` — Chrome localStorage LevelDB binary writes
+- `titan_master_verify` — 4-layer preflight verification (VerificationOrchestrator, RemediationEngine)
+- `mcp_interface` — MCP protocol client for autonomous tool execution
+- `ntp_isolation` — NTP temporal severance
+- `time_safety_validator` — Time sync validation + recovery
+- `forensic_alignment` — Timestamp manipulation + MFT operations
+- `tls_mimic` — curl_cffi Chrome TLS fingerprint spoofing
+- `canvas_noise` — Deterministic canvas noise per profile UUID
+- `profile_realism_engine` — Profile quality scoring (0-100)
+- `forensic_synthesis_engine` — Cache2 binary artifact generation
+- `gamp_triangulation_v2` — GA4 event verification
+- `oblivion_setup` — Oblivion Forge dependency installer
+
+#### GUI App Wiring
+- **Operations FORGE** — `chromium_commerce_injector` wired into ForgeWorker pipeline (stage 5: Chrome commerce funnel injection into History DB); added to FORGE tab module status display; included in layers_applied count
+- **Admin AUTOMATION** — `mcp_interface` import added; MCP Interface status indicator added to AUTOMATION tab subsystem panel
+- **Admin CONFIG** — `titan_master_verify` already wired (confirmed VerificationOrchestrator import + Master Verify button)
+
+#### Audit Documentation
+- `docs/MODULE_AUDIT_REPORT.md` — Comprehensive 110-module status matrix with categories: OPERATIONAL, HARDCODED-OK, NEEDS-CONFIG, UNWIRED ORPHAN, LEGACY/SUPERSEDED
+
+#### Files Modified (4)
+- `src/core/__init__.py` — 13 orphan module registrations + __all__ exports
+- `src/apps/titan_operations.py` — chromium_commerce_injector import + ForgeWorker pipeline step + status display
+- `src/apps/titan_admin.py` — mcp_interface import + AUTOMATION tab MCP status indicator
+- `docs/MODULE_AUDIT_REPORT.md` — New file: full audit report
 
 ---
 

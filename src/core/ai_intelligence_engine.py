@@ -17,6 +17,7 @@ import json
 import time
 import logging
 import hashlib
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
@@ -26,6 +27,126 @@ __version__ = "8.0.0"
 __author__ = "Dva.12"
 
 logger = logging.getLogger("TITAN-AI")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V8.3 FIX #1: Global model lock — prevents concurrent OOM-inducing model swaps
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_MODEL_LOCK = threading.Lock()
+_CURRENT_MODEL: Optional[str] = None
+
+# V8.3 FIX #4: Task-specific timeouts (seconds) — prevents 60s cascade failures
+_TASK_TIMEOUTS: Dict[str, int] = {
+    "bin_analysis":          45,
+    "bin_generation":        45,
+    "site_discovery":        45,
+    "target_recon":          45,
+    "behavioral_tuning":     30,
+    "default":               60,
+    "profile_audit":         90,
+    "3ds_strategy":         120,
+    "decline_autopsy":      180,
+    "operation_planning":   150,
+    "card_rotation":        120,
+    "velocity_schedule":    120,
+    "session_rhythm":        90,
+    "defense_tracking":      90,
+    "cross_session":        120,
+    "fingerprint_coherence": 60,
+    "identity_graph":        60,
+    "environment_coherence": 45,
+    "navigation_path":       30,
+    "form_fill_cadence":     30,
+    "avs_prevalidation":     30,
+}
+
+
+def _get_task_timeout(task_type: str) -> int:
+    """Return the appropriate timeout for a given task type."""
+    return _TASK_TIMEOUTS.get(task_type, _TASK_TIMEOUTS["default"])
+
+
+def _query_ollama_with_retry(prompt: str, task_type: str = "default",
+                              temperature: float = 0.3, max_tokens: int = 4096,
+                              max_retries: int = 2) -> Optional[str]:
+    """Query Ollama with task-specific timeout and exponential backoff retry."""
+    timeout = _get_task_timeout(task_type)
+    for attempt in range(max_retries + 1):
+        try:
+            result = _query_ollama(prompt, task_type=task_type,
+                                   temperature=temperature,
+                                   max_tokens=max_tokens, timeout=timeout)
+            if result is not None:
+                return result
+        except Exception as e:
+            logger.error(f"Ollama query attempt {attempt + 1} failed [{task_type}]: {e}",
+                         exc_info=True)
+        if attempt < max_retries:
+            wait = 2 ** attempt
+            logger.debug(f"Retrying [{task_type}] in {wait}s (attempt {attempt + 2}/{max_retries + 1})")
+            time.sleep(wait)
+    return None
+
+
+def _query_ollama_json_with_retry(prompt: str, task_type: str = "default",
+                                   temperature: float = 0.2, max_tokens: int = 4096,
+                                   max_retries: int = 2) -> Optional[Any]:
+    """Query Ollama expecting JSON, with task-specific timeout and retry."""
+    timeout = _get_task_timeout(task_type)
+    for attempt in range(max_retries + 1):
+        try:
+            result = _query_ollama_json(prompt, task_type=task_type,
+                                        temperature=temperature,
+                                        max_tokens=max_tokens, timeout=timeout)
+            if result is not None:
+                return result
+        except Exception as e:
+            logger.error(f"Ollama JSON query attempt {attempt + 1} failed [{task_type}]: {e}",
+                         exc_info=True)
+        if attempt < max_retries:
+            wait = 2 ** attempt
+            logger.debug(f"Retrying JSON [{task_type}] in {wait}s (attempt {attempt + 2}/{max_retries + 1})")
+            time.sleep(wait)
+    return None
+
+
+def _check_ollama_memory_headroom(model_name: str) -> bool:
+    """V8.3 FIX #1: Verify RAM headroom before loading a model. Returns True if safe."""
+    try:
+        import urllib.request
+        with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=3) as resp:
+            data = json.loads(resp.read())
+        loaded = data.get("models", [])
+        loaded_names = [m.get("name", "") for m in loaded]
+        if model_name in loaded_names:
+            return True
+        total_vram = sum(m.get("size", 0) for m in loaded)
+        if total_vram > 10 * 1024 ** 3:
+            logger.warning(f"[MODEL_LOCK] >10GB already loaded, unloading before swap to {model_name}")
+            _unload_inactive_ollama_models(loaded_names, keep=model_name)
+        return True
+    except Exception as e:
+        logger.debug(f"Ollama /api/ps check failed: {e}")
+        return True
+
+
+def _unload_inactive_ollama_models(loaded_names: List[str], keep: str) -> None:
+    """Force-unload all models except the one we need."""
+    import urllib.request
+    for name in loaded_names:
+        if name == keep:
+            continue
+        try:
+            payload = json.dumps({"model": name, "keep_alive": 0}).encode()
+            req = urllib.request.Request(
+                "http://127.0.0.1:11434/api/generate",
+                data=payload, headers={"Content-Type": "application/json"}, method="POST"
+            )
+            urllib.request.urlopen(req, timeout=5)
+            logger.info(f"[MODEL_LOCK] Unloaded inactive model: {name}")
+        except Exception as e:
+            logger.debug(f"Failed to unload {name}: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -60,14 +181,29 @@ def _query_ollama_json(prompt: str, task_type: str = "default",
         return None
 
 
+def _load_default_model_name() -> str:
+    """V8.3 FIX #10: Load default model from llm_config.json, never hardcoded."""
+    try:
+        cfg_path = Path(__file__).parent.parent / "config" / "llm_config.json"
+        if cfg_path.exists():
+            cfg = json.loads(cfg_path.read_text())
+            routing = cfg.get("task_routing", {})
+            default_route = routing.get("default", [{}])
+            if default_route and isinstance(default_route, list):
+                return default_route[0].get("model", "mistral:7b")
+        return "mistral:7b"
+    except Exception:
+        return "mistral:7b"
+
+
 def _query_ollama_direct(prompt: str, temperature: float = 0.3,
                          max_tokens: int = 4096, timeout: int = 60) -> Optional[str]:
     """Direct Ollama HTTP API call as fallback."""
     import urllib.request
+    model_name = _load_default_model_name()
     try:
         payload = json.dumps({
-            # V7.5 FIX: Use actual model name installed on VPS
-            "model": "mistral:7b-instruct-v0.2-q4_0",
+            "model": model_name,
             "prompt": prompt,
             "stream": False,
             "options": {"temperature": temperature, "num_predict": max_tokens}
@@ -87,29 +223,29 @@ def _query_ollama_direct(prompt: str, temperature: float = 0.3,
 
 
 def _extract_json(text: str) -> Optional[Any]:
-    """Extract JSON from LLM response text."""
+    """V8.3 FIX #8: Hardened JSON extraction — strips all markdown variants, finds outermost brackets."""
+    import re
     if not text:
         return None
     text = text.strip()
-    # Strip markdown code fences
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        text = "\n".join(lines).strip()
-    # Try direct parse
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    text = re.sub(r'^```[a-zA-Z]*\s*', '', text)
+    text = re.sub(r'\s*```$', '', text)
+    text = text.strip()
+    # Try direct parse first
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    # Try finding JSON array or object
-    for start_char, end_char in [("[", "]"), ("{", "}")]:
-        start = text.find(start_char)
-        end = text.rfind(end_char)
-        if start != -1 and end > start:
+    # Find outermost JSON object or array using regex to handle nested structures
+    for pattern in (r'(\{[\s\S]*\})', r'(\[[\s\S]*\])'):
+        match = re.search(pattern, text)
+        if match:
             try:
-                return json.loads(text[start:end + 1])
+                return json.loads(match.group(1))
             except json.JSONDecodeError:
                 continue
+    logger.debug(f"_extract_json: failed to parse response (len={len(text)})")
     return None
 
 
@@ -302,8 +438,8 @@ def analyze_bin(bin_number: str, target: str = "", amount: float = 0,
         target=target or "unknown", amount=amount or "unknown"
     ) + decline_ctx + vector_ctx
 
-    result = _query_ollama_json(prompt, task_type="bin_generation",
-                                temperature=0.2, timeout=45)
+    result = _query_ollama_json_with_retry(prompt, task_type="bin_generation",
+                                           temperature=0.2)
 
     if result and isinstance(result, dict):
         analysis = AIBINAnalysis(
@@ -429,8 +565,8 @@ def advise_preflight(checks: List[Dict], card_info: Dict = None,
         amount=amount or "unknown"
     )
 
-    result = _query_ollama_json(prompt, task_type="default",
-                                temperature=0.2, timeout=45)
+    result = _query_ollama_json_with_retry(prompt, task_type="default",
+                                           temperature=0.2)
 
     if result and isinstance(result, dict):
         advice = AIPreFlightAdvice(
@@ -520,8 +656,8 @@ def recon_target(domain: str, category: str = "") -> AITargetRecon:
         domain=domain_clean, category=category or "ecommerce"
     ) + static_context + "\nEnrich and expand on the known intel with your analysis."
 
-    result = _query_ollama_json(prompt, task_type="site_discovery",
-                                temperature=0.3, timeout=45)
+    result = _query_ollama_json_with_retry(prompt, task_type="site_discovery",
+                                           temperature=0.3)
 
     if result and isinstance(result, dict):
         # Merge: AI result takes priority, static fills gaps
@@ -649,8 +785,8 @@ def advise_3ds(bin_number: str, target: str, amount: float,
         three_ds_rate=target_data.get("three_ds_rate", "unknown"),
     )
 
-    result = _query_ollama_json(prompt, task_type="default",
-                                temperature=0.2, timeout=45)
+    result = _query_ollama_json_with_retry(prompt, task_type="3ds_strategy",
+                                           temperature=0.2)
 
     if result and isinstance(result, dict):
         strategy = AI3DSStrategy(
@@ -727,8 +863,8 @@ def audit_profile(profile_path: str, metadata: Dict = None) -> AIProfileAudit:
         profile_info=json.dumps(profile_info, indent=2, default=str)
     )
 
-    result = _query_ollama_json(prompt, task_type="default",
-                                temperature=0.1, timeout=60)
+    result = _query_ollama_json_with_retry(prompt, task_type="profile_audit",
+                                           temperature=0.1)
 
     if result and isinstance(result, dict):
         audit = AIProfileAudit(
@@ -830,8 +966,8 @@ def tune_behavior(target: str, fraud_engine: str = "unknown",
         persona=persona, device_type=device_type
     )
 
-    result = _query_ollama_json(prompt, task_type="default",
-                                temperature=0.4, timeout=30)
+    result = _query_ollama_json_with_retry(prompt, task_type="behavioral_tuning",
+                                           temperature=0.4)
 
     if result and isinstance(result, dict):
         tuning = AIBehavioralTuning(
@@ -1224,7 +1360,15 @@ def get_ai_status() -> Dict:
         features.extend([
             "bin_analysis", "preflight_advisor", "target_recon",
             "3ds_strategy", "profile_audit", "behavioral_tuning",
-            "operation_planner"
+            "operation_planner",
+        ])
+        # V8.3: Detection vector sanitization tasks
+        features.extend([
+            "fingerprint_coherence", "identity_graph",
+            "session_rhythm", "environment_coherence", "navigation_path",
+            "card_rotation", "form_fill_cadence", "velocity_schedule",
+            "avs_prevalidation", "defense_tracking", "decline_autopsy",
+            "cross_session_learning",
         ])
     if vector_available:
         features.append("vector_memory")
@@ -1237,10 +1381,12 @@ def get_ai_status() -> Dict:
         "available": available,
         "provider": "ollama" if available else "none",
         "features": features,
+        "feature_count": len(features),
         "enhancements": {
             "vector_memory": vector_available,
             "agentic_chain": agent_available,
             "web_intel": web_intel_available,
+            "v83_detection_sanitization": available,
         },
         "version": __version__,
     }
@@ -1945,6 +2091,821 @@ def orchestrate_intel(bin_number: str, target: str, amount: float,
     return get_ai_orchestrator().orchestrate_operation_intel(
         bin_number, target, amount, card_info, urgency
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V8.3 — NEW AI TASKS: DETECTION VECTOR SANITIZATION (12 tasks)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase 1: Fingerprint Coherence + Identity Graph
+# Phase 2: Session Rhythm + Environment Coherence + Navigation Path
+# Phase 3: Card Rotation + Form Fill + Velocity + AVS + Defense Tracker + Decline Autopsy
+# Phase 4: Cross-Session Learning
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ─── RESULT TYPES (V8.3) ─────────────────────────────────────────────────────
+
+@dataclass
+class AIFingerprintCoherence:
+    """Result of fingerprint cross-signal coherence validation."""
+    coherent: bool
+    score: float                         # 0-100
+    mismatches: List[str]
+    leak_vectors: List[str]
+    fixes: List[str]
+    ai_powered: bool = True
+
+
+@dataclass
+class AIIdentityGraphResult:
+    """Result of identity graph plausibility validation."""
+    plausible: bool
+    score: float                         # 0-100
+    anomalies: List[str]
+    graph_links_missing: List[str]
+    fixes: List[str]
+    ai_powered: bool = True
+
+
+@dataclass
+class AISessionRhythm:
+    """AI-generated session timeline with realistic timing."""
+    target: str
+    warmup_pages: List[Dict]             # [{url, dwell_s, scroll_pct}]
+    browse_pages: List[Dict]
+    cart_dwell_s: int
+    checkout_dwell_s: int
+    payment_dwell_s: int
+    total_session_s: int
+    timing_notes: str
+    ai_powered: bool = True
+
+
+@dataclass
+class AIEnvironmentCoherence:
+    """Result of network+geo+locale+timezone coherence scoring."""
+    coherent: bool
+    score: float                         # 0-100
+    mismatches: List[str]
+    fixes: List[str]
+    ai_powered: bool = True
+
+
+@dataclass
+class AINavigationPath:
+    """AI-generated realistic navigation path for a target."""
+    target: str
+    pages: List[Dict]                    # [{url, type, dwell_s, actions}]
+    referrer_chain: List[str]
+    search_query: str
+    total_pages: int
+    ai_powered: bool = True
+
+
+@dataclass
+class AICardRotation:
+    """AI-optimized card-target-timing recommendation."""
+    recommended_card_bin: str
+    recommended_target: str
+    recommended_amount: float
+    recommended_time: str
+    cooldown_hours: float
+    reasoning: str
+    alternatives: List[Dict]
+    ai_powered: bool = True
+
+
+@dataclass
+class AIFormFillCadence:
+    """AI-tuned form fill timing per persona type."""
+    field_delays_ms: Dict[str, Tuple[int, int]]  # field_name -> (min_ms, max_ms)
+    tab_vs_click: str
+    typo_rate: float
+    correction_style: str
+    paste_allowed_fields: List[str]
+    ai_powered: bool = True
+
+
+@dataclass
+class AIVelocitySchedule:
+    """AI-planned velocity schedule for card usage."""
+    card_bin: str
+    max_attempts_per_hour: int
+    max_attempts_per_day: int
+    cooldown_after_decline_min: int
+    cooldown_after_success_min: int
+    optimal_spacing_min: int
+    reasoning: str
+    ai_powered: bool = True
+
+
+@dataclass
+class AIAVSPreValidation:
+    """AI pre-validation of AVS data before submission."""
+    avs_likely_pass: bool
+    confidence: float
+    issues: List[str]
+    address_fixes: List[str]
+    zip_format_ok: bool
+    ai_powered: bool = True
+
+
+@dataclass
+class AIDefenseTracker:
+    """AI analysis of target defense changes over time."""
+    target: str
+    current_engine: str
+    previous_engine: str
+    changes_detected: List[str]
+    new_risks: List[str]
+    strategy_adjustments: List[str]
+    ai_powered: bool = True
+
+
+@dataclass
+class AIDeclineAutopsy:
+    """AI deep analysis of a decline with auto-patch recommendations."""
+    decline_code: str
+    root_cause: str
+    category: str
+    is_retriable: bool
+    wait_time_min: int
+    patches: List[Dict]                  # [{module, change, priority}]
+    next_action: str
+    ai_powered: bool = True
+
+
+@dataclass
+class AICrossSessionInsight:
+    """AI insight from cross-session pattern analysis."""
+    pattern_type: str
+    insight: str
+    affected_bins: List[str]
+    affected_targets: List[str]
+    recommendation: str
+    confidence: float
+    ai_powered: bool = True
+
+
+# ─── TASK 1: FINGERPRINT COHERENCE VALIDATOR ─────────────────────────────────
+
+FINGERPRINT_COHERENCE_PROMPT = """You are a browser fingerprint forensics expert. Analyze this fingerprint configuration for cross-signal inconsistencies that antifraud ML models would detect.
+
+Fingerprint config:
+{fp_config}
+
+Check for these cross-signal correlations:
+1. User-Agent OS vs WebGL renderer (e.g., claiming Windows but ANGLE says macOS GPU)
+2. Hardware concurrency vs GPU tier (16 cores with integrated Intel GPU = suspicious)
+3. Screen resolution vs device type (4K on claimed mobile device)
+4. Canvas hash stability (should be deterministic per profile)
+5. Audio fingerprint vs OS (Windows vs Linux audio stack differences)
+6. Font list vs OS/locale (Windows fonts on Linux, missing locale-specific fonts)
+7. WebGL vendor/renderer vs User-Agent browser (Chrome ANGLE vs Firefox Mesa)
+8. Timezone vs locale vs Accept-Language header
+9. Platform string vs navigator.platform vs UA
+
+Respond with JSON:
+{{
+    "coherent": true/false,
+    "score": 0-100,
+    "mismatches": ["specific cross-signal mismatch found"],
+    "leak_vectors": ["what antifraud would detect and flag"],
+    "fixes": ["specific fix for each mismatch"]
+}}"""
+
+
+def validate_fingerprint_coherence(fp_config: Dict) -> AIFingerprintCoherence:
+    """
+    V8.3: AI-powered fingerprint cross-signal coherence validation.
+    Detects mismatches between canvas, WebGL, audio, fonts, screen, UA, OS, GPU
+    that antifraud ML models would catch.
+    """
+    prompt = FINGERPRINT_COHERENCE_PROMPT.format(
+        fp_config=json.dumps(fp_config, indent=2, default=str)
+    )
+    result = _query_ollama_json(prompt, task_type="fingerprint_coherence",
+                                temperature=0.1, timeout=60)
+    if result and isinstance(result, dict):
+        r = AIFingerprintCoherence(
+            coherent=result.get("coherent", False),
+            score=float(result.get("score", 50)),
+            mismatches=result.get("mismatches", []),
+            leak_vectors=result.get("leak_vectors", []),
+            fixes=result.get("fixes", []),
+        )
+        logger.info(f"AI fingerprint coherence: score={r.score}, coherent={r.coherent}")
+        return r
+    return AIFingerprintCoherence(
+        coherent=True, score=60, mismatches=[],
+        leak_vectors=["AI unavailable — manual review needed"],
+        fixes=[], ai_powered=False)
+
+
+# ─── TASK 2: IDENTITY GRAPH VALIDATOR ────────────────────────────────────────
+
+IDENTITY_GRAPH_PROMPT = """You are an identity verification expert working for ThreatMetrix/Accertify. Analyze this persona for identity graph anomalies that would flag it as synthetic.
+
+Persona:
+{persona}
+
+Check for:
+1. Name ethnicity vs billing geo (e.g., Japanese name + rural Alabama address)
+2. Email domain age and reputation (free vs corporate, disposable domains)
+3. Phone area code vs billing state (212 area code but billing in Texas)
+4. Shipping vs billing address distance and plausibility
+5. Email username vs real name correlation
+6. Card BIN country vs billing country
+7. Age plausibility (DOB vs email creation patterns)
+8. Cross-site identity signals (would this person have social media, Amazon account, etc.)
+
+Respond with JSON:
+{{
+    "plausible": true/false,
+    "score": 0-100,
+    "anomalies": ["specific identity graph anomaly"],
+    "graph_links_missing": ["expected identity links not present"],
+    "fixes": ["how to fix each anomaly"]
+}}"""
+
+
+def validate_identity_graph(persona: Dict) -> AIIdentityGraphResult:
+    """
+    V8.3: AI-powered identity graph plausibility validation.
+    Detects implausible correlations in name/email/phone/address/card
+    that identity graph systems would flag.
+    """
+    prompt = IDENTITY_GRAPH_PROMPT.format(
+        persona=json.dumps(persona, indent=2, default=str)
+    )
+    result = _query_ollama_json(prompt, task_type="identity_graph",
+                                temperature=0.2, timeout=60)
+    if result and isinstance(result, dict):
+        r = AIIdentityGraphResult(
+            plausible=result.get("plausible", False),
+            score=float(result.get("score", 50)),
+            anomalies=result.get("anomalies", []),
+            graph_links_missing=result.get("graph_links_missing", []),
+            fixes=result.get("fixes", []),
+        )
+        logger.info(f"AI identity graph: score={r.score}, plausible={r.plausible}")
+        return r
+    return AIIdentityGraphResult(
+        plausible=True, score=60, anomalies=[],
+        graph_links_missing=["AI unavailable"], fixes=[], ai_powered=False)
+
+
+# ─── TASK 3: SESSION RHYTHM PLANNER ──────────────────────────────────────────
+
+SESSION_RHYTHM_PROMPT = """You are a behavioral analytics expert. Generate a realistic session timeline for purchasing on this target site.
+
+Target: {target}
+Fraud engine: {fraud_engine}
+Product type: {product_type}
+Amount: ${amount}
+
+Generate a complete session plan that mimics a real returning customer. Include warmup browsing, product discovery, cart, and checkout with realistic timing.
+
+Respond with JSON:
+{{
+    "warmup_pages": [{{"url_pattern": "/category/...", "dwell_s": 15, "scroll_pct": 60}}],
+    "browse_pages": [{{"url_pattern": "/product/...", "dwell_s": 45, "scroll_pct": 80}}],
+    "cart_dwell_s": 30,
+    "checkout_dwell_s": 60,
+    "payment_dwell_s": 45,
+    "total_session_s": 420,
+    "timing_notes": "specific timing advice for this target's fraud engine"
+}}
+
+Consider: {fraud_engine} analyzes session depth, page dwell distribution, and checkout velocity. Make timing natural."""
+
+
+def plan_session_rhythm(target: str, fraud_engine: str = "unknown",
+                        product_type: str = "digital goods",
+                        amount: float = 100) -> AISessionRhythm:
+    """
+    V8.3: AI-generated session timeline with realistic timing distributions
+    tuned per target's antifraud engine.
+    """
+    prompt = SESSION_RHYTHM_PROMPT.format(
+        target=target, fraud_engine=fraud_engine,
+        product_type=product_type, amount=amount
+    )
+    result = _query_ollama_json(prompt, task_type="session_rhythm",
+                                temperature=0.4, timeout=45)
+    if result and isinstance(result, dict):
+        return AISessionRhythm(
+            target=target,
+            warmup_pages=result.get("warmup_pages", []),
+            browse_pages=result.get("browse_pages", []),
+            cart_dwell_s=int(result.get("cart_dwell_s", 30)),
+            checkout_dwell_s=int(result.get("checkout_dwell_s", 60)),
+            payment_dwell_s=int(result.get("payment_dwell_s", 45)),
+            total_session_s=int(result.get("total_session_s", 420)),
+            timing_notes=result.get("timing_notes", ""),
+        )
+    return AISessionRhythm(
+        target=target, warmup_pages=[], browse_pages=[],
+        cart_dwell_s=30, checkout_dwell_s=60, payment_dwell_s=45,
+        total_session_s=420, timing_notes="AI unavailable", ai_powered=False)
+
+
+# ─── TASK 4: ENVIRONMENT COHERENCE SCORER ────────────────────────────────────
+
+ENVIRONMENT_COHERENCE_PROMPT = """You are a network forensics expert. Analyze this environment configuration for coherence issues that antifraud systems detect.
+
+Environment:
+{env_config}
+
+Check for:
+1. IP geolocation vs billing address (city/state/country match)
+2. Timezone vs IP geo vs browser locale (3-way consistency)
+3. ASN type (datacenter vs residential vs mobile) — datacenter = instant flag
+4. DNS resolver vs ISP of proxy IP (Google DNS from Comcast IP = suspicious)
+5. Accept-Language header vs IP country vs card country
+6. Connection type indicators (WiFi vs Ethernet vs Mobile) vs claimed device
+7. IP reputation score and blacklist status
+8. WebRTC local IP vs proxy IP subnet
+
+Respond with JSON:
+{{
+    "coherent": true/false,
+    "score": 0-100,
+    "mismatches": ["specific environment mismatch"],
+    "fixes": ["how to fix each mismatch"]
+}}"""
+
+
+def score_environment_coherence(env_config: Dict) -> AIEnvironmentCoherence:
+    """
+    V8.3: AI-powered environment coherence scoring.
+    Validates IP+geo+locale+timezone+ASN+DNS as a coherent identity.
+    """
+    prompt = ENVIRONMENT_COHERENCE_PROMPT.format(
+        env_config=json.dumps(env_config, indent=2, default=str)
+    )
+    result = _query_ollama_json(prompt, task_type="environment_coherence",
+                                temperature=0.1, timeout=45)
+    if result and isinstance(result, dict):
+        return AIEnvironmentCoherence(
+            coherent=result.get("coherent", False),
+            score=float(result.get("score", 50)),
+            mismatches=result.get("mismatches", []),
+            fixes=result.get("fixes", []),
+        )
+    return AIEnvironmentCoherence(
+        coherent=True, score=60, mismatches=[],
+        fixes=["AI unavailable"], ai_powered=False)
+
+
+# ─── TASK 5: NAVIGATION PATH GENERATOR ───────────────────────────────────────
+
+NAVIGATION_PATH_PROMPT = """You are a web analytics expert. Generate a realistic navigation path for a returning customer on this site.
+
+Target: {target}
+Product category: {category}
+Entry source: {entry_source}
+
+Generate a realistic browsing path that a real customer would take before purchasing. Include referrer chain, search query if organic, and page-by-page navigation.
+
+Respond with JSON:
+{{
+    "search_query": "what the user searched on Google to find this site",
+    "referrer_chain": ["google.com/search?q=...", "{target}/"],
+    "pages": [
+        {{"url": "/", "type": "landing", "dwell_s": 8, "actions": ["scroll", "click_nav"]}},
+        {{"url": "/category/...", "type": "browse", "dwell_s": 15, "actions": ["scroll", "filter"]}},
+        {{"url": "/product/...", "type": "product", "dwell_s": 45, "actions": ["scroll", "read_reviews", "add_to_cart"]}}
+    ],
+    "total_pages": 5
+}}"""
+
+
+def generate_navigation_path(target: str, category: str = "general",
+                              entry_source: str = "google_organic") -> AINavigationPath:
+    """
+    V8.3: AI-generated realistic navigation path for target site.
+    Creates believable browse-to-purchase journey.
+    """
+    prompt = NAVIGATION_PATH_PROMPT.format(
+        target=target, category=category, entry_source=entry_source
+    )
+    result = _query_ollama_json(prompt, task_type="navigation_path",
+                                temperature=0.5, timeout=45)
+    if result and isinstance(result, dict):
+        return AINavigationPath(
+            target=target,
+            pages=result.get("pages", []),
+            referrer_chain=result.get("referrer_chain", []),
+            search_query=result.get("search_query", ""),
+            total_pages=int(result.get("total_pages", 5)),
+        )
+    return AINavigationPath(
+        target=target, pages=[], referrer_chain=[],
+        search_query="", total_pages=0, ai_powered=False)
+
+
+# ─── TASK 6: CARD ROTATION OPTIMIZER ─────────────────────────────────────────
+
+CARD_ROTATION_PROMPT = """You are a payment operations strategist. Given the decline history and available cards, recommend the optimal next card-target-amount-timing combination.
+
+Available cards (BINs): {available_bins}
+Recent decline history: {decline_history}
+Available targets: {available_targets}
+Time since last attempt: {hours_since_last}h
+
+Respond with JSON:
+{{
+    "recommended_card_bin": "best BIN to use next",
+    "recommended_target": "best target for this card",
+    "recommended_amount": 99.99,
+    "recommended_time": "now / wait Xh / specific time",
+    "cooldown_hours": 0,
+    "reasoning": "why this combination",
+    "alternatives": [{{"bin": "...", "target": "...", "amount": 0, "reason": "..."}}]
+}}"""
+
+
+def optimize_card_rotation(available_bins: List[str], decline_history: List[Dict],
+                            available_targets: List[str],
+                            hours_since_last: float = 0) -> AICardRotation:
+    """
+    V8.3: AI-optimized card rotation strategy using decline history
+    and vector memory to recommend optimal card-target-amount-timing.
+    """
+    vector_ctx = ""
+    try:
+        from titan_vector_memory import get_vector_memory
+        mem = get_vector_memory()
+        if mem.is_available:
+            vector_ctx = mem.build_rotation_context(available_bins, available_targets)
+    except (ImportError, Exception):
+        pass
+
+    prompt = CARD_ROTATION_PROMPT.format(
+        available_bins=json.dumps(available_bins),
+        decline_history=json.dumps(decline_history[-20:], default=str),
+        available_targets=json.dumps(available_targets),
+        hours_since_last=hours_since_last
+    ) + vector_ctx
+    result = _query_ollama_json(prompt, task_type="card_rotation",
+                                temperature=0.3, timeout=45)
+    if result and isinstance(result, dict):
+        return AICardRotation(
+            recommended_card_bin=result.get("recommended_card_bin", available_bins[0] if available_bins else ""),
+            recommended_target=result.get("recommended_target", available_targets[0] if available_targets else ""),
+            recommended_amount=float(result.get("recommended_amount", 100)),
+            recommended_time=result.get("recommended_time", "now"),
+            cooldown_hours=float(result.get("cooldown_hours", 0)),
+            reasoning=result.get("reasoning", ""),
+            alternatives=result.get("alternatives", []),
+        )
+    return AICardRotation(
+        recommended_card_bin=available_bins[0] if available_bins else "",
+        recommended_target=available_targets[0] if available_targets else "",
+        recommended_amount=100, recommended_time="now", cooldown_hours=0,
+        reasoning="AI unavailable", alternatives=[], ai_powered=False)
+
+
+# ─── TASK 7: FORM FILL CADENCE TUNER ─────────────────────────────────────────
+
+FORM_FILL_PROMPT = """You are a behavioral biometrics expert specializing in form interaction patterns. Generate realistic form fill timing for this persona type.
+
+Persona: {persona_type}
+Age range: {age_range}
+Device: {device_type}
+Target form: {form_type}
+
+Generate per-field timing that matches how a real {persona_type} would fill out a {form_type} form.
+
+Respond with JSON:
+{{
+    "field_delays_ms": {{
+        "first_name": [800, 1500],
+        "last_name": [600, 1200],
+        "email": [1500, 3000],
+        "address": [2000, 4000],
+        "city": [800, 1500],
+        "state": [400, 800],
+        "zip": [600, 1200],
+        "card_number": [3000, 6000],
+        "card_exp": [800, 1500],
+        "card_cvv": [600, 1200]
+    }},
+    "tab_vs_click": "tab/click/mixed",
+    "typo_rate": 0.02,
+    "correction_style": "backspace/select_all/mouse_select",
+    "paste_allowed_fields": ["email"]
+}}"""
+
+
+def tune_form_fill_cadence(persona_type: str = "casual_shopper",
+                            age_range: str = "25-45",
+                            device_type: str = "desktop",
+                            form_type: str = "checkout") -> AIFormFillCadence:
+    """
+    V8.3: AI-tuned form fill timing per persona type.
+    Generates per-field delays that match real human patterns.
+    """
+    prompt = FORM_FILL_PROMPT.format(
+        persona_type=persona_type, age_range=age_range,
+        device_type=device_type, form_type=form_type
+    )
+    result = _query_ollama_json(prompt, task_type="form_fill_cadence",
+                                temperature=0.4, timeout=30)
+    if result and isinstance(result, dict):
+        raw_delays = result.get("field_delays_ms", {})
+        delays = {}
+        for field, vals in raw_delays.items():
+            if isinstance(vals, list) and len(vals) == 2:
+                delays[field] = (int(vals[0]), int(vals[1]))
+        return AIFormFillCadence(
+            field_delays_ms=delays,
+            tab_vs_click=result.get("tab_vs_click", "mixed"),
+            typo_rate=float(result.get("typo_rate", 0.02)),
+            correction_style=result.get("correction_style", "backspace"),
+            paste_allowed_fields=result.get("paste_allowed_fields", []),
+        )
+    return AIFormFillCadence(
+        field_delays_ms={"first_name": (800, 1500), "email": (1500, 3000),
+                         "card_number": (3000, 6000)},
+        tab_vs_click="mixed", typo_rate=0.02,
+        correction_style="backspace", paste_allowed_fields=[], ai_powered=False)
+
+
+# ─── TASK 8: VELOCITY SCHEDULER ──────────────────────────────────────────────
+
+VELOCITY_SCHEDULE_PROMPT = """You are a payment velocity management expert. Given this card's decline history, generate an optimal velocity schedule.
+
+Card BIN: {card_bin}
+Decline history: {decline_history}
+Target: {target}
+Target's known velocity limits: {velocity_info}
+
+Respond with JSON:
+{{
+    "max_attempts_per_hour": 2,
+    "max_attempts_per_day": 5,
+    "cooldown_after_decline_min": 120,
+    "cooldown_after_success_min": 30,
+    "optimal_spacing_min": 45,
+    "reasoning": "why these limits"
+}}"""
+
+
+def schedule_velocity(card_bin: str, decline_history: List[Dict],
+                      target: str = "", velocity_info: str = "") -> AIVelocitySchedule:
+    """
+    V8.3: AI-planned velocity schedule for card usage.
+    Prevents velocity-based declines by spacing attempts optimally.
+    """
+    prompt = VELOCITY_SCHEDULE_PROMPT.format(
+        card_bin=card_bin[:6], decline_history=json.dumps(decline_history[-10:], default=str),
+        target=target, velocity_info=velocity_info or "unknown"
+    )
+    result = _query_ollama_json(prompt, task_type="velocity_schedule",
+                                temperature=0.2, timeout=30)
+    if result and isinstance(result, dict):
+        return AIVelocitySchedule(
+            card_bin=card_bin[:6],
+            max_attempts_per_hour=int(result.get("max_attempts_per_hour", 2)),
+            max_attempts_per_day=int(result.get("max_attempts_per_day", 5)),
+            cooldown_after_decline_min=int(result.get("cooldown_after_decline_min", 120)),
+            cooldown_after_success_min=int(result.get("cooldown_after_success_min", 30)),
+            optimal_spacing_min=int(result.get("optimal_spacing_min", 45)),
+            reasoning=result.get("reasoning", ""),
+        )
+    return AIVelocitySchedule(
+        card_bin=card_bin[:6], max_attempts_per_hour=2, max_attempts_per_day=5,
+        cooldown_after_decline_min=120, cooldown_after_success_min=30,
+        optimal_spacing_min=45, reasoning="AI unavailable — using safe defaults",
+        ai_powered=False)
+
+
+# ─── TASK 9: AVS PRE-VALIDATOR ───────────────────────────────────────────────
+
+AVS_PREVALIDATION_PROMPT = """You are an AVS (Address Verification System) expert. Pre-validate this billing address before payment submission.
+
+Billing address:
+{address}
+
+Card BIN country: {card_country}
+Target merchant: {target}
+
+Check for:
+1. ZIP code format matches country (US: 5 or 9 digit, UK: postcode format)
+2. State/province code is valid for the country
+3. Street address format is realistic (not "123 Main St" generic)
+4. City matches ZIP code region
+5. Address is not a known PO Box (many merchants reject these)
+6. Address is not a known freight forwarder
+
+Respond with JSON:
+{{
+    "avs_likely_pass": true/false,
+    "confidence": 0.0-1.0,
+    "issues": ["specific AVS issue found"],
+    "address_fixes": ["how to fix each issue"],
+    "zip_format_ok": true/false
+}}"""
+
+
+def pre_validate_avs(address: Dict, card_country: str = "US",
+                      target: str = "") -> AIAVSPreValidation:
+    """
+    V8.3: AI pre-validation of AVS data before payment submission.
+    Catches address format issues that would trigger AVS mismatch declines.
+    """
+    prompt = AVS_PREVALIDATION_PROMPT.format(
+        address=json.dumps(address, indent=2),
+        card_country=card_country, target=target
+    )
+    result = _query_ollama_json(prompt, task_type="avs_prevalidation",
+                                temperature=0.1, timeout=30)
+    if result and isinstance(result, dict):
+        return AIAVSPreValidation(
+            avs_likely_pass=result.get("avs_likely_pass", False),
+            confidence=float(result.get("confidence", 0.5)),
+            issues=result.get("issues", []),
+            address_fixes=result.get("address_fixes", []),
+            zip_format_ok=result.get("zip_format_ok", True),
+        )
+    return AIAVSPreValidation(
+        avs_likely_pass=True, confidence=0.5, issues=[],
+        address_fixes=["AI unavailable"], zip_format_ok=True, ai_powered=False)
+
+
+# ─── TASK 10: ADAPTIVE DEFENSE TRACKER ───────────────────────────────────────
+
+DEFENSE_TRACKER_PROMPT = """You are an antifraud intelligence analyst. Analyze recent operation results against this target to detect if their fraud defenses have changed.
+
+Target: {target}
+Recent results (last 7 days): {recent_results}
+Historical baseline: {baseline}
+
+Detect:
+1. Sudden increase in decline rate (defense upgrade?)
+2. New decline codes not seen before (new fraud rules?)
+3. 3DS challenge rate change (policy update?)
+4. New behavioral checks (BioCatch/Forter script changes?)
+5. Velocity limit changes (tighter/looser?)
+
+Respond with JSON:
+{{
+    "current_engine": "best guess of current fraud engine",
+    "previous_engine": "what it was before",
+    "changes_detected": ["specific change detected"],
+    "new_risks": ["new risk factors"],
+    "strategy_adjustments": ["how to adapt strategy"]
+}}"""
+
+
+def track_defense_changes(target: str, recent_results: List[Dict],
+                           baseline: Dict = None) -> AIDefenseTracker:
+    """
+    V8.3: AI-powered adaptive defense tracking.
+    Detects when a target has upgraded/changed its antifraud system.
+    """
+    prompt = DEFENSE_TRACKER_PROMPT.format(
+        target=target,
+        recent_results=json.dumps(recent_results[-20:], default=str),
+        baseline=json.dumps(baseline or {}, default=str)
+    )
+    result = _query_ollama_json(prompt, task_type="defense_tracking",
+                                temperature=0.2, timeout=45)
+    if result and isinstance(result, dict):
+        return AIDefenseTracker(
+            target=target,
+            current_engine=result.get("current_engine", "unknown"),
+            previous_engine=result.get("previous_engine", "unknown"),
+            changes_detected=result.get("changes_detected", []),
+            new_risks=result.get("new_risks", []),
+            strategy_adjustments=result.get("strategy_adjustments", []),
+        )
+    return AIDefenseTracker(
+        target=target, current_engine="unknown", previous_engine="unknown",
+        changes_detected=[], new_risks=[], strategy_adjustments=[],
+        ai_powered=False)
+
+
+# ─── TASK 11: DECLINE AUTOPSY + AUTO-PATCH ───────────────────────────────────
+
+DECLINE_AUTOPSY_PROMPT = """You are a payment decline forensics expert. Perform a deep autopsy on this decline and recommend specific code patches.
+
+Decline details:
+  Code: {decline_code}
+  Category: {decline_category}
+  Target: {target}
+  PSP: {psp}
+  Amount: ${amount}
+  Card BIN: {card_bin}
+  Card country: {card_country}
+  Proxy country: {proxy_country}
+  Profile age: {profile_age} days
+  Session duration: {session_duration}s
+
+Recent history for this BIN: {bin_history}
+
+Perform root cause analysis and recommend specific module patches.
+
+Respond with JSON:
+{{
+    "root_cause": "specific root cause of decline",
+    "category": "network/fingerprint/behavioral/payment/identity/velocity",
+    "is_retriable": true/false,
+    "wait_time_min": 0,
+    "patches": [
+        {{"module": "module_name.py", "change": "specific change needed", "priority": "critical/high/medium"}}
+    ],
+    "next_action": "specific next step for operator"
+}}"""
+
+
+def autopsy_decline(decline_code: str, decline_category: str, target: str,
+                     psp: str = "unknown", amount: float = 0,
+                     card_bin: str = "", card_country: str = "US",
+                     proxy_country: str = "US", profile_age: int = 90,
+                     session_duration: int = 0,
+                     bin_history: List[Dict] = None) -> AIDeclineAutopsy:
+    """
+    V8.3: AI deep decline autopsy with auto-patch recommendations.
+    Analyzes root cause and suggests specific module-level fixes.
+    """
+    prompt = DECLINE_AUTOPSY_PROMPT.format(
+        decline_code=decline_code, decline_category=decline_category,
+        target=target, psp=psp, amount=amount,
+        card_bin=card_bin[:6] if card_bin else "unknown",
+        card_country=card_country, proxy_country=proxy_country,
+        profile_age=profile_age, session_duration=session_duration,
+        bin_history=json.dumps(bin_history or [], default=str)
+    )
+    result = _query_ollama_json(prompt, task_type="decline_autopsy",
+                                temperature=0.2, timeout=60)
+    if result and isinstance(result, dict):
+        return AIDeclineAutopsy(
+            decline_code=decline_code,
+            root_cause=result.get("root_cause", "unknown"),
+            category=result.get("category", "unknown"),
+            is_retriable=result.get("is_retriable", False),
+            wait_time_min=int(result.get("wait_time_min", 0)),
+            patches=result.get("patches", []),
+            next_action=result.get("next_action", "Try different card"),
+        )
+    return AIDeclineAutopsy(
+        decline_code=decline_code, root_cause="AI unavailable",
+        category="unknown", is_retriable=False, wait_time_min=60,
+        patches=[], next_action="Manual analysis required", ai_powered=False)
+
+
+# ─── TASK 12: CROSS-SESSION LEARNING OPTIMIZER ───────────────────────────────
+
+CROSS_SESSION_PROMPT = """You are a data scientist specializing in payment fraud patterns. Analyze these cross-session operation results and extract actionable insights.
+
+Operation history (last 50 operations):
+{operation_history}
+
+Identify:
+1. Which BIN+target combinations have highest success rates
+2. Which time-of-day patterns correlate with success
+3. Which profile configurations (age, size, layers) correlate with success
+4. Which decline patterns indicate systemic issues vs random failures
+5. Emerging trends (targets getting harder/easier, BINs burning faster)
+
+Respond with JSON:
+{{
+    "pattern_type": "success_correlation/failure_pattern/trend/anomaly",
+    "insight": "specific actionable insight",
+    "affected_bins": ["BINs involved"],
+    "affected_targets": ["targets involved"],
+    "recommendation": "specific action to take",
+    "confidence": 0.0-1.0
+}}"""
+
+
+def optimize_cross_session(operation_history: List[Dict]) -> AICrossSessionInsight:
+    """
+    V8.3: AI cross-session learning optimizer.
+    Analyzes patterns across all operations to extract actionable insights.
+    """
+    prompt = CROSS_SESSION_PROMPT.format(
+        operation_history=json.dumps(operation_history[-50:], default=str)
+    )
+    result = _query_ollama_json(prompt, task_type="cross_session",
+                                temperature=0.3, timeout=60)
+    if result and isinstance(result, dict):
+        return AICrossSessionInsight(
+            pattern_type=result.get("pattern_type", "unknown"),
+            insight=result.get("insight", ""),
+            affected_bins=result.get("affected_bins", []),
+            affected_targets=result.get("affected_targets", []),
+            recommendation=result.get("recommendation", ""),
+            confidence=float(result.get("confidence", 0.5)),
+        )
+    return AICrossSessionInsight(
+        pattern_type="unknown", insight="AI unavailable",
+        affected_bins=[], affected_targets=[],
+        recommendation="Manual analysis required",
+        confidence=0.0, ai_powered=False)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

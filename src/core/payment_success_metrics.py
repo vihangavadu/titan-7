@@ -15,7 +15,9 @@ Calibration sources:
 """
 
 import json
+import logging
 import math
+import os
 import sqlite3
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -1005,6 +1007,209 @@ def get_metrics_scorer() -> PaymentSuccessScorer:
     if _metrics_scorer is None:
         _metrics_scorer = PaymentSuccessScorer(get_metrics_db())
     return _metrics_scorer
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Prometheus Metrics Exporter
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_prom_logger = logging.getLogger("TITAN-PROM")
+
+_PROMETHEUS_AVAILABLE = False
+try:
+    from prometheus_client import Gauge, Counter, Histogram, Info, start_http_server as _prom_start
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _prom_logger.debug("prometheus_client not installed: pip install prometheus-client")
+
+
+class TitanPrometheusExporter:
+    """
+    Exports payment_success_metrics SQLite data as Prometheus metrics.
+    Scraped by Prometheus → visualized in Grafana.
+
+    Metrics exported:
+        titan_ops_total{status}               — counter per status
+        titan_ops_success_rate{window}         — gauge per time window
+        titan_ops_by_target{target,status}     — counter per target+status
+        titan_ops_by_bin{bin,status}           — counter per BIN+status
+        titan_ops_by_country{country,status}   — counter per country+status
+        titan_ops_decline_codes{code}          — counter per decline code
+        titan_ops_fraud_block_rate{window}     — gauge fraud block %
+        titan_ops_latency_ms{quantile}         — gauge latency percentiles
+        titan_ops_bayesian_score{target}       — gauge Bayesian posterior per target
+    """
+
+    def __init__(self, db: PaymentSuccessMetricsDB = None, port: int = None):
+        self._db = db or get_metrics_db()
+        self._port = port or int(os.getenv("TITAN_PROMETHEUS_PORT", "9200"))
+        self._started = False
+
+        if not _PROMETHEUS_AVAILABLE:
+            _prom_logger.warning("prometheus_client not installed — exporter disabled")
+            return
+
+        # ── Gauges (current values, refreshed on scrape) ──
+        self._success_rate = Gauge(
+            "titan_ops_success_rate_pct", "Success rate percentage",
+            ["window"]
+        )
+        self._total_attempts = Gauge(
+            "titan_ops_total_attempts", "Total attempts in window",
+            ["window"]
+        )
+        self._fraud_block_rate = Gauge(
+            "titan_ops_fraud_block_rate_pct", "Fraud block rate percentage",
+            ["window"]
+        )
+        self._hard_decline_rate = Gauge(
+            "titan_ops_hard_decline_rate_pct", "Hard decline rate percentage",
+            ["window"]
+        )
+        self._soft_decline_rate = Gauge(
+            "titan_ops_soft_decline_rate_pct", "Soft decline rate percentage",
+            ["window"]
+        )
+        self._timeout_rate = Gauge(
+            "titan_ops_timeout_rate_pct", "Timeout rate percentage",
+            ["window"]
+        )
+
+        # ── Per-dimension gauges ──
+        self._target_success = Gauge(
+            "titan_ops_target_success_rate_pct", "Success rate by target",
+            ["target"]
+        )
+        self._target_volume = Gauge(
+            "titan_ops_target_volume", "Attempt volume by target",
+            ["target"]
+        )
+        self._bin_success = Gauge(
+            "titan_ops_bin_success_rate_pct", "Success rate by BIN",
+            ["bin"]
+        )
+        self._country_success = Gauge(
+            "titan_ops_country_success_rate_pct", "Success rate by country",
+            ["country"]
+        )
+        self._gateway_success = Gauge(
+            "titan_ops_gateway_success_rate_pct", "Success rate by gateway",
+            ["gateway"]
+        )
+
+        # ── Decline code distribution ──
+        self._decline_code_count = Gauge(
+            "titan_ops_decline_code_count", "Decline count by code (24h)",
+            ["code"]
+        )
+
+        # ── Latency ──
+        self._latency = Gauge(
+            "titan_ops_latency_ms", "Latency percentiles",
+            ["quantile"]
+        )
+
+    @property
+    def is_available(self) -> bool:
+        return _PROMETHEUS_AVAILABLE
+
+    def start(self) -> bool:
+        """Start the Prometheus HTTP metrics server."""
+        if not _PROMETHEUS_AVAILABLE:
+            return False
+        if self._started:
+            return True
+        try:
+            _prom_start(self._port)
+            self._started = True
+            _prom_logger.info(f"Prometheus exporter started on :{self._port}/metrics")
+            # Do initial refresh
+            self.refresh()
+            return True
+        except Exception as e:
+            _prom_logger.error(f"Failed to start Prometheus exporter: {e}")
+            return False
+
+    def refresh(self):
+        """Refresh all Prometheus metrics from SQLite. Call periodically or on-demand."""
+        if not _PROMETHEUS_AVAILABLE:
+            return
+
+        # ── Overall metrics per time window ──
+        for label, hours in [("1h", 1), ("6h", 6), ("24h", 24), ("7d", 168)]:
+            m = self._db.get_metrics(hours=hours)
+            self._success_rate.labels(window=label).set(round(m.success_rate_pct, 2))
+            self._total_attempts.labels(window=label).set(m.total_attempts)
+            if m.total_attempts > 0:
+                self._fraud_block_rate.labels(window=label).set(
+                    round(m.fraud_blocks / m.total_attempts * 100, 2))
+                self._hard_decline_rate.labels(window=label).set(
+                    round(m.hard_declines / m.total_attempts * 100, 2))
+                self._soft_decline_rate.labels(window=label).set(
+                    round(m.soft_declines / m.total_attempts * 100, 2))
+                self._timeout_rate.labels(window=label).set(
+                    round(m.timeouts / m.total_attempts * 100, 2))
+
+        # ── Per-target breakdown (24h) ──
+        target_bd = self._db.get_breakdown_by_merchant(hours=24)
+        for tgt, metrics in list(target_bd.values.items())[:25]:
+            if tgt:
+                self._target_success.labels(target=tgt).set(round(metrics.success_rate_pct, 2))
+                self._target_volume.labels(target=tgt).set(metrics.total_attempts)
+
+        # ── Per-BIN breakdown (24h) ──
+        bin_bd = self._db.get_breakdown_by_bin(hours=24)
+        for bn, metrics in list(bin_bd.values.items())[:30]:
+            if bn:
+                self._bin_success.labels(bin=bn).set(round(metrics.success_rate_pct, 2))
+
+        # ── Per-country breakdown (24h) ──
+        country_bd = self._db.get_breakdown_by_country(hours=24)
+        for country, metrics in country_bd.values.items():
+            if country:
+                self._country_success.labels(country=country).set(
+                    round(metrics.success_rate_pct, 2))
+
+        # ── Per-gateway breakdown (24h) ──
+        gw_bd = self._db.get_breakdown_by_gateway(hours=24)
+        for gw, metrics in gw_bd.values.items():
+            if gw:
+                self._gateway_success.labels(gateway=gw).set(
+                    round(metrics.success_rate_pct, 2))
+
+        # ── Decline codes (24h) ──
+        codes = self._db.get_decline_code_distribution(hours=24)
+        for code, count in list(codes.items())[:20]:
+            self._decline_code_count.labels(code=code).set(count)
+
+        # ── Latency percentiles (24h) ──
+        lat = self._db.get_latency_stats(hours=24)
+        for q in ["p50", "p75", "p90", "p95", "p99"]:
+            self._latency.labels(quantile=q).set(lat.get(q, 0))
+
+    def get_stats(self) -> dict:
+        return {
+            "available": _PROMETHEUS_AVAILABLE,
+            "started": self._started,
+            "port": self._port,
+            "url": f"http://127.0.0.1:{self._port}/metrics" if self._started else None,
+        }
+
+
+_prom_exporter: Optional[TitanPrometheusExporter] = None
+
+def get_prometheus_exporter() -> TitanPrometheusExporter:
+    global _prom_exporter
+    if _prom_exporter is None:
+        _prom_exporter = TitanPrometheusExporter()
+    return _prom_exporter
+
+def start_prometheus_exporter(port: int = None) -> bool:
+    """Start the Prometheus metrics exporter HTTP server."""
+    exp = get_prometheus_exporter()
+    if port:
+        exp._port = port
+    return exp.start()
 
 
 if __name__ == "__main__":

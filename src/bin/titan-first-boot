@@ -9,7 +9,7 @@
 set -o pipefail
 
 TITAN_ROOT="/opt/titan"
-LUCID_ROOT="/opt/lucid-empire"
+LUCID_ROOT="/opt/titan"
 STATE_FILE="/opt/titan/state/.first-boot-complete"
 LOG="/var/log/titan-first-boot.log"
 

@@ -5,7 +5,7 @@ set -e
 
 TITAN_ROOT="$(cd "$(dirname "$0")" && pwd)"
 CORE_DIR="${TITAN_ROOT}/core"
-INSTALL_DIR="/opt/lucid-empire"
+INSTALL_DIR="/opt/titan"
 
 echo "╔══════════════════════════════════════════════╗"
 echo "║  TITAN V8.1 SINGULARITY — Master Build      ║"

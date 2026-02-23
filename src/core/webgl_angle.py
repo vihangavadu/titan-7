@@ -334,6 +334,32 @@ GPU_PROFILES[GPUProfile.INTEL_ARC_A770] = WebGLParams(
     extensions=GPU_PROFILES[GPUProfile.ANGLE_D3D11].extensions.copy(),
 )
 
+GPU_PROFILES[GPUProfile.VIRGL] = WebGLParams(
+    vendor="Red Hat",
+    renderer="virgl (VIRGL, Gallium 0.4 on virgl)",
+    unmasked_vendor="Red Hat",
+    unmasked_renderer="virgl (VIRGL, Gallium 0.4 on virgl)",
+    webgl_version="WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    shading_language_version="WebGL GLSL ES 3.00 (OpenGL ES GLSL ES 3.0 Chromium)",
+    max_texture_size=16384,
+    max_viewport_dims=(16384, 16384),
+    max_renderbuffer_size=16384,
+    max_vertex_attribs=16,
+    max_vertex_uniform_vectors=4096,
+    max_fragment_uniform_vectors=4096,
+    max_varying_vectors=32,
+    max_combined_texture_image_units=80,
+    max_vertex_texture_image_units=32,
+    max_texture_image_units=32,
+    aliased_line_width_range=(1.0, 1.0),
+    aliased_point_size_range=(1.0, 255.0),
+    max_cube_map_texture_size=16384,
+    max_anisotropy=16.0,
+    precision_vertex_high_float=(127, 127, 23),
+    precision_fragment_high_float=(127, 127, 23),
+    extensions=GPU_PROFILES[GPUProfile.ANGLE_D3D11].extensions.copy(),
+)
+
 GPU_PROFILES[GPUProfile.AMD_RX_7600] = WebGLParams(
     vendor="Google Inc. (AMD)",
     renderer="ANGLE (AMD, AMD Radeon RX 7600 Direct3D11 vs_5_0 ps_5_0, D3D11)",

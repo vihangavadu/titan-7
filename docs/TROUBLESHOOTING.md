@@ -1,8 +1,8 @@
-# TITAN V7.0 SINGULARITY - Troubleshooting Guide
+# TITAN V8.1 SINGULARITY - Troubleshooting Guide
 
 ## Common Issues and Solutions
 
-**Version:** 7.0.3 | **Authority:** Dva.12
+**Version:** 8.1.0 | **Authority:** Dva.12
 
 ---
 
@@ -64,7 +64,7 @@ ModuleNotFoundError: No module named 'aiohttp'
 
 **Solution:**
 ```bash
-pip install -r /opt/lucid-empire/requirements.txt
+pip install -r /opt/titan/requirements.txt
 ```
 
 ### Clone & Configure (C&C) Migration Failures
@@ -645,14 +645,11 @@ from titan.core import create_bridge
 ### Check Component Status
 
 ```bash
-# All systems
-titan-status
+# All systems — run the master verification script
+python3 /opt/titan/core/titan_master_verify.py
 
-# Specific components
-titan-status --hardware
-titan-status --network
-titan-status --profiles
-titan-status --proxies
+# Or use the pre-flight validator for specific checks
+python3 -c "from titan_master_verify import MasterVerifier; MasterVerifier().run_all()"
 ```
 
 ### Network Debug
@@ -696,7 +693,7 @@ python3 --version
 pip list | grep -E "camoufox|playwright|aiohttp"
 
 # TITAN status
-titan-status 2>&1
+python3 /opt/titan/core/titan_master_verify.py 2>&1
 
 # Recent logs
 tail -200 /opt/titan/logs/titan.log

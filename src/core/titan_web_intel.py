@@ -10,6 +10,7 @@ Provides:
 5. OSINT Enrichment     — Enrich operational data with public web intelligence
 
 Providers (priority order):
+    0. SearXNG (self-hosted)   — private, unlimited, aggregates 70+ engines
     1. SerpAPI (Google Search) — best quality, requires API key
     2. Serper.dev              — fast, cheap alternative
     3. DuckDuckGo (free)       — no API key needed, rate-limited
@@ -247,6 +248,53 @@ def _search_duckduckgo(query: str, num_results: int = 5) -> List[Dict]:
         return []
 
 
+def _search_searxng(query: str, num_results: int = 5) -> List[Dict]:
+    """Search via self-hosted SearXNG instance (highest priority).
+    Deploy via Hostinger Docker Catalog → SearXNG.
+    Set TITAN_SEARXNG_URL in titan.env (default: http://127.0.0.1:8888).
+    """
+    searxng_url = os.getenv("TITAN_SEARXNG_URL", "http://127.0.0.1:8888")
+    if not _requests:
+        return []
+
+    try:
+        resp = _requests.get(
+            f"{searxng_url}/search",
+            params={
+                "q": query,
+                "format": "json",
+                "categories": "general",
+                "language": "en",
+                "safesearch": "0",
+                "pageno": "1",
+            },
+            timeout=10,
+            headers={"User-Agent": "Titan-WebIntel/8.0"},
+        )
+        if resp.status_code != 200:
+            logger.debug(f"SearXNG returned {resp.status_code}")
+            return []
+
+        data = resp.json()
+        results = []
+        for i, item in enumerate(data.get("results", [])[:num_results]):
+            results.append({
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("content", ""),
+                "source": "searxng",
+                "position": i + 1,
+            })
+        return results
+
+    except _requests.exceptions.ConnectionError:
+        logger.debug("SearXNG not reachable — skipping")
+        return []
+    except Exception as e:
+        logger.warning(f"SearXNG search failed: {e}")
+        return []
+
+
 def _search_urllib_fallback(query: str, num_results: int = 5) -> List[Dict]:
     """
     Last-resort fallback using urllib to hit DuckDuckGo HTML API.
@@ -348,6 +396,9 @@ class TitanWebIntel:
     def _detect_providers(self) -> List[str]:
         """Detect available search providers in priority order."""
         providers = []
+        # SearXNG is top priority — self-hosted, unlimited, no API key
+        if os.getenv("TITAN_SEARXNG_URL") or _requests:
+            providers.append("searxng")
         if _SERPAPI_AVAILABLE and os.getenv("SERPAPI_KEY", os.getenv("SERPAPI_API_KEY", "")):
             providers.append("serpapi")
         if _SERPER_AVAILABLE and os.getenv("SERPER_API_KEY", ""):
@@ -389,7 +440,9 @@ class TitanWebIntel:
 
         for provider in self._provider_order:
             try:
-                if provider == "serpapi":
+                if provider == "searxng":
+                    results = _search_searxng(query, num_results)
+                elif provider == "serpapi":
                     results = _search_serpapi(query, num_results)
                 elif provider == "serper":
                     results = _search_serper(query, num_results)

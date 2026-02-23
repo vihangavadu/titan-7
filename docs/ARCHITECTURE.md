@@ -1,8 +1,8 @@
-# TITAN V7.0 SINGULARITY - Architecture Documentation
+# TITAN V8.1 SINGULARITY - Architecture Documentation
 
 ## System Architecture and Component Design
 
-**Version:** 7.0.3 | **Authority:** Dva.12
+**Version:** 8.1.0 | **Authority:** Dva.12
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## 1. System Overview
 
-TITAN V7.0 SINGULARITY is a multi-layer reality synthesis system designed for high-trust transaction operations. The architecture follows a defense-in-depth approach with multiple independent layers of protection.
+TITAN V8.11 SINGULARITY is a multi-layer reality synthesis system with 113 core modules (110 Python + 3 C). The architecture follows a Six-Ring Defense Model with defense-in-depth across independent protection layers.
 
 ### Design Principles
 
@@ -58,7 +58,7 @@ Where:
 │                    Human Manual Operation                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │                        LAYER 6: APPLICATION                         │
-│              Genesis GUI | Cerberus GUI | KYC GUI                   │
+│     Operations | Intelligence | Network | KYC | Admin + Launcher    │
 ├─────────────────────────────────────────────────────────────────────┤
 │                        LAYER 5: INTEGRATION                         │
 │    Integration Bridge | Pre-Flight | Referrer Warmup | Proxy Mgr    │
@@ -80,18 +80,18 @@ Where:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Layer Descriptions
+### Layer Descriptions (Six-Ring Defense Model + 2 Operational Layers)
 
 | Layer | Name | Components | Purpose |
-|-------|------|------------|---------|
+|-------|------|------------|----------|
 | 7 | Operator | Human | Final execution, judgment calls |
-| 6 | Application | GUI Apps | User interface for configuration |
+| 6 | Application | 5 GUI Apps + Launcher | User interface for configuration |
 | 5 | Integration | Bridge, Pre-flight | Unify all components |
 | 4 | Core Engines | Genesis, Cerberus | Profile/card management |
 | 3 | Behavioral | Ghost Motor, Fingerprint | Human-like behavior |
 | 2 | Browser | Camoufox, Extensions | Anti-detect browsing |
 | 1 | System | Kernel, eBPF | OS-level masking |
-| 0 | Hardware | Linux | Foundation |
+| 0 | Hardware | Linux Kernel | Foundation |
 
 ---
 
@@ -101,7 +101,7 @@ Where:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         TITAN V7.0.3 CORE                               │
+│                         TITAN V8.1 CORE                                 │
 │                                                                     │
 │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐           │
 │  │    GENESIS    │  │   CERBERUS    │  │      KYC      │           │
@@ -384,8 +384,8 @@ from .integration_bridge import TitanIntegrationBridge
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │                   INTEGRATION BRIDGE                         │   │
 │  │                                                              │   │
-│  │  sys.path.insert(0, "/opt/lucid-empire")                    │   │
-│  │  sys.path.insert(0, "/opt/lucid-empire/backend")            │   │
+│  │  sys.path.insert(0, "/opt/titan")                          │   │
+│  │  sys.path.insert(0, "/opt/titan/core")                     │   │
 │  │                                                              │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │         │              │              │              │              │
@@ -394,7 +394,7 @@ from .integration_bridge import TitanIntegrationBridge
           │              │              │              │
           ▼              ▼              ▼              ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                  LEGACY (/opt/lucid-empire/)                        │
+│                  CORE MODULES (/opt/titan/core/)                    │
 │                                                                     │
 │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐        │
 │  │zero_detect│  │ preflight │  │ location  │  │ commerce  │        │
@@ -413,7 +413,7 @@ from .integration_bridge import TitanIntegrationBridge
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        TITAN V7.0.3 CORE                                │
+│                        TITAN V8.1 CORE                                  │
 │                                                                     │
 │  ┌───────────────┐                      ┌───────────────┐          │
 │  │   Cognitive   │◀────── HTTPS ───────▶│  Cloud Brain  │          │

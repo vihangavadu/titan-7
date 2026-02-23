@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-TITAN V8.1 LAUNCHER — Clean Entry Point
+TITAN V8.2 LAUNCHER — Clean Entry Point
 ========================================
-5 apps, 23 tabs total, 85 core modules — zero orphans.
+5 apps, 23 tabs total, 110 core modules — zero orphans.
 
 App Structure (V8.1 Final):
   1. Operations Center — Daily workflow (target → card → persona → forge → launch)
@@ -162,7 +162,7 @@ class HealthIndicator(QFrame):
 
 class TitanLauncher(QMainWindow):
     """
-    TITAN V8.1 Launcher — 5 apps, 23 tabs, 85 modules, zero orphans.
+    TITAN V8.2 Launcher — 5 apps, 23 tabs, 113 modules, zero orphans.
 
     - Operations Center: Daily workflow (38 modules)
     - Intelligence Center: AI analysis & strategy (20 modules)
@@ -178,7 +178,7 @@ class TitanLauncher(QMainWindow):
         QTimer.singleShot(500, self._check_health)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.1 \u2014 Launcher")
+        self.setWindowTitle("TITAN V8.2 — Launcher")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -193,7 +193,7 @@ class TitanLauncher(QMainWindow):
         layout.setSpacing(16)
 
         # Header
-        header = QLabel("TITAN V8.1")
+        header = QLabel("TITAN V8.2")
         header.setFont(QFont("Inter", 28, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(f"color: {ACCENT};")
@@ -205,22 +205,20 @@ class TitanLauncher(QMainWindow):
         subtitle.setStyleSheet(f"color: {TEXT_SECONDARY}; letter-spacing: 4px;")
         layout.addWidget(subtitle)
 
-        # App Cards — top row (3) + bottom row (2)
-        top_row = QHBoxLayout()
-        top_row.setSpacing(16)
+        # App Cards — 3x3 grid (9 apps)
+        row1 = QHBoxLayout()
+        row1.setSpacing(12)
 
-        # Card 1: Operations Center (38 modules)
-        top_row.addWidget(AppCard(
-            title="Operations",
-            subtitle="DAILY WORKFLOW \u2022 38 MODULES",
-            description="Target \u2192 Identity \u2192 Validate \u2192 Forge \u2192 Launch\n5 tabs \u2022 Card BIN intel \u2022 Preflight",
+        row1.addWidget(AppCard(
+            title="Profile Forge",
+            subtitle="IDENTITY + FORGE \u2022 22 MODULES",
+            description="Persona \u2192 Chrome Profile \u2192 Aging\nPurchase history \u2022 IndexedDB \u2022 Cache",
             accent="#00d4ff",
-            icon_char="\ud83c\udfaf",
+            icon_char="\ud83d\udd28",
             script="titan_operations.py",
         ))
 
-        # Card 2: Intelligence Center (20 modules)
-        top_row.addWidget(AppCard(
+        row1.addWidget(AppCard(
             title="Intelligence",
             subtitle="AI ANALYSIS \u2022 20 MODULES",
             description="AI Copilot \u2022 3DS Strategy \u2022 Detection\nRecon \u2022 Vector Memory \u2022 Web Intel",
@@ -229,8 +227,7 @@ class TitanLauncher(QMainWindow):
             script="titan_intelligence.py",
         ))
 
-        # Card 3: Network Center (18 modules)
-        top_row.addWidget(AppCard(
+        row1.addWidget(AppCard(
             title="Network",
             subtitle="VPN & SHIELD \u2022 18 MODULES",
             description="Mullvad VPN \u2022 eBPF TCP Mimesis\nForensic Monitor \u2022 Proxy \u2022 GeoIP",
@@ -239,14 +236,12 @@ class TitanLauncher(QMainWindow):
             script="titan_network.py",
         ))
 
-        layout.addLayout(top_row)
+        layout.addLayout(row1)
 
-        bottom_row = QHBoxLayout()
-        bottom_row.setSpacing(16)
-        bottom_row.addStretch()
+        row2 = QHBoxLayout()
+        row2.setSpacing(12)
 
-        # Card 4: KYC Studio (8 modules)
-        bottom_row.addWidget(AppCard(
+        row2.addWidget(AppCard(
             title="KYC Studio",
             subtitle="IDENTITY VERIFY \u2022 8 MODULES",
             description="Camera \u2022 Documents \u2022 Voice\nToF Depth \u2022 Deep Identity \u2022 Mobile",
@@ -255,28 +250,57 @@ class TitanLauncher(QMainWindow):
             script="app_kyc.py",
         ))
 
-        # Card 5: Admin Panel (14 modules)
-        bottom_row.addWidget(AppCard(
+        row2.addWidget(AppCard(
             title="Admin",
             subtitle="SYSTEM MGMT \u2022 14 MODULES",
-            description="Services \u2022 Automation \u2022 Config\nDetection Lab \u2022 AI Setup \u2022 Kill Switch",
+            description="Services \u2022 Automation \u2022 Config\nBug Reporter \u2022 AI Setup \u2022 Kill Switch",
             accent="#f59e0b",
             icon_char="\u2699\ufe0f",
             script="titan_admin.py",
         ))
 
-        # Card 6: Bug Reporter (recovered V8.0)
-        bottom_row.addWidget(AppCard(
-            title="Bug Reporter",
-            subtitle="DIAGNOSTICS \u2022 AUTO-PATCH",
-            description="Issue Reporting \u2022 Decline Intel\nWindsurf Patching \u2022 Log Analysis",
-            accent="#ef4444",
-            icon_char="\ud83d\udc1b",
-            script="app_bug_reporter.py",
+        row2.addWidget(AppCard(
+            title="Settings",
+            subtitle="CONFIGURE \u2022 ALL TOOLS",
+            description="Mullvad \u2022 Ollama \u2022 Redis \u2022 Xray\nAPI Keys \u2022 titan.env \u2022 Browser",
+            accent="#6366f1",
+            icon_char="\ud83d\udd27",
+            script="app_settings.py",
         ))
 
-        bottom_row.addStretch()
-        layout.addLayout(bottom_row)
+        layout.addLayout(row2)
+
+        row3 = QHBoxLayout()
+        row3.setSpacing(12)
+
+        row3.addWidget(AppCard(
+            title="Profile Forge",
+            subtitle="FORGE PIPELINE \u2022 9 STAGES",
+            description="Persona \u2192 Chrome Profile \u2192 Aging\nPurchase history \u2022 IndexedDB \u2022 Realism",
+            accent="#00d4ff",
+            icon_char="\ud83d\udd28",
+            script="app_profile_forge.py",
+        ))
+
+        row3.addWidget(AppCard(
+            title="Card Validator",
+            subtitle="BIN CHECK \u2022 AVS \u2022 QUALITY",
+            description="Luhn \u2022 BIN scoring \u2022 Card grading\n3DS strategy \u2022 Decline decoder",
+            accent="#eab308",
+            icon_char="\ud83d\udcb3",
+            script="app_card_validator.py",
+        ))
+
+        row3.addWidget(AppCard(
+            title="Browser Launch",
+            subtitle="LAUNCH \u2022 TX MONITOR \u2022 HANDOVER",
+            description="Preflight \u2022 Camoufox launch \u2022 Ghost Motor\nLive TX monitor \u2022 Decline decoder",
+            accent="#22c55e",
+            icon_char="\ud83d\ude80",
+            script="app_browser_launch.py",
+        ))
+
+        layout.addLayout(row3)
 
         # Health Status Bar
         health_frame = QFrame()
@@ -303,6 +327,27 @@ class TitanLauncher(QMainWindow):
         health_layout.addWidget(self.h_ai)
 
         layout.addWidget(health_frame)
+
+        # V8.11: PANIC BUTTON — triggers kill switch from any screen
+        panic_btn = QPushButton("EMERGENCY WIPE")
+        panic_btn.setFont(QFont("Inter", 14, QFont.Weight.Bold))
+        panic_btn.setFixedHeight(50)
+        panic_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {RED};
+                color: white;
+                border: 2px solid #991b1b;
+                border-radius: 10px;
+                font-weight: bold;
+                letter-spacing: 2px;
+            }}
+            QPushButton:hover {{
+                background: #991b1b;
+                border: 2px solid {RED};
+            }}
+        """)
+        panic_btn.clicked.connect(self._trigger_panic)
+        layout.addWidget(panic_btn)
 
     def _check_health(self):
         """Run quick health checks."""
@@ -365,6 +410,30 @@ class TitanLauncher(QMainWindow):
                 self.h_ai.set_status("offline", YELLOW)
         except Exception:
             self.h_ai.set_status("offline", YELLOW)
+
+    def _trigger_panic(self):
+        """V8.11: Emergency panic — confirm then trigger kill switch."""
+        reply = QMessageBox.critical(
+            self, "EMERGENCY WIPE",
+            "This will:\n"
+            "1. Kill all browser processes\n"
+            "2. Flush hardware IDs\n"
+            "3. Clear all profiles & session data\n"
+            "4. Randomize MAC address\n\n"
+            "THIS IS IRREVERSIBLE. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
+                from kill_switch import send_panic_signal
+                send_panic_signal()
+                QMessageBox.information(self, "PANIC", "Kill switch triggered. All artifacts wiped.")
+            except ImportError:
+                QMessageBox.warning(self, "PANIC", "Kill switch module not available. Manual wipe required.")
+            except Exception as e:
+                QMessageBox.warning(self, "PANIC", f"Kill switch error: {e}")
 
     def apply_theme(self):
         palette = QPalette()

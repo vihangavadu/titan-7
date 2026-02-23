@@ -1,4 +1,4 @@
-# TACTICAL AUDIT: TITAN V7.0.3 SINGULARITY
+# TACTICAL AUDIT: TITAN V8.1 SINGULARITY
 
 **AUTHORITY:** Dva.12
 **STATUS:** OBLIVION_ACTIVE
@@ -45,7 +45,7 @@
 | Environment | Path | Purpose |
 |-------------|------|---------|
 | **Core Framework** | `/opt/titan/` | System-level controllers, eBPF loaders, hardware synthesis, core APIs, service orchestration |
-| **Backend Engine** | `/opt/lucid-empire/` | Legacy + specialized modules: commerce injection, browser manipulation, KYC reenactment, profile generation |
+| **Backend Engine** | `/opt/titan/core/` | Core modules: commerce injection, browser manipulation, KYC reenactment, profile generation |
 | **Deployment Matrix** | `iso/config/` | Multi-stage chroot build chain compiling the system into a live, RAM-only ISO |
 
 **[ADDITION]** A fourth execution environment exists:
@@ -193,7 +193,7 @@ Per `titan/hardware_shield/README.md`:
 
 | Component | File | Method |
 |-----------|------|--------|
-| TLS JA3/JA4 Masquerade | `opt/lucid-empire/backend/network/tls_masquerade.py` | Python-level TLS ClientHello construction with per-version cipher suite ordering |
+| TLS JA3/JA4 Masquerade | `opt/titan/core/tls_parrot.py` | Python-level TLS ClientHello construction with per-version cipher suite ordering |
 | Supported profiles | Chrome 122, 131, 132, 133; Firefox 132 | Profile auto-selection based on browser version |
 
 ### 3.4 Loader & Runtime Management
@@ -217,7 +217,7 @@ Per `titan/hardware_shield/README.md`:
 |------|------|------|
 | `integration_bridge.py` | `opt/titan/core/integration_bridge.py` (754 lines) | Master browser launch orchestrator |
 | `titan-browser` | `opt/titan/bin/titan-browser` | Shell launcher with environment setup |
-| `firefox_injector_v2.py` | `opt/lucid-empire/backend/modules/firefox_injector_v2.py` (1102 lines) | SQLite-level profile injection |
+| `firefox_injector_v2.py` | `opt/titan/core/integration_bridge.py` | SQLite-level profile injection (consolidated into integration bridge) |
 | `gen_cookies.py` | `profgen/gen_cookies.py` (231 lines) | Forensically clean cookie generation |
 
 ### 4.2 Profile Generation (profgen)
@@ -288,9 +288,9 @@ Per `titan/hardware_shield/README.md`:
 
 | File | Path | Lines |
 |------|------|-------|
-| `reenactment_engine.py` | `opt/lucid-empire/backend/modules/kyc_module/reenactment_engine.py` | 312 |
-| `renderer_3d.js` | `opt/lucid-empire/backend/modules/kyc_module/renderer_3d.js` | Present |
-| `camera_injector.py` | `opt/lucid-empire/backend/modules/kyc_module/camera_injector.py` | 194 |
+| `reenactment_engine.py` | `opt/titan/core/kyc_core.py` (consolidated) | 624 |
+| `renderer_3d.js` | `opt/titan/core/kyc_core.py` (consolidated) | Present |
+| `camera_injector.py` | `opt/titan/core/kyc_core.py` (consolidated) | 624 |
 
 **[ADDITION]** Two additional KYC modules exist in the core framework:
 
@@ -306,7 +306,7 @@ Per `titan/hardware_shield/README.md`:
 1. **Virtual Camera:** `camera_injector.py` creates a v4l2loopback device at `/dev/video10` with `exclusive_caps=1` (ensures Chrome sees it as a capture device, not virtual)
 
 2. **Neural Reenactment:** Two operational modes:
-   - **LIVE MODE:** LivePortrait (or FasterLivePortrait with TensorRT) installed at `/opt/lucid-empire/models/LivePortrait` → real-time neural face animation from static image + driving motion
+   - **LIVE MODE:** LivePortrait (or FasterLivePortrait with TensorRT) installed at `/opt/titan/models/LivePortrait` → real-time neural face animation from static image + driving motion
    - **PRERECORDED MODE (fallback):** Streams pre-recorded motion videos via ffmpeg
 
 3. **[CORRECTION]** The original audit states `renderer_3d.js` and "the Python backend map static images onto a 3D mesh, animating micro-expressions." More precisely:
@@ -336,9 +336,9 @@ Per `titan/hardware_shield/README.md`:
 | File | Path | Lines | Role |
 |------|------|-------|------|
 | `ghost_motor.js` | `opt/titan/extensions/ghost_motor/ghost_motor.js` | Browser extension (mouse, keyboard, scroll augmentation) |
-| `ghost_motor.py` | `opt/lucid-empire/backend/modules/ghost_motor.py` | 772 | Python GAN-style trajectory generator |
+| `ghost_motor.py` | `opt/titan/core/ghost_motor_v6.py` (superseded) | 871 | Python GAN-style trajectory generator |
 | `ghost_motor_v6.py` | `opt/titan/core/ghost_motor_v6.py` | 871 | V7 Diffusion Mouse Trajectory Generation (DMTG) |
-| `humanization.py` | `opt/lucid-empire/backend/modules/humanization.py` | Present | Humanization utilities |
+| `humanization.py` | (deprecated — functionality merged into `ghost_motor_v6.py`) | N/A | Humanization utilities |
 | `titan_adversary_sim.py` | `opt/titan/testing/titan_adversary_sim.py` | Present | Adversary simulation testing |
 | `generate_gan_model.py` | `scripts/generate_gan_model.py` | 220 | ONNX model generator for mouse trajectories |
 | `generate_trajectory_model.py` | `scripts/generate_trajectory_model.py` | 155 | Pickle model generator (ONNX fallback) |
@@ -396,7 +396,7 @@ Per `ghost_motor_v6.py` docstring:
 |------|------|------|
 | `tx_monitor.js` | `opt/titan/extensions/tx_monitor/tx_monitor.js` | Browser extension: XHR/fetch interception |
 | `tx_monitor/background.js` | `opt/titan/extensions/tx_monitor/background.js` | Service worker for TX Monitor |
-| `commerce_injector.py` | `opt/lucid-empire/backend/commerce_injector.py` | Commerce payload injection |
+| `commerce_injector.py` | `opt/titan/core/purchase_history_engine.py` (consolidated) | Commerce payload injection |
 | `purchase_history_engine.py` | `opt/titan/core/purchase_history_engine.py` | Purchase history synthesis |
 
 #### Execution Logic
@@ -597,10 +597,10 @@ titan-7/
 │   │   └── extensions/
 │   │       ├── ghost_motor/        # Behavioral biometrics extension
 │   │       └── tx_monitor/         # Transaction monitoring extension
-│   └── lucid-empire/
-│       └── backend/
+│   └── titan/
+│       └── core/
 │           ├── modules/
-│           │   ├── kyc_module/     # KYC reenactment engine
+│           │   ├── kyc_core.py     # KYC reenactment engine (consolidated)
 │           │   ├── firefox_injector_v2.py # SQLite profile injection
 │           │   ├── canvas_noise.py # Perlin noise canvas spoofing
 │           │   └── ghost_motor.py  # Python trajectory generator

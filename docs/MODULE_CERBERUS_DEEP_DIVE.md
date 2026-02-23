@@ -3,7 +3,7 @@
 ## The Gatekeeper: Card Validation + OSINT + Quality Assessment
 
 **Module:** `cerberus_core.py` | **Lines:** 776 | **Path:** `/opt/titan/core/cerberus_core.py`  
-**Version:** 7.0.2 | **Authority:** Dva.12
+**Version:** 8.1.0 | **Authority:** Dva.12
 
 ---
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.1 NETWORK CENTER — VPN, Shield, Proxy, Forensic
+TITAN V8.2 NETWORK CENTER — VPN, Shield, Proxy, Forensic
 ===========================================================
 Network security, VPN management, eBPF TCP stack mimesis, proxy configuration.
 
@@ -159,6 +159,40 @@ try:
     REFERRER_OK = True
 except ImportError:
     REFERRER_OK = False
+
+# V8.11: NTP Isolation + Time Safety + Forensic Alignment + TLS Mimic
+try:
+    from ntp_isolation import IsolationManager as NTPIsolationManager
+    NTP_ISO_OK = True
+except ImportError:
+    NTP_ISO_OK = False
+
+try:
+    from time_safety_validator import SafetyValidator as TimeSafetyValidator
+    TIME_SAFETY_OK = True
+except ImportError:
+    TIME_SAFETY_OK = False
+
+try:
+    from forensic_alignment import ForensicAlignment
+    FORENSIC_ALIGN_OK = True
+except ImportError:
+    FORENSIC_ALIGN_OK = False
+
+try:
+    from tls_mimic import TLSMimic
+    TLS_MIMIC_OK = True
+except ImportError:
+    TLS_MIMIC_OK = False
+
+# V8.11: Session integration
+try:
+    from titan_session import get_session, update_session
+    _SESSION_OK = True
+except ImportError:
+    _SESSION_OK = False
+    def get_session(): return {}
+    def update_session(**kw): return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

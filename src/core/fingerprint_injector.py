@@ -21,7 +21,7 @@ import logging
 
 # V7.0: Legacy path import guarded — never leak paths in browser-visible tracebacks
 os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")  # Prevent __pycache__ forensic artifacts
-_LEGACY_PATH = Path("/opt/lucid-empire")
+_LEGACY_PATH = Path("/opt/titan")
 try:
     if _LEGACY_PATH.exists():
         for _sub in [str(_LEGACY_PATH), str(_LEGACY_PATH / "backend")]:

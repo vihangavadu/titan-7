@@ -2,7 +2,7 @@
 
 ## How to Update TITAN Without Breaking It
 
-**Version:** 7.0.3 | **Authority:** Dva.12
+**Version:** 8.1.0 | **Authority:** Dva.12
 
 ---
 
@@ -35,7 +35,7 @@ TITAN uses an **additive architecture** — new features are layered on top of e
 SAFE TO MODIFY (Top layers — no downstream dependencies)
 ─────────────────────────────────────────────────────────
   Layer 7: Operator guides, playbooks, documentation
-  Layer 6: GUI apps (app_genesis.py, app_cerberus.py, app_kyc.py)
+  Layer 6: GUI apps (titan_operations.py, titan_intelligence.py, titan_network.py, app_kyc.py, titan_admin.py)
   Layer 5: Intelligence data (target_intelligence.py constants)
 
 MODIFY WITH CARE (Middle layers — have both upstream and downstream deps)
@@ -61,7 +61,7 @@ GUI Apps ──► Core Engines ──► Support Modules ──► System
    │              │
    │              └── genesis_core, cerberus_core, kyc_core
    │
-   └── app_genesis, app_cerberus, app_kyc, app_unified
+   └── titan_operations, titan_intelligence, titan_network, app_kyc, titan_admin
 ```
 
 ---
@@ -73,19 +73,19 @@ GUI Apps ──► Core Engines ──► Support Modules ──► System
 | Module | Imports From | Imported By |
 |--------|-------------|-------------|
 | `__init__.py` | ALL modules | External consumers |
-| `genesis_core.py` | stdlib only | `app_genesis.py`, `handover_protocol.py`, `preflight_validator.py` |
-| `cerberus_core.py` | stdlib, aiohttp | `app_cerberus.py`, `handover_protocol.py`, `preflight_validator.py` |
-| `kyc_core.py` | stdlib only | `app_kyc.py` |
+| `genesis_core.py` | stdlib only | `titan_operations.py`, `handover_protocol.py`, `preflight_validator.py` |
+| `cerberus_core.py` | stdlib, aiohttp | `titan_operations.py`, `handover_protocol.py`, `preflight_validator.py` |
+| `kyc_core.py` | stdlib only | `app_kyc.py`, `titan_admin.py` |
 | `target_intelligence.py` | stdlib only | `preflight_validator.py`, `handover_protocol.py`, `genesis_core.py` |
 | `ghost_motor_v6.py` | numpy, scipy (optional), onnxruntime (optional) | `__init__.py` |
-| `preflight_validator.py` | `target_intelligence`, `cerberus_core` | `app_unified.py` |
+| `preflight_validator.py` | `target_intelligence`, `cerberus_core` | `titan_operations.py` |
 | `three_ds_strategy.py` | stdlib only | `preflight_validator.py` |
-| `handover_protocol.py` | `target_intelligence` | `app_unified.py` |
+| `handover_protocol.py` | `target_intelligence` | `titan_operations.py` |
 | `cognitive_core.py` | aiohttp | `integration_bridge.py` |
-| `integration_bridge.py` | `cognitive_core` | `app_unified.py` |
+| `integration_bridge.py` | `cognitive_core` | `titan_operations.py`, `titan_intelligence.py` |
 | `proxy_manager.py` | aiohttp | `preflight_validator.py` |
 | `fingerprint_injector.py` | stdlib only | `genesis_core.py` |
-| `referrer_warmup.py` | stdlib only | `app_unified.py` |
+| `referrer_warmup.py` | stdlib only | `titan_network.py` |
 | `quic_proxy.py` | stdlib only | `__init__.py` |
 
 ### Critical Rule: No Circular Imports

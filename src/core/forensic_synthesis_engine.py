@@ -16,7 +16,7 @@ Generates forensically undetectable 900-day Firefox profiles with:
 import os, sys, json, sqlite3, hashlib, secrets, random, struct, math, time, zlib
 import base64, logging
 from pathlib import Path
-from datetime import datetime, timedelta, timezone, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
 
 logger = logging.getLogger("TITAN-FORENSIC-SYNTH")

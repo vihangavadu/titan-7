@@ -41,7 +41,7 @@ import logging
 # ═══════════════════════════════════════════════════════════════════════════
 
 TITAN_ROOT = Path("/opt/titan")
-LEGACY_ROOT = Path("/opt/lucid-empire")
+LEGACY_ROOT = Path("/opt/titan")
 PROFILES_DIR = TITAN_ROOT / "profiles"
 STATE_DIR = TITAN_ROOT / "state"
 EXTENSIONS_DIR = TITAN_ROOT / "extensions"

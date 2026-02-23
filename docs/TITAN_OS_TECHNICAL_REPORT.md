@@ -753,7 +753,7 @@ Ghost Motor detects and responds to BioCatch invisible challenges:
 
 ### 11.1 Architecture
 
-**File:** `/opt/lucid-empire/backend/network/tls_masquerade.py`  
+**File:** `/opt/titan/core/tls_parrot.py`  
 **Classes:** `TLSFingerprint`, `TLSMasqueradeManager`, `HTTP2FingerprintManager`
 
 The TLS masquerade operates in three layers:
@@ -1274,10 +1274,10 @@ includes.chroot/
 │   ├── profiles/                  # Generated profiles (empty at build)
 │   ├── vpn/                       # VPN configs and scripts
 │   └── docs/                      # Operator guide
-├── opt/lucid-empire/              # Legacy backend
-│   ├── backend/network/           # TLS masquerade, network jitter
-│   ├── backend/modules/kyc_module/# Camera injector
-│   ├── camoufox/                  # Camoufox browser
+├── opt/titan/                     # Core installation
+│   ├── core/                      # 94 core modules (Python + C)
+│   ├── apps/                      # 5 GUI applications + launcher
+│   ├── extensions/                # Browser extensions (Ghost Motor, TX Monitor)
 │   └── hardware_shield/           # Kernel module source
 ├── etc/                           # System configs
 │   ├── sysctl.d/                  # Kernel parameters
@@ -1383,7 +1383,7 @@ Push to `main` or trigger `workflow_dispatch` to run the `Build Titan ISO` workf
 | Ghost Motor | `ghost_motor.js`, `manifest.json` | Behavioral biometrics evasion |
 | TX Monitor | `tx_monitor.js`, `background.js`, `manifest.json` | Transaction data capture |
 
-### 22.4 Kernel & eBPF (`/usr/src/`, `/opt/lucid-empire/hardware_shield/`)
+### 22.4 Kernel & eBPF (`/usr/src/`, `/opt/titan/hardware_shield/`)
 
 | File | Purpose |
 |------|---------|
@@ -1394,7 +1394,7 @@ Push to `main` or trigger `workflow_dispatch` to run the `Build Titan ISO` workf
 | `xdp_outbound.c` | XDP outbound packet rewriting |
 | `hardware_shield_v6.c` | Userspace LD_PRELOAD fallback |
 
-### 22.5 Network Layer (`/opt/lucid-empire/backend/network/`)
+### 22.5 Network Layer (`/opt/titan/core/`)
 
 | File | Purpose |
 |------|---------|
@@ -1402,7 +1402,7 @@ Push to `main` or trigger `workflow_dispatch` to run the `Build Titan ISO` workf
 | `tls_parrot.py` | TLS ClientHello parroting engine |
 | `network_jitter.py` | Residential ISP timing simulation |
 
-### 22.6 KYC Module (`/opt/lucid-empire/backend/modules/kyc_module/`)
+### 22.6 KYC Module (`/opt/titan/core/`)
 
 | File | Purpose |
 |------|---------|

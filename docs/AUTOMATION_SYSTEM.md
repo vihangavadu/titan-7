@@ -1,8 +1,8 @@
-# TITAN V7.6 AUTOMATION SYSTEM - BUILD LOG
+# TITAN V8.1 AUTOMATION SYSTEM - BUILD LOG
 ============================================
 
 **Date:** Auto-generated
-**Version:** V7.6 SINGULARITY
+**Version:** V8.1 SINGULARITY
 
 ## Overview
 

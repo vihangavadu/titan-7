@@ -481,9 +481,9 @@ def run_preflight_checks(profile_path: str) -> Dict[str, Any]:
     
     try:
         import sys
-        _lp = Path("/opt/lucid-empire")
+        _lp = Path("/opt/titan")
         if _lp.exists():
-            for _s in [str(_lp), str(_lp / "backend")]:
+            for _s in [str(_lp), str(_lp / "core")]:
                 if _s not in sys.path:
                     sys.path.insert(0, _s)
         

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.1 SINGULARITY — Verification Compliance Module
+TITAN V8.2 SINGULARITY — Verification Compliance Module
 Virtual Camera Controller GUI
 
 PyQt6 Desktop Application for system-level virtual camera control.
@@ -82,6 +82,15 @@ try:
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
+
+# V8.2: Cross-app session state
+try:
+    from titan_session import get_session, save_session
+    _SESSION_OK = True
+except ImportError:
+    _SESSION_OK = False
+    def get_session(): return {}
+    def save_session(d): return False
 
 # V8.1 Deep Identity Verification (formerly orphaned)
 try:
@@ -184,7 +193,7 @@ class KYCApp(QMainWindow):
         self.refresh_cameras()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.0 — Verification Compliance Module")
+        self.setWindowTitle("TITAN V8.2 — KYC Studio")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, "#9c27b0")

@@ -1341,6 +1341,27 @@ class TargetDiscovery:
         """
         result = self.probe.probe(domain)
         
+        # V8.3: Try FlareSolverr for Cloudflare-protected targets first
+        try:
+            _flare_url = os.getenv("TITAN_FLARESOLVERR_URL", "http://127.0.0.1:8191")
+            import requests as _flare_req
+            _flare_resp = _flare_req.post(
+                f"{_flare_url}/v1",
+                json={"cmd": "request.get", "url": f"https://{domain}",
+                      "maxTimeout": 30000},
+                timeout=35,
+            )
+            if _flare_resp.status_code == 200:
+                _flare_data = _flare_resp.json()
+                if _flare_data.get("status") == "ok":
+                    result["flaresolverr"] = {
+                        "cf_bypassed": True,
+                        "status_code": _flare_data.get("solution", {}).get("status", 0),
+                    }
+                    logger.debug(f"FlareSolverr bypassed CF for {domain}")
+        except Exception:
+            pass  # FlareSolverr optional — continue with Playwright
+
         # V7.6: Enhance with self-hosted Playwright deep probe
         try:
             from titan_self_hosted_stack import get_target_prober
@@ -1364,7 +1385,25 @@ class TargetDiscovery:
                         result["psp"] = deep["payment_processors"][0]
         except Exception:
             pass
-        
+
+        # V9.1: Wappalyzer tech stack detection
+        try:
+            from titan_self_hosted_stack import get_tech_detector
+            detector = get_tech_detector()
+            if detector and detector.is_available:
+                url = f"https://{domain}" if not domain.startswith("http") else domain
+                tech = detector.detect(url)
+                if tech:
+                    result["tech_stack"] = tech
+                    # Auto-detect PSP from tech stack
+                    psp_techs = {"stripe", "adyen", "braintree", "paypal", "square",
+                                 "shopify payments", "woocommerce payments", "klarna"}
+                    for t_name in tech:
+                        if t_name.lower() in psp_techs and result.get("psp") == "unknown":
+                            result["psp"] = t_name.lower()
+        except Exception:
+            pass
+
         # Check if site already exists in database
         existing = next((s for s in self.sites if s.domain == domain), None)
         if existing:

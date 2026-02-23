@@ -77,7 +77,7 @@ This module provides the core logic for the Trinity Apps:
 - KYC (Identity Mask)
 """
 
-__version__ = "8.1.0"
+__version__ = "8.2.0"
 __author__ = "Dva.12"
 __status__ = "SINGULARITY_V8"
 __codename__ = "MAXIMUM_LEVEL"
@@ -213,6 +213,22 @@ except ImportError:
     TargetSiteProber = get_target_prober = None
     TechStackDetector = get_tech_detector = None
     MinIOClient = get_minio_client = None
+
+# V9.1 Webhook Integrations (Changedetection.io, n8n, Uptime Kuma alerts)
+try:
+    from .titan_webhook_integrations import (
+        start_webhook_server, get_webhook_stats, get_recent_events,
+    )
+except ImportError:
+    start_webhook_server = get_webhook_stats = get_recent_events = None
+
+# V9.1 Prometheus Metrics Exporter
+try:
+    from .payment_success_metrics import (
+        TitanPrometheusExporter, get_prometheus_exporter, start_prometheus_exporter,
+    )
+except ImportError:
+    TitanPrometheusExporter = get_prometheus_exporter = start_prometheus_exporter = None
 
 # V7.6 Target Intelligence V2 — Golden Path Scoring
 try:
@@ -514,6 +530,92 @@ except ImportError:
     detect_wireguard_interface = attach_shield_to_mullvad = safe_boot_mullvad = None
     MULLVAD_RESIDENTIAL_PROFILE = None
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# V8.2 ORPHAN FIX: 13 modules on disk but not registered in __init__.py
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Chromium commerce injector (purchase funnel into Chrome History DB)
+try:
+    from .chromium_commerce_injector import inject_golden_chain as inject_chrome_commerce
+except ImportError:
+    inject_chrome_commerce = None
+
+# LevelDB writer (Chrome localStorage binary writes)
+try:
+    from .leveldb_writer import LevelDBWriter
+except ImportError:
+    LevelDBWriter = None
+
+# Master Verification Protocol (4-layer preflight)
+try:
+    from .titan_master_verify import (
+        VerificationOrchestrator, VerificationHistory, RemediationEngine,
+        get_verification_orchestrator, get_remediation_engine, MasterVerifyReport,
+    )
+except ImportError:
+    VerificationOrchestrator = VerificationHistory = RemediationEngine = None
+    get_verification_orchestrator = get_remediation_engine = MasterVerifyReport = None
+
+# MCP Interface (autonomous tool execution via Model Context Protocol)
+try:
+    from .mcp_interface import MCPClient
+except ImportError:
+    MCPClient = None
+
+# NTP Isolation (temporal severance)
+try:
+    from .ntp_isolation import IsolationManager as NTPIsolationManager
+except ImportError:
+    NTPIsolationManager = None
+
+# Time Safety Validator
+try:
+    from .time_safety_validator import SafetyValidator as TimeSafetyValidator
+except ImportError:
+    TimeSafetyValidator = None
+
+# Forensic Alignment (timestamp manipulation)
+try:
+    from .forensic_alignment import ForensicAlignment
+except ImportError:
+    ForensicAlignment = None
+
+# TLS Mimic (curl_cffi Chrome TLS fingerprint)
+try:
+    from .tls_mimic import TLSMimic
+except ImportError:
+    TLSMimic = None
+
+# Canvas Noise Generator
+try:
+    from .canvas_noise import CanvasNoiseGenerator
+except ImportError:
+    CanvasNoiseGenerator = None
+
+# Profile Realism Engine
+try:
+    from .profile_realism_engine import ProfileRealismEngine
+except ImportError:
+    ProfileRealismEngine = None
+
+# Forensic Synthesis Engine (Cache2 binary artifacts)
+try:
+    from .forensic_synthesis_engine import Cache2Synthesizer
+except ImportError:
+    Cache2Synthesizer = None
+
+# GAMP Triangulation V2 (GA4 event verification)
+try:
+    from .gamp_triangulation_v2 import GAMPTriangulation as GAMPTriangulationV2
+except ImportError:
+    GAMPTriangulationV2 = None
+
+# Oblivion Setup (Chrome forge dependency installer)
+try:
+    from .oblivion_setup import check_python_version as oblivion_check_deps
+except ImportError:
+    oblivion_check_deps = None
+
 __all__ = [
     # Trinity Apps Core
     'GenesisEngine', 'ProfileConfig', 'TargetPreset',
@@ -717,4 +819,11 @@ __all__ = [
     'GAMPTriangulation', 'EntropyGenerator', 'JourneySimulator',
     'TimeDilator', 'ProfileBurner', 'ChromeCryptoEngine',
     'MultiloginForgeEngine',
+    # V8.2 Orphan Fix: 13 previously unregistered modules
+    'inject_chrome_commerce', 'LevelDBWriter',
+    'VerificationOrchestrator', 'VerificationHistory', 'RemediationEngine',
+    'get_verification_orchestrator', 'get_remediation_engine', 'MasterVerifyReport',
+    'MCPClient', 'NTPIsolationManager', 'TimeSafetyValidator',
+    'ForensicAlignment', 'TLSMimic', 'CanvasNoiseGenerator',
+    'ProfileRealismEngine', 'Cache2Synthesizer', 'GAMPTriangulationV2',
 ]

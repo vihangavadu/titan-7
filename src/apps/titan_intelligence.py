@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.1 INTELLIGENCE CENTER — AI Analysis & Strategy
+TITAN V8.2 INTELLIGENCE CENTER — AI Analysis & Strategy
 =========================================================
 AI-powered analysis, 3DS strategy, detection analysis, real-time copilot.
 
@@ -48,6 +48,15 @@ CYAN = "#00d4ff"
 # CORE IMPORTS — 20 modules (8 previously orphaned, now wired)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# V8.2: Cross-app session state
+try:
+    from titan_session import get_session, save_session
+    _SESSION_OK = True
+except ImportError:
+    _SESSION_OK = False
+    def get_session(): return {}
+    def save_session(d): return False
+
 # Tab 1: AI COPILOT
 try:
     from titan_realtime_copilot import RealtimeCopilot as TitanRealtimeCopilot
@@ -59,7 +68,11 @@ try:
     from ai_intelligence_engine import (
         is_ai_available, get_ai_status, analyze_bin, recon_target,
         advise_3ds, advise_preflight, tune_behavior, audit_profile,
-        plan_operation, AIOperationPlan
+        plan_operation, AIOperationPlan,
+        # V8.3: Detection vector sanitization
+        track_defense_changes, autopsy_decline, optimize_cross_session,
+        validate_fingerprint_coherence, validate_identity_graph,
+        score_environment_coherence, optimize_card_rotation,
     )
     AI_OK = True
 except ImportError:
@@ -187,6 +200,7 @@ except ImportError:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class AIQueryWorker(QThread):
+    """V8.11: Streaming AI worker — emits chunks via progress signal for non-blocking UI."""
     finished = pyqtSignal(str)
     progress = pyqtSignal(str)
 
@@ -197,18 +211,28 @@ class AIQueryWorker(QThread):
 
     def run(self):
         result = "AI not available"
-        if AI_OK:
+        if OLLAMA_OK:
             try:
+                bridge = OllamaBridge()
+                # V8.11: Try streaming first for responsive UI
+                if hasattr(bridge, 'query_stream'):
+                    chunks = []
+                    for chunk in bridge.query_stream(self.query, context=self.context):
+                        chunks.append(chunk)
+                        self.progress.emit(chunk)
+                    result = "".join(chunks)
+                else:
+                    self.progress.emit("Querying AI (this may take a moment)...")
+                    result = bridge.query(self.query, context=self.context)
+            except Exception as e:
+                result = f"Ollama error: {e}"
+        elif AI_OK:
+            try:
+                self.progress.emit("Running AI analysis...")
                 plan = plan_operation(self.query)
                 result = json.dumps(plan.__dict__ if hasattr(plan, '__dict__') else str(plan), indent=2, default=str)
             except Exception as e:
                 result = f"AI error: {e}"
-        elif OLLAMA_OK:
-            try:
-                bridge = OllamaBridge()
-                result = bridge.query(self.query, context=self.context)
-            except Exception as e:
-                result = f"Ollama error: {e}"
         self.finished.emit(result)
 
 
@@ -265,9 +289,10 @@ class TitanIntelligence(QMainWindow):
         super().__init__()
         self.init_ui()
         self.apply_theme()
+        QTimer.singleShot(300, self._restore_session_context)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.1 — Intelligence Center")
+        self.setWindowTitle("TITAN V8.2 — Intelligence Center")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -712,6 +737,52 @@ class TitanIntelligence(QMainWindow):
         self.tabs.addTab(scroll, "MEMORY")
 
     # ═══════════════════════════════════════════════════════════════════════
+    # V8.2: SESSION CONTEXT — auto-populate from Operations Center
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _restore_session_context(self):
+        """Read shared session and auto-populate fields from Operations Center."""
+        if not _SESSION_OK:
+            return
+        try:
+            s = get_session()
+            target = s.get("current_target", "")
+            card = s.get("card", {})
+            bin_prefix = card.get("number", "")[:8] if card.get("number") else ""
+
+            if target:
+                self.tds_target.setText(target)
+                self.recon_target.setText(target)
+                self.tls_target.setText(target)
+            if bin_prefix:
+                self.tds_bin.setText(bin_prefix)
+        except Exception:
+            pass
+
+    def _get_session_context(self) -> str:
+        """Build context string from shared session for AI queries."""
+        if not _SESSION_OK:
+            return ""
+        try:
+            s = get_session()
+            parts = []
+            if s.get("current_target"):
+                parts.append(f"Target: {s['current_target']}")
+            if s.get("card", {}).get("number"):
+                parts.append(f"BIN: {s['card']['number'][:8]}")
+            if s.get("current_country"):
+                parts.append(f"Country: {s['current_country']}")
+            if s.get("current_proxy"):
+                parts.append(f"Proxy: {s['current_proxy']}")
+            if s.get("vpn_status", {}).get("connected"):
+                parts.append(f"VPN: {s['vpn_status'].get('exit_ip', 'connected')}")
+            if s.get("last_validation", {}).get("status"):
+                parts.append(f"Last validation: {s['last_validation']['status']}")
+            return "Current session: " + " | ".join(parts) if parts else ""
+        except Exception:
+            return ""
+
+    # ═══════════════════════════════════════════════════════════════════════
     # ACTIONS
     # ═══════════════════════════════════════════════════════════════════════
 
@@ -723,7 +794,8 @@ class TitanIntelligence(QMainWindow):
         self.copilot_history.append(f"\n> {query}")
         self.copilot_send.setEnabled(False)
 
-        self._ai_worker = AIQueryWorker(query)
+        context = self._get_session_context()
+        self._ai_worker = AIQueryWorker(query, context=context)
         self._ai_worker.finished.connect(self._on_copilot_response)
         self._ai_worker.start()
 

@@ -1,4 +1,4 @@
-# TITAN V7.0 SINGULARITY — Build & Deploy Guide
+# TITAN V8.1 SINGULARITY — Build & Deploy Guide
 
 **For Windows operators without WSL/Docker. Build on a cloud VPS, deploy on a separate VPS.**
 
@@ -85,7 +85,7 @@ bash scripts/cloud_build.sh
 This will:
 1. Install all build dependencies (live-build, debootstrap, etc.)
 2. Run `build_iso.sh` through all 9 phases
-3. Output: `/root/titan-main/lucid-titan-v7.0-singularity.iso`
+3. Output: `/root/titan-main/titan-v8.1-singularity.iso`
 
 **Build time:** 30–90 minutes depending on VPS speed and network.
 
@@ -95,10 +95,10 @@ After the build completes, download the ISO to your Windows machine. In **Git Ba
 
 ```bash
 # Download ISO
-scp root@<VPS_IP>:/root/titan-main/lucid-titan-v7.0-singularity.iso "/c/Users/Administrator/Desktop/"
+scp root@<VPS_IP>:/root/titan-main/titan-v8.1-singularity.iso "/c/Users/Administrator/Desktop/"
 
 # Download checksum
-scp root@<VPS_IP>:/root/titan-main/lucid-titan-v7.0-singularity.iso.sha256 "/c/Users/Administrator/Desktop/"
+scp root@<VPS_IP>:/root/titan-main/titan-v8.1-singularity.iso.sha256 "/c/Users/Administrator/Desktop/"
 ```
 
 ### A.7 — Destroy the Build VPS
@@ -175,7 +175,7 @@ The exact steps vary by provider. Here are the most common:
 #### Kamatera
 1. Go to **My Cloud → Servers → Create New Server**
 2. Choose **"My ISO"** under OS selection
-3. Upload `lucid-titan-v7.0-singularity.iso` via the dashboard
+3. Upload `titan-v8.1-singularity.iso` via the dashboard
 4. Select your specs (4 vCPU, 8 GB RAM, 100 GB SSD)
 5. Create — the server boots from your ISO
 
@@ -187,7 +187,7 @@ The exact steps vary by provider. Here are the most common:
 
 #### Vultr
 1. Go to **Products → ISOs → Add ISO**
-2. Upload `lucid-titan-v7.0-singularity.iso` (direct upload or URL)
+2. Upload `titan-v8.1-singularity.iso` (direct upload or URL)
 3. Create new server → Choose **"Upload ISO"** as OS
 4. Select your plan and deploy
 

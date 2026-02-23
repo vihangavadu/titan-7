@@ -87,8 +87,29 @@ class AdvancedProfileConfig:
     
     # Fingerprint
     canvas_noise_level: float = 0.001
-    webgl_vendor: str = "Google Inc. (NVIDIA)"
-    webgl_renderer: str = "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    webgl_vendor: str = ""
+    webgl_renderer: str = ""
+    
+    def __post_init__(self):
+        """Auto-select WebGL vendor/renderer based on hardware_profile if not explicitly set."""
+        if not self.webgl_vendor or not self.webgl_renderer:
+            gpu_map = {
+                "us_windows_desktop": ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+                "us_windows_desktop_amd": ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 7600 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+                "us_windows_desktop_intel": ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics 770 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+                "us_macbook_pro": ("Apple", "Apple M1 Pro"),
+                "us_macbook_air_m2": ("Apple", "Apple M2"),
+                "us_macbook_m1": ("Apple", "Apple M1"),
+                "us_windows_laptop": ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+                "us_windows_laptop_gaming": ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Laptop GPU Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+                "us_windows_laptop_budget": ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+                "linux_desktop": ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
+            }
+            vendor, renderer = gpu_map.get(self.hardware_profile, ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)"))
+            if not self.webgl_vendor:
+                self.webgl_vendor = vendor
+            if not self.webgl_renderer:
+                self.webgl_renderer = renderer
     
     # Temporal
     profile_age_days: int = 95

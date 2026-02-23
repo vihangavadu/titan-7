@@ -122,11 +122,11 @@ AUDIO_OS_PROFILES = {
 # Firefox prefs that control AudioContext behavior
 AUDIO_FIREFOX_PREFS = {
     "core": {
-        # RFP forces sample rate to 44100 and reduces timer precision
-        "privacy.resistFingerprinting": True,
+        # Use FPP instead of full RFP — RFP breaks CSS/layout on many sites
+        "privacy.resistFingerprinting": False,
         # FPP with overrides — protect audio without breaking CSS
         "privacy.fingerprintingProtection": True,
-        "privacy.fingerprintingProtection.overrides": "+AllTargets,-CSSPrefersColorScheme",
+        "privacy.fingerprintingProtection.overrides": "+AllTargets,-CSSPrefersColorScheme,-CSSPrefersReducedMotion",
         # Disable audio channel promiscuous mode
         "dom.audiochannel.audioCompeting": False,
     },

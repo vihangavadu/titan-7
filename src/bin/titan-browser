@@ -16,7 +16,7 @@
 set -e
 
 TITAN_ROOT="/opt/titan"
-LEGACY_ROOT="/opt/lucid-empire"
+LEGACY_ROOT="/opt/titan"
 PROFILES_DIR="$TITAN_ROOT/profiles"
 STATE_DIR="$TITAN_ROOT/state"
 
@@ -324,10 +324,10 @@ case "$BROWSER_TYPE" in
 import sys, os
 os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
 sys.path.insert(0, '/opt/titan/core')
-if os.path.isdir('/opt/lucid-empire'):
-    sys.path.insert(0, '/opt/lucid-empire')
-    if os.path.isdir('/opt/lucid-empire/backend'):
-        sys.path.insert(0, '/opt/lucid-empire/backend')
+if os.path.isdir('/opt/titan'):
+    sys.path.insert(0, '/opt/titan')
+    if os.path.isdir('/opt/titan/core'):
+        sys.path.insert(0, '/opt/titan/core')
 
 from camoufox.sync_api import Camoufox
 from camoufox import DefaultAddons

@@ -8,7 +8,7 @@ PWD := $(shell pwd)
 obj-m += hardware_shield_v6.o
 
 # Install paths
-INSTALL_DIR := /opt/lucid-empire/hardware_shield
+INSTALL_DIR := /opt/titan/hardware_shield
 MODULE_NAME := titan_hw
 
 all: module
@@ -21,9 +21,9 @@ clean:
 
 install: module
 	@mkdir -p $(INSTALL_DIR)
-	@mkdir -p /opt/lucid-empire/kernel-modules
+	@mkdir -p /opt/titan/kernel-modules
 	cp hardware_shield_v6.ko $(INSTALL_DIR)/$(MODULE_NAME).ko
-	cp hardware_shield_v6.ko /opt/lucid-empire/kernel-modules/$(MODULE_NAME).ko
+	cp hardware_shield_v6.ko /opt/titan/kernel-modules/$(MODULE_NAME).ko
 	@echo "TITAN Hardware Shield installed to $(INSTALL_DIR)/$(MODULE_NAME).ko"
 
 load: install

@@ -140,6 +140,9 @@ class PreFlightValidator:
         self._check_timezone()
         self._check_system_locale()
         
+        # V9.1: Service health via Uptime Kuma (if deployed)
+        self._check_service_health()
+        
         # V8 U14-FIX: Fingerprint readiness check
         self._check_fingerprint_readiness()
         
@@ -486,6 +489,32 @@ class PreFlightValidator:
                     message=f"Connected via {ip_info.get('ip', 'unknown')}",
                     details=ip_info
                 ))
+                # V9.1: Enrich with ProxyHealthMonitor scoring
+                try:
+                    from titan_self_hosted_stack import get_proxy_health_monitor
+                    phm = get_proxy_health_monitor()
+                    if phm and phm.is_available:
+                        health = phm.check_proxy(self.proxy_url)
+                        if health and health.get("latency_ms"):
+                            proxy_details = {
+                                "latency_ms": health.get("latency_ms"),
+                                "anonymity": health.get("anonymity_level", "unknown"),
+                                "reputation_score": health.get("reputation_score", 0),
+                            }
+                            status = CheckStatus.PASS
+                            msg = f"Proxy health: {health.get('latency_ms')}ms latency, {health.get('anonymity_level', 'unknown')} anonymity"
+                            if health.get("reputation_score", 100) < 30:
+                                status = CheckStatus.WARN
+                                msg = f"LOW REPUTATION proxy ({health.get('reputation_score')}/100) — consider rotating"
+                            self.report.checks.append(PreFlightCheck(
+                                name="Proxy Health Score",
+                                status=status,
+                                message=msg,
+                                details=proxy_details,
+                                critical=False,
+                            ))
+                except Exception:
+                    pass
             else:
                 self.report.checks.append(PreFlightCheck(
                     name="Proxy Connection",
@@ -853,6 +882,45 @@ class PreFlightValidator:
                 critical=False
             ))
     
+    def _check_service_health(self):
+        """V9.1: Check critical service health via Uptime Kuma (if deployed)."""
+        try:
+            from titan_self_hosted_stack import get_uptime_kuma
+            kuma = get_uptime_kuma()
+            if not kuma or not kuma.is_available:
+                return  # Uptime Kuma not deployed — skip silently
+
+            monitors = kuma.get_all_monitors()
+            if not monitors:
+                return
+
+            critical_services = {"ollama", "redis", "xray"}
+            down_services = []
+
+            for mon in monitors:
+                name_lower = mon.get("name", "").lower()
+                status = mon.get("active", True)
+                if any(svc in name_lower for svc in critical_services):
+                    if not status:
+                        down_services.append(mon.get("name", "unknown"))
+
+            if down_services:
+                self.report.checks.append(PreFlightCheck(
+                    name="Service Health (Uptime Kuma)",
+                    status=CheckStatus.WARN,
+                    message=f"Services DOWN: {', '.join(down_services)}",
+                    critical=False,
+                    details={"down_services": down_services}
+                ))
+            else:
+                self.report.checks.append(PreFlightCheck(
+                    name="Service Health (Uptime Kuma)",
+                    status=CheckStatus.PASS,
+                    message=f"All {len(monitors)} monitored services UP",
+                ))
+        except Exception as e:
+            logger.debug(f"Uptime Kuma health check skipped: {e}")
+
     def _check_fingerprint_readiness(self):
         """V8 U14-FIX: Check if fingerprint shim modules are available for injection"""
         shim_modules = {

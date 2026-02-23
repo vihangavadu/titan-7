@@ -4,8 +4,9 @@ Forensic Cleaner: rewrites all SQLite databases in a Titan profile
 to match EXACT real Firefox schemas, PRAGMAs, and formatting.
 Run AFTER profile generation as a post-processing step.
 """
-import sqlite3, os, struct, json, secrets, random, time, shutil
+import sqlite3, os, struct, json, secrets, random, time, shutil, logging
 from pathlib import Path
+_log = logging.getLogger('TITAN-FORENSIC-CLEANER')
 
 def clean_profile(profile_path):
     pp = Path(profile_path)
@@ -56,7 +57,7 @@ def clean_profile(profile_path):
         perms_data = conn.execute('SELECT * FROM moz_perms').fetchall()
         hosts_data = []
         try: hosts_data = conn.execute('SELECT * FROM moz_hosts').fetchall()
-        except Exception: pass
+        except Exception as _e: _log.warning(f'moz_hosts not present (expected on fresh profile): {_e}')
         conn.close()
         
         perm_db.unlink()

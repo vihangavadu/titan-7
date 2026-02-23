@@ -546,7 +546,7 @@ class GenesisEngine:
         for day in range(config.age_days):
             # Pareto distribution: more entries for recent days
             day_weight = 1.0 / (1 + day * 0.1)
-            num_entries = max(1, int(random.paretovariate(1.5) * 3 * day_weight))
+            num_entries = max(1, int(self._rng.paretovariate(1.5) * 3 * day_weight))
             
             for _ in range(num_entries):
                 # Apply circadian rhythm
@@ -1854,9 +1854,9 @@ class GenesisEngine:
         try:
             import sys
             from pathlib import Path as _P
-            _lp = _P("/opt/lucid-empire")
+            _lp = _P("/opt/titan")
             if _lp.exists():
-                for _s in [str(_lp), str(_lp / "backend")]:
+                for _s in [str(_lp), str(_lp / "core")]:
                     if _s not in sys.path:
                         sys.path.insert(0, _s)
             

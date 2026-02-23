@@ -622,26 +622,35 @@ class MullvadVPN:
     # PHASE 5: CONNECTION + eBPF HOOKING
     # ═══════════════════════════════════════════════════════════════════════
 
-    def connect(self) -> bool:
-        """Establish Mullvad WireGuard connection."""
-        self.status = ConnectionStatus.CONNECTING
-        rc, _, err = self._run_mullvad("connect", timeout=60)
-        if rc != 0:
-            logger.error(f"Connection failed: {err}")
-            self.status = ConnectionStatus.ERROR
-            return False
+    def connect(self, max_relay_retries: int = 3) -> bool:
+        """V8.3 FIX #7: Establish Mullvad WireGuard connection with 120s timeout + relay retry."""
+        for attempt in range(max_relay_retries):
+            self.status = ConnectionStatus.CONNECTING
+            rc, _, err = self._run_mullvad("connect", timeout=120)
+            if rc != 0:
+                logger.error(f"Connection attempt {attempt + 1} failed: {err}")
+                self.status = ConnectionStatus.ERROR
+                if attempt < max_relay_retries - 1:
+                    logger.info(f"Cycling to next relay node (attempt {attempt + 2}/{max_relay_retries})...")
+                    self._run_mullvad("relay", "set", "location", "any", timeout=10)
+                    time.sleep(2)
+                continue
 
-        # Wait for tunnel to stabilize
-        for i in range(15):
-            time.sleep(1)
-            status = self.get_status()
-            if status.get("state") == "Connected":
-                self.status = ConnectionStatus.CONNECTED
-                self.current_ip = self._get_exit_ip()
-                logger.info(f"Connected via Mullvad — Exit IP: {self.current_ip}")
-                return True
+            # Wait up to 120s for tunnel to stabilize (24 × 5s polls)
+            for i in range(24):
+                time.sleep(5)
+                status = self.get_status()
+                if status.get("state") == "Connected":
+                    self.status = ConnectionStatus.CONNECTED
+                    self.current_ip = self._get_exit_ip()
+                    logger.info(f"Connected via Mullvad — Exit IP: {self.current_ip}")
+                    return True
 
-        logger.error("Connection timed out waiting for tunnel")
+            logger.warning(f"Tunnel stabilization timed out on attempt {attempt + 1}, retrying relay...")
+            self._run_mullvad("disconnect", timeout=10)
+            time.sleep(3)
+
+        logger.error("Mullvad connection failed after all relay retry attempts")
         self.status = ConnectionStatus.ERROR
         return False
 

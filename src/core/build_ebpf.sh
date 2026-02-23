@@ -7,7 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="${SCRIPT_DIR}/network_shield_v6.c"
-OUT_DIR="/opt/lucid-empire/ebpf"
+OUT_DIR="/opt/titan/ebpf"
 BPF_PIN_DIR="/sys/fs/bpf"
 TITAN_PIN_DIR="${BPF_PIN_DIR}/titan_network_shield"
 

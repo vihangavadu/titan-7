@@ -3,7 +3,7 @@
 ## Profile Forge: Detection-Aware Identity Synthesis
 
 **Module:** `genesis_core.py` | **Lines:** 1462 | **Path:** `/opt/titan/core/genesis_core.py`  
-**Version:** 7.0.2 | **Authority:** Dva.12
+**Version:** 8.1.0 | **Authority:** Dva.12
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## Manual Operation Handbook for 95%+ Success Rate
 
-**Authority:** Dva.12 | **Version:** 6.2.0 | **Classification:** OPERATIONAL
+**Authority:** Dva.12 | **Version:** 8.11.0 | **Classification:** OPERATIONAL
 
 ---
 

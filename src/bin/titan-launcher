@@ -10,8 +10,8 @@ APPS=(
     "🔥 Genesis - Profile Forge|python3 /opt/titan/apps/app_genesis.py"
     "🛡️ Cerberus - Card Validator|python3 /opt/titan/apps/app_cerberus.py"
     "🎭 KYC - Virtual Camera|python3 /opt/titan/apps/app_kyc.py"
-    "🦊 Firefox (Lucid)|/opt/lucid-empire/bin/lucid-firefox"
-    "🌐 Chromium (Lucid)|/opt/lucid-empire/bin/lucid-chromium"
+    "🦊 Firefox (Titan)|/opt/titan/bin/titan-browser"
+    "🌐 Chromium (Titan)|/opt/titan/bin/titan-chromium"
     "📁 File Manager|pcmanfm"
     "💻 Terminal|x-terminal-emulator"
 )

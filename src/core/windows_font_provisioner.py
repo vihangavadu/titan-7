@@ -222,13 +222,20 @@ class WindowsFontProvisioner:
             # Also update local.conf
             self.LOCAL_CONF.write_text(xml)
 
-            # Rebuild font cache
-            subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=60)
+            # V8.3 FIX #9: Rebuild font cache in background thread — never blocks UI
+            import threading
+            def _rebuild_cache():
+                try:
+                    subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=120)
+                    logger.info("[FONT] fc-cache rebuild complete")
+                except Exception as e:
+                    logger.error(f"[FONT] fc-cache rebuild failed: {e}", exc_info=True)
+            threading.Thread(target=_rebuild_cache, daemon=True, name="FontCacheWorker").start()
             logger.info(f"Fontconfig written: {len(self._rejected_fonts)} rejected, "
-                        f"{len(self._aliased_fonts)} aliased")
+                        f"{len(self._aliased_fonts)} aliased (cache rebuild in background)")
             return True
         except Exception as e:
-            logger.error(f"Failed to write fontconfig: {e}")
+            logger.error(f"Failed to write fontconfig: {e}", exc_info=True)
             return False
 
     def verify(self) -> Dict:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.1 ADMIN PANEL — System Administration & Diagnostics
+TITAN V8.2 ADMIN PANEL — System Administration & Diagnostics
 =============================================================
 Consolidates: titan_mission_control.py + titan_dev_hub.py + app_bug_reporter.py
 
@@ -150,6 +150,13 @@ try:
 except ImportError:
     MASTER_AUTO_AVAILABLE = False
 
+# V8.2: MCP Interface (autonomous tool execution via Model Context Protocol)
+try:
+    from mcp_interface import MCPClient
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+
 try:
     from titan_operation_logger import OperationLog
     OP_LOG_AVAILABLE = True
@@ -276,7 +283,7 @@ class TitanAdmin(QMainWindow):
         QTimer.singleShot(300, self._run_health_check)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.1 \u2014 Admin Panel")
+        self.setWindowTitle("TITAN V8.2 — Admin Panel")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -887,6 +894,9 @@ class TitanAdmin(QMainWindow):
         dot3 = QLabel(f"{'●' if MASTER_AUTO_AVAILABLE else '○'} Master Automation")
         dot3.setStyleSheet(f"color: {GREEN if MASTER_AUTO_AVAILABLE else RED};")
         orch_status_row.addWidget(dot3)
+        dot4 = QLabel(f"{'●' if MCP_AVAILABLE else '○'} MCP Interface")
+        dot4.setStyleSheet(f"color: {GREEN if MCP_AVAILABLE else RED};")
+        orch_status_row.addWidget(dot4)
         orch_status_row.addStretch()
         of.addLayout(orch_status_row)
 

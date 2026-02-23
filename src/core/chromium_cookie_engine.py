@@ -1171,7 +1171,7 @@ def create_advanced_template():
             {
                 "origin": "https://www.google.com",
                 "key": "google_account_state",
-                "value": "{\\"logged_in\\":true,\\"last_active\\":\\"2024-01-15T10:30:00Z\\"}",
+                "value": '{"logged_in":true,"last_active":"2024-01-15T10:30:00Z"}',
                 "age_days": 180
             }
         ],

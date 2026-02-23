@@ -61,6 +61,14 @@ class ProfileRealismEngine:
 def enhance_profile(profile_path, config=None):
     pp=Path(profile_path)
     if not pp.exists(): raise FileNotFoundError(profile_path)
+    # V8.3 FIX #11: Verify minimum 1GB free disk space before synthesis
+    try:
+        st=os.statvfs(str(pp))
+        free_bytes=st.f_bavail*st.f_frsize
+        if free_bytes < 1*1024**3:
+            raise OSError(f'Insufficient disk space: {free_bytes//1024**2}MB free, need 1024MB minimum')
+    except AttributeError:
+        pass  # os.statvfs not available on Windows dev env
     config=config or {}
     profile_age=config.get('profile_age_days',95)
     ua=config.get('user_agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0')
@@ -176,7 +184,7 @@ def _gen_prefs_js(pp,config,ua,cts):
     p('gfx.webrender.all',True)
     p('idle.lastDailyNotification',now-random.randint(0,86400))
     p('intl.accept_languages','en-US, en')
-    _abi='x86_64-msvc' if 'Windows' in ua else ('x86_64-gcc3' if 'Macintosh' not in ua else 'x86_64-gcc3')
+    _abi='x86_64-msvc-x64' if 'Windows' in ua else 'x86_64-gcc3'
     p('media.gmp-gmpopenh264.abi',_abi)
     p('media.gmp-gmpopenh264.version','2.3.2')
     p('media.gmp-manager.buildID','20260212191108')

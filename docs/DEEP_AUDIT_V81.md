@@ -30,7 +30,7 @@
 | 1 | Chrome UA hardcoded to `Chrome/131.0.0.0` in hardware profiles | HIGH | Update to Chrome/133 or 134 (current stable) |
 | 2 | `_generate_history()` uses `random.paretovariate()` not seeded `self._rng` | MEDIUM | Use `self._rng.paretovariate()` for deterministic profiles |
 | 3 | Favicon bitmaps store `None` for image_data | MEDIUM | Generate real tiny PNG like profile_realism_engine does |
-| 4 | `forge_with_integration()` references `/opt/lucid-empire` path | LOW | Dead code — remove or update to `/opt/titan` |
+| 4 | `forge_with_integration()` references `/opt/lucid-empire` path | LOW | **FIXED** — updated to `/opt/titan` |
 | 5 | `_generate_title()` only maps 4 domains | LOW | Expand to cover all 20 common_domains |
 | 6 | Missing: WebExtension storage (uBlock Origin, etc.) | MEDIUM | Real users have 1-3 extensions installed |
 | 7 | Missing: Firefox sessionstore.jsonlz4 | MEDIUM | Empty sessionstore = fresh profile indicator |
@@ -446,7 +446,7 @@
 - **STRENGTH:** `verify_deep_identity.py` is a comprehensive pre-flight validator checking fonts, audio, timezone, prefs.js for Linux leaks
 - **MEDIUM:** KYC modules depend on v4l2loopback kernel module — need pre-check and automated installation
 - **MEDIUM:** Voice cloning (Coqui XTTS) requires a reference audio sample — should document how to obtain one
-- **LOW:** `verify_deep_identity.py` still references `/opt/lucid-empire` legacy path
+- **LOW:** `verify_deep_identity.py` `/opt/lucid-empire` legacy path — **FIXED** (updated to `/opt/titan`)
 
 **Total Batch 7 Lines:** ~6,839
 
