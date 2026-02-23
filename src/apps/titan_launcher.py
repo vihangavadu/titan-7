@@ -402,7 +402,7 @@ class TitanLauncher(QMainWindow):
 
         # AI
         try:
-            from ollama_bridge import OllamaBridge
+            from ollama_bridge import LLMLoadBalancer as OllamaBridge
             bridge = OllamaBridge()
             if bridge.is_available():
                 self.h_ai.set_status("Ollama OK", GREEN)

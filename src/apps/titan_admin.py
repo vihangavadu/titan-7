@@ -96,7 +96,7 @@ except ImportError:
     PATCHER_AVAILABLE = False
 
 try:
-    from ollama_bridge import OllamaBridge
+    from ollama_bridge import LLMLoadBalancer as OllamaBridge
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False

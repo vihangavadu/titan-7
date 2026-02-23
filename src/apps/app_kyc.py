@@ -94,7 +94,7 @@ except ImportError:
 
 # V8.1 Deep Identity Verification (formerly orphaned)
 try:
-    from verify_deep_identity import DeepIdentityVerifier, IdentityConfig
+    from verify_deep_identity import DeepIdentityOrchestrator, IdentityConsistencyChecker
     DEEP_IDENTITY_AVAILABLE = True
 except ImportError:
     DEEP_IDENTITY_AVAILABLE = False
@@ -102,8 +102,8 @@ except ImportError:
 # V8.1 ToF Depth Synthesis for 3D liveness bypass (formerly orphaned)
 try:
     from tof_depth_synthesis import (
-        ToFDepthSynthesizer, DepthQuality, SensorType,
-        FacialLandmarks, generate_depth_map, synthesize_ir_pattern,
+        FaceDepthGenerator, DepthQuality, SensorType,
+        FacialLandmarks, get_depth_generator, generate_depth_sequence,
     )
     TOF_DEPTH_AVAILABLE = True
 except ImportError:

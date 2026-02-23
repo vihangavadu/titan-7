@@ -294,6 +294,61 @@ Location, timezone, hardware, sensor, and device spoofing.
 
 ---
 
+## GUI App Architecture (10 apps, 38 tabs, 362 imports)
+
+### 3×3 Launcher Grid + Launcher
+
+| App | Accent | Tabs | Core Modules | Workers |
+|-----|--------|------|-------------|---------|
+| **Launcher** | `#00d4ff` | 3×3 Grid | 5 (kill_switch, mullvad, ollama, services) | — |
+| **Operations** | `#00d4ff` | TARGET, IDENTITY, VALIDATE, FORGE & LAUNCH, RESULTS | **51** | ValidateWorker, ForgeWorker |
+| **Intelligence** | `#a855f7` | AI COPILOT, 3DS STRATEGY, DETECTION, RECON, MEMORY | 21 | AIQueryWorker, ReconWorker |
+| **Network** | `#22c55e` | MULLVAD VPN, NETWORK SHIELD, FORENSIC, PROXY/DNS | 22 | VPNConnectWorker, ShieldAttachWorker |
+| **KYC Studio** | `#f59e0b` | CAMERA, DOCUMENTS, VOICE | 13 | StreamWorker |
+| **Admin** | `#f59e0b` | SERVICES, TOOLS, SYSTEM, AUTOMATION, CONFIG | 24 | HealthCheckWorker |
+| **Settings** | `#a855f7` | VPN, AI, SERVICES, BROWSER, API KEYS, SYSTEM | 2 | StatusWorker |
+| **Profile Forge** | `#00d4ff` | IDENTITY, FORGE, PROFILES | 14 | ForgeWorker |
+| **Card Validator** | `#eab308` | VALIDATE, INTELLIGENCE, HISTORY | 8 | ValidateWorker |
+| **Browser Launch** | `#22c55e` | LAUNCH, MONITOR, HANDOVER | 11 | PreflightWorker |
+
+### Cross-App Session (titan_session.py)
+- **Connected**: Operations, Intelligence, Network, KYC Studio, Profile Forge, Card Validator, Browser Launch
+- **Backend**: JSON file + Redis pub/sub (V9.1)
+- **Functions**: `get_session()`, `save_session()`, `update_session()`, `add_operation_result()`
+
+### GUI → Core Connectivity
+- **362 total imports**, **0 broken**
+- **107/110** unique core modules wired to GUI (**97% coverage**)
+- 3 unwired: `smoke_test_v91`, `verify_sync`, `titan_webhook_integrations` (server-side only)
+
+### GUI Fixes Applied (V9.1)
+
+| # | App | Broken Import | Fixed To |
+|---|-----|--------------|----------|
+| 1 | titan_launcher.py | `OllamaBridge` | `LLMLoadBalancer as OllamaBridge` |
+| 2 | titan_operations.py | `LocationSpooferLinux` | `LinuxLocationSpoofer` |
+| 3 | titan_operations.py | `USBPeripheralSynth` | `USBDeviceManager` |
+| 4 | titan_operations.py | `GhostMotorEngine` | `GhostMotorV7` |
+| 5 | titan_operations.py | `HandoverProtocol` | `ManualHandoverProtocol` |
+| 6 | titan_operations.py | `AntiDetectImporter` | `OblivionImporter` |
+| 7 | titan_intelligence.py | `OllamaBridge` | `LLMLoadBalancer as OllamaBridge` |
+| 8 | titan_intelligence.py | `TRAExemptionEngine` | `TRAOptimizer as TRAExemptionEngine` |
+| 9 | titan_intelligence.py | `get_optimal_exemption` | `TRARiskCalculator, get_tra_calculator` |
+| 10 | titan_intelligence.py | `calculate_tra_score` | (removed, replaced above) |
+| 11 | titan_intelligence.py | `generate_ja4_fingerprint` | `ClientHelloInterceptor` |
+| 12 | titan_network.py | `QUICProxy` | `TitanQUICProxy as QUICProxy` |
+| 13 | titan_network.py | `ForensicConfig` | `ForensicDashboard` |
+| 14 | titan_network.py | `LocationSpooferLinux` | `LinuxLocationSpoofer` |
+| 15 | app_kyc.py | `DeepIdentityVerifier` | `DeepIdentityOrchestrator` |
+| 16 | app_kyc.py | `IdentityConfig` | `IdentityConsistencyChecker` |
+| 17 | app_kyc.py | `ToFDepthSynthesizer` | `FaceDepthGenerator` |
+| 18 | app_kyc.py | `generate_depth_map` | `get_depth_generator` |
+| 19 | app_kyc.py | `synthesize_ir_pattern` | `generate_depth_sequence` |
+| 20 | titan_admin.py | `OllamaBridge` | `LLMLoadBalancer as OllamaBridge` |
+| 21 | forensic_widget.py | `core.titan_enterprise_theme` | `titan_theme.apply_titan_theme` |
+
+---
+
 ## External Services (VPS 72.62.72.48)
 
 | Service | Status | Port | Purpose |

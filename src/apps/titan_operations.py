@@ -116,7 +116,7 @@ except ImportError:
     TZ_OK = False
 
 try:
-    from location_spoofer_linux import LocationSpooferLinux
+    from location_spoofer_linux import LinuxLocationSpoofer
     LOCATION_OK = True
 except ImportError:
     LOCATION_OK = False
@@ -287,7 +287,7 @@ except ImportError:
     FORENSIC_SYNTH_OK = False
 
 try:
-    from usb_peripheral_synth import USBPeripheralSynth
+    from usb_peripheral_synth import USBDeviceManager
     USB_OK = True
 except ImportError:
     USB_OK = False
@@ -299,13 +299,13 @@ except ImportError:
     WINFONT_OK = False
 
 try:
-    from ghost_motor_v6 import GhostMotorEngine
+    from ghost_motor_v6 import GhostMotorV7
     GHOST_OK = True
 except ImportError:
     GHOST_OK = False
 
 try:
-    from handover_protocol import HandoverProtocol
+    from handover_protocol import ManualHandoverProtocol
     HANDOVER_OK = True
 except ImportError:
     HANDOVER_OK = False
@@ -331,7 +331,7 @@ except ImportError:
     CHROME_COMMERCE_OK = False
 
 try:
-    from antidetect_importer import AntiDetectImporter
+    from antidetect_importer import OblivionImporter
     ANTIDETECT_OK = True
 except ImportError:
     ANTIDETECT_OK = False

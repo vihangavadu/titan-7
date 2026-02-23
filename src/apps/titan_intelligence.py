@@ -79,7 +79,7 @@ except ImportError:
     AI_OK = False
 
 try:
-    from ollama_bridge import OllamaBridge
+    from ollama_bridge import LLMLoadBalancer as OllamaBridge
     OLLAMA_OK = True
 except ImportError:
     OLLAMA_OK = False
@@ -116,7 +116,7 @@ except ImportError:
 
 try:
     from tra_exemption_engine import (
-        TRAExemptionEngine, get_optimal_exemption, calculate_tra_score,
+        TRAOptimizer as TRAExemptionEngine, TRARiskCalculator, get_tra_calculator,
     )
     TRA_OK = True
 except ImportError:
@@ -176,7 +176,7 @@ except ImportError:
     TLS_OK = False
 
 try:
-    from ja4_permutation_engine import JA4PermutationEngine, generate_ja4_fingerprint
+    from ja4_permutation_engine import JA4PermutationEngine, ClientHelloInterceptor
     JA4_OK = True
 except ImportError:
     JA4_OK = False

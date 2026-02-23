@@ -1468,15 +1468,24 @@ class TitanIntegrationBridge:
             logger.error(f"Chromium profile forging failed: {e}")
             return False
 
-    def export_to_antidetect(self, profile_path: str, software: str = "multilogin",
+    def export_to_antidetect(self, profile_path: str, software: str = "camoufox",
                               name: str = "Titan_Profile") -> bool:
-        """Export forged profile to anti-detect browser (Multilogin/Dolphin/Indigo)."""
+        """Export forged profile to anti-detect browser (Camoufox/Multilogin/Dolphin/Indigo)."""
         if not ANTIDETECT_IMPORTER_AVAILABLE:
             logger.warning("Anti-Detect Importer not available")
             return False
         try:
             logger.info(f"Exporting profile to {software}: {name}")
-            return True
+            importer = OblivionImporter(target_software=software)
+            success = importer.import_profile(
+                source_path=profile_path,
+                profile_name=name,
+            )
+            if success:
+                logger.info(f"Profile exported to {software}: {name}")
+            else:
+                logger.warning(f"Profile export to {software} failed validation")
+            return success
         except Exception as e:
             logger.error(f"Anti-detect export failed: {e}")
             return False

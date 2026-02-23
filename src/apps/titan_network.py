@@ -89,7 +89,7 @@ except ImportError:
     JITTER_OK = False
 
 try:
-    from quic_proxy import QUICProxy
+    from quic_proxy import TitanQUICProxy as QUICProxy
     QUIC_OK = True
 except ImportError:
     QUIC_OK = False
@@ -102,7 +102,7 @@ except ImportError:
 
 # Tab 3: FORENSIC (formerly orphaned: forensic_cleaner.py)
 try:
-    from forensic_monitor import ForensicMonitor, ForensicConfig
+    from forensic_monitor import ForensicMonitor, ForensicDashboard
     FORENSIC_MON_OK = True
 except ImportError:
     FORENSIC_MON_OK = False
@@ -149,7 +149,7 @@ except ImportError:
     LOCATION_OK = False
 
 try:
-    from location_spoofer_linux import LocationSpooferLinux
+    from location_spoofer_linux import LinuxLocationSpoofer
     LOCATION_LINUX_OK = True
 except ImportError:
     LOCATION_LINUX_OK = False

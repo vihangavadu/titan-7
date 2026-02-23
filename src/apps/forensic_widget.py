@@ -517,8 +517,8 @@ def main():
     
     # Apply enterprise theme if available
     try:
-        from core.titan_enterprise_theme import apply_enterprise_theme
-        apply_enterprise_theme(app)
+        from titan_theme import apply_titan_theme
+        apply_titan_theme(app)
     except ImportError:
         pass
     

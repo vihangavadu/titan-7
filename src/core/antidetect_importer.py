@@ -14,10 +14,32 @@ import hashlib
 import argparse
 import tempfile
 import platform
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 import xml.etree.ElementTree as ET
+
+logger = logging.getLogger(__name__)
+
+# ── Titan Core Module Wiring ────────────────────────────────────────────
+try:
+    from fingerprint_injector import FingerprintInjector, FingerprintConfig
+    _FP_INJECTOR_AVAILABLE = True
+except ImportError:
+    _FP_INJECTOR_AVAILABLE = False
+
+try:
+    from location_spoofer_linux import LinuxLocationSpoofer, get_location_spoofer
+    _LOCATION_SPOOFER_AVAILABLE = True
+except ImportError:
+    _LOCATION_SPOOFER_AVAILABLE = False
+
+try:
+    from titan_session import get_session, save_session
+    _SESSION_AVAILABLE = True
+except ImportError:
+    _SESSION_AVAILABLE = False
 
 class OblivionImporter:
     """Advanced profile importer with fingerprint synchronization"""
@@ -29,6 +51,21 @@ class OblivionImporter:
         
         # Software-specific paths
         self.software_paths = {
+            "camoufox": {
+                "windows": [
+                    os.path.expanduser("~/AppData/Local/Camoufox"),
+                    "C:/Program Files/Camoufox"
+                ],
+                "darwin": [
+                    os.path.expanduser("~/Library/Application Support/Camoufox"),
+                    "/Applications/Camoufox.app/Contents/Resources"
+                ],
+                "linux": [
+                    "/opt/camoufox",
+                    os.path.expanduser("~/.camoufox"),
+                    "/opt/titan/profiles"
+                ]
+            },
             "multilogin": {
                 "windows": [
                     os.path.expanduser("~/AppData/Local/Multilogin"),
@@ -86,7 +123,9 @@ class OblivionImporter:
                 print(f"[+] Found {self.target_software} at: {path}")
                 
                 # Determine profiles directory
-                if self.target_software == "multilogin":
+                if self.target_software == "camoufox":
+                    self.profiles_path = path / "profiles"
+                elif self.target_software == "multilogin":
                     self.profiles_path = path / "profiles"
                 elif self.target_software == "dolphin":
                     self.profiles_path = path / "browser_profiles"
@@ -189,6 +228,11 @@ class OblivionImporter:
                     ]
                 }
             
+            # ── Camoufox / Firefox profile handling ──
+            if self.target_software == "camoufox":
+                return self._synchronize_firefox_fingerprint(profile_dir, config)
+            
+            # ── Chrome-based profile handling (Multilogin/Dolphin/Indigo) ──
             # 1. Update Preferences file
             prefs_path = profile_dir / "Preferences"
             if prefs_path.exists():
@@ -252,6 +296,156 @@ class OblivionImporter:
         except Exception as e:
             print(f"[!] Fingerprint synchronization failed: {e}")
             return False
+    
+    def _synchronize_firefox_fingerprint(self, profile_dir: Path, config: Dict) -> bool:
+        """Synchronize fingerprint for Firefox/Camoufox profiles.
+        
+        Firefox uses prefs.js/user.js instead of Preferences JSON,
+        cookies.sqlite instead of Cookies SQLite, and places.sqlite
+        for history. This method wires fingerprint_injector to produce
+        Camoufox-native hardening files.
+        """
+        try:
+            # 1. Use fingerprint_injector for real FP hardening
+            if _FP_INJECTOR_AVAILABLE:
+                profile_uuid = hashlib.sha256(
+                    json.dumps(config, sort_keys=True).encode()
+                ).hexdigest()[:32]
+                fp_cfg = FingerprintConfig(profile_uuid=profile_uuid)
+                fp_injector = FingerprintInjector(fp_cfg)
+                
+                # Write policies.json (highest priority pref lock)
+                fp_injector.write_policies_json(profile_dir)
+                
+                # Write user.js (defense-in-depth pref lock)
+                fp_injector.write_user_js(profile_dir)
+                
+                # Write fingerprint_config.json
+                fp_injector.write_to_profile(profile_dir)
+                
+                logger.info("[CAMOUFOX] Firefox fingerprint synchronized via FingerprintInjector")
+            
+            # 2. Create fingerprint manifest
+            manifest = {
+                "engine": "OblivionForge v5.0 + Camoufox",
+                "import_timestamp": datetime.now().isoformat(),
+                "target_software": "camoufox",
+                "browser_type": "firefox",
+                "fingerprint_hash": hashlib.sha256(
+                    json.dumps(config, sort_keys=True).encode()
+                ).hexdigest()[:32],
+                "hardening": {
+                    "policies_json": (profile_dir / "distribution" / "policies.json").exists(),
+                    "user_js": (profile_dir / "user.js").exists(),
+                    "fingerprint_config": (profile_dir / "fingerprint_config.json").exists(),
+                    "location_config": (profile_dir / "location_config.json").exists(),
+                },
+                "artifacts": self.scan_artifacts(profile_dir)
+            }
+            
+            manifest_path = profile_dir / "fingerprint_manifest.json"
+            with open(manifest_path, 'w') as f:
+                json.dump(manifest, f, indent=2)
+            
+            print(f"[+] Camoufox fingerprint synchronized")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[CAMOUFOX] Firefox fingerprint sync failed: {e}")
+            return False
+    
+    def get_camoufox_launch_config(self, profile_name: str,
+                                    proxy: Optional[str] = None,
+                                    headless: bool = False) -> Dict[str, Any]:
+        """Generate a Camoufox launch config dict for integration_bridge.
+        
+        Returns a dict that can be passed directly to Camoufox(**kwargs).
+        Reads the profile's camoufox_profile.json and fingerprint_config.json
+        to build the full launch parameters.
+        """
+        if not self.profiles_path:
+            return {}
+        
+        profile_dir = self.profiles_path / profile_name
+        if not profile_dir.exists():
+            logger.warning(f"Profile not found: {profile_name}")
+            return {}
+        
+        # Start with base Camoufox kwargs
+        launch_config = {
+            "headless": headless,
+            "humanize": True,
+            "block_webrtc": True,
+            "config": {},
+        }
+        
+        # Load camoufox_profile.json for FP config
+        meta_file = profile_dir / "camoufox_profile.json"
+        if meta_file.exists():
+            try:
+                with open(meta_file, 'r') as f:
+                    meta = json.load(f)
+                camoufox_cfg = meta.get("camoufox_config", {})
+                if camoufox_cfg:
+                    launch_config["config"].update(camoufox_cfg)
+            except Exception as e:
+                logger.debug(f"Failed to read camoufox_profile.json: {e}")
+        
+        # Load location_config.json for geo/timezone
+        loc_file = profile_dir / "location_config.json"
+        if loc_file.exists():
+            try:
+                with open(loc_file, 'r') as f:
+                    loc = json.load(f)
+                launch_config["config"]["geolocation:latitude"] = loc.get("latitude", 0)
+                launch_config["config"]["geolocation:longitude"] = loc.get("longitude", 0)
+                launch_config["config"]["geolocation:accuracy"] = loc.get("accuracy", 100)
+                if loc.get("timezone"):
+                    launch_config["config"]["timezone"] = loc["timezone"]
+                if loc.get("locale"):
+                    locale_str = loc["locale"].split(".")[0].replace("_", "-")
+                    launch_config["config"]["locale"] = locale_str
+            except Exception as e:
+                logger.debug(f"Failed to read location_config.json: {e}")
+        
+        # Add proxy if provided
+        if proxy:
+            launch_config["proxy"] = {"server": proxy}
+        
+        # Record in session if available
+        if _SESSION_AVAILABLE:
+            try:
+                session = get_session()
+                session["active_browser"] = "camoufox"
+                session["active_profile"] = profile_name
+                session["profile_path"] = str(profile_dir)
+                save_session(session)
+            except Exception:
+                pass
+        
+        return launch_config
+    
+    def import_to_camoufox(self, source_path: str, profile_name: str = None,
+                           fingerprint_config: Dict = None,
+                           proxy: Optional[str] = None) -> Dict[str, Any]:
+        """Convenience method: import profile and return Camoufox launch config.
+        
+        Combines import_profile() + get_camoufox_launch_config() in one call.
+        Returns the launch config dict on success, empty dict on failure.
+        """
+        if self.target_software != "camoufox":
+            logger.warning("import_to_camoufox requires target_software='camoufox'")
+            return {}
+        
+        if not profile_name:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            profile_name = f"camoufox_forged_{timestamp}"
+        
+        success = self.import_profile(source_path, profile_name, fingerprint_config)
+        if not success:
+            return {}
+        
+        return self.get_camoufox_launch_config(profile_name, proxy=proxy)
     
     def scan_artifacts(self, profile_dir: Path) -> Dict[str, Any]:
         """Scan profile for all artifacts"""
@@ -318,7 +512,55 @@ class OblivionImporter:
             "notes": "Advanced synthetic profile with detection bypass"
         }
         
-        if self.target_software == "multilogin":
+        if self.target_software == "camoufox":
+            metadata = {
+                **base_metadata,
+                "browser": "firefox",
+                "engine": "Camoufox (Patched Firefox)",
+                "os": platform.system().lower(),
+                "navigator": {
+                    "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+                    "platform": "Linux x86_64" if platform.system() == "Linux" else "Win32",
+                    "language": "en-US",
+                    "languages": ["en-US", "en"]
+                },
+                "fingerprint": {
+                    "canvas": "c++_level",
+                    "webgl": "c++_level",
+                    "audio": "c++_level",
+                    "webrtc": "blocked",
+                    "humanize": True
+                },
+                "camoufox_config": {},
+                "proxy": {"mode": "none"}
+            }
+            
+            # Wire fingerprint_injector for real FP data
+            if _FP_INJECTOR_AVAILABLE:
+                try:
+                    fp_cfg = FingerprintConfig(profile_uuid=profile_name)
+                    fp_injector = FingerprintInjector(fp_cfg)
+                    camoufox_cfg = fp_injector.get_camoufox_config()
+                    metadata["camoufox_config"] = camoufox_cfg
+                    
+                    # Write policies.json + user.js (locks prefs against Camoufox C++ override)
+                    fp_injector.harden_profile(profile_dir)
+                    logger.info(f"[CAMOUFOX] Fingerprint hardened: policies.json + user.js written")
+                except Exception as e:
+                    logger.warning(f"[CAMOUFOX] Fingerprint injection partial: {e}")
+            
+            # Wire location_spoofer for geo/timezone/locale
+            if _LOCATION_SPOOFER_AVAILABLE:
+                try:
+                    spoofer = get_location_spoofer()
+                    spoofer.write_location_config(str(profile_dir), spoofer.get_current_location())
+                    logger.info(f"[CAMOUFOX] Location config written")
+                except Exception as e:
+                    logger.debug(f"[CAMOUFOX] Location config skipped: {e}")
+            
+            meta_file = profile_dir / "camoufox_profile.json"
+            
+        elif self.target_software == "multilogin":
             metadata = {
                 **base_metadata,
                 "browser": "mimic",
@@ -398,10 +640,13 @@ class OblivionImporter:
                 validation["fingerprint_status"] = "not_synchronized"
                 validation["errors"].append("Missing fingerprint manifest")
             
-            # Count cookies
+            # Count cookies — handle both Chrome and Firefox formats
             cookie_files = [
+                # Chrome-based
                 profile_dir / "Cookies",
-                profile_dir / "Default" / "Network" / "Cookies"
+                profile_dir / "Default" / "Network" / "Cookies",
+                # Firefox/Camoufox
+                profile_dir / "cookies.sqlite",
             ]
             
             for cookie_file in cookie_files:
@@ -409,28 +654,49 @@ class OblivionImporter:
                     try:
                         conn = sqlite3.connect(cookie_file)
                         cursor = conn.cursor()
-                        cursor.execute("SELECT COUNT(*) FROM cookies")
-                        count = cursor.fetchone()[0]
+                        # Firefox uses 'moz_cookies', Chrome uses 'cookies'
+                        for table in ("moz_cookies", "cookies"):
+                            try:
+                                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                                count = cursor.fetchone()[0]
+                                validation["cookies_count"] += count
+                                break
+                            except sqlite3.OperationalError:
+                                continue
                         conn.close()
-                        validation["cookies_count"] += count
                     except:
                         pass
             
-            # Check storage
+            # Check storage — handle both Chrome and Firefox paths
             storage_paths = [
+                # Chrome-based
                 profile_dir / "Local Storage",
                 profile_dir / "IndexedDB",
-                profile_dir / "Session Storage"
+                profile_dir / "Session Storage",
+                # Firefox/Camoufox
+                profile_dir / "webappsstore.sqlite",
+                profile_dir / "storage",
             ]
             
             storage_exists = any(path.exists() for path in storage_paths)
             validation["storage_status"] = "found" if storage_exists else "missing"
             
-            # Overall success
-            if (validation["fingerprint_status"] == "synchronized" and 
-                validation["cookies_count"] > 0 and
-                validation["storage_status"] == "found"):
-                validation["success"] = True
+            # For Camoufox, also validate hardening files
+            if self.target_software == "camoufox":
+                validation["hardening"] = {
+                    "policies_json": (profile_dir / "distribution" / "policies.json").exists(),
+                    "user_js": (profile_dir / "user.js").exists(),
+                    "fingerprint_config": (profile_dir / "fingerprint_config.json").exists(),
+                }
+                # Camoufox profiles succeed if fingerprint is synced (cookies may be forged later)
+                if validation["fingerprint_status"] == "synchronized":
+                    validation["success"] = True
+            else:
+                # Chrome-based: need cookies + storage + fingerprint
+                if (validation["fingerprint_status"] == "synchronized" and 
+                    validation["cookies_count"] > 0 and
+                    validation["storage_status"] == "found"):
+                    validation["success"] = True
             
         except Exception as e:
             validation["errors"].append(f"Validation error: {e}")
@@ -447,6 +713,7 @@ class OblivionImporter:
             if item.is_dir():
                 # Look for metadata files
                 meta_files = [
+                    item / "camoufox_profile.json",
                     item / "profile.json",
                     item / "dolphin_profile.json",
                     item / "indigo_profile.json",
@@ -512,9 +779,9 @@ Examples:
         """
     )
     
-    parser.add_argument("--software", default="multilogin",
-                       choices=["multilogin", "dolphin", "indigo"],
-                       help="Target anti-detect software")
+    parser.add_argument("--software", default="camoufox",
+                       choices=["camoufox", "multilogin", "dolphin", "indigo"],
+                       help="Target anti-detect software (default: camoufox)")
     parser.add_argument("--import", dest="import_path",
                        help="Path to forged profile to import")
     parser.add_argument("--name",
