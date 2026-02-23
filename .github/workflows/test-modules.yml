@@ -2,13 +2,13 @@ name: Test TITAN Modules
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, copilot/make-branch-default ]
     paths:
       - 'iso/config/includes.chroot/opt/titan/**'
       - 'titan/**'
       - '.github/workflows/test-modules.yml'
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, copilot/make-branch-default ]
     paths:
       - 'iso/config/includes.chroot/opt/titan/**'
       - 'titan/**'

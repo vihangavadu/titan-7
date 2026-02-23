@@ -2,7 +2,7 @@ name: Build Titan ISO
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, copilot/make-branch-default ]
   workflow_dispatch:
 
 jobs:
