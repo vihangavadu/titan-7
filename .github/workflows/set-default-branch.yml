@@ -1,0 +1,30 @@
+name: Set Default Branch
+
+# Requires a repository secret named ADMIN_TOKEN containing a PAT with
+# 'repo' scope (or 'public_repo' for public repos) to change repo settings.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to set as default'
+        required: true
+        default: 'copilot/make-branch-default'
+
+jobs:
+  set-default:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Set default branch via GitHub API
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          echo "Setting default branch to: $BRANCH"
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            /repos/$REPO \
+            -f default_branch="$BRANCH"
+          echo "Default branch updated to: $BRANCH"

@@ -14,7 +14,7 @@ name: Build TITAN V7.0.3 SINGULARITY ISO
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, copilot/make-branch-default ]
     tags:
       - 'v*'
   workflow_dispatch:
