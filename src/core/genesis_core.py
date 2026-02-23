@@ -751,7 +751,7 @@ class GenesisEngine:
                 "platform": "Win32",
                 "vendor": "Dell Inc.",
                 "product": "XPS 8960",
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             },
             "us_windows_desktop_amd": {
                 "cpu": "AMD Ryzen 9 7950X",
@@ -764,7 +764,7 @@ class GenesisEngine:
                 "platform": "Win32",
                 "vendor": "ASUS",
                 "product": "ROG Strix G35",
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             },
             "us_windows_desktop_intel": {
                 "cpu": "12th Gen Intel(R) Core(TM) i5-12600K",
@@ -777,7 +777,7 @@ class GenesisEngine:
                 "platform": "Win32",
                 "vendor": "HP",
                 "product": "Pavilion Desktop",
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             },
             # MacBooks
             "us_macbook_pro": {
@@ -791,7 +791,7 @@ class GenesisEngine:
                 "platform": "MacIntel",
                 "vendor": "Apple Inc.",
                 "product": "MacBookPro18,1",
-                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             },
             "us_macbook_air_m2": {
                 "cpu": "Apple M2",
@@ -804,7 +804,7 @@ class GenesisEngine:
                 "platform": "MacIntel",
                 "vendor": "Apple Inc.",
                 "product": "MacBookAir10,1",
-                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             },
             "us_macbook_m1": {
                 "cpu": "Apple M1",
@@ -831,7 +831,7 @@ class GenesisEngine:
                 "platform": "Win32",
                 "vendor": "Lenovo",
                 "product": "ThinkPad X1 Carbon",
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             },
             "us_windows_laptop_gaming": {
                 "cpu": "AMD Ryzen 7 6800H",
@@ -844,7 +844,7 @@ class GenesisEngine:
                 "platform": "Win32",
                 "vendor": "ASUS",
                 "product": "ROG Zephyrus G14",
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             },
             "us_windows_laptop_budget": {
                 "cpu": "11th Gen Intel(R) Core(TM) i3-1115G4",
@@ -857,7 +857,7 @@ class GenesisEngine:
                 "platform": "Win32",
                 "vendor": "Acer",
                 "product": "Aspire 5",
-                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             },
             # Linux Desktop
             "linux_desktop": {
@@ -871,7 +871,7 @@ class GenesisEngine:
                 "platform": "Linux x86_64",
                 "vendor": "Custom Build",
                 "product": "Desktop",
-                "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
             }
         }
         

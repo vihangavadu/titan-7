@@ -1046,6 +1046,10 @@ table inet titan_mullvad {
         # Established connections
         ct state established,related accept
 
+        # SSH management access (prevents lockout during VPN setup)
+        tcp dport 22 accept
+        tcp sport 22 accept
+
         # WireGuard standard (UDP 51820)
         udp dport 51820 accept
 
@@ -1087,6 +1091,9 @@ table inet titan_mullvad {
 
         # Established connections
         ct state established,related accept
+
+        # SSH management access (prevents lockout during VPN setup)
+        tcp dport 22 accept
 
         # WireGuard tunnel interface
         iifname "wg-mullvad" accept

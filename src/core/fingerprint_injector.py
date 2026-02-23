@@ -1180,13 +1180,13 @@ class ClientHintsSpoofing:
         'linux': {'platform': 'Linux', 'platformVersion': '6.5.0'},
     }
     
-    def __init__(self, chrome_version: str = '122', platform: str = 'windows',
+    def __init__(self, chrome_version: str = '133', platform: str = 'windows',
                  is_mobile: bool = False, architecture: str = 'x86'):
         self.chrome_version = chrome_version
         self.platform = platform
         self.is_mobile = is_mobile
         self.architecture = architecture
-        self._brand_info = self.BRAND_VERSIONS.get(chrome_version, self.BRAND_VERSIONS['122'])
+        self._brand_info = self.BRAND_VERSIONS.get(chrome_version, self.BRAND_VERSIONS['133'])
         self._platform_info = self.PLATFORMS.get(platform, self.PLATFORMS['windows'])
     
     def generate_client_hints(self) -> dict:
@@ -1390,7 +1390,7 @@ class UnifiedFingerprintHardener:
     """
     
     def __init__(self, profile_uuid: str, platform: str = 'windows',
-                 chrome_version: str = '122', proxy_ip: str = None):
+                 chrome_version: str = '133', proxy_ip: str = None):
         self.profile_uuid = profile_uuid
         self.platform = platform
         self.chrome_version = chrome_version
@@ -1440,7 +1440,7 @@ def create_webrtc_prevention(fake_public_ip: str = None, block_mode: str = 'spoo
     """V7.6: Create WebRTC leak prevention"""
     return WebRTCLeakPrevention(fake_public_ip=fake_public_ip, block_mode=block_mode)
 
-def create_client_hints_spoof(chrome_version: str = '122', platform: str = 'windows'):
+def create_client_hints_spoof(chrome_version: str = '133', platform: str = 'windows'):
     """V7.6: Create Client Hints spoofing"""
     return ClientHintsSpoofing(chrome_version, platform)
 

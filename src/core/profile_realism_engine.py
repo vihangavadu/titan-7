@@ -70,7 +70,7 @@ def enhance_profile(profile_path, config=None):
     # A: Infrastructure files
     _gen_prefs_js(pp,config,ua,creation_ts)
     _gen_times_json(pp,creation_ts)
-    _gen_compat_ini(pp)
+    _gen_compat_ini(pp,ua)
     _gen_small_files(pp,creation_ts)
     # B: SQLite databases
     _gen_favicons(pp,profile_age)
@@ -176,7 +176,8 @@ def _gen_prefs_js(pp,config,ua,cts):
     p('gfx.webrender.all',True)
     p('idle.lastDailyNotification',now-random.randint(0,86400))
     p('intl.accept_languages','en-US, en')
-    p('media.gmp-gmpopenh264.abi','x86_64-gcc3')
+    _abi='x86_64-msvc' if 'Windows' in ua else ('x86_64-gcc3' if 'Macintosh' not in ua else 'x86_64-gcc3')
+    p('media.gmp-gmpopenh264.abi',_abi)
     p('media.gmp-gmpopenh264.version','2.3.2')
     p('media.gmp-manager.buildID','20260212191108')
     p('media.gmp-manager.lastCheck',now-random.randint(0,86400))
@@ -189,7 +190,6 @@ def _gen_prefs_js(pp,config,ua,cts):
     p('places.database.lastMaintenance',now-random.randint(0,86400*7))
     p('places.history.enabled',True)
     p('privacy.bounceTrackingProtection.hasMigratedUserActivationData',True)
-    p('privacy.trackingprotection.enabled',False)
     p('security.sandbox.content.tempDirSuffix',secrets.token_hex(8))
     p('services.settings.clock_skew_seconds',random.randint(-5,5))
     p('services.settings.last_update_seconds',now-random.randint(0,86400))
@@ -206,8 +206,20 @@ def _gen_prefs_js(pp,config,ua,cts):
 def _gen_times_json(pp,cts):
     (pp/'times.json').write_text(json.dumps({'created':cts*1000,'firstUse':cts*1000+random.randint(0,60000)}))
 
-def _gen_compat_ini(pp):
-    (pp/'compatibility.ini').write_text('[Compatibility]\nLastVersion=147.0.4_20260212191108/20260212191108\nLastOSABI=Linux_x86_64-gcc3\nLastPlatformDir=/usr/lib/firefox-esr\nLastAppDir=/usr/lib/firefox-esr/browser\n')
+def _gen_compat_ini(pp,ua=''):
+    if 'Windows' in ua:
+        abi='WINNT_x86_64-msvc'
+        pdir='C:\\Program Files\\Mozilla Firefox'
+        adir='C:\\Program Files\\Mozilla Firefox\\browser'
+    elif 'Macintosh' in ua:
+        abi='Darwin_x86_64-gcc3'
+        pdir='/Applications/Firefox.app/Contents/MacOS'
+        adir='/Applications/Firefox.app/Contents/MacOS/browser'
+    else:
+        abi='Linux_x86_64-gcc3'
+        pdir='/usr/lib/firefox-esr'
+        adir='/usr/lib/firefox-esr/browser'
+    (pp/'compatibility.ini').write_text('[Compatibility]\nLastVersion=147.0.4_20260212191108/20260212191108\nLastOSABI=%s\nLastPlatformDir=%s\nLastAppDir=%s\n'%(abi,pdir,adir))
 
 def _gen_small_files(pp,cts):
     (pp/'pkcs11.txt').write_text('library=\nname=NSS Internal PKCS #11 Module\nNSS=Flags=internal,critical trustOrder=75 cipherOrder=100 slotParams=(1={askpw=any timeout=30})\n')
@@ -469,7 +481,7 @@ def _scale_idb(pp,config,target_mb=110):
         c.execute('CREATE TABLE IF NOT EXISTS database(name TEXT PRIMARY KEY,origin TEXT,version INTEGER NOT NULL DEFAULT 0,last_vacuum_time INTEGER NOT NULL DEFAULT 0,last_analyze_time INTEGER NOT NULL DEFAULT 0,last_vacuum_size INTEGER NOT NULL DEFAULT 0)')
         for i,sn in enumerate(stores,1): c.execute('INSERT OR IGNORE INTO object_store VALUES(?,?,?,?)',(i,1,sn,'id'))
         rid=100000;cb=0  # Start from high offset to avoid conflict with existing records
-        while cb<bpd and rid<100000:
+        while cb<bpd and rid<1000000:
             sid=random.randint(1,len(stores))
             data=json.dumps({'id':rid,'type':stores[sid-1],'timestamp':int(time.time()*1000)-random.randint(0,86400000*90),'payload':dict(('f%d'%j,secrets.token_hex(random.randint(16,128))) for j in range(random.randint(3,15))),'meta':{'v':random.randint(1,5),'src':random.choice(['api','cache','sync','local'])}}).encode()
             c.execute('INSERT OR REPLACE INTO object_data(id,object_store_id,key_value,data) VALUES(?,?,?,?)',(rid,sid,struct.pack('>I',rid),data))

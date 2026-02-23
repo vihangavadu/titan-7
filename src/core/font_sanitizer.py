@@ -84,6 +84,7 @@ WINDOWS_CORE_FONTS = {
     "windows_11_extras": [
         "Segoe UI Variable", "Segoe Fluent Icons",
         "Cascadia Code", "Cascadia Mono",
+        "Aptos", "Aptos Narrow", "Aptos Serif",
     ],
     "ttf_files": {
         "Segoe UI": "segoeui.ttf",
@@ -101,6 +102,9 @@ WINDOWS_CORE_FONTS = {
         "Consolas": "consola.ttf",
         "Comic Sans MS": "comic.ttf",
         "Impact": "impact.ttf",
+        "Aptos": "aptos.ttf",
+        "Aptos Narrow": "aptosnarrow.ttf",
+        "Aptos Serif": "aptosserif.ttf",
     },
 }
 

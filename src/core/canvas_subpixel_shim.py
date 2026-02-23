@@ -799,3 +799,90 @@ def create_client_rects_randomizer(profile_uuid: str = None) -> ClientRectsRando
 def create_canvas_protection(profile_uuid: str = None, gpu: str = 'intel_hd') -> UnifiedCanvasProtection:
     """V7.6: Create unified canvas protection"""
     return UnifiedCanvasProtection(profile_uuid, gpu)
+
+
+class OffscreenCanvasProtection:
+    """
+    V8.1: OffscreenCanvas fingerprint protection.
+    
+    Modern fingerprinters use OffscreenCanvas (and its transferToImageBitmap,
+    convertToBlob, getImageData) to bypass standard HTMLCanvasElement protections.
+    This shim intercepts OffscreenCanvas the same way we intercept regular canvas.
+    """
+    
+    def __init__(self, profile_uuid: str = None):
+        self.profile_uuid = profile_uuid or secrets.token_hex(16)
+        self._seed = int(hashlib.sha256(self.profile_uuid.encode()).hexdigest()[:8], 16)
+    
+    def generate_offscreen_canvas_shim(self) -> str:
+        """Generate JS shim to protect OffscreenCanvas from fingerprinting."""
+        return f"""
+// TITAN V8.1 OffscreenCanvas Fingerprint Protection
+(function() {{
+    'use strict';
+    const SEED = {self._seed};
+    function mulberry32(a) {{
+        return function() {{
+            a |= 0; a = a + 0x6D2B79F5 | 0;
+            var t = Math.imul(a ^ a >>> 15, 1 | a);
+            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        }};
+    }}
+    const rng = mulberry32(SEED);
+    
+    if (typeof OffscreenCanvas === 'undefined') return;
+    
+    // Intercept OffscreenCanvas.prototype.getContext to wrap 2d contexts
+    const origGetContext = OffscreenCanvas.prototype.getContext;
+    OffscreenCanvas.prototype.getContext = function(type, attrs) {{
+        const ctx = origGetContext.call(this, type, attrs);
+        if (!ctx || type !== '2d') return ctx;
+        
+        // Wrap getImageData on OffscreenCanvasRenderingContext2D
+        if (!ctx.__titan_wrapped) {{
+            const origGetImageData = ctx.getImageData.bind(ctx);
+            ctx.getImageData = function(sx, sy, sw, sh) {{
+                const imageData = origGetImageData(sx, sy, sw, sh);
+                const d = imageData.data;
+                let s = SEED ^ (sw * sh);
+                for (let i = 0; i < d.length; i += 4) {{
+                    s = (s * 1103515245 + 12345) & 0x7fffffff;
+                    const noise = ((s >> 16) & 3) - 1;  // -1, 0, 1, 2
+                    d[i] = Math.max(0, Math.min(255, d[i] + noise));
+                }}
+                return imageData;
+            }};
+            ctx.__titan_wrapped = true;
+        }}
+        return ctx;
+    }};
+    
+    // Intercept convertToBlob (async fingerprint extraction)
+    const origConvertToBlob = OffscreenCanvas.prototype.convertToBlob;
+    if (origConvertToBlob) {{
+        OffscreenCanvas.prototype.convertToBlob = function(options) {{
+            // Force a getImageData round-trip to inject noise
+            const ctx = this.getContext('2d');
+            if (ctx) {{
+                const id = ctx.getImageData(0, 0, this.width, this.height);
+                ctx.putImageData(id, 0, 0);
+            }}
+            return origConvertToBlob.call(this, options);
+        }};
+    }}
+    
+    // Intercept transferToImageBitmap
+    const origTransfer = OffscreenCanvas.prototype.transferToImageBitmap;
+    if (origTransfer) {{
+        OffscreenCanvas.prototype.transferToImageBitmap = function() {{
+            const ctx = this.getContext('2d');
+            if (ctx && ctx.__titan_wrapped) {{
+                const id = ctx.getImageData(0, 0, this.width, this.height);
+                ctx.putImageData(id, 0, 0);
+            }}
+            return origTransfer.call(this);
+        }};
+    }}
+}})();
+"""
