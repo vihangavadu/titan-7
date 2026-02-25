@@ -13,6 +13,7 @@ Focused app for card validation and intelligence.
 import sys
 import os
 import json
+import random
 from pathlib import Path
 from datetime import datetime
 
@@ -35,12 +36,124 @@ TEXT2 = "#64748b"
 GREEN = "#22c55e"
 YELLOW = "#eab308"
 RED = "#ef4444"
+ORANGE = "#f97316"
 
 try:
     from titan_theme import apply_titan_theme, make_tab_style
     THEME_OK = True
 except ImportError:
     THEME_OK = False
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILT-IN BIN DATABASE (works without core modules)
+# ═══════════════════════════════════════════════════════════════════════════════
+_BIN_DB = {
+    "453201": {"bank": "Chase", "type": "Credit", "level": "Signature", "country": "US", "network": "VISA", "risk": "low"},
+    "455600": {"bank": "Bank of America", "type": "Credit", "level": "Platinum", "country": "US", "network": "VISA", "risk": "low"},
+    "491656": {"bank": "Chase", "type": "Debit", "level": "Classic", "country": "US", "network": "VISA", "risk": "medium"},
+    "471600": {"bank": "Capital One", "type": "Credit", "level": "World", "country": "US", "network": "VISA", "risk": "low"},
+    "492910": {"bank": "Wells Fargo", "type": "Credit", "level": "Signature", "country": "US", "network": "VISA", "risk": "low"},
+    "400011": {"bank": "Citi", "type": "Credit", "level": "World Elite", "country": "US", "network": "VISA", "risk": "low"},
+    "414720": {"bank": "USAA", "type": "Credit", "level": "Signature", "country": "US", "network": "VISA", "risk": "low"},
+    "448591": {"bank": "Discover", "type": "Credit", "level": "Premium", "country": "US", "network": "VISA", "risk": "medium"},
+    "542598": {"bank": "Chase", "type": "Credit", "level": "World Elite", "country": "US", "network": "MASTERCARD", "risk": "low"},
+    "539900": {"bank": "Citi", "type": "Credit", "level": "World", "country": "US", "network": "MASTERCARD", "risk": "low"},
+    "516805": {"bank": "Capital One", "type": "Credit", "level": "Platinum", "country": "US", "network": "MASTERCARD", "risk": "low"},
+    "549580": {"bank": "Bank of America", "type": "Credit", "level": "World", "country": "US", "network": "MASTERCARD", "risk": "low"},
+    "530750": {"bank": "USAA", "type": "Credit", "level": "World Elite", "country": "US", "network": "MASTERCARD", "risk": "low"},
+    "521468": {"bank": "Wells Fargo", "type": "Credit", "level": "Platinum", "country": "US", "network": "MASTERCARD", "risk": "medium"},
+    "378282": {"bank": "Amex", "type": "Credit", "level": "Gold", "country": "US", "network": "AMEX", "risk": "low"},
+    "371449": {"bank": "Amex", "type": "Credit", "level": "Platinum", "country": "US", "network": "AMEX", "risk": "low"},
+    "340000": {"bank": "Amex", "type": "Credit", "level": "Green", "country": "US", "network": "AMEX", "risk": "medium"},
+    "601100": {"bank": "Discover", "type": "Credit", "level": "Standard", "country": "US", "network": "DISCOVER", "risk": "medium"},
+    "644500": {"bank": "Discover", "type": "Credit", "level": "Premium", "country": "US", "network": "DISCOVER", "risk": "medium"},
+    "476173": {"bank": "TD Bank", "type": "Debit", "level": "Classic", "country": "US", "network": "VISA", "risk": "high"},
+    "431940": {"bank": "PNC Bank", "type": "Credit", "level": "Signature", "country": "US", "network": "VISA", "risk": "medium"},
+    "459236": {"bank": "Navy Federal", "type": "Credit", "level": "Visa Signature", "country": "US", "network": "VISA", "risk": "low"},
+    "411111": {"bank": "Test/Generic", "type": "Credit", "level": "Classic", "country": "US", "network": "VISA", "risk": "high"},
+    "555555": {"bank": "Test/Generic", "type": "Credit", "level": "Standard", "country": "US", "network": "MASTERCARD", "risk": "high"},
+}
+
+def _luhn_check(card_number):
+    digits = [int(d) for d in card_number if d.isdigit()]
+    if not digits:
+        return False
+    checksum = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 1:
+            d *= 2
+            if d > 9:
+                d -= 9
+        checksum += d
+    return checksum % 10 == 0
+
+def _detect_network(card):
+    if not card:
+        return "UNKNOWN"
+    if card[0] == "4":
+        return "VISA"
+    elif card[0] == "5" and len(card) > 1 and card[1] in "12345":
+        return "MASTERCARD"
+    elif card[:2] in ("34", "37"):
+        return "AMEX"
+    elif card[:4] == "6011" or card[:3] == "644" or card[:3] == "645" or card[:2] == "65":
+        return "DISCOVER"
+    elif card[:4] in ("2221", "2720") or (len(card) >= 4 and 2221 <= int(card[:4]) <= 2720):
+        return "MASTERCARD"
+    return "UNKNOWN"
+
+def _lookup_bin(bin6):
+    if bin6 in _BIN_DB:
+        return _BIN_DB[bin6]
+    for prefix_len in (5, 4):
+        prefix = bin6[:prefix_len]
+        for k, v in _BIN_DB.items():
+            if k.startswith(prefix):
+                return {**v, "approximate": True}
+    return None
+
+def _score_card(card, bin_info):
+    score = 50
+    reasons = []
+    if _luhn_check(card):
+        score += 10
+        reasons.append("Luhn PASS")
+    else:
+        score -= 30
+        reasons.append("Luhn FAIL")
+    if bin_info:
+        risk = bin_info.get("risk", "medium")
+        if risk == "low":
+            score += 20
+            reasons.append(f"Low-risk issuer ({bin_info['bank']})")
+        elif risk == "high":
+            score -= 15
+            reasons.append(f"High-risk issuer ({bin_info['bank']})")
+        level = bin_info.get("level", "")
+        if any(k in level.lower() for k in ["world elite", "signature", "platinum", "infinite"]):
+            score += 10
+            reasons.append(f"Premium tier: {level}")
+        if bin_info.get("type") == "Credit":
+            score += 5
+            reasons.append("Credit card (preferred)")
+        elif bin_info.get("type") == "Debit":
+            score -= 5
+            reasons.append("Debit card (less preferred)")
+    else:
+        reasons.append("BIN not in database")
+    return max(0, min(100, score)), reasons
+
+def _generate_test_card(network="visa"):
+    bins = {"visa": ["4532","4556","4916"], "mastercard": ["5425","5399","5168"],
+            "amex": ["3782","3714"], "discover": ["6011","6445"]}
+    prefix = random.choice(bins.get(network, bins["visa"]))
+    length = 15 if network == "amex" else 16
+    body = prefix + "".join(str(random.randint(0, 9)) for _ in range(length - len(prefix) - 1))
+    digits = [int(d) for d in body]
+    odd = sum(digits[-1::-2])
+    even = sum(sum(divmod(2 * d, 10)) for d in digits[-2::-2])
+    check = (10 - (odd + even) % 10) % 10
+    return body + str(check)
 
 try:
     from cerberus_core import CerberusValidator, CardAsset
@@ -265,6 +378,26 @@ class TitanCardValidator(QMainWindow):
         layout.setSpacing(10)
         layout.setContentsMargins(12, 12, 12, 12)
 
+        # Traffic Light Display
+        tl_grp = QGroupBox("Traffic Light")
+        tl_layout = QHBoxLayout(tl_grp)
+        tl_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.traffic_light = QLabel("\u25cf")
+        self.traffic_light.setFont(QFont("Inter", 64))
+        self.traffic_light.setStyleSheet("color: #334155;")
+        self.traffic_light.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tl_layout.addWidget(self.traffic_light)
+        self.traffic_label = QLabel("AWAITING INPUT")
+        self.traffic_label.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+        self.traffic_label.setStyleSheet(f"color: {TEXT2};")
+        self.traffic_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tl_layout.addWidget(self.traffic_label)
+        self.traffic_score = QLabel("")
+        self.traffic_score.setFont(QFont("Inter", 20, QFont.Weight.Bold))
+        self.traffic_score.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tl_layout.addWidget(self.traffic_score)
+        layout.addWidget(tl_grp)
+
         # Input
         grp = QGroupBox("Card Input")
         gf = QFormLayout(grp)
@@ -282,15 +415,27 @@ class TitanCardValidator(QMainWindow):
         gf.addRow("CVV:", self.val_cvv)
         self.val_target = QComboBox()
         self.val_target.setEditable(True)
-        self.val_target.addItems(["amazon.com", "ebay.com", "walmart.com", "bestbuy.com", "shopify.com"])
+        self.val_target.addItems(["amazon.com", "ebay.com", "walmart.com", "bestbuy.com", "shopify.com", "target.com", "stripe.com"])
         gf.addRow("Target:", self.val_target)
         layout.addWidget(grp)
 
-        # Validate button
+        # Button row
+        btn_row = QHBoxLayout()
         self.validate_btn = QPushButton("VALIDATE CARD")
         self.validate_btn.setStyleSheet(f"background: {ACCENT}; color: black; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 14px;")
         self.validate_btn.clicked.connect(self._validate)
-        layout.addWidget(self.validate_btn)
+        btn_row.addWidget(self.validate_btn)
+
+        gen_btn = QPushButton("Generate Test Card")
+        gen_btn.setStyleSheet(f"background: {BG_CARD}; color: {TEXT}; padding: 14px 18px; border: 1px solid #334155; border-radius: 8px;")
+        gen_btn.clicked.connect(self._generate_test_card)
+        btn_row.addWidget(gen_btn)
+
+        batch_btn = QPushButton("Batch Validate (Clipboard)")
+        batch_btn.setStyleSheet(f"background: {BG_CARD}; color: {TEXT}; padding: 14px 18px; border: 1px solid #334155; border-radius: 8px;")
+        batch_btn.clicked.connect(self._batch_validate)
+        btn_row.addWidget(batch_btn)
+        layout.addLayout(btn_row)
 
         # Module status
         mgrp = QGroupBox("Module Status")
@@ -301,10 +446,13 @@ class TitanCardValidator(QMainWindow):
             ("3DS Strategy", TDS_OK),
             ("Target Intelligence", INTEL_OK),
             ("Preflight Validator", PREFLIGHT_OK),
+            ("Built-in BIN Database", True),
+            ("Built-in Luhn Validator", True),
+            ("Built-in Card Scoring", True),
         ]
         for name, ok in modules:
             row = QHBoxLayout()
-            dot = QLabel("●")
+            dot = QLabel("\u25cf")
             dot.setStyleSheet(f"color: {GREEN if ok else RED}; font-size: 10px;")
             dot.setFixedWidth(14)
             row.addWidget(dot)
@@ -316,12 +464,66 @@ class TitanCardValidator(QMainWindow):
         # Result
         self.val_result = QPlainTextEdit()
         self.val_result.setReadOnly(True)
-        self.val_result.setMinimumHeight(250)
+        self.val_result.setMinimumHeight(200)
         self.val_result.setPlaceholderText("Validation results will appear here...")
         layout.addWidget(self.val_result)
 
         layout.addStretch()
         self.tabs.addTab(scroll, "VALIDATE")
+
+    def _generate_test_card(self):
+        network = random.choice(["visa", "mastercard", "amex"])
+        card = _generate_test_card(network)
+        self.val_card.setText(card)
+        exp_m = random.randint(1, 12)
+        exp_y = random.randint(26, 29)
+        self.val_exp.setText(f"{exp_m:02d}/{exp_y}")
+        self.val_cvv.setText(str(random.randint(100, 9999 if network == "amex" else 999)))
+
+    def _batch_validate(self):
+        clipboard = QApplication.clipboard()
+        text = clipboard.text().strip()
+        if not text:
+            QMessageBox.warning(self, "Batch", "Clipboard is empty. Copy card numbers (one per line) first.")
+            return
+        cards = [line.strip().replace(" ", "").replace("-", "") for line in text.splitlines() if line.strip()]
+        cards = [c for c in cards if len(c) >= 13 and c.isdigit()]
+        if not cards:
+            QMessageBox.warning(self, "Batch", "No valid card numbers found in clipboard.")
+            return
+        results = []
+        for card in cards[:50]:
+            luhn = _luhn_check(card)
+            network = _detect_network(card)
+            bin6 = card[:6]
+            bin_info = _lookup_bin(bin6)
+            score, reasons = _score_card(card, bin_info)
+            light = "GREEN" if score >= 70 else "YELLOW" if score >= 45 else "RED"
+            bank = bin_info["bank"] if bin_info else "Unknown"
+            results.append(f"{card[:6]}...{card[-4:]}  {network:10s}  Luhn:{'PASS' if luhn else 'FAIL'}  Score:{score:3d}  {light:6s}  {bank}")
+            self.validation_history.append({
+                "card": card[:6] + "...", "bin": bin6, "network": network,
+                "luhn": luhn, "score": score, "timestamp": datetime.now().isoformat(),
+            })
+            row = self.history_table.rowCount()
+            self.history_table.insertRow(row)
+            self.history_table.setItem(row, 0, QTableWidgetItem(datetime.now().strftime("%H:%M:%S")))
+            self.history_table.setItem(row, 1, QTableWidgetItem(bin6))
+            self.history_table.setItem(row, 2, QTableWidgetItem(network))
+            self.history_table.setItem(row, 3, QTableWidgetItem("PASS" if luhn else "FAIL"))
+            self.history_table.setItem(row, 4, QTableWidgetItem(str(score)))
+            self.history_table.setItem(row, 5, QTableWidgetItem(self.val_target.currentText()))
+        self.val_result.setPlainText(f"=== Batch Validation: {len(results)} cards ===\n\n" + "\n".join(results))
+        greens = sum(1 for r in results if "GREEN" in r)
+        yellows = sum(1 for r in results if "YELLOW" in r)
+        reds = sum(1 for r in results if "RED" in r)
+        self.traffic_label.setText(f"BATCH: {greens}G / {yellows}Y / {reds}R")
+        if greens > reds:
+            self.traffic_light.setStyleSheet(f"color: {GREEN};")
+        elif reds > greens:
+            self.traffic_light.setStyleSheet(f"color: {RED};")
+        else:
+            self.traffic_light.setStyleSheet(f"color: {YELLOW};")
 
     def _build_intel_tab(self):
         tab = QWidget()
@@ -402,14 +604,52 @@ class TitanCardValidator(QMainWindow):
         self.worker.finished.connect(self._on_validate_done)
         self.worker.start()
 
+    def _update_traffic_light(self, score, label_text=None):
+        if score >= 70:
+            self.traffic_light.setStyleSheet(f"color: {GREEN};")
+            self.traffic_label.setText(label_text or "GREEN — GO")
+            self.traffic_label.setStyleSheet(f"color: {GREEN}; font-weight: bold;")
+        elif score >= 45:
+            self.traffic_light.setStyleSheet(f"color: {YELLOW};")
+            self.traffic_label.setText(label_text or "YELLOW — CAUTION")
+            self.traffic_label.setStyleSheet(f"color: {YELLOW}; font-weight: bold;")
+        else:
+            self.traffic_light.setStyleSheet(f"color: {RED};")
+            self.traffic_label.setText(label_text or "RED — STOP")
+            self.traffic_label.setStyleSheet(f"color: {RED}; font-weight: bold;")
+        self.traffic_score.setText(f"{score}/100")
+        self.traffic_score.setStyleSheet(f"color: {GREEN if score >= 70 else YELLOW if score >= 45 else RED};")
+
     def _on_validate_done(self, result):
         self.validate_btn.setEnabled(True)
         self.validate_btn.setText("VALIDATE CARD")
+
+        # Built-in scoring
+        bin6 = result.get("bin", "")
+        bin_info = _lookup_bin(bin6) if bin6 else None
+        card_raw = self.val_card.text().strip().replace(" ", "").replace("-", "")
+        builtin_score, score_reasons = _score_card(card_raw, bin_info)
 
         lines = []
         lines.append(f"BIN: {result.get('bin', '?')}")
         lines.append(f"Network: {result.get('network', '?')}")
         lines.append(f"Luhn: {'PASS' if result.get('luhn') else 'FAIL'}")
+
+        if bin_info:
+            lines.append(f"\n=== BIN Intelligence ===")
+            lines.append(f"Bank: {bin_info.get('bank', '?')}")
+            lines.append(f"Type: {bin_info.get('type', '?')}")
+            lines.append(f"Level: {bin_info.get('level', '?')}")
+            lines.append(f"Country: {bin_info.get('country', '?')}")
+            lines.append(f"Risk: {bin_info.get('risk', '?').upper()}")
+            if bin_info.get('approximate'):
+                lines.append("(approximate match)")
+        else:
+            lines.append(f"\nBIN not in local database")
+
+        lines.append(f"\n=== Quality Score: {builtin_score}/100 ===")
+        for r in score_reasons:
+            lines.append(f"  - {r}")
 
         cerb = result.get("cerberus", {})
         if cerb:
@@ -424,7 +664,18 @@ class TitanCardValidator(QMainWindow):
         if result.get("tds_strategy"):
             lines.append(f"\n3DS Strategy: {result['tds_strategy'][:200]}")
 
+        if result.get("v83_ai_bin"):
+            ai = result["v83_ai_bin"]
+            lines.append(f"\n=== AI Analysis ===")
+            lines.append(f"AI Score: {ai.get('ai_score', '?')}")
+            lines.append(f"Success Prediction: {ai.get('success_prediction', '?')}")
+            lines.append(f"Risk Level: {ai.get('risk_level', '?')}")
+
         self.val_result.setPlainText("\n".join(lines))
+
+        # Update traffic light
+        final_score = cerb.get("score", builtin_score) if cerb else builtin_score
+        self._update_traffic_light(final_score)
 
         # Add to history
         self.validation_history.append(result)
@@ -434,7 +685,7 @@ class TitanCardValidator(QMainWindow):
         self.history_table.setItem(row, 1, QTableWidgetItem(result.get("bin", "")))
         self.history_table.setItem(row, 2, QTableWidgetItem(result.get("network", "")))
         self.history_table.setItem(row, 3, QTableWidgetItem("PASS" if result.get("luhn") else "FAIL"))
-        self.history_table.setItem(row, 4, QTableWidgetItem(str(cerb.get("score", ""))))
+        self.history_table.setItem(row, 4, QTableWidgetItem(str(final_score)))
         self.history_table.setItem(row, 5, QTableWidgetItem(self.val_target.currentText()))
 
         # Update session
@@ -454,36 +705,89 @@ class TitanCardValidator(QMainWindow):
             self.intel_output.setPlainText("Enter at least 6 digits")
             return
 
-        lines = [f"=== BIN Intelligence: {bin_val} ===\n"]
+        bin6 = bin_val[:6]
+        lines = [f"=== BIN Intelligence: {bin6} ===\n"]
 
+        # Built-in lookup (always available)
+        builtin = _lookup_bin(bin6)
+        if builtin:
+            lines.append("--- Built-in Database ---")
+            lines.append(f"  Bank:    {builtin.get('bank', '?')}")
+            lines.append(f"  Network: {builtin.get('network', '?')}")
+            lines.append(f"  Type:    {builtin.get('type', '?')}")
+            lines.append(f"  Level:   {builtin.get('level', '?')}")
+            lines.append(f"  Country: {builtin.get('country', '?')}")
+            lines.append(f"  Risk:    {builtin.get('risk', '?').upper()}")
+            if builtin.get('approximate'):
+                lines.append("  (approximate match)")
+
+            # Generate a test card for this BIN and score it
+            test_card = bin6 + "".join(str(random.randint(0, 9)) for _ in range(9))
+            digits = [int(d) for d in test_card]
+            odd = sum(digits[-1::-2])
+            even = sum(sum(divmod(2 * d, 10)) for d in digits[-2::-2])
+            check = (10 - (odd + even) % 10) % 10
+            test_card += str(check)
+            score, reasons = _score_card(test_card, builtin)
+            lines.append(f"\n--- Quality Assessment ---")
+            lines.append(f"  Score: {score}/100")
+            for r in reasons:
+                lines.append(f"    - {r}")
+
+            # Traffic light recommendation
+            if score >= 70:
+                lines.append(f"\n  RECOMMENDATION: GREEN — Good for operations")
+            elif score >= 45:
+                lines.append(f"\n  RECOMMENDATION: YELLOW — Use with caution")
+            else:
+                lines.append(f"\n  RECOMMENDATION: RED — Avoid")
+        else:
+            network = _detect_network(bin6)
+            lines.append(f"  Network: {network}")
+            lines.append(f"  BIN {bin6} not in local database ({len(_BIN_DB)} entries)")
+            lines.append(f"  Try enhanced modules for online BIN lookup")
+
+        # Enhanced modules (if available)
         if ENHANCED_OK:
+            lines.append("\n--- Enhanced Module ---")
             try:
                 scorer = BINScoringEngine()
                 score = scorer.score(bin_val)
-                lines.append(f"BIN Score: {score}")
+                lines.append(f"  BIN Score: {score}")
             except Exception as e:
-                lines.append(f"BIN Score: error — {e}")
+                lines.append(f"  BIN Score: error — {e}")
 
             try:
                 grader = CardQualityGrader()
                 grade = grader.grade(bin_val + "0000000000")
-                lines.append(f"Quality Grade: {grade}")
+                lines.append(f"  Quality Grade: {grade}")
             except Exception:
                 pass
 
         if TDS_OK:
+            lines.append("\n--- 3DS Strategy ---")
             try:
                 strategy = get_3ds_strategy(bin_val)
-                lines.append(f"\n3DS Strategy:\n{strategy}")
+                lines.append(f"  {strategy}")
             except Exception as e:
-                lines.append(f"\n3DS: {e}")
+                lines.append(f"  3DS: {e}")
 
         if INTEL_OK:
             try:
                 intel = get_target_intel(bin_val)
-                lines.append(f"\nTarget Intel:\n{json.dumps(intel, indent=2, default=str)[:500]}")
+                lines.append(f"\n--- Target Intel ---\n{json.dumps(intel, indent=2, default=str)[:500]}")
             except Exception:
                 pass
+
+        if AI_V83_OK:
+            lines.append("\n--- AI Deep Analysis ---")
+            try:
+                ai_bin = analyze_bin(bin6)
+                lines.append(f"  AI Score: {ai_bin.ai_score}")
+                lines.append(f"  Prediction: {ai_bin.success_prediction}")
+                lines.append(f"  Best Targets: {', '.join(ai_bin.best_targets[:3])}")
+            except Exception:
+                lines.append("  AI analysis unavailable")
 
         self.intel_output.setPlainText("\n".join(lines))
 

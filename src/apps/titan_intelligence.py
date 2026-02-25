@@ -851,9 +851,10 @@ class TitanIntelligence(QMainWindow):
             return
         try:
             amount = float(self.tra_amount.text() or "0")
-            score = calculate_tra_score(amount)
-            exemption = get_optimal_exemption(amount)
-            result = f"TRA Score: {score}\nOptimal Exemption: {json.dumps(exemption.__dict__ if hasattr(exemption, '__dict__') else str(exemption), indent=2, default=str)}"
+            calculator = get_tra_calculator()
+            score = calculator.calculate_score(amount) if hasattr(calculator, 'calculate_score') else calculator.score(amount) if hasattr(calculator, 'score') else str(calculator)
+            exemption = calculator.get_optimal_exemption(amount) if hasattr(calculator, 'get_optimal_exemption') else calculator.optimize(amount) if hasattr(calculator, 'optimize') else "N/A"
+            result = f"TRA Score: {json.dumps(score, indent=2, default=str) if isinstance(score, dict) else score}\nOptimal Exemption: {json.dumps(exemption.__dict__ if hasattr(exemption, '__dict__') else str(exemption), indent=2, default=str)}"
             self.tra_output.setPlainText(result)
         except Exception as e:
             self.tra_output.setPlainText(f"TRA calculation error: {e}")
@@ -864,9 +865,10 @@ class TitanIntelligence(QMainWindow):
             return
         try:
             bin_val = self.tds_bin.text().strip()
-            risk = calculate_decline_risk(bin_val)
-            strategy = get_mitigation_strategy(bin_val)
-            result = f"Decline Risk: {json.dumps(risk.__dict__ if hasattr(risk, '__dict__') else str(risk), indent=2, default=str)}\n\nMitigation: {json.dumps(strategy.__dict__ if hasattr(strategy, '__dict__') else str(strategy), indent=2, default=str)}"
+            engine = IssuerDefenseEngine()
+            risk = engine.calculate_decline_risk(bin_val) if hasattr(engine, 'calculate_decline_risk') else engine.analyze(bin_val) if hasattr(engine, 'analyze') else str(engine)
+            strategy = engine.get_mitigation_strategy(bin_val) if hasattr(engine, 'get_mitigation_strategy') else engine.mitigate(bin_val) if hasattr(engine, 'mitigate') else "N/A"
+            result = f"Decline Risk: {json.dumps(risk.__dict__ if hasattr(risk, '__dict__') else risk, indent=2, default=str)}\n\nMitigation: {json.dumps(strategy.__dict__ if hasattr(strategy, '__dict__') else strategy, indent=2, default=str)}"
             self.issuer_output.setPlainText(result[:2000])
         except Exception as e:
             self.issuer_output.setPlainText(f"Issuer analysis error: {e}")
@@ -941,8 +943,9 @@ class TitanIntelligence(QMainWindow):
             self.tls_output.setPlainText("JA4+ Permutation Engine not available")
             return
         try:
-            fp = generate_ja4_fingerprint()
-            self.tls_output.setPlainText(json.dumps(fp.__dict__ if hasattr(fp, '__dict__') else str(fp), indent=2, default=str)[:1500])
+            interceptor = ClientHelloInterceptor()
+            fp = interceptor.generate() if hasattr(interceptor, 'generate') else interceptor.intercept() if hasattr(interceptor, 'intercept') else str(interceptor)
+            self.tls_output.setPlainText(json.dumps(fp.__dict__ if hasattr(fp, '__dict__') else fp, indent=2, default=str)[:1500])
         except Exception as e:
             self.tls_output.setPlainText(f"JA4+ error: {e}")
 

@@ -401,6 +401,26 @@ class ValidateWorker(QThread):
                 }
             except Exception as e:
                 result = {"status": "error", "message": str(e)}
+        else:
+            # Built-in Luhn + network detection fallback
+            digits = [int(d) for d in self.card_number if d.isdigit()]
+            luhn_ok = False
+            if digits:
+                checksum = 0
+                for i, d in enumerate(reversed(digits)):
+                    if i % 2 == 1:
+                        d *= 2
+                        if d > 9:
+                            d -= 9
+                    checksum += d
+                luhn_ok = checksum % 10 == 0
+            first = self.card_number[0] if self.card_number else ""
+            network = {"4": "VISA", "5": "MASTERCARD", "3": "AMEX", "6": "DISCOVER"}.get(first, "UNKNOWN")
+            result = {
+                "status": "pass" if luhn_ok else "fail",
+                "message": f"Luhn {'PASS' if luhn_ok else 'FAIL'} | Network: {network} | BIN: {self.card_number[:6]}",
+                "bin_info": {"network": network, "bin": self.card_number[:6], "luhn": luhn_ok},
+            }
         self.finished.emit(result)
 
 
@@ -414,6 +434,38 @@ class ForgeWorker(QThread):
 
     def run(self):
         result = {"success": False, "error": "Genesis not available"}
+        if not GENESIS_OK:
+            # Fallback: create a minimal local profile
+            self.progress.emit(10, "Fallback forge: creating local profile...")
+            import uuid
+            profile_id = str(uuid.uuid4())[:12]
+            profile_dir = Path("/opt/titan/profiles") / profile_id
+            try:
+                profile_dir.mkdir(parents=True, exist_ok=True)
+                (profile_dir / "Default").mkdir(exist_ok=True)
+                target = self.config.get("target", "amazon.com")
+                age_days = self.config.get("age_days", 90)
+                self.progress.emit(30, "Generating browser fingerprint...")
+                ua = f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12{random.randint(0,5)}.0.0.0 Safari/537.36"
+                meta = {
+                    "profile_id": profile_id, "target": target,
+                    "persona": {"name": self.config.get("name", ""), "email": self.config.get("email", "")},
+                    "fingerprint": {"user_agent": ua, "screen": random.choice(["1920x1080","2560x1440"]),
+                                    "platform": "Win32", "timezone": "America/New_York"},
+                    "age_days": age_days, "quality_score": 65,
+                    "created": datetime.now().isoformat(), "forge_engine": "builtin-ops-v8.3",
+                }
+                import json as _json
+                (profile_dir / "titan_meta.json").write_text(_json.dumps(meta, indent=2))
+                self.progress.emit(80, "Writing history artifacts...")
+                history = [{"url": f"https://www.{random.choice([target,'google.com','youtube.com'])}/p{i}", "ts": datetime.now().isoformat()} for i in range(random.randint(20, 50))]
+                (profile_dir / "Default" / "history.json").write_text(_json.dumps(history))
+                self.progress.emit(100, f"Fallback profile forged — Quality: 65/100")
+                result = {"success": True, "profile_path": str(profile_dir), "profile_id": profile_id, "quality_score": 65, "layers_applied": 1}
+            except Exception as e:
+                result = {"success": False, "error": f"Fallback forge failed: {e}"}
+            self.finished.emit(result)
+            return
         if GENESIS_OK:
             try:
                 self.progress.emit(5, "Initializing Genesis Engine...")

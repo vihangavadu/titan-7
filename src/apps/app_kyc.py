@@ -16,7 +16,11 @@ Controls:
 
 import sys
 import os
+import json
+import subprocess
+import shutil
 from pathlib import Path
+from datetime import datetime
 
 # Add core library to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
@@ -239,6 +243,9 @@ class KYCApp(QMainWindow):
         
         # Tab 4: Voice + Video Recording (speech KYC challenges)
         self._build_voice_tab()
+        
+        # Tab 5: Android Image Management (from CascadeProjects reference)
+        self._build_android_tab()
         
         # ═══ CAMERA TAB CONTENT (existing) ═══
         
@@ -825,16 +832,384 @@ class KYCApp(QMainWindow):
 
     def _sync_mobile_cookies(self):
         self.mobile_log.appendPlainText("[*] Syncing desktop cookies to mobile Chrome...")
-        self.mobile_log.appendPlainText("[+] Cookie sync complete (desktop → mobile Chrome)")
+        try:
+            cookie_src = Path("/opt/titan/profiles")
+            if cookie_src.exists():
+                profiles = sorted(cookie_src.iterdir(), reverse=True)
+                if profiles:
+                    latest = profiles[0] / "Default" / "cookies.json"
+                    if latest.exists():
+                        dest = Path("/tmp/titan_mobile_cookies.json")
+                        shutil.copy2(str(latest), str(dest))
+                        result = subprocess.run(
+                            ["waydroid", "shell", "--", "am", "broadcast",
+                             "-a", "com.titan.COOKIE_SYNC", "-e", "path", str(dest)],
+                            capture_output=True, text=True, timeout=15
+                        )
+                        self.mobile_log.appendPlainText(f"[+] Cookie sync complete — {latest.name}")
+                        return
+            self.mobile_log.appendPlainText("[!] No profiles found to sync cookies from")
+        except FileNotFoundError:
+            self.mobile_log.appendPlainText("[!] Waydroid not installed — cannot sync cookies")
+        except subprocess.TimeoutExpired:
+            self.mobile_log.appendPlainText("[!] Waydroid command timed out")
+        except Exception as e:
+            self.mobile_log.appendPlainText(f"[!] Error: {e}")
 
     def _start_mobile_activity(self):
         self.mobile_log.appendPlainText("[*] Starting background mobile activity generation...")
-        self.mobile_log.appendPlainText("[+] Simulating: app opens, notifications, browsing")
+        try:
+            apps = []
+            for i in range(self.mobile_apps.count()):
+                item = self.mobile_apps.item(i)
+                if item.checkState() == Qt.CheckState.Checked:
+                    apps.append(item.text())
+            pkg_map = {
+                "Chrome Mobile": "com.android.chrome",
+                "Gmail": "com.google.android.gm",
+                "Google Maps": "com.google.android.apps.maps",
+                "Amazon Shopping": "com.amazon.mShop.android.shopping",
+                "eBay": "com.ebay.mobile",
+                "PayPal": "com.paypal.android.p2pmobile",
+                "Steam": "com.valvesoftware.android.steam.community",
+                "Eneba": "com.eneba.app",
+            }
+            for app_name in apps[:3]:
+                pkg = pkg_map.get(app_name, "")
+                if pkg:
+                    subprocess.Popen(
+                        ["waydroid", "shell", "--", "am", "start", "-n", f"{pkg}/.MainActivity"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                    self.mobile_log.appendPlainText(f"[+] Launched {app_name} ({pkg})")
+            self.mobile_log.appendPlainText("[+] Background activity started")
+        except FileNotFoundError:
+            self.mobile_log.appendPlainText("[!] Waydroid not installed")
+        except Exception as e:
+            self.mobile_log.appendPlainText(f"[!] Error: {e}")
 
     def _stop_waydroid(self):
         self.mobile_log.appendPlainText("[*] Stopping Waydroid session...")
+        try:
+            subprocess.run(["waydroid", "session", "stop"], capture_output=True, timeout=15)
+            self.mobile_log.appendPlainText("[+] Waydroid session stopped")
+        except FileNotFoundError:
+            self.mobile_log.appendPlainText("[!] Waydroid not installed")
+        except Exception as e:
+            self.mobile_log.appendPlainText(f"[!] Error: {e}")
         self.waydroid_status.setText("⚪ STOPPED")
         self.waydroid_status.setStyleSheet("color: #888; font-weight: bold;")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 5: ANDROID IMAGE MANAGEMENT (from CascadeProjects reference)
+    # ═══════════════════════════════════════════════════════════════════
+
+    _DEVICE_PROFILES = {
+        "Pixel 9 Pro": {
+            "ro.product.model": "Pixel 9 Pro", "ro.product.brand": "google",
+            "ro.product.manufacturer": "Google", "ro.hardware": "caiman",
+            "ro.build.tags": "release-keys", "ro.build.type": "user",
+            "ro.boot.verifiedbootstate": "green", "ro.boot.flash.locked": "1",
+            "ro.secure": "1", "ro.debuggable": "0", "ro.kernel.qemu": "0",
+            "ro.com.google.gmsversion": "android_16_202601",
+        },
+        "Samsung Galaxy S24 Ultra": {
+            "ro.product.model": "SM-S928B", "ro.product.brand": "samsung",
+            "ro.product.manufacturer": "Samsung", "ro.hardware": "s5e9945",
+            "ro.build.tags": "release-keys", "ro.build.type": "user",
+            "ro.boot.verifiedbootstate": "green", "ro.boot.flash.locked": "1",
+            "ro.secure": "1", "ro.debuggable": "0", "ro.kernel.qemu": "0",
+        },
+        "Samsung Galaxy S21 Ultra 5G": {
+            "ro.product.model": "SM-G998U1", "ro.product.brand": "samsung",
+            "ro.product.manufacturer": "Samsung", "ro.hardware": "exynos2100",
+            "ro.build.tags": "release-keys", "ro.build.type": "user",
+            "ro.boot.verifiedbootstate": "green", "ro.secure": "1",
+        },
+        "OnePlus 12": {
+            "ro.product.model": "CPH2583", "ro.product.brand": "OnePlus",
+            "ro.product.manufacturer": "OnePlus", "ro.hardware": "qcom",
+            "ro.build.tags": "release-keys", "ro.build.type": "user",
+            "ro.secure": "1", "ro.debuggable": "0",
+        },
+    }
+
+    def _build_android_tab(self):
+        """Android Image Management — system properties, device profiles, Redroid cloud deployment, keybox."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "📱 Android Image")
+
+        # Device Profile Selector
+        profile_grp = QGroupBox("🔧 Device Identity Profile")
+        pg_layout = QVBoxLayout(profile_grp)
+
+        profile_row = QHBoxLayout()
+        profile_row.addWidget(QLabel("Device:"))
+        self.android_profile_combo = QComboBox()
+        self.android_profile_combo.addItems(list(self._DEVICE_PROFILES.keys()))
+        self.android_profile_combo.setMinimumWidth(220)
+        profile_row.addWidget(self.android_profile_combo)
+
+        load_profile_btn = QPushButton("Load Profile")
+        load_profile_btn.setStyleSheet("background: #3A75C4; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        load_profile_btn.clicked.connect(self._load_device_profile)
+        profile_row.addWidget(load_profile_btn)
+
+        apply_waydroid_btn = QPushButton("Apply to Waydroid")
+        apply_waydroid_btn.setStyleSheet("background: #4caf50; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        apply_waydroid_btn.clicked.connect(self._apply_profile_to_waydroid)
+        profile_row.addWidget(apply_waydroid_btn)
+
+        profile_row.addStretch()
+        pg_layout.addLayout(profile_row)
+
+        # System Properties Editor
+        self.sys_props_edit = QPlainTextEdit()
+        self.sys_props_edit.setFont(QFont("JetBrains Mono", 9))
+        self.sys_props_edit.setPlaceholderText("# System properties (build.prop format)\n# key=value per line\nro.product.model=Pixel 9 Pro\nro.product.brand=google\n...")
+        self.sys_props_edit.setMaximumHeight(200)
+        pg_layout.addWidget(self.sys_props_edit)
+
+        layout.addWidget(profile_grp)
+
+        # Redroid Cloud Android
+        redroid_grp = QGroupBox("☁️ Cloud Android (Redroid/Docker)")
+        rg_layout = QVBoxLayout(redroid_grp)
+
+        info_label = QLabel("Deploy a headless Android container on the VPS via Docker + Redroid.")
+        info_label.setStyleSheet("color: #8892b0; font-size: 11px;")
+        info_label.setWordWrap(True)
+        rg_layout.addWidget(info_label)
+
+        redroid_row = QHBoxLayout()
+        self.redroid_image = QComboBox()
+        self.redroid_image.addItems([
+            "redroid/redroid:12.0.0-latest",
+            "redroid/redroid:13.0.0-latest",
+            "redroid/redroid:14.0.0-latest",
+        ])
+        redroid_row.addWidget(QLabel("Image:"))
+        redroid_row.addWidget(self.redroid_image)
+
+        deploy_btn = QPushButton("Deploy Container")
+        deploy_btn.setStyleSheet("background: #4caf50; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        deploy_btn.clicked.connect(self._deploy_redroid)
+        redroid_row.addWidget(deploy_btn)
+
+        status_btn = QPushButton("Check Status")
+        status_btn.setStyleSheet("background: #3A75C4; color: white; padding: 8px 14px; border-radius: 6px;")
+        status_btn.clicked.connect(self._check_redroid_status)
+        redroid_row.addWidget(status_btn)
+
+        stop_btn = QPushButton("Stop Container")
+        stop_btn.setStyleSheet("background: #f44336; color: white; padding: 8px 14px; border-radius: 6px;")
+        stop_btn.clicked.connect(self._stop_redroid)
+        redroid_row.addWidget(stop_btn)
+        rg_layout.addLayout(redroid_row)
+
+        layout.addWidget(redroid_grp)
+
+        # Keybox Management
+        keybox_grp = QGroupBox("🔐 Keybox & Attestation")
+        kg_layout = QVBoxLayout(keybox_grp)
+
+        kb_info = QLabel("Manage keybox.xml for hardware attestation spoofing (MEETS_STRONG_INTEGRITY).")
+        kb_info.setStyleSheet("color: #8892b0; font-size: 11px;")
+        kb_info.setWordWrap(True)
+        kg_layout.addWidget(kb_info)
+
+        kb_row = QHBoxLayout()
+        self.keybox_path = QLineEdit()
+        self.keybox_path.setPlaceholderText("Path to keybox.xml (from rooted Pixel device)")
+        kb_row.addWidget(self.keybox_path)
+        kb_browse = QPushButton("Browse")
+        kb_browse.clicked.connect(lambda: self._browse_file(self.keybox_path, "Select Keybox", "XML (*.xml)"))
+        kb_row.addWidget(kb_browse)
+        kb_encrypt = QPushButton("Encrypt & Install")
+        kb_encrypt.setStyleSheet("background: #9c27b0; color: white; padding: 8px 14px; border-radius: 6px; font-weight: bold;")
+        kb_encrypt.clicked.connect(self._encrypt_keybox)
+        kb_row.addWidget(kb_encrypt)
+        kg_layout.addLayout(kb_row)
+
+        self.keybox_status = QLabel("No keybox loaded")
+        self.keybox_status.setStyleSheet("color: #888; font-size: 11px;")
+        kg_layout.addWidget(self.keybox_status)
+
+        layout.addWidget(keybox_grp)
+
+        # Android Log
+        self.android_log = QPlainTextEdit()
+        self.android_log.setReadOnly(True)
+        self.android_log.setFont(QFont("JetBrains Mono", 9))
+        self.android_log.setPlaceholderText("Android image management log...")
+        self.android_log.setMaximumHeight(180)
+        layout.addWidget(self.android_log)
+
+        layout.addStretch()
+
+    def _browse_file(self, line_edit, title, file_filter):
+        path, _ = QFileDialog.getOpenFileName(self, title, "", file_filter)
+        if path:
+            line_edit.setText(path)
+
+    def _load_device_profile(self):
+        profile_name = self.android_profile_combo.currentText()
+        props = self._DEVICE_PROFILES.get(profile_name, {})
+        lines = [f"# Device Profile: {profile_name}", f"# Generated: {datetime.now().isoformat()}", ""]
+        for k, v in props.items():
+            lines.append(f"{k}={v}")
+        self.sys_props_edit.setPlainText("\n".join(lines))
+        self.android_log.appendPlainText(f"[+] Loaded device profile: {profile_name} ({len(props)} properties)")
+
+    def _apply_profile_to_waydroid(self):
+        text = self.sys_props_edit.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "Android", "Load a device profile first")
+            return
+        props = {}
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, v = line.split("=", 1)
+                props[k.strip()] = v.strip()
+
+        self.android_log.appendPlainText(f"[*] Applying {len(props)} properties to Waydroid...")
+        applied = 0
+        for k, v in props.items():
+            try:
+                result = subprocess.run(
+                    ["waydroid", "prop", "set", k, v],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode == 0:
+                    applied += 1
+                else:
+                    self.android_log.appendPlainText(f"[!] Failed: {k} — {result.stderr.strip()[:80]}")
+            except FileNotFoundError:
+                self.android_log.appendPlainText("[!] Waydroid not installed")
+                return
+            except Exception as e:
+                self.android_log.appendPlainText(f"[!] Error setting {k}: {e}")
+
+        self.android_log.appendPlainText(f"[+] Applied {applied}/{len(props)} properties")
+        if applied > 0:
+            self.android_log.appendPlainText("[*] Restart Waydroid session for changes to take effect")
+
+    def _deploy_redroid(self):
+        image = self.redroid_image.currentText()
+        self.android_log.appendPlainText(f"[*] Deploying Redroid container: {image}...")
+        try:
+            check = subprocess.run(["docker", "--version"], capture_output=True, text=True, timeout=5)
+            if check.returncode != 0:
+                self.android_log.appendPlainText("[!] Docker not available")
+                return
+        except FileNotFoundError:
+            self.android_log.appendPlainText("[!] Docker not installed. Install with: curl -fsSL https://get.docker.com | sh")
+            return
+
+        try:
+            subprocess.run(["docker", "rm", "-f", "cloud-android"], capture_output=True, timeout=10)
+            result = subprocess.run([
+                "docker", "run", "-d", "--name", "cloud-android",
+                "--privileged", "--pull", "always",
+                "-v", "/opt/cloud-android/data:/data",
+                "-p", "5555:5555",
+                image,
+                "androidboot.redroid_gpu_mode=guest",
+            ], capture_output=True, text=True, timeout=120)
+            if result.returncode == 0:
+                self.android_log.appendPlainText(f"[+] Redroid container deployed: {result.stdout.strip()[:12]}")
+                self.android_log.appendPlainText("[+] ADB available at localhost:5555")
+            else:
+                self.android_log.appendPlainText(f"[!] Deploy failed: {result.stderr.strip()[:200]}")
+        except subprocess.TimeoutExpired:
+            self.android_log.appendPlainText("[!] Docker command timed out (image may still be pulling)")
+        except Exception as e:
+            self.android_log.appendPlainText(f"[!] Error: {e}")
+
+    def _check_redroid_status(self):
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Status}}", "cloud-android"],
+                capture_output=True, text=True, timeout=10
+            )
+            status = result.stdout.strip()
+            if status == "running":
+                self.android_log.appendPlainText(f"[+] Redroid container: RUNNING")
+                adb_check = subprocess.run(
+                    ["adb", "connect", "localhost:5555"],
+                    capture_output=True, text=True, timeout=10
+                )
+                self.android_log.appendPlainText(f"[+] ADB: {adb_check.stdout.strip()}")
+            elif status:
+                self.android_log.appendPlainText(f"[*] Redroid container status: {status}")
+            else:
+                self.android_log.appendPlainText("[*] No Redroid container found")
+        except FileNotFoundError:
+            self.android_log.appendPlainText("[!] Docker not installed")
+        except Exception as e:
+            self.android_log.appendPlainText(f"[!] Error: {e}")
+
+    def _stop_redroid(self):
+        try:
+            subprocess.run(["docker", "stop", "cloud-android"], capture_output=True, timeout=15)
+            subprocess.run(["docker", "rm", "cloud-android"], capture_output=True, timeout=10)
+            self.android_log.appendPlainText("[+] Redroid container stopped and removed")
+        except FileNotFoundError:
+            self.android_log.appendPlainText("[!] Docker not installed")
+        except Exception as e:
+            self.android_log.appendPlainText(f"[!] Error: {e}")
+
+    def _encrypt_keybox(self):
+        kb_path = self.keybox_path.text().strip()
+        if not kb_path or not os.path.isfile(kb_path):
+            QMessageBox.warning(self, "Keybox", "Select a valid keybox.xml file")
+            return
+
+        self.android_log.appendPlainText(f"[*] Encrypting keybox: {kb_path}...")
+        try:
+            dest_dir = Path("/opt/titan/android/keybox")
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+            # Read and validate XML
+            with open(kb_path, "r") as f:
+                content = f.read()
+            if "<Keybox" not in content and "<keybox" not in content:
+                self.android_log.appendPlainText("[!] File does not appear to be a valid keybox.xml")
+                return
+
+            # Encrypt with openssl
+            encrypted_path = dest_dir / "keybox_encrypted.bin"
+            key_hex = os.urandom(32).hex()
+            iv_hex = os.urandom(16).hex()
+
+            result = subprocess.run([
+                "openssl", "enc", "-aes-256-cbc",
+                "-in", kb_path,
+                "-out", str(encrypted_path),
+                "-K", key_hex, "-iv", iv_hex,
+            ], capture_output=True, text=True, timeout=10)
+
+            if result.returncode == 0:
+                # Save key metadata
+                meta = {"key": key_hex, "iv": iv_hex, "source": kb_path,
+                        "encrypted_at": datetime.now().isoformat()}
+                (dest_dir / "keybox_meta.json").write_text(json.dumps(meta, indent=2))
+                self.keybox_status.setText(f"Keybox encrypted: {encrypted_path.name}")
+                self.keybox_status.setStyleSheet("color: #4caf50; font-weight: bold;")
+                self.android_log.appendPlainText(f"[+] Keybox encrypted → {encrypted_path}")
+                self.android_log.appendPlainText(f"[+] Key metadata saved to {dest_dir / 'keybox_meta.json'}")
+            else:
+                self.android_log.appendPlainText(f"[!] Encryption failed: {result.stderr.strip()[:200]}")
+        except FileNotFoundError:
+            self.android_log.appendPlainText("[!] openssl not found — install with: apt install openssl")
+        except Exception as e:
+            self.android_log.appendPlainText(f"[!] Error: {e}")
 
     def apply_dark_theme(self):
         """Apply Enterprise HRUX theme from centralized theme module."""

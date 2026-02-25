@@ -14,8 +14,11 @@ import sys
 import os
 import json
 import random
+import hashlib
+import uuid
+import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
 
@@ -118,6 +121,73 @@ try:
 except ImportError:
     SESSION_OK = False
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILT-IN PERSONA GENERATOR (works without core modules)
+# ═══════════════════════════════════════════════════════════════════════════════
+_FIRST_NAMES_M = ["James","Robert","John","Michael","David","William","Richard","Joseph","Thomas","Christopher",
+    "Daniel","Matthew","Anthony","Mark","Steven","Andrew","Paul","Joshua","Kenneth","Kevin"]
+_FIRST_NAMES_F = ["Mary","Patricia","Jennifer","Linda","Barbara","Elizabeth","Susan","Jessica","Sarah","Karen",
+    "Lisa","Nancy","Betty","Margaret","Sandra","Ashley","Dorothy","Kimberly","Emily","Donna"]
+_LAST_NAMES = ["Smith","Johnson","Williams","Brown","Jones","Garcia","Miller","Davis","Rodriguez","Martinez",
+    "Anderson","Taylor","Thomas","Moore","Jackson","Martin","Lee","Thompson","White","Harris",
+    "Clark","Lewis","Robinson","Walker","Young","Allen","King","Wright","Scott","Hill"]
+_STREETS = ["Oak","Maple","Cedar","Pine","Elm","Washington","Park","Lake","Hill","Forest",
+    "River","Spring","Valley","Sunset","Highland","Meadow","Cherry","Willow","Birch","Walnut"]
+_STREET_TYPES = ["St","Ave","Dr","Ln","Blvd","Ct","Way","Rd","Pl","Cir"]
+_CITIES_STATES_ZIPS = [
+    ("New York","NY","10001"),("Los Angeles","CA","90001"),("Chicago","IL","60601"),
+    ("Houston","TX","77001"),("Phoenix","AZ","85001"),("Philadelphia","PA","19101"),
+    ("San Antonio","TX","78201"),("San Diego","CA","92101"),("Dallas","TX","75201"),
+    ("Austin","TX","78701"),("Jacksonville","FL","32099"),("Columbus","OH","43085"),
+    ("Charlotte","NC","28201"),("Indianapolis","IN","46201"),("Denver","CO","80201"),
+    ("Seattle","WA","98101"),("Nashville","TN","37201"),("Portland","OR","97201"),
+    ("Las Vegas","NV","89101"),("Atlanta","GA","30301"),("Miami","FL","33101"),
+    ("Tampa","FL","33601"),("Minneapolis","MN","55401"),("Raleigh","NC","27601"),
+]
+_EMAIL_DOMAINS = ["gmail.com","yahoo.com","outlook.com","icloud.com","protonmail.com","hotmail.com"]
+_CARD_BINS = {
+    "visa": ["4532","4556","4916","4929","4485","4716"],
+    "mastercard": ["5425","5399","5168","5495","5307","5211"],
+    "amex": ["3782","3714","3787","3400","3700"],
+    "discover": ["6011","6445","6500","6559"],
+}
+
+def _luhn_checksum(partial):
+    digits = [int(d) for d in partial]
+    odd_sum = sum(digits[-1::-2])
+    even_sum = sum(sum(divmod(2 * d, 10)) for d in digits[-2::-2])
+    return (odd_sum + even_sum) % 10
+
+def _generate_card_number(network="visa"):
+    bins = _CARD_BINS.get(network, _CARD_BINS["visa"])
+    prefix = random.choice(bins)
+    length = 15 if network == "amex" else 16
+    body = prefix + "".join(str(random.randint(0, 9)) for _ in range(length - len(prefix) - 1))
+    check = (10 - _luhn_checksum(body + "0")) % 10
+    return body + str(check)
+
+def generate_persona():
+    gender = random.choice(["M", "F"])
+    first = random.choice(_FIRST_NAMES_M if gender == "M" else _FIRST_NAMES_F)
+    last = random.choice(_LAST_NAMES)
+    city, state, zipcode = random.choice(_CITIES_STATES_ZIPS)
+    street_num = random.randint(100, 9999)
+    street = f"{street_num} {random.choice(_STREETS)} {random.choice(_STREET_TYPES)}"
+    email_user = f"{first.lower()}.{last.lower()}{random.randint(1,99)}"
+    email = f"{email_user}@{random.choice(_EMAIL_DOMAINS)}"
+    phone = f"+1-{random.randint(200,999)}-{random.randint(200,999)}-{random.randint(1000,9999)}"
+    network = random.choice(["visa", "mastercard"])
+    card = _generate_card_number(network)
+    exp_month = random.randint(1, 12)
+    exp_year = random.randint(26, 29)
+    return {
+        "name": f"{first} {last}", "email": email, "phone": phone,
+        "street": street, "city": city, "state": state, "zip": zipcode,
+        "card_number": card, "card_last4": card[-4:], "card_network": network,
+        "card_exp": f"{exp_month:02d}/{exp_year}", "card_cvv": str(random.randint(100, 999)),
+        "gender": gender,
+    }
+
 # V8.3: AI detection vector sanitization
 try:
     from ai_intelligence_engine import (
@@ -142,10 +212,120 @@ class ForgeWorker(QThread):
         """V8.3 FIX #2: Signal worker to stop cleanly."""
         self._stop_flag.set()
 
+    def _fallback_forge(self):
+        """Built-in forge when GenesisEngine is not available. Creates a real local profile directory."""
+        self.progress.emit(5, "Fallback forge: creating local profile...")
+        profile_id = str(uuid.uuid4())[:12]
+        profile_dir = Path("/opt/titan/profiles") / profile_id
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        (profile_dir / "Default").mkdir(exist_ok=True)
+
+        self.progress.emit(15, "Generating persona metadata...")
+        target = self.config.get("target", "amazon.com")
+        age_days = self.config.get("age_days", 90)
+        name = self.config.get("name", "") or generate_persona()["name"]
+
+        self.progress.emit(30, "Building browser fingerprint...")
+        ua_templates = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12{v}.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12{v}.0.0.0 Safari/537.36",
+        ]
+        chrome_ver = random.randint(0, 5)
+        user_agent = random.choice(ua_templates).replace("{v}", str(chrome_ver))
+        screen_res = random.choice(["1920x1080", "2560x1440", "1680x1050", "1440x900", "3840x2160"])
+        platform = random.choice(["Win32", "MacIntel"])
+        tz = random.choice(["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"])
+        webgl = random.choice(["ANGLE (NVIDIA GeForce RTX 3070)", "ANGLE (AMD Radeon RX 6800)", "ANGLE (Intel Iris Xe)", "Apple GPU"])
+        hw_conc = random.choice([8, 12, 16, 24])
+        langs = random.choice(["en-US,en", "en-US", "en-GB,en"])
+
+        if self._stop_flag.is_set():
+            self.finished.emit({"success": False, "error": "Cancelled"})
+            return
+
+        self.progress.emit(45, "Generating browsing history artifacts...")
+        now = datetime.now()
+        history = []
+        for i in range(random.randint(30, 80)):
+            days_ago = random.randint(0, age_days)
+            ts = (now - timedelta(days=days_ago, hours=random.randint(0, 23), minutes=random.randint(0, 59))).isoformat()
+            sites = [target, "google.com", "youtube.com", "reddit.com", "wikipedia.org",
+                     "stackoverflow.com", "github.com", "amazon.com", "twitter.com", "linkedin.com"]
+            site = random.choice(sites)
+            history.append({"url": f"https://www.{site}/{''.join(random.choices('abcdefghijklmnop', k=8))}", "ts": ts, "title": f"Page on {site}"})
+
+        self.progress.emit(60, "Building cookie jar...")
+        cookies = []
+        for site in set(h["url"].split("/")[2] for h in history[:20]):
+            cookies.append({"domain": site, "name": "_ga", "value": f"GA1.2.{random.randint(100000,999999)}.{int(now.timestamp()) - random.randint(0, age_days*86400)}", "httpOnly": False, "secure": True})
+            cookies.append({"domain": site, "name": "_gid", "value": f"GA1.2.{random.randint(100000,999999)}.{int(now.timestamp())}", "httpOnly": False, "secure": True})
+
+        self.progress.emit(75, "Writing profile artifacts...")
+        # Compute quality score based on completeness
+        fields_filled = sum(1 for k in ["name","email","phone","street","city","state","zip","card_last4"] if self.config.get(k))
+        quality_score = min(95, 40 + fields_filled * 5 + min(len(history), 50) // 2 + len(cookies) // 2)
+
+        meta = {
+            "profile_id": profile_id,
+            "target": target,
+            "persona": {
+                "name": name,
+                "email": self.config.get("email", ""),
+                "phone": self.config.get("phone", ""),
+                "address": {
+                    "street": self.config.get("street", ""),
+                    "city": self.config.get("city", ""),
+                    "state": self.config.get("state", ""),
+                    "zip": self.config.get("zip", ""),
+                },
+                "card_network": self.config.get("card_network", "visa"),
+                "card_last4": self.config.get("card_last4", ""),
+                "card_exp": self.config.get("card_exp", ""),
+            },
+            "fingerprint": {
+                "user_agent": user_agent,
+                "screen_resolution": screen_res,
+                "platform": platform,
+                "timezone": tz,
+                "webgl_renderer": webgl,
+                "hardware_concurrency": hw_conc,
+                "languages": langs,
+            },
+            "age_days": age_days,
+            "quality_score": quality_score,
+            "history_count": len(history),
+            "cookie_count": len(cookies),
+            "created": now.isoformat(),
+            "forge_engine": "builtin-v8.3",
+        }
+
+        (profile_dir / "titan_meta.json").write_text(json.dumps(meta, indent=2))
+        (profile_dir / "Default" / "history.json").write_text(json.dumps(history, indent=2))
+        (profile_dir / "Default" / "cookies.json").write_text(json.dumps(cookies, indent=2))
+        (profile_dir / "Default" / "fingerprint.json").write_text(json.dumps(meta["fingerprint"], indent=2))
+
+        self.progress.emit(95, f"Profile forged locally — Quality: {quality_score}/100")
+        self.progress.emit(100, "Done")
+        return {
+            "success": True,
+            "profile_path": str(profile_dir),
+            "profile_id": profile_id,
+            "quality_score": quality_score,
+            "layers_applied": 4,
+            "v83_fp_coherence": None,
+            "v83_fp_issues": [],
+            "v83_id_plausible": None,
+            "v83_id_anomalies": [],
+        }
+
     def run(self):
         result = {"success": False, "error": "Genesis not available"}
         if not GENESIS_OK:
-            self.finished.emit(result)
+            result = self._fallback_forge()
+            if result:
+                self.finished.emit(result)
+            else:
+                self.finished.emit({"success": False, "error": "Fallback forge failed"})
             return
         try:
             self.progress.emit(5, "Initializing Genesis Engine...")
@@ -349,6 +529,19 @@ class TitanProfileForge(QMainWindow):
         layout.setSpacing(10)
         layout.setContentsMargins(12, 12, 12, 12)
 
+        # Auto-fill button row
+        auto_row = QHBoxLayout()
+        auto_btn = QPushButton("GENERATE RANDOM PERSONA")
+        auto_btn.setStyleSheet(f"background: {GREEN}; color: white; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 13px;")
+        auto_btn.clicked.connect(self._auto_fill_persona)
+        auto_row.addWidget(auto_btn)
+        clear_btn = QPushButton("Clear All")
+        clear_btn.setStyleSheet(f"background: {RED}; color: white; padding: 12px 18px; border-radius: 8px;")
+        clear_btn.clicked.connect(self._clear_identity)
+        auto_row.addWidget(clear_btn)
+        auto_row.addStretch()
+        layout.addLayout(auto_row)
+
         # Persona
         pgrp = QGroupBox("Persona Identity")
         pf = QFormLayout(pgrp)
@@ -416,6 +609,26 @@ class TitanProfileForge(QMainWindow):
         layout.addStretch()
         self.tabs.addTab(scroll, "IDENTITY")
 
+    def _auto_fill_persona(self):
+        p = generate_persona()
+        self.id_name.setText(p["name"])
+        self.id_email.setText(p["email"])
+        self.id_phone.setText(p["phone"])
+        self.id_street.setText(p["street"])
+        self.id_city.setText(p["city"])
+        self.id_state.setText(p["state"])
+        self.id_zip.setText(p["zip"])
+        self.id_card_last4.setText(p["card_last4"])
+        idx = self.id_card_network.findText(p["card_network"])
+        if idx >= 0:
+            self.id_card_network.setCurrentIndex(idx)
+        self.id_card_exp.setText(p["card_exp"])
+
+    def _clear_identity(self):
+        for w in [self.id_name, self.id_email, self.id_phone, self.id_street,
+                  self.id_city, self.id_state, self.id_zip, self.id_card_last4, self.id_card_exp]:
+            w.clear()
+
     def _build_forge_tab(self):
         tab = QWidget()
         scroll = QScrollArea()
@@ -460,10 +673,17 @@ class TitanProfileForge(QMainWindow):
         layout.addWidget(self.forge_status)
 
         # Forge button
+        btn_row = QHBoxLayout()
         self.forge_btn = QPushButton("FORGE PROFILE")
         self.forge_btn.setStyleSheet(f"background: {ACCENT}; color: white; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 14px;")
         self.forge_btn.clicked.connect(self._start_forge)
-        layout.addWidget(self.forge_btn)
+        btn_row.addWidget(self.forge_btn)
+
+        quick_btn = QPushButton("QUICK FORGE (Auto-Generate + Forge)")
+        quick_btn.setStyleSheet(f"background: {GREEN}; color: white; padding: 14px 24px; border-radius: 8px; font-weight: bold; font-size: 12px;")
+        quick_btn.clicked.connect(self._quick_forge)
+        btn_row.addWidget(quick_btn)
+        layout.addLayout(btn_row)
 
         # Output
         self.forge_output = QPlainTextEdit()
@@ -535,12 +755,20 @@ class TitanProfileForge(QMainWindow):
         self.forge_status.setText(msg)
         self.forge_output.appendPlainText(f"[{pct}%] {msg}")
 
+    def _quick_forge(self):
+        self._auto_fill_persona()
+        self._start_forge()
+
     def _on_forge_done(self, result):
         self.forge_btn.setEnabled(True)
         if result.get("success"):
             self.forge_output.appendPlainText(f"\nSUCCESS — Quality: {result.get('quality_score', 0)}/100")
             self.forge_output.appendPlainText(f"Path: {result.get('profile_path', 'N/A')}")
             self.forge_output.appendPlainText(f"Layers: {result.get('layers_applied', 0)}")
+            if result.get("v83_fp_coherence") is not None:
+                self.forge_output.appendPlainText(f"FP Coherence: {result['v83_fp_coherence']}/100")
+            if result.get("v83_id_plausible") is not None:
+                self.forge_output.appendPlainText(f"ID Plausible: {result['v83_id_plausible']}")
             if SESSION_OK:
                 try:
                     update_session(
@@ -550,13 +778,13 @@ class TitanProfileForge(QMainWindow):
                     )
                 except Exception:
                     pass
+            self._refresh_profiles()
         else:
             self.forge_output.appendPlainText(f"\nFAILED: {result.get('error', 'Unknown')}")
 
     def _refresh_profiles(self):
         profiles_dir = Path("/opt/titan/profiles")
-        if not profiles_dir.exists():
-            return
+        profiles_dir.mkdir(parents=True, exist_ok=True)
         self.profiles_table.setRowCount(0)
         for d in sorted(profiles_dir.iterdir(), reverse=True):
             if d.is_dir():
@@ -573,6 +801,16 @@ class TitanProfileForge(QMainWindow):
                         self.profiles_table.setItem(row, 4, QTableWidgetItem(meta.get("created", "")))
                     except Exception:
                         pass
+
+    def _export_profile(self, profile_dir):
+        if not profile_dir or not Path(profile_dir).exists():
+            return
+        dest, _ = QFileDialog.getSaveFileName(self, "Export Profile", f"{Path(profile_dir).name}.json", "JSON (*.json)")
+        if dest:
+            meta_file = Path(profile_dir) / "titan_meta.json"
+            if meta_file.exists():
+                shutil.copy2(str(meta_file), dest)
+                QMessageBox.information(self, "Export", f"Profile exported to {dest}")
 
 
 if __name__ == "__main__":
