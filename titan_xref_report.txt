@@ -1,0 +1,13 @@
+UNDOCUMENTED: core/oblivion_setup.py
+UNDOCUMENTED: core/smoke_test_v91.py
+UNDOCUMENTED: core/verify_sync.py
+DRIFT: apps(22) vs src/apps(17) = 5
+
+=== CROSS-REFERENCE SUMMARY ===
+Documented core modules: 111
+Present on VPS: 111
+Missing from VPS: 0
+Undocumented on VPS: 3
+File drift: 1 dirs
+Documented apps: 10 (present: 10, missing: 0)
+Documented C modules: 3 (present: 3, missing: 0)

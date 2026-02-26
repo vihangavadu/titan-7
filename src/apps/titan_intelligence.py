@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 INTELLIGENCE CENTER — AI Analysis & Strategy
+TITAN V9.1 INTELLIGENCE CENTER — AI Analysis & Strategy
 =========================================================
 AI-powered analysis, 3DS strategy, detection analysis, real-time copilot.
 
@@ -83,6 +83,12 @@ try:
     OLLAMA_OK = True
 except ImportError:
     OLLAMA_OK = False
+
+try:
+    from titan_onnx_engine import TitanOnnxEngine, get_engine as get_onnx_engine
+    ONNX_OK = True
+except ImportError:
+    ONNX_OK = False
 
 try:
     from titan_vector_memory import TitanVectorMemory
@@ -194,6 +200,56 @@ try:
 except ImportError:
     INTEL_MON_OK = False
 
+# Tab 6: OSINT
+try:
+    from titan_web_intel import TitanWebIntel as _TitanWebIntel, get_web_intel, is_web_intel_available
+    OSINT_WEB_OK = True
+except ImportError:
+    OSINT_WEB_OK = False
+
+try:
+    from intel_monitor import (
+        IntelMonitor, INTEL_SOURCES, classify_post, AutoEngagement,
+        SessionManager as IntelSessionManager, AlertPriority, SourceType,
+    )
+    OSINT_MONITOR_OK = True
+except ImportError:
+    OSINT_MONITOR_OK = False
+
+try:
+    from target_intelligence import (
+        get_target_intel, list_targets, get_profile_requirements,
+        ANTIFRAUD_PROFILES, TARGETS,
+    )
+    TARGET_INTEL_OK = True
+except ImportError:
+    TARGET_INTEL_OK = False
+
+# Tab 7: TARGET DISCOVERY
+try:
+    from target_discovery import (
+        TargetDiscovery, SITE_DATABASE, SiteDifficulty, SiteCategory, PSP,
+    )
+    DISCOVERY_OK = True
+except ImportError:
+    DISCOVERY_OK = False
+
+try:
+    from titan_target_intel_v2 import (
+        TargetIntelV2, PSP_3DS_BEHAVIOR, MCC_3DS_INTELLIGENCE,
+        GEO_3DS_ENFORCEMENT, TRANSACTION_TYPE_EXEMPTIONS, ANTIFRAUD_GAPS,
+        CHECKOUT_FLOW_INTELLIGENCE,
+    )
+    INTEL_V2_FULL_OK = True
+except ImportError:
+    INTEL_V2_FULL_OK = False
+
+try:
+    from target_presets import get_preset_targets
+    PRESETS_OK = True
+except ImportError:
+    PRESETS_OK = False
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # WORKERS
@@ -280,6 +336,156 @@ class ReconWorker(QThread):
         self.finished.emit("\n".join(parts) if parts else "No intelligence modules available")
 
 
+class OSINTWorker(QThread):
+    finished = pyqtSignal(str)
+    progress = pyqtSignal(str)
+
+    def __init__(self, query, search_type="web", parent=None):
+        super().__init__(parent)
+        self.query = query
+        self.search_type = search_type
+
+    def run(self):
+        parts = []
+        try:
+            if self.search_type == "web" and OSINT_WEB_OK:
+                self.progress.emit("Searching web intelligence...")
+                wi = get_web_intel()
+                results = wi.search(self.query, num_results=8)
+                parts.append(f"=== WEB INTEL: {self.query} ===\n")
+                for r in results:
+                    parts.append(f"[{r.get('position', '?')}] {r.get('title', '')}")
+                    parts.append(f"    URL: {r.get('url', '')}")
+                    parts.append(f"    {r.get('snippet', '')}\n")
+            elif self.search_type == "merchant" and OSINT_WEB_OK:
+                self.progress.emit("Running merchant recon...")
+                wi = get_web_intel()
+                report = wi.recon_merchant(self.query)
+                parts.append(f"=== MERCHANT RECON: {self.query} ===\n")
+                for r in (report.results if hasattr(report, 'results') else []):
+                    parts.append(f"• {r.title}")
+                    parts.append(f"  {r.url}")
+                    parts.append(f"  {r.snippet}\n")
+            elif self.search_type == "bin" and OSINT_WEB_OK:
+                self.progress.emit("Searching BIN intelligence...")
+                wi = get_web_intel()
+                report = wi.search_bin_intel(self.query)
+                parts.append(f"=== BIN INTEL: {self.query} ===\n")
+                for r in (report.results if hasattr(report, 'results') else []):
+                    parts.append(f"• {r.title} — {r.snippet}")
+            elif self.search_type == "threat" and OSINT_WEB_OK:
+                self.progress.emit("Monitoring threat intelligence...")
+                wi = get_web_intel()
+                report = wi.monitor_threats(self.query)
+                parts.append(f"=== THREAT MONITOR: {self.query} ===\n")
+                for r in (report.results if hasattr(report, 'results') else []):
+                    parts.append(f"• {r.title}")
+                    parts.append(f"  {r.snippet}\n")
+            elif self.search_type == "antifraud" and OSINT_WEB_OK:
+                self.progress.emit("Researching antifraud bypass intel...")
+                wi = get_web_intel()
+                report = wi.search_antifraud_bypass(self.query)
+                parts.append(f"=== ANTIFRAUD BYPASS INTEL: {self.query} ===\n")
+                for r in (report.results if hasattr(report, 'results') else []):
+                    parts.append(f"• {r.title}")
+                    parts.append(f"  {r.url}")
+                    parts.append(f"  {r.snippet}\n")
+            if not parts:
+                parts.append("No OSINT results found. Check web intel module or API keys.")
+        except Exception as e:
+            parts.append(f"OSINT error: {e}")
+        self.finished.emit("\n".join(parts))
+
+
+class TargetDiscoveryWorker(QThread):
+    finished = pyqtSignal(str)
+    progress = pyqtSignal(str)
+
+    def __init__(self, action, params=None, parent=None):
+        super().__init__(parent)
+        self.action = action
+        self.params = params or {}
+
+    def run(self):
+        parts = []
+        try:
+            if self.action == "list_sites" and DISCOVERY_OK:
+                self.progress.emit("Loading site database...")
+                difficulty = self.params.get("difficulty", "easy")
+                category = self.params.get("category", "all")
+                td = TargetDiscovery()
+                if category != "all":
+                    sites = td.get_sites(difficulty=difficulty, category=category)
+                else:
+                    sites = td.get_sites(difficulty=difficulty)
+                parts.append(f"=== SITE DATABASE: {difficulty.upper()} | {category} ===\n{len(sites)} sites found\n")
+                for s in sites[:50]:
+                    parts.append(f"{'✓' if hasattr(s,'status') and str(getattr(s,'status',''))=='SiteStatus.VERIFIED' else '○'} {s.name} ({s.domain})")
+                    parts.append(f"  PSP: {s.psp.value if hasattr(s.psp,'value') else s.psp} | 3DS: {s.three_ds} | Fraud: {s.fraud_engine}")
+                    parts.append(f"  Countries: {', '.join(s.country_focus[:4])} | Max: ${s.max_amount} | Cashout: {int(s.cashout_rate*100)}%")
+                    if s.notes:
+                        parts.append(f"  Note: {s.notes[:100]}")
+                    parts.append("")
+            elif self.action == "recommend" and DISCOVERY_OK:
+                self.progress.emit("Finding best sites for card...")
+                td = TargetDiscovery()
+                country = self.params.get("country", "US")
+                amount = float(self.params.get("amount", 200))
+                sites = td.recommend_for_card(country=country, amount=amount)
+                parts.append(f"=== RECOMMENDATIONS: {country} card, ${amount} ===\n")
+                for s in sites[:20]:
+                    parts.append(f"★ {s.name} ({s.domain})")
+                    parts.append(f"  PSP: {s.psp.value if hasattr(s.psp,'value') else s.psp} | 3DS: {s.three_ds} | Rate: {int(getattr(s,'success_rate',0)*100)}%")
+                    parts.append(f"  Cashout: {int(s.cashout_rate*100)}% | {s.products}\n")
+            elif self.action == "probe" and DISCOVERY_OK:
+                self.progress.emit("Probing target site...")
+                td = TargetDiscovery()
+                domain = self.params.get("domain", "")
+                result = td.probe_site(domain)
+                parts.append(f"=== SITE PROBE: {domain} ===\n")
+                parts.append(json.dumps(result.__dict__ if hasattr(result, '__dict__') else result, indent=2, default=str))
+            elif self.action == "psp_intel" and INTEL_V2_FULL_OK:
+                self.progress.emit("Loading PSP intelligence...")
+                psp = self.params.get("psp", "stripe")
+                data = PSP_3DS_BEHAVIOR.get(psp.lower(), {})
+                parts.append(f"=== PSP INTEL: {psp.upper()} ===\n")
+                parts.append(json.dumps(data, indent=2))
+            elif self.action == "geo_intel" and INTEL_V2_FULL_OK:
+                self.progress.emit("Loading geo enforcement map...")
+                parts.append("=== GEOGRAPHIC 3DS ENFORCEMENT ===\n")
+                for zone, data in GEO_3DS_ENFORCEMENT.items():
+                    parts.append(f"[{zone.upper()}]")
+                    if isinstance(data, dict):
+                        countries = data.get("countries", [])
+                        rate = data.get("3ds_rate_range", "?")
+                        parts.append(f"  Countries: {', '.join(countries[:10])}{'...' if len(countries)>10 else ''}")
+                        parts.append(f"  3DS Rate: {rate}")
+                    parts.append("")
+            elif self.action == "mcc_intel" and INTEL_V2_FULL_OK:
+                self.progress.emit("Loading MCC intelligence...")
+                parts.append("=== MCC 3DS INTELLIGENCE ===\n")
+                for mcc, data in MCC_3DS_INTELLIGENCE.items():
+                    parts.append(f"MCC {mcc}: {data.get('name', '?')}")
+                    parts.append(f"  3DS Rate: {int(data.get('3ds_rate', 0)*100)}% | {data.get('reason', '')[:80]}")
+                    parts.append(f"  Examples: {', '.join(data.get('examples', [])[:4])}\n")
+            elif self.action == "exemptions" and INTEL_V2_FULL_OK:
+                self.progress.emit("Loading transaction exemptions...")
+                parts.append("=== TRANSACTION TYPE EXEMPTIONS ===\n")
+                for key, data in TRANSACTION_TYPE_EXEMPTIONS.items():
+                    parts.append(f"[{data.get('name', key)}]")
+                    parts.append(f"  3DS Required: {data.get('3ds_required', '?')}")
+                    parts.append(f"  {data.get('description', '')[:120]}")
+                    how = data.get('how_to_exploit', [])
+                    if how:
+                        parts.append(f"  HOW: {how[0][:100]}")
+                    parts.append("")
+            if not parts:
+                parts.append("No discovery results. Ensure target_discovery / titan_target_intel_v2 modules are available.")
+        except Exception as e:
+            parts.append(f"Discovery error: {e}")
+        self.finished.emit("\n".join(parts))
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN WINDOW
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -292,7 +498,7 @@ class TitanIntelligence(QMainWindow):
         QTimer.singleShot(300, self._restore_session_context)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — Intelligence Center")
+        self.setWindowTitle("TITAN V9.1 — Intelligence Center")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -316,8 +522,10 @@ class TitanIntelligence(QMainWindow):
         # Module count
         available = sum([COPILOT_OK, AI_OK, OLLAMA_OK, VECTOR_OK, AGENT_OK, THREEDS_OK,
                         THREEDS_AI_OK, TRA_OK, ISSUER_OK, DETECT_OK, GUARD_OK, TX_MON_OK,
-                        INTEL_V2_OK, INTEL_OK, WEB_INTEL_OK, TLS_OK, JA4_OK, COGNITIVE_OK, INTEL_MON_OK])
-        mod_lbl = QLabel(f"{available}/20 modules active")
+                        INTEL_V2_OK, INTEL_OK, WEB_INTEL_OK, TLS_OK, JA4_OK, COGNITIVE_OK,
+                        INTEL_MON_OK, OSINT_WEB_OK, OSINT_MONITOR_OK, TARGET_INTEL_OK,
+                        DISCOVERY_OK, INTEL_V2_FULL_OK])
+        mod_lbl = QLabel(f"{available}/24 modules active")
         mod_lbl.setFont(QFont("JetBrains Mono", 10))
         mod_lbl.setStyleSheet(f"color: {GREEN if available >= 15 else YELLOW if available >= 8 else RED};")
         mod_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -344,6 +552,8 @@ class TitanIntelligence(QMainWindow):
         self._build_detection_tab()
         self._build_recon_tab()
         self._build_memory_tab()
+        self._build_osint_tab()
+        self._build_target_discovery_tab()
 
     # ═══════════════════════════════════════════════════════════════════════
     # TAB 1: AI COPILOT
@@ -1009,6 +1219,469 @@ class TitanIntelligence(QMainWindow):
                 self.web_output.setPlainText(f"Web intel error: {e}")
         else:
             self.web_output.setPlainText("Web Intel not available")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TAB 6: OSINT
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _build_osint_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        status_grp = QGroupBox("OSINT Module Status")
+        sf = QHBoxLayout(status_grp)
+        for name, ok in [("Web Intel", OSINT_WEB_OK), ("Intel Monitor", OSINT_MONITOR_OK),
+                          ("Target Intel DB", TARGET_INTEL_OK), ("Discovery Engine", DISCOVERY_OK)]:
+            dot = QLabel(f"{'●' if ok else '○'} {name}")
+            dot.setStyleSheet(f"color: {GREEN if ok else RED}; font-size: 11px;")
+            sf.addWidget(dot)
+        sf.addStretch()
+        if OSINT_WEB_OK:
+            try:
+                wi = get_web_intel()
+                stats = wi.get_stats()
+                pl = QLabel(f"Providers: {', '.join(stats.get('providers', ['none'])[:3])}")
+                pl.setStyleSheet(f"color: {CYAN}; font-size: 10px;")
+                sf.addWidget(pl)
+            except Exception:
+                pass
+        layout.addWidget(status_grp)
+
+        search_grp = QGroupBox("Web Intelligence Search")
+        sg = QVBoxLayout(search_grp)
+        sr = QHBoxLayout()
+        self.osint_query = QLineEdit()
+        self.osint_query.setPlaceholderText("Query, domain, BIN number, or antifraud vendor name...")
+        self.osint_query.returnPressed.connect(self._run_osint_web)
+        sr.addWidget(self.osint_query)
+        self.osint_type = QComboBox()
+        self.osint_type.addItems(["web", "merchant", "bin", "threat", "antifraud"])
+        self.osint_type.setFixedWidth(120)
+        sr.addWidget(self.osint_type)
+        ob = QPushButton("SEARCH OSINT")
+        ob.setStyleSheet(f"background: {ACCENT}; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        ob.clicked.connect(self._run_osint_web)
+        sr.addWidget(ob)
+        sg.addLayout(sr)
+
+        qr = QHBoxLayout()
+        for label, stype in [("Merchant Recon","merchant"),("BIN Intel","bin"),("Threat Monitor","threat"),("AF Bypass","antifraud"),("Security News","news")]:
+            btn = QPushButton(label)
+            btn.setStyleSheet(f"background: {CARD2}; color: {TXT}; padding: 5px 10px; border-radius: 4px; font-size: 11px;")
+            btn.clicked.connect(lambda c, st=stype: self._osint_quick(st))
+            qr.addWidget(btn)
+        qr.addStretch()
+        sg.addLayout(qr)
+        self.osint_status = QLabel("Ready")
+        self.osint_status.setStyleSheet(f"color: {TXT2}; font-size: 10px;")
+        sg.addWidget(self.osint_status)
+        self.osint_output = QPlainTextEdit()
+        self.osint_output.setReadOnly(True)
+        self.osint_output.setMinimumHeight(250)
+        self.osint_output.setStyleSheet(f"font-family: 'JetBrains Mono'; font-size: 11px; background: #0f172a; color: {TXT};")
+        self.osint_output.setPlainText("OSINT Engine ready.\n\nTypes: web | merchant | bin | threat | antifraud\nPowered by: SearXNG → SerpAPI → Serper → DuckDuckGo")
+        sg.addWidget(self.osint_output)
+        layout.addWidget(search_grp)
+
+        monitor_grp = QGroupBox("Intelligence Monitor — Forums / Channels / RSS")
+        mg = QVBoxLayout(monitor_grp)
+        mt = QHBoxLayout()
+        self.monitor_source = QComboBox()
+        if OSINT_MONITOR_OK:
+            for src in INTEL_SOURCES:
+                icon = {"forum": "🔴", "cc_shop": "💳", "telegram": "📱", "rss": "📰"}.get(src.source_type.value, "○")
+                self.monitor_source.addItem(f"{icon} {src.name} ({src.access.value})", src.source_id)
+        else:
+            self.monitor_source.addItem("Intel Monitor not available")
+        mt.addWidget(QLabel("Source:"))
+        mt.addWidget(self.monitor_source)
+        for lbl, fn in [("Source Info", self._show_source_info), ("List All Sources", self._list_all_sources)]:
+            b = QPushButton(lbl)
+            b.setStyleSheet(f"background: {CARD2}; color: {TXT}; padding: 6px 12px; border-radius: 4px;")
+            b.clicked.connect(fn)
+            mt.addWidget(b)
+        mt.addStretch()
+        mg.addLayout(mt)
+        self.monitor_output = QPlainTextEdit()
+        self.monitor_output.setReadOnly(True)
+        self.monitor_output.setMaximumHeight(180)
+        self.monitor_output.setStyleSheet(f"font-family: 'JetBrains Mono'; font-size: 11px; background: #0f172a; color: {TXT};")
+        self.monitor_output.setPlainText("Select a source and click 'Source Info' or 'List All Sources'.")
+        mg.addWidget(self.monitor_output)
+        layout.addWidget(monitor_grp)
+
+        af_grp = QGroupBox("Antifraud Intelligence Database")
+        af = QVBoxLayout(af_grp)
+        at = QHBoxLayout()
+        self.af_vendor = QComboBox()
+        self.af_vendor.addItems(["forter","riskified","seon","stripe_radar","kount","signifyd",
+                                  "cybersource","maxmind","biocatch","threatmetrix","datadome",
+                                  "perimeter_x","feedzai","featurespace","accertify","chainalysis"])
+        at.addWidget(QLabel("Vendor:"))
+        at.addWidget(self.af_vendor)
+        gi = QPushButton("Get Intel")
+        gi.setStyleSheet(f"background: {CYAN}; color: black; padding: 6px 14px; border-radius: 4px; font-weight: bold;")
+        gi.clicked.connect(self._get_antifraud_intel)
+        at.addWidget(gi)
+        lt = QPushButton("List Targets DB")
+        lt.setStyleSheet(f"background: {CARD2}; color: {TXT}; padding: 6px 12px; border-radius: 4px;")
+        lt.clicked.connect(self._list_targets_db)
+        at.addWidget(lt)
+        at.addStretch()
+        af.addLayout(at)
+        self.af_output = QPlainTextEdit()
+        self.af_output.setReadOnly(True)
+        self.af_output.setMaximumHeight(180)
+        self.af_output.setStyleSheet(f"font-family: 'JetBrains Mono'; font-size: 11px; background: #0f172a; color: {TXT};")
+        self.af_output.setPlainText("Select antifraud vendor → Get Intel.\nContains detection methods, key signals, and evasion guidance for 17 fraud engines.")
+        af.addWidget(self.af_output)
+        layout.addWidget(af_grp)
+        layout.addStretch()
+        self.tabs.addTab(scroll, "OSINT")
+
+    def _run_osint_web(self):
+        query = self.osint_query.text().strip()
+        if not query:
+            return
+        st = self.osint_type.currentText()
+        self.osint_status.setText(f"Searching [{st}]...")
+        self.osint_output.setPlainText("Searching...")
+        self._osint_worker = OSINTWorker(query, st)
+        self._osint_worker.progress.connect(lambda msg: self.osint_status.setText(msg))
+        self._osint_worker.finished.connect(self._on_osint_done)
+        self._osint_worker.start()
+
+    def _osint_quick(self, st):
+        query = self.osint_query.text().strip()
+        if not query:
+            if st == "news":
+                query = "payment fraud antifraud 2026"
+                st = "threat"
+            else:
+                self.osint_status.setText("Enter a query first")
+                return
+        self.osint_type.setCurrentText(st if st in ["web","merchant","bin","threat","antifraud"] else "web")
+        self.osint_output.setPlainText("Searching...")
+        self._osint_worker = OSINTWorker(query, st)
+        self._osint_worker.progress.connect(lambda msg: self.osint_status.setText(msg))
+        self._osint_worker.finished.connect(self._on_osint_done)
+        self._osint_worker.start()
+
+    def _on_osint_done(self, result):
+        self.osint_status.setText("Done")
+        self.osint_output.setPlainText(result)
+
+    def _show_source_info(self):
+        if not OSINT_MONITOR_OK:
+            self.monitor_output.setPlainText("Intel Monitor not available")
+            return
+        source_id = self.monitor_source.currentData()
+        src = next((s for s in INTEL_SOURCES if s.source_id == source_id), None)
+        if not src:
+            self.monitor_output.setPlainText("Source not found")
+            return
+        lines = [f"=== {src.name} ===",
+                 f"Type: {src.source_type.value.upper()} | Access: {src.access.value.upper()}",
+                 f"URL: {src.url}",
+                 f"Rating: {'★'*int(src.rating)}{'☆'*(5-int(src.rating))} ({src.rating})",
+                 f"Login Required: {'Yes' if src.login_required else 'No'}",
+                 f"Post Visibility: {src.post_visibility.value}",
+                 f"Auto-Engage: {'Yes' if src.auto_engage else 'No'}",
+                 f"", f"Description: {src.description}",
+                 f"", f"Sections: {', '.join(src.sections[:6])}",
+                 f"Specialties: {', '.join(src.specialties)}",
+                 f"Country Focus: {', '.join(src.country_focus)}",
+                 f"Refresh: every {src.refresh_minutes} min",
+                 f"Notes: {src.notes}"]
+        self.monitor_output.setPlainText("\n".join(lines))
+
+    def _list_all_sources(self):
+        if not OSINT_MONITOR_OK:
+            self.monitor_output.setPlainText("Intel Monitor not available")
+            return
+        lines = [f"=== ALL INTEL SOURCES ({len(INTEL_SOURCES)}) ===\n"]
+        type_icons = {"forum":"🔴 FORUM","cc_shop":"💳 SHOP","telegram":"📱 TELEGRAM","rss":"📰 RSS"}
+        for src in INTEL_SOURCES:
+            icon = type_icons.get(src.source_type.value, "○")
+            login_flag = "[LOGIN]" if src.login_required else "[PUBLIC]"
+            tor_flag = " [TOR]" if src.access.value == "tor" else ""
+            lines.append(f"{icon} {src.name} {login_flag}{tor_flag}")
+            lines.append(f"  {'★'*int(src.rating)} | {src.url}")
+            lines.append(f"  {src.description[:80]}")
+            lines.append("")
+        self.monitor_output.setPlainText("\n".join(lines))
+
+    def _get_antifraud_intel(self):
+        vendor = self.af_vendor.currentText()
+        lines = [f"=== ANTIFRAUD INTEL: {vendor.upper()} ===\n"]
+        found = False
+        if TARGET_INTEL_OK:
+            try:
+                profile = ANTIFRAUD_PROFILES.get(vendor.lower())
+                if profile:
+                    found = True
+                    lines += [f"Vendor: {profile.name} ({profile.vendor})",
+                               f"Algorithm: {profile.algorithm_class}",
+                               f"Detection: {profile.detection_method}",
+                               f"Cross-Merchant: {'YES' if profile.cross_merchant_sharing else 'no'}",
+                               f"Behavioral Biometrics: {'YES' if profile.behavioral_biometrics else 'no'}",
+                               f"Invisible Challenges: {'YES ⚠' if profile.invisible_challenges else 'no'}",
+                               f"Session Handover Detect: {'YES ⚠' if profile.session_handover_detection else 'no'}",
+                               f"", "Key Signals:"]
+                    for sig in profile.key_signals:
+                        lines.append(f"  • {sig}")
+                    lines.append("\nEvasion Guidance:")
+                    for eg in profile.evasion_guidance:
+                        lines.append(f"  ✓ {eg}")
+            except Exception as e:
+                lines.append(f"DB error: {e}")
+        if not found:
+            lines.append(f"Not in local DB. Use OSINT search for live intel.")
+        self.af_output.setPlainText("\n".join(lines))
+
+    def _list_targets_db(self):
+        if not TARGET_INTEL_OK:
+            self.af_output.setPlainText("Target Intelligence DB not available")
+            return
+        try:
+            targets = list_targets()
+            icons = {"very_low":"🟢","low":"🟡","medium":"🟠","high":"🔴"}
+            lines = [f"=== TARGET DATABASE ({len(targets)} targets) ===\n"]
+            for t in targets:
+                icon = icons.get(t.get("friction",""), "○")
+                lines.append(f"{icon} {t['name']} ({t['domain']})")
+                lines.append(f"   Fraud: {t['fraud_engine']} | 3DS: {int(t['3ds_rate']*100)}% | Friction: {t['friction']}")
+            self.af_output.setPlainText("\n".join(lines))
+        except Exception as e:
+            self.af_output.setPlainText(f"Error: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TAB 7: TARGET DISCOVERY
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _build_target_discovery_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        status_grp = QGroupBox("Target Discovery Module Status")
+        sf = QHBoxLayout(status_grp)
+        for name, ok in [("Site DB (1000+)", DISCOVERY_OK), ("PSP Intel V2", INTEL_V2_FULL_OK),
+                          ("MCC Intel", INTEL_V2_FULL_OK), ("Geo 3DS Map", INTEL_V2_FULL_OK), ("TX Exemptions", INTEL_V2_FULL_OK)]:
+            dot = QLabel(f"{'●' if ok else '○'} {name}")
+            dot.setStyleSheet(f"color: {GREEN if ok else RED}; font-size: 11px;")
+            sf.addWidget(dot)
+        if DISCOVERY_OK:
+            cl = QLabel(f"  |  {len(SITE_DATABASE)} sites loaded")
+            cl.setStyleSheet(f"color: {CYAN}; font-size: 11px;")
+            sf.addWidget(cl)
+        sf.addStretch()
+        layout.addWidget(status_grp)
+
+        site_grp = QGroupBox("Site Database Browser")
+        sg = QVBoxLayout(site_grp)
+        fr = QHBoxLayout()
+        fr.addWidget(QLabel("Difficulty:"))
+        self.site_difficulty = QComboBox()
+        self.site_difficulty.addItems(["easy","moderate","hard","all"])
+        fr.addWidget(self.site_difficulty)
+        fr.addWidget(QLabel("Category:"))
+        self.site_category = QComboBox()
+        self.site_category.addItems(["all","gaming","gift_cards","crypto","shopify","subscriptions",
+                                      "digital","electronics","fashion","health","sports","travel","food_delivery"])
+        fr.addWidget(self.site_category)
+        fr.addWidget(QLabel("Country:"))
+        self.card_country = QLineEdit()
+        self.card_country.setPlaceholderText("US")
+        self.card_country.setFixedWidth(55)
+        fr.addWidget(self.card_country)
+        fr.addWidget(QLabel("Amount $:"))
+        self.site_amount = QLineEdit()
+        self.site_amount.setText("200")
+        self.site_amount.setFixedWidth(75)
+        fr.addWidget(self.site_amount)
+        for lbl, fn, col in [("BROWSE", self._list_discovery_sites, ACCENT),
+                               ("RECOMMEND", self._recommend_sites, GREEN),
+                               ("PROBE DOMAIN", self._probe_domain, ORANGE)]:
+            b = QPushButton(lbl)
+            b.setStyleSheet(f"background: {col}; color: {'black' if col==GREEN else 'white'}; padding: 7px 12px; border-radius: 6px; font-weight: bold;")
+            b.clicked.connect(fn)
+            fr.addWidget(b)
+        fr.addStretch()
+        sg.addLayout(fr)
+        self.discovery_status = QLabel("Ready")
+        self.discovery_status.setStyleSheet(f"color: {TXT2}; font-size: 10px;")
+        sg.addWidget(self.discovery_status)
+        self.discovery_output = QPlainTextEdit()
+        self.discovery_output.setReadOnly(True)
+        self.discovery_output.setMinimumHeight(240)
+        self.discovery_output.setStyleSheet(f"font-family: 'JetBrains Mono'; font-size: 11px; background: #0f172a; color: {TXT};")
+        self.discovery_output.setPlainText(f"Site Database ready. {len(SITE_DATABASE) if DISCOVERY_OK else 'N/A'} sites.\nBROWSE=filter list | RECOMMEND=best for card+amount | PROBE=auto-detect PSP/3DS/fraud")
+        sg.addWidget(self.discovery_output)
+        layout.addWidget(site_grp)
+
+        vector_grp = QGroupBox("8-Vector Intelligence Engine")
+        vg = QVBoxLayout(vector_grp)
+        vtabs = QTabWidget()
+        vtabs.setStyleSheet(f"QTabBar::tab{{padding:5px 12px;background:{CARD2};color:{TXT2};border:none;font-size:11px;font-weight:bold;}}QTabBar::tab:selected{{color:{CYAN};border-bottom:2px solid {CYAN};}}QTabWidget::pane{{border:1px solid #1e293b;}}")
+
+        psp_w = QWidget(); psp_l = QVBoxLayout(psp_w)
+        pr = QHBoxLayout()
+        pr.addWidget(QLabel("PSP:"))
+        self.psp_selector = QComboBox()
+        self.psp_selector.addItems(["stripe","shopify_payments","adyen","authorize_net","braintree",
+                                     "cybersource","square","worldpay","nmi","checkout_com","payflow_pro","eway","bambora","moneris"])
+        pr.addWidget(self.psp_selector)
+        pb = QPushButton("Get PSP Intel")
+        pb.setStyleSheet(f"background: {CYAN}; color: black; padding: 6px 12px; border-radius: 4px; font-weight: bold;")
+        pb.clicked.connect(self._get_psp_intel)
+        pr.addWidget(pb)
+        ca = QPushButton("Compare All")
+        ca.setStyleSheet(f"background: {CARD2}; color: {TXT}; padding: 6px 10px; border-radius: 4px;")
+        ca.clicked.connect(self._compare_all_psps)
+        pr.addWidget(ca)
+        pr.addStretch()
+        psp_l.addLayout(pr)
+        self.psp_output = QPlainTextEdit()
+        self.psp_output.setReadOnly(True)
+        self.psp_output.setStyleSheet(f"font-family: 'JetBrains Mono'; font-size: 11px; background: #0f172a; color: {TXT};")
+        self.psp_output.setMinimumHeight(150)
+        psp_l.addWidget(self.psp_output)
+        vtabs.addTab(psp_w, "PSP Intel")
+
+        for title, attr, btn_lbl, btn_fn, hint in [
+            ("MCC Intel", "mcc_output", "Load MCC 3DS Intelligence", self._get_mcc_intel, "MCC categories with lowest 3DS enforcement rates — digital goods, restaurants, rideshare..."),
+            ("Geo 3DS Map", "geo_output", "Load Geographic Enforcement Map", self._get_geo_intel, "Which card countries have NO 3DS mandate vs MANDATORY. One-Leg-Out exemption explained."),
+            ("TX Exemptions", "exempt_output", "Load Transaction Exemptions", self._get_exemptions, "MIT, MOTO, Network Tokens, Card-on-File — transactions that skip 3DS entirely."),
+            ("AF Gaps", "gaps_output", "Load Antifraud System Gaps", self._get_af_gaps, "Merchants with NO antifraud vs basic rules vs enterprise ML — and how to identify them."),
+        ]:
+            w = QWidget(); wl = QVBoxLayout(w)
+            b = QPushButton(btn_lbl)
+            b.setStyleSheet(f"background: {CYAN}; color: black; padding: 6px 14px; border-radius: 4px; font-weight: bold;")
+            b.clicked.connect(btn_fn)
+            wl.addWidget(b)
+            out = QPlainTextEdit()
+            out.setReadOnly(True)
+            out.setStyleSheet(f"font-family: 'JetBrains Mono'; font-size: 11px; background: #0f172a; color: {TXT};")
+            out.setMinimumHeight(150)
+            out.setPlainText(hint)
+            setattr(self, attr, out)
+            wl.addWidget(out)
+            vtabs.addTab(w, title)
+
+        vg.addWidget(vtabs)
+        layout.addWidget(vector_grp)
+        layout.addStretch()
+        self.tabs.addTab(scroll, "TARGET DISCOVERY")
+
+    def _list_discovery_sites(self):
+        diff = self.site_difficulty.currentText()
+        cat = self.site_category.currentText()
+        self.discovery_status.setText(f"Loading {diff}/{cat}...")
+        self.discovery_output.setPlainText("Loading site database...")
+        self._disc_worker = TargetDiscoveryWorker("list_sites", {"difficulty": diff, "category": cat})
+        self._disc_worker.progress.connect(lambda m: self.discovery_status.setText(m))
+        self._disc_worker.finished.connect(self._on_discovery_done)
+        self._disc_worker.start()
+
+    def _recommend_sites(self):
+        country = self.card_country.text().strip() or "US"
+        amount = self.site_amount.text().strip() or "200"
+        self.discovery_status.setText(f"Recommending for {country} ${amount}...")
+        self.discovery_output.setPlainText("Finding best sites...")
+        self._disc_worker = TargetDiscoveryWorker("recommend", {"country": country, "amount": amount})
+        self._disc_worker.progress.connect(lambda m: self.discovery_status.setText(m))
+        self._disc_worker.finished.connect(self._on_discovery_done)
+        self._disc_worker.start()
+
+    def _probe_domain(self):
+        from PyQt6.QtWidgets import QInputDialog
+        prefill = self.osint_query.text().strip() or ""
+        domain, ok = QInputDialog.getText(self, "Probe Domain", "Enter domain to probe (e.g. amazon.com):", text=prefill)
+        if not ok or not domain:
+            return
+        self.discovery_status.setText(f"Probing {domain}...")
+        self.discovery_output.setPlainText(f"Probing {domain}...")
+        self._disc_worker = TargetDiscoveryWorker("probe", {"domain": domain})
+        self._disc_worker.progress.connect(lambda m: self.discovery_status.setText(m))
+        self._disc_worker.finished.connect(self._on_discovery_done)
+        self._disc_worker.start()
+
+    def _on_discovery_done(self, result):
+        self.discovery_status.setText("Done")
+        self.discovery_output.setPlainText(result)
+
+    def _get_psp_intel(self):
+        psp = self.psp_selector.currentText()
+        self._disc_worker2 = TargetDiscoveryWorker("psp_intel", {"psp": psp})
+        self._disc_worker2.finished.connect(lambda r: self.psp_output.setPlainText(r))
+        self._disc_worker2.start()
+
+    def _compare_all_psps(self):
+        if not INTEL_V2_FULL_OK:
+            self.psp_output.setPlainText("PSP Intel V2 module not available")
+            return
+        lines = ["=== ALL PSP 3DS BEHAVIOR COMPARISON ===\n"]
+        rate_icons = {"OFF": "🟢 OFF", "RISK_BASED": "🟡 RISK", "ENFORCED_EU": "🔴 EU-ENFORCED",
+                      "STRICT": "🔴 STRICT", "MERCHANT_CONFIG": "🟠 MERCHANT-CONFIG"}
+        for psp, data in PSP_3DS_BEHAVIOR.items():
+            default = data.get("default_3ds", "?")
+            adoption = data.get("3ds_adoption_rate", 0)
+            icon = rate_icons.get(default, f"○ {default}")
+            lines.append(f"{icon:30s} {psp.upper():20s} adoption: {int(adoption*100)}%")
+            lines.append(f"  {data.get('notes','')[:90]}")
+            lines.append("")
+        self.psp_output.setPlainText("\n".join(lines))
+
+    def _get_mcc_intel(self):
+        self._disc_worker3 = TargetDiscoveryWorker("mcc_intel", {})
+        self._disc_worker3.finished.connect(lambda r: self.mcc_output.setPlainText(r))
+        self._disc_worker3.start()
+
+    def _get_geo_intel(self):
+        self._disc_worker4 = TargetDiscoveryWorker("geo_intel", {})
+        self._disc_worker4.finished.connect(lambda r: self.geo_output.setPlainText(r))
+        self._disc_worker4.start()
+
+    def _get_exemptions(self):
+        self._disc_worker5 = TargetDiscoveryWorker("exemptions", {})
+        self._disc_worker5.finished.connect(lambda r: self.exempt_output.setPlainText(r))
+        self._disc_worker5.start()
+
+    def _get_af_gaps(self):
+        if not INTEL_V2_FULL_OK:
+            self.gaps_output.setPlainText("Intel V2 module not available")
+            return
+        lines = ["=== ANTIFRAUD SYSTEM GAPS DATABASE ===\n"]
+        for key, data in ANTIFRAUD_GAPS.items():
+            lines.append(f"[{key.upper()}]")
+            lines.append(f"Prevalence: {data.get('prevalence','?')}")
+            lines.append(f"{data.get('description','')[:150]}")
+            how = data.get("how_to_identify") or data.get("how_to_satisfy") or data.get("known_gaps", [])
+            for item in how[:4]:
+                lines.append(f"  • {item[:100]}")
+            lines.append("")
+        self.gaps_output.setPlainText("\n".join(lines))
+
+    def _probe_domain_input(self):
+        from PyQt6.QtWidgets import QInputDialog
+        domain, ok = QInputDialog.getText(self, "Probe Domain", "Enter domain:")
+        if ok and domain:
+            self.discovery_status.setText(f"Probing {domain}...")
+            self.discovery_output.setPlainText(f"Probing {domain}...")
+            self._disc_worker = TargetDiscoveryWorker("probe", {"domain": domain})
+            self._disc_worker.progress.connect(lambda m: self.discovery_status.setText(m))
+            self._disc_worker.finished.connect(self._on_discovery_done)
+            self._disc_worker.start()
 
     # ═══════════════════════════════════════════════════════════════════════
     # THEME

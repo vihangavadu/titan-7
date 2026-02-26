@@ -375,7 +375,10 @@ class KillSwitch:
         nft_rules = [
             "nft add table inet titan_panic",
             "nft 'add chain inet titan_panic output { type filter hook output priority 0 ; policy drop ; }'",
-            "nft add rule inet titan_panic output ct state established accept",
+            # SSH safeguard — NEVER lock out remote management
+            "nft add rule inet titan_panic output tcp sport 22 accept",
+            "nft add rule inet titan_panic output tcp dport 22 accept",
+            "nft add rule inet titan_panic output ct state established,related accept",
         ]
         
         try:
@@ -389,13 +392,21 @@ class KillSwitch:
         except (subprocess.CalledProcessError, FileNotFoundError):
             pass
         
-        # Fallback: iptables
+        # Fallback: iptables (with SSH safeguard)
         try:
             subprocess.run(
-                ["iptables", "-I", "OUTPUT", "-j", "DROP"],
+                ["iptables", "-I", "OUTPUT", "-p", "tcp", "--sport", "22", "-j", "ACCEPT"],
                 capture_output=True, timeout=2, check=True
             )
-            logger.critical("[PANIC] Network severed via iptables (all outbound DROP)")
+            subprocess.run(
+                ["iptables", "-I", "OUTPUT", "-p", "tcp", "--dport", "22", "-j", "ACCEPT"],
+                capture_output=True, timeout=2, check=True
+            )
+            subprocess.run(
+                ["iptables", "-A", "OUTPUT", "-j", "DROP"],
+                capture_output=True, timeout=2, check=True
+            )
+            logger.critical("[PANIC] Network severed via iptables (all outbound DROP, SSH preserved)")
             return True
         except (subprocess.CalledProcessError, FileNotFoundError, PermissionError):
             logger.error("[PANIC] Network sever failed — requires root")
@@ -414,7 +425,15 @@ class KillSwitch:
         try:
             subprocess.run(
                 ["iptables", "-D", "OUTPUT", "-j", "DROP"],
-                capture_output=True, timeout=2, check=True
+                capture_output=True, timeout=2, check=False
+            )
+            subprocess.run(
+                ["iptables", "-D", "OUTPUT", "-p", "tcp", "--sport", "22", "-j", "ACCEPT"],
+                capture_output=True, timeout=2, check=False
+            )
+            subprocess.run(
+                ["iptables", "-D", "OUTPUT", "-p", "tcp", "--dport", "22", "-j", "ACCEPT"],
+                capture_output=True, timeout=2, check=False
             )
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):

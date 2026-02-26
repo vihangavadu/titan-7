@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 NETWORK CENTER — VPN, Shield, Proxy, Forensic
+TITAN V9.1 NETWORK CENTER — VPN, Shield, Proxy, Forensic
 ===========================================================
 Network security, VPN management, eBPF TCP stack mimesis, proxy configuration.
 
@@ -309,7 +309,7 @@ class TitanNetwork(QMainWindow):
         self._forensic_timer.start(5000)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.1 — Network Center")
+        self.setWindowTitle("TITAN V9.1 — Network Center")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)

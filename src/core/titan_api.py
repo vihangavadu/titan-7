@@ -202,6 +202,7 @@ MODULES_AVAILABLE = {
     "mullvad_vpn": False,
     "network_shield": False,
     "ollama_bridge": False,
+    "onnx_engine": False,
     "proxy_manager": False,
     "purchase_history": False,
     "quic_proxy": False,
@@ -521,6 +522,12 @@ except ImportError:
 try:
     from ollama_bridge import LLMLoadBalancer
     MODULES_AVAILABLE["ollama_bridge"] = True
+except ImportError:
+    pass
+
+try:
+    from titan_onnx_engine import TitanOnnxEngine
+    MODULES_AVAILABLE["onnx_engine"] = True
 except ImportError:
     pass
 
@@ -1817,6 +1824,104 @@ def create_flask_app():
             quality=data.get("quality", "high"),
         ).to_dict())
     
+    # V9.2 Android VM (Waydroid) Routes
+    @app.route("/api/v1/android/status", methods=["GET"])
+    def android_status():
+        """Get Waydroid Android container status."""
+        try:
+            result = subprocess.run(
+                ["waydroid", "status"], capture_output=True, text=True, timeout=10
+            )
+            status_lines = result.stdout.strip().split("\n") if result.stdout else []
+            # Check images
+            sys_img = os.path.exists("/var/lib/waydroid/images/system.img")
+            vendor_img = os.path.exists("/var/lib/waydroid/images/vendor.img")
+            return jsonify({
+                "success": True,
+                "waydroid_installed": result.returncode == 0 or "Session" in result.stdout,
+                "status_lines": status_lines,
+                "images": {"system": sys_img, "vendor": vendor_img},
+                "service_active": os.system("systemctl is-active titan-waydroid.service >/dev/null 2>&1") == 0,
+            })
+        except FileNotFoundError:
+            return jsonify({"success": False, "error": "waydroid not installed"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+
+    @app.route("/api/v1/android/start", methods=["POST"])
+    def android_start():
+        """Start Waydroid Android session."""
+        try:
+            subprocess.run(["waydroid", "container", "start"], capture_output=True, timeout=30)
+            subprocess.run(["waydroid", "session", "start"], capture_output=True, timeout=30)
+            return jsonify({"success": True, "message": "Waydroid session started"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+
+    @app.route("/api/v1/android/stop", methods=["POST"])
+    def android_stop():
+        """Stop Waydroid Android session."""
+        try:
+            subprocess.run(["waydroid", "session", "stop"], capture_output=True, timeout=15)
+            subprocess.run(["waydroid", "container", "stop"], capture_output=True, timeout=15)
+            return jsonify({"success": True, "message": "Waydroid session stopped"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+
+    @app.route("/api/v1/android/shell", methods=["POST"])
+    def android_shell():
+        """Execute shell command in Android container."""
+        data = request.get_json() or {}
+        cmd = data.get("command", "")
+        if not cmd:
+            return jsonify({"success": False, "error": "No command provided"})
+        try:
+            result = subprocess.run(
+                ["waydroid", "shell", "--", "sh", "-c", cmd],
+                capture_output=True, text=True, timeout=15,
+            )
+            return jsonify({
+                "success": result.returncode == 0,
+                "stdout": result.stdout.strip(),
+                "stderr": result.stderr.strip(),
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+
+    @app.route("/api/v1/android/spoof", methods=["POST"])
+    def android_spoof():
+        """Apply device identity preset to Android container."""
+        data = request.get_json() or {}
+        device = data.get("device", "pixel7")
+        try:
+            result = subprocess.run(
+                ["python3", "/opt/titan/android/kyc_android_console.py", "spoof", device],
+                capture_output=True, text=True, timeout=15,
+            )
+            return jsonify({"success": True, "output": result.stdout.strip()})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+
+    @app.route("/api/v1/android/sync", methods=["POST"])
+    def android_sync():
+        """Trigger cross-device sync between desktop and Android."""
+        try:
+            if MODULES_AVAILABLE.get("waydroid_sync"):
+                orchestrator = CrossDeviceActivityOrchestrator()
+                data = request.get_json() or {}
+                ok = orchestrator.initialize(
+                    timezone=data.get("timezone", "America/New_York"),
+                    locale=data.get("locale", "en_US"),
+                )
+                if ok:
+                    target = data.get("target", "")
+                    session = orchestrator.start_coordinated_session(target=target)
+                    return jsonify({"success": True, "session": session})
+                return jsonify({"success": False, "error": "Sync init failed — is Waydroid running?"})
+            return jsonify({"success": False, "error": "waydroid_sync module not available"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+
     # V8.1 Persona Enrichment Routes
     @app.route("/api/v1/persona/enrich", methods=["POST"])
     def persona_enrich():

@@ -11,7 +11,7 @@
 
 # set -e  # Disabled to prevent build failures on non-critical errors
 
-KYC_DIR="/opt/lucid-empire/backend/modules/kyc_module"
+KYC_DIR="/opt/titan/core"
 TITAN_KYC="/opt/titan/core"
 TITAN_ASSETS="/opt/titan/assets/motions"
 

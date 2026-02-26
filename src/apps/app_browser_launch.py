@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 BROWSER LAUNCH — Profile Launch, TX Monitor, Handover
+TITAN V9.1 BROWSER LAUNCH — Profile Launch, TX Monitor, Handover
 ================================================================
 Focused app for launching forged profiles in Camoufox and monitoring
 live transactions.
@@ -224,7 +224,7 @@ class TitanBrowserLaunch(QMainWindow):
                 pass
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — Browser Launch")
+        self.setWindowTitle("TITAN V9.1 — Browser Launch")
         self.setMinimumSize(1000, 750)
 
         central = QWidget()

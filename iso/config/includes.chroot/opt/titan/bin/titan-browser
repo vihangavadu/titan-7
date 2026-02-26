@@ -1,0 +1,562 @@
+#!/bin/bash
+# TITAN V7.0 SINGULARITY - Browser Launcher
+# Launches browser with all shields active for manual operation
+#
+# Usage:
+#   titan-browser [OPTIONS] [URL]
+#
+# Options:
+#   -p, --profile NAME    Use specific profile
+#   -t, --target DOMAIN   Target domain for geo alignment
+#   --proxy URL           Proxy URL (socks5://... or http://...)
+#   --headless            Run in headless mode
+#   -d, --debug           Enable debug output
+#   -h, --help            Show this help
+
+set -e
+
+TITAN_ROOT="/opt/titan"
+LEGACY_ROOT="/opt/lucid-empire"
+PROFILES_DIR="$TITAN_ROOT/profiles"
+STATE_DIR="$TITAN_ROOT/state"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+log_info() { echo -e "${CYAN}[TITAN]${NC} $1"; }
+log_success() { echo -e "${GREEN}[✓]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[!]${NC} $1"; }
+log_error() { echo -e "${RED}[✗]${NC} $1"; }
+
+# ============================================================================
+# ARGUMENT PARSING
+# ============================================================================
+PROFILE_NAME=""
+TARGET_DOMAIN=""
+PROXY_URL=""
+INTERFACE="eth0"
+HEADLESS=0
+DEBUG_MODE=0
+URL=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -p|--profile)
+            PROFILE_NAME="$2"
+            shift 2
+            ;;
+        -t|--target)
+            TARGET_DOMAIN="$2"
+            shift 2
+            ;;
+        --proxy)
+            PROXY_URL="$2"
+            shift 2
+            ;;
+        --headless)
+            HEADLESS=1
+            shift
+            ;;
+        -d|--debug)
+            DEBUG_MODE=1
+            shift
+            ;;
+        -h|--help)
+            echo "TITAN V7 Singularity Browser Launcher"
+            echo ""
+            echo "Usage: titan-browser [OPTIONS] [URL]"
+            echo ""
+            echo "Options:"
+            echo "  -p, --profile NAME    Use specific profile"
+            echo "  -t, --target DOMAIN   Target domain for geo alignment"
+            echo "  --proxy URL           Proxy URL"
+            echo "  --headless            Run in headless mode"
+            echo "  -d, --debug           Enable debug output"
+            echo "  -h, --help            Show this help"
+            echo ""
+            echo "The launcher activates:"
+            echo "  1. Hardware Shield (LD_PRELOAD)"
+            echo "  2. Network Shield (eBPF)"
+            echo "  3. Ghost Motor Extension"
+            echo "  4. Fingerprint Noise Injection"
+            echo "  5. Location Spoofing"
+            exit 0
+            ;;
+        *)
+            URL="$1"
+            shift
+            ;;
+    esac
+done
+
+# ============================================================================
+# BANNER
+# ============================================================================
+echo ""
+echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║${NC}     ████████╗██╗████████╗ █████╗ ███╗   ██╗                ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}     ╚══██╔══╝██║╚══██╔══╝██╔══██╗████╗  ██║                ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}        ██║   ██║   ██║   ███████║██╔██╗ ██║                ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}        ██║   ██║   ██║   ██╔══██║██║╚██╗██║                ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}        ██║   ██║   ██║   ██║  ██║██║ ╚████║                ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}        ╚═╝   ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝                ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}                                                            ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}     V7.5 SINGULARITY - Reality Synthesis Browser            ${CYAN}║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+# ============================================================================
+# PROFILE RESOLUTION
+# ============================================================================
+if [[ -n "$PROFILE_NAME" ]]; then
+    PROFILE_PATH="$PROFILES_DIR/$PROFILE_NAME"
+    if [[ ! -d "$PROFILE_PATH" ]]; then
+        log_error "Profile not found: $PROFILE_NAME"
+        echo "Available profiles:"
+        ls -1 "$PROFILES_DIR" 2>/dev/null || echo "  (none)"
+        exit 1
+    fi
+    log_success "Using profile: $PROFILE_NAME"
+else
+    # Use most recent profile
+    PROFILE_PATH=$(ls -td "$PROFILES_DIR"/titan_* 2>/dev/null | head -1)
+    if [[ -z "$PROFILE_PATH" ]]; then
+        log_error "No profiles found. Run Genesis first."
+        exit 1
+    fi
+    PROFILE_NAME=$(basename "$PROFILE_PATH")
+    log_info "Using latest profile: $PROFILE_NAME"
+fi
+
+# Load profile metadata
+METADATA_FILE="$PROFILE_PATH/profile_metadata.json"
+if [[ -f "$METADATA_FILE" ]]; then
+    log_success "Profile metadata loaded"
+fi
+
+# ============================================================================
+# HARDWARE SHIELD ACTIVATION
+# ============================================================================
+log_info "Activating Hardware Shield..."
+
+# Check for kernel module
+if [[ -d "/sys/module/titan_hw" ]]; then
+    log_success "Kernel module: LOADED"
+else
+    log_warn "Kernel module not loaded (userspace fallback active)"
+fi
+
+# Set LD_PRELOAD for hardware spoofing
+if [[ -f "$TITAN_ROOT/lib/libhwspoof.so" ]]; then
+    export LD_PRELOAD="$TITAN_ROOT/lib/libhwspoof.so"
+    log_success "Hardware spoof library: ACTIVE"
+elif [[ -f "$LEGACY_ROOT/lib/libhwspoof.so" ]]; then
+    export LD_PRELOAD="$LEGACY_ROOT/lib/libhwspoof.so"
+    log_success "Hardware spoof library: ACTIVE (legacy)"
+fi
+
+# ============================================================================
+# NETWORK SHIELD ACTIVATION
+# ============================================================================
+log_info "Activating Network Shield..."
+
+# Check for eBPF programs
+if [[ -f "/sys/fs/bpf/titan_network_shield" ]]; then
+    log_success "eBPF network shield: ACTIVE"
+else
+    # Try to load if root and build script exists
+    if [[ -f "$TITAN_ROOT/core/build_ebpf.sh" ]] && [[ $EUID -eq 0 ]]; then
+        log_info "Loading eBPF network shield..."
+        if bash "$TITAN_ROOT/core/build_ebpf.sh" load 2>/dev/null; then
+            log_success "eBPF network shield: LOADED"
+        else
+            log_warn "eBPF shield: LOAD FAILED (check kernel headers)"
+        fi
+    elif [[ -f "$TITAN_ROOT/core/build_ebpf.sh" ]]; then
+        log_warn "eBPF shield: PASSIVE (run as root to activate)"
+    else
+        log_warn "eBPF shield: NOT AVAILABLE"
+    fi
+fi
+
+# ============================================================================
+# ENVIRONMENT SETUP
+# ============================================================================
+log_info "Configuring environment..."
+
+# Export profile variables
+export MOZ_PROFILER_SESSION="$PROFILE_NAME"
+export MOZ_PROFILE_PATH="$PROFILE_PATH"
+export MOZ_SANDBOX_LEVEL="1"
+export MOZ_APP_LAUNCHER="7.0.3"
+
+# Load hardware profile if exists
+HW_PROFILE="$PROFILE_PATH/hardware_profile.json"
+if [[ -f "$HW_PROFILE" ]]; then
+    export MOZ_HW_CONFIG="$HW_PROFILE"
+    
+    # Extract key values for spoofing
+    if command -v jq &> /dev/null; then
+        export MOZ_GFX_CPU=$(jq -r '.cpu // empty' "$HW_PROFILE")
+        export MOZ_GFX_RENDERER=$(jq -r '.gpu // empty' "$HW_PROFILE")
+        export MOZ_GFX_SCREEN=$(jq -r '.screen // empty' "$HW_PROFILE")
+    fi
+    log_success "Hardware profile: LOADED"
+fi
+
+# Proxy configuration
+if [[ -n "$PROXY_URL" ]]; then
+    export MOZ_PROXY_CONFIG="$PROXY_URL"
+    export HTTP_PROXY="$PROXY_URL"
+    export HTTPS_PROXY="$PROXY_URL"
+    log_success "Proxy: $PROXY_URL"
+fi
+
+# ============================================================================
+# GHOST MOTOR EXTENSION
+# ============================================================================
+log_info "Preparing Ghost Motor extension..."
+
+GHOST_MOTOR_DIR="$TITAN_ROOT/extensions/ghost_motor"
+if [[ -d "$GHOST_MOTOR_DIR" ]]; then
+    log_success "Ghost Motor: READY"
+else
+    log_warn "Ghost Motor extension not found"
+fi
+
+# ============================================================================
+# MASTER VERIFICATION PROTOCOL (MVP) — Pre-Launch Gate
+# ============================================================================
+log_info "Running Master Verification Protocol..."
+
+MVP_ARGS="--interface $INTERFACE"
+[[ -n "$PROFILE_NAME" ]] && MVP_ARGS="$MVP_ARGS --profile $PROFILE_NAME"
+[[ -n "$TARGET_DOMAIN" ]] && MVP_ARGS="$MVP_ARGS --target $TARGET_DOMAIN"
+
+if python3 "$TITAN_ROOT/core/titan_master_verify.py" $MVP_ARGS; then
+    log_success "Master Verify: GREEN — cleared for launch"
+else
+    log_error "Master Verify: FAILED — fix indicated layers before proceeding"
+    echo ""
+    read -p "Override and launch anyway? (y/N): " OVERRIDE
+    if [[ "$OVERRIDE" != "y" && "$OVERRIDE" != "Y" ]]; then
+        log_error "Launch aborted by operator."
+        exit 1
+    fi
+    log_warn "OVERRIDE ACTIVE — launching with known failures"
+fi
+
+echo ""
+
+# ============================================================================
+# PHASE 3: DEEP IDENTITY VERIFICATION (Fonts / Audio / Time)
+# ============================================================================
+log_info "Running Deep Identity Verification (Phase 3)..."
+
+DEEP_ARGS="--os windows_11"
+[[ -n "$PROFILE_NAME" ]] && DEEP_ARGS="$DEEP_ARGS --profile $PROFILE_NAME"
+
+if python3 "$TITAN_ROOT/core/verify_deep_identity.py" $DEEP_ARGS; then
+    log_success "Deep Identity: GHOST — environment clean"
+else
+    log_warn "Deep Identity: FLAGGED — environmental leaks detected"
+    log_warn "  Run font_sanitizer.py / audio_hardener.py / timezone_enforcer.py"
+    echo ""
+    read -p "Continue with dirty environment? (y/N): " DEEP_OVERRIDE
+    if [[ "$DEEP_OVERRIDE" != "y" && "$DEEP_OVERRIDE" != "Y" ]]; then
+        log_error "Launch aborted — fix environmental leaks first."
+        exit 1
+    fi
+    log_warn "DIRTY LAUNCH — Tier-1 targets may flag this session"
+fi
+
+echo ""
+
+# ============================================================================
+# BROWSER SELECTION
+# ============================================================================
+log_info "Selecting browser..."
+
+# Try Camoufox first (best anti-detect)
+if command -v camoufox &> /dev/null || python3 -c "from camoufox.sync_api import Camoufox" 2>/dev/null; then
+    BROWSER_TYPE="camoufox"
+    log_success "Browser: Camoufox (anti-detect)"
+# Fall back to Firefox
+elif command -v firefox-esr &> /dev/null; then
+    BROWSER_TYPE="firefox-esr"
+    log_success "Browser: Firefox ESR"
+elif command -v firefox &> /dev/null; then
+    BROWSER_TYPE="firefox"
+    log_success "Browser: Firefox"
+else
+    log_error "No compatible browser found"
+    exit 1
+fi
+
+# ============================================================================
+# LAUNCH BROWSER
+# ============================================================================
+echo ""
+log_info "═══════════════════════════════════════════════════════════"
+log_info "  LAUNCHING SOVEREIGN BROWSER"
+log_info "═══════════════════════════════════════════════════════════"
+echo ""
+log_info "Profile: $PROFILE_NAME"
+log_info "Browser: $BROWSER_TYPE"
+[[ -n "$URL" ]] && log_info "Target: $URL"
+[[ -n "$PROXY_URL" ]] && log_info "Proxy: Active"
+echo ""
+
+# Firefox profile path
+FIREFOX_PROFILE="$PROFILE_PATH/firefox_profile"
+if [[ ! -d "$FIREFOX_PROFILE" ]]; then
+    FIREFOX_PROFILE="$PROFILE_PATH"
+fi
+
+case "$BROWSER_TYPE" in
+    camoufox)
+        # Launch via Python with Camoufox
+        python3 << EOF
+import sys, os
+os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
+sys.path.insert(0, '/opt/titan/core')
+if os.path.isdir('/opt/lucid-empire'):
+    sys.path.insert(0, '/opt/lucid-empire')
+    if os.path.isdir('/opt/lucid-empire/backend'):
+        sys.path.insert(0, '/opt/lucid-empire/backend')
+
+from camoufox.sync_api import Camoufox
+from camoufox import DefaultAddons
+import os
+
+profile_path = "$FIREFOX_PROFILE"
+target_url = "$URL" or "about:blank"
+proxy_url = "$PROXY_URL" or None
+headless = "$HEADLESS" == "1"
+
+# Build config
+config = {}
+
+# Load location from profile if available
+try:
+    import json
+    with open("$METADATA_FILE") as f:
+        meta = json.load(f)
+    if 'location' in meta.get('config', {}):
+        loc = meta['config']['location']
+        config['geolocation:latitude'] = loc.get('latitude', 40.7128)
+        config['geolocation:longitude'] = loc.get('longitude', -74.0060)
+        config['timezone'] = loc.get('timezone', 'America/New_York')
+except:
+    pass
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PHASE 2.1: lockPref Hardening — Write policies.json + user.js
+# Prevents Camoufox native rendering from overriding profile fingerprints
+# ═══════════════════════════════════════════════════════════════════════════
+try:
+    from fingerprint_injector import FingerprintInjector, FingerprintConfig
+    from pathlib import Path
+    
+    fp_cfg = FingerprintConfig(
+        profile_uuid="$PROFILE_NAME",
+        webgl_vendor=config.get('webgl:vendor', ''),
+        webgl_renderer=config.get('webgl:renderer', ''),
+    )
+    injector = FingerprintInjector(fp_cfg)
+    hardened = injector.harden_profile(Path("$FIREFOX_PROFILE"))
+    print(f"[TITAN] Phase 2.1: Profile HARDENED — policies.json + user.js LOCKED")
+    print(f"[TITAN]   WebGL renderer locked: {fp_cfg.webgl_renderer[:50]}...")
+except Exception as e:
+    print(f"[TITAN] Phase 2.1: Hardening skipped ({e})")
+
+# Load fingerprint config from profile
+fingerprint_file = "$PROFILE_PATH/fingerprint_config.json"
+try:
+    import os
+    if os.path.exists(fingerprint_file):
+        with open(fingerprint_file) as f:
+            fp_config = json.load(f)
+        # Apply fingerprint settings to Camoufox config
+        if 'canvas_seed' in fp_config:
+            config['canvas:seed'] = fp_config['canvas_seed']
+        print(f"[TITAN] Fingerprint config loaded: seed={fp_config.get('canvas_seed', 'N/A')}")
+except Exception as e:
+    print(f"[TITAN] Fingerprint config not loaded: {e}")
+
+# Load hardware profile
+hw_file = "$PROFILE_PATH/hardware_profile.json"
+try:
+    if os.path.exists(hw_file):
+        with open(hw_file) as f:
+            hw_config = json.load(f)
+        # Apply hardware settings
+        if 'gpu_vendor' in hw_config:
+            config['webgl:vendor'] = hw_config['gpu_vendor']
+        if 'gpu_renderer' in hw_config:
+            config['webgl:renderer'] = hw_config['gpu_renderer']
+        if 'screen' in hw_config:
+            w, h = hw_config['screen'].split('x')
+            config['screen:width'] = int(w)
+            config['screen:height'] = int(h)
+        print(f"[TITAN] Hardware profile loaded: {hw_config.get('product', 'Unknown')}")
+except Exception as e:
+    print(f"[TITAN] Hardware profile not loaded: {e}")
+
+# Load archetype config if exists
+archetype_file = "$PROFILE_PATH/archetype_config.json"
+try:
+    if os.path.exists(archetype_file):
+        with open(archetype_file) as f:
+            arch_config = json.load(f)
+        if 'timezone' in arch_config:
+            config['timezone'] = arch_config['timezone']
+        print(f"[TITAN] Archetype: {arch_config.get('archetype_name', 'Unknown')}")
+except:
+    pass
+
+kwargs = {
+    'headless': headless,
+    'humanize': True,
+    'block_webrtc': True,
+    'exclude_addons': [DefaultAddons.UBO],
+}
+
+if config:
+    kwargs['config'] = config
+else:
+    kwargs['config'] = {}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CRITICAL HARDENING - Zero-Detect Configuration
+# ═══════════════════════════════════════════════════════════════════════════
+
+# WebRTC Leak Prevention (CRITICAL)
+kwargs['config']['media.peerconnection.enabled'] = False
+kwargs['config']['media.peerconnection.ice.default_address_only'] = True
+kwargs['config']['media.peerconnection.ice.no_host'] = True
+kwargs['config']['media.peerconnection.ice.proxy_only'] = True
+kwargs['config']['media.navigator.enabled'] = False
+print("[TITAN] WebRTC Leak Prevention: ACTIVE")
+
+# Battery API Disable (prevents VM detection)
+kwargs['config']['dom.battery.enabled'] = False
+
+# Disable Automation Flags
+kwargs['config']['dom.webdriver.enabled'] = False
+
+# Disable Sensor APIs (accelerometer, gyroscope - VM detection)
+kwargs['config']['device.sensors.enabled'] = False
+
+# Disable Gamepad API (can fingerprint)
+kwargs['config']['dom.gamepad.enabled'] = False
+
+# Privacy hardening
+kwargs['config']['privacy.resistFingerprinting'] = False  # Camoufox handles this better
+kwargs['config']['privacy.trackingprotection.enabled'] = True
+
+# DNS Leak Prevention - Force DNS through proxy
+if proxy_url:
+    kwargs['proxy'] = {'server': proxy_url}
+    # Enable DNS over HTTPS through proxy to prevent DNS leaks
+    kwargs['config']['network.trr.mode'] = 3  # DNS over HTTPS only
+    kwargs['config']['network.trr.uri'] = 'https://cloudflare-dns.com/dns-query'
+    kwargs['config']['network.proxy.socks_remote_dns'] = True
+    kwargs['config']['network.dns.disablePrefetch'] = True
+    kwargs['config']['network.prefetch-next'] = False
+    print("[TITAN] DNS Leak Prevention: ACTIVE (DoH + Proxy DNS)")
+
+print("[TITAN] Battery/Sensor/Gamepad APIs: DISABLED")
+print("[TITAN] Automation Flags: CLEARED")
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PHASE 2.2: Trajectory Modeling — Pre-compute warm-up mouse paths
+# ═══════════════════════════════════════════════════════════════════════════
+warmup_plan = None
+try:
+    from generate_trajectory_model import generate_warmup_trajectory
+    target_domain = "$TARGET_DOMAIN" if "$TARGET_DOMAIN" else (target_url.split("//")[-1].split("/")[0] if target_url and target_url != "about:blank" else "")
+    if target_domain:
+        warmup_plan = generate_warmup_trajectory(
+            target_domain=target_domain,
+            profile_path="$FIREFOX_PROFILE",
+            num_interactions=15,
+        )
+        print(f"[TITAN] Phase 2.2: Trajectory plan — {len(warmup_plan.trajectories)} segments, {warmup_plan.total_duration_ms/1000:.1f}s")
+    else:
+        print("[TITAN] Phase 2.2: No target domain — trajectory skipped")
+except Exception as e:
+    print(f"[TITAN] Phase 2.2: Trajectory modeling skipped ({e})")
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PHASE 2.3: Kill Switch — Arm automated panic sequence
+# ═══════════════════════════════════════════════════════════════════════════
+kill_switch = None
+try:
+    from kill_switch import arm_kill_switch
+    kill_switch = arm_kill_switch(
+        profile_uuid="$PROFILE_NAME",
+        threshold=85,
+        auto_flush_hw=True,
+    )
+    print(f"[TITAN] Phase 2.3: Kill switch ARMED (threshold=85)")
+except Exception as e:
+    print(f"[TITAN] Phase 2.3: Kill switch not armed ({e})")
+
+print("[TITAN] Starting Camoufox browser...")
+print("[TITAN] Features: Anti-fingerprint, WebRTC block, Humanize, lockPref, Kill Switch")
+print("")
+
+with Camoufox(**kwargs) as browser:
+    page = browser.new_page()
+    
+    if target_url and target_url != "about:blank":
+        page.goto(target_url, wait_until="domcontentloaded")
+        print(f"[TITAN] Navigated to: {target_url}")
+    
+    print("")
+    print("=" * 60)
+    print("  BROWSER ACTIVE - MANUAL CONTROL ENABLED")
+    if kill_switch:
+        print("  Kill Switch: ARMED (fraud score < 85 = PANIC)")
+    print("  Press ENTER to close browser...")
+    print("=" * 60)
+    
+    input()
+    browser.close()
+
+# Disarm kill switch on clean exit
+if kill_switch:
+    kill_switch.disarm()
+    print("[TITAN] Kill switch disarmed.")
+
+print("[TITAN] Browser closed.")
+EOF
+        ;;
+    
+    firefox|firefox-esr)
+        # Launch standard Firefox with profile
+        FIREFOX_CMD="$BROWSER_TYPE"
+        FIREFOX_ARGS=(
+            "--profile" "$FIREFOX_PROFILE"
+            "--no-remote"
+        )
+        
+        if [[ -n "$URL" ]]; then
+            FIREFOX_ARGS+=("$URL")
+        fi
+        
+        log_info "Launching Firefox..."
+        log_warn "Note: Standard Firefox has limited anti-detect features"
+        log_warn "Install Camoufox for full protection: pip install camoufox[geoip]"
+        echo ""
+        
+        exec "$FIREFOX_CMD" "${FIREFOX_ARGS[@]}"
+        ;;
+esac
+
+log_success "Session complete."

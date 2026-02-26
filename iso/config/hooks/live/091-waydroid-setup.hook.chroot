@@ -1,0 +1,74 @@
+#!/bin/bash
+# TITAN V9.2 HOOK: 091-waydroid-setup
+# PURPOSE: Install Waydroid Android container for KYC mobile sync
+# This hook prepares the system for Waydroid but does NOT download
+# the Android image (that happens on first boot via titan-waydroid.service)
+
+set -e
+
+echo "[HOOK-WAYDROID] Setting up Waydroid Android container..."
+
+# 1. Add Waydroid repo
+if [ ! -f /usr/share/keyrings/waydroid.gpg ]; then
+    curl -fsSL https://repo.waydro.id/waydroid.gpg | gpg --dearmor -o /usr/share/keyrings/waydroid.gpg 2>/dev/null || true
+    echo "deb [signed-by=/usr/share/keyrings/waydroid.gpg] https://repo.waydro.id/ bookworm main" > /etc/apt/sources.list.d/waydroid.list
+    echo "[HOOK-WAYDROID] Waydroid repo added"
+fi
+
+# 2. Install waydroid (if repo was added successfully)
+if [ -f /etc/apt/sources.list.d/waydroid.list ]; then
+    apt-get update -qq 2>/dev/null || true
+    apt-get install -y waydroid python3-gbinder lxc dnsmasq-base 2>/dev/null || {
+        echo "[HOOK-WAYDROID] WARNING: waydroid install failed (will retry on first boot)"
+    }
+fi
+
+# 3. Enable IP forwarding for Android container networking
+echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-titan-waydroid.conf
+
+# 4. Create first-boot init service (downloads Android image on first boot)
+cat > /etc/systemd/system/titan-waydroid-init.service << 'INITSERVICE'
+[Unit]
+Description=TITAN OS — Waydroid First Boot Init
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/var/lib/waydroid/images/system.img
+
+[Service]
+Type=oneshot
+ExecStart=/opt/titan/android/first_boot_init.sh
+TimeoutStartSec=600
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target
+INITSERVICE
+
+systemctl enable titan-waydroid-init.service 2>/dev/null || true
+
+# 5. Create first-boot init script
+mkdir -p /opt/titan/android
+cat > /opt/titan/android/first_boot_init.sh << 'FIRSTBOOT'
+#!/bin/bash
+# TITAN OS — Waydroid first boot: download Android image
+echo "[TITAN] Downloading Android 11 (LineageOS 18.1) GAPPS image..."
+waydroid init -s GAPPS -f 2>&1 || {
+    echo "[TITAN] GAPPS init failed, trying VANILLA..."
+    waydroid init -s VANILLA -f 2>&1
+}
+
+if [ -f /var/lib/waydroid/images/system.img ]; then
+    echo "[TITAN] Android image ready"
+    # Run the full setup
+    bash /opt/titan/scripts/setup_waydroid_android.sh --gapps 2>&1 || true
+    systemctl disable titan-waydroid-init.service
+else
+    echo "[TITAN] WARNING: Android image download failed"
+fi
+FIRSTBOOT
+chmod +x /opt/titan/android/first_boot_init.sh
+
+# 6. Deploy KYC console script placeholder
+cp /opt/titan/scripts/setup_waydroid_android.sh /opt/titan/android/ 2>/dev/null || true
+
+echo "[HOOK-WAYDROID] Waydroid setup hook complete"

@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-02-25T18:08:32Z",
+  "local_root": "C:\\Users\\Administrator\\Downloads\\titan-7\\titan-7\\titan-7",
+  "remote_root": "/opt/titan",
+  "local_file_count": 686,
+  "remote_file_count_before": 1088,
+  "remote_file_count_after": 1331,
+  "missing_before_upload": 243,
+  "stale_before_upload": 0,
+  "total_uploaded": 243,
+  "total_failed": 0,
+  "still_missing": 0,
+  "missing_by_folder": {
+    ".github": 5,
+    "(root)": 65,
+    "iso": 159,
+    "hostinger-dev": 6,
+    "scripts": 3,
+    "config": 4,
+    "plans": 1
+  },
+  "failed_files": [],
+  "still_missing_files": []
+}

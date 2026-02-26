@@ -1,0 +1,22 @@
+# =============================================================================
+# TITAN V9.2 — WAYDROID ANDROID CONTAINER DEPENDENCIES
+# PURPOSE: Android VM for KYC mobile app deployment + cross-device sync
+# =============================================================================
+
+# --- Core container runtime ---
+lxc
+dnsmasq-base
+iptables
+
+# --- Kernel modules for binder/ashmem (if not built-in) ---
+dkms
+
+# --- Python bindings for Android IPC ---
+# python3-gbinder (installed from waydroid repo)
+
+# --- GPU rendering (software, for VPS without GPU) ---
+mesa-utils
+libgles2-mesa
+
+# --- Networking ---
+bridge-utils

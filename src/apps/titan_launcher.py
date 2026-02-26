@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 LAUNCHER — Clean Entry Point
+TITAN V9.1 LAUNCHER — Clean Entry Point
 ========================================
-5 apps, 23 tabs total, 110 core modules — zero orphans.
+9 apps, 3×3 grid, 115 core modules — zero orphans.
 
-App Structure (V8.1 Final):
-  1. Operations Center — Daily workflow (target → card → persona → forge → launch)
-  2. Intelligence Center — AI copilot, 3DS strategy, detection analysis, recon
-  3. Network Center — Mullvad VPN, eBPF shield, proxy, forensic monitor
-  4. KYC Studio — Camera, documents, voice, mobile sync
-  5. Admin Panel — Services, tools, system, automation, config
+App Structure (V9.1):
+  Row 1: Operations Center | Intelligence Center | Network Center
+  Row 2: KYC Studio | Admin Panel | Settings
+  Row 3: Profile Forge | Card Validator | Browser Launch
 """
 
 import sys
@@ -162,13 +160,11 @@ class HealthIndicator(QFrame):
 
 class TitanLauncher(QMainWindow):
     """
-    TITAN V8.2 Launcher — 5 apps, 23 tabs, 113 modules, zero orphans.
+    TITAN V9.1 Launcher — 9 apps, 3×3 grid, 115 modules, zero orphans.
 
-    - Operations Center: Daily workflow (38 modules)
-    - Intelligence Center: AI analysis & strategy (20 modules)
-    - Network Center: VPN, shield, proxy, forensic (18 modules)
-    - KYC Studio: Identity verification (8 modules)
-    - Admin Panel: System management (14 modules)
+    Row 1: Operations (38) | Intelligence (20) | Network (18)
+    Row 2: KYC Studio (8) | Admin (14) | Settings (all tools)
+    Row 3: Profile Forge (9 stages) | Card Validator | Browser Launch
     """
 
     def __init__(self):
@@ -178,7 +174,7 @@ class TitanLauncher(QMainWindow):
         QTimer.singleShot(500, self._check_health)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — Launcher")
+        self.setWindowTitle("TITAN V9.1 — Launcher")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -193,7 +189,7 @@ class TitanLauncher(QMainWindow):
         layout.setSpacing(16)
 
         # Header
-        header = QLabel("TITAN V8.2")
+        header = QLabel("TITAN V9.1")
         header.setFont(QFont("Inter", 28, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(f"color: {ACCENT};")
@@ -210,11 +206,11 @@ class TitanLauncher(QMainWindow):
         row1.setSpacing(12)
 
         row1.addWidget(AppCard(
-            title="Profile Forge",
-            subtitle="IDENTITY + FORGE \u2022 22 MODULES",
-            description="Persona \u2192 Chrome Profile \u2192 Aging\nPurchase history \u2022 IndexedDB \u2022 Cache",
+            title="Operations",
+            subtitle="DAILY WORKFLOW \u2022 38 MODULES",
+            description="Target \u2192 Card \u2192 Persona \u2192 Forge \u2192 Launch\nFull pipeline \u2022 Results \u2022 History",
             accent="#00d4ff",
-            icon_char="\ud83d\udd28",
+            icon_char="\u2699\ufe0f",
             script="titan_operations.py",
         ))
 
@@ -364,7 +360,7 @@ class TitanLauncher(QMainWindow):
                 spec.loader.exec_module(mod)
                 self.h_version.set_status(mod.__version__, GREEN)
         except Exception:
-            self.h_version.set_status("8.1.0", ACCENT)
+            self.h_version.set_status("9.1.0", ACCENT)
 
         # Module count
         core_dir = Path(__file__).parent.parent / "core"

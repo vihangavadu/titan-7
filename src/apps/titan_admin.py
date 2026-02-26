@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 ADMIN PANEL — System Administration & Diagnostics
+TITAN V9.1 ADMIN PANEL — System Administration & Diagnostics
 =============================================================
 Consolidates: titan_mission_control.py + titan_dev_hub.py + app_bug_reporter.py
 
@@ -106,6 +106,12 @@ try:
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
+
+try:
+    from titan_onnx_engine import TitanOnnxEngine, get_engine as get_onnx_engine
+    ONNX_AVAILABLE = True
+except ImportError:
+    ONNX_AVAILABLE = False
 
 try:
     from lucid_vpn import LucidVPN, VPNStatus
@@ -271,7 +277,7 @@ class HealthCheckWorker(QThread):
 
 class TitanAdmin(QMainWindow):
     """
-    TITAN V8.1 Admin Panel
+    TITAN V9.1 Admin Panel
 
     Consolidated system administration:
     - Tab 1: SERVICES — health monitoring, start/stop, memory pressure
@@ -289,7 +295,7 @@ class TitanAdmin(QMainWindow):
         QTimer.singleShot(300, self._run_health_check)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — Admin Panel")
+        self.setWindowTitle("TITAN V9.1 — Admin Panel")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -304,7 +310,7 @@ class TitanAdmin(QMainWindow):
         layout.setSpacing(6)
 
         # Header
-        header = QLabel("TITAN V8.1 ADMIN")
+        header = QLabel("TITAN V9.1 ADMIN")
         header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(f"color: {ACCENT};")

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Titan Browser
+Comment=Hardened Camoufox Browser
+Exec=/opt/titan/bin/titan-browser
+Icon=/opt/titan/branding/icons/titan_browser_128.png
+Terminal=false
+Type=Application
+Categories=Network;WebBrowser;
+StartupWMClass=titan-browser
+Keywords=titan;browser;camoufox;

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 SETTINGS — External Tool Configuration & System Setup
+TITAN V9.1 SETTINGS — External Tool Configuration & System Setup
 ================================================================
 Lets the operator configure all external services, API keys, and
 system dependencies from a single unified GUI.
@@ -85,7 +85,7 @@ def _read_env():
 
 def _save_env(env_dict):
     lines = []
-    lines.append("# TITAN V8.2 Environment Configuration")
+    lines.append("# TITAN V9.1 Environment Configuration")
     lines.append(f"# Last updated: {datetime.now().isoformat()}")
     lines.append("")
     for k, v in sorted(env_dict.items()):
@@ -180,7 +180,7 @@ class StatusWorker(QThread):
 # ═══════════════════════════════════════════════════════════════════════════════
 class TitanSettings(QMainWindow):
     """
-    TITAN V8.2 Settings — Configure all external tools and services.
+    TITAN V9.1 Settings — Configure all external tools and services.
     """
 
     def __init__(self):
@@ -199,7 +199,7 @@ class TitanSettings(QMainWindow):
             self.setStyleSheet(f"background: {BG_DARK}; color: {TEXT};")
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — Settings")
+        self.setWindowTitle("TITAN V9.1 — Settings")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -704,9 +704,9 @@ class TitanSettings(QMainWindow):
         # Version info
         vgrp = QGroupBox("Version Info")
         vf = QFormLayout(vgrp)
-        vf.addRow("Titan OS:", QLabel("V8.2 SINGULARITY"))
-        vf.addRow("Core Modules:", QLabel("110"))
-        vf.addRow("GUI Apps:", QLabel("9 (8 + Launcher)"))
+        vf.addRow("Titan OS:", QLabel("V9.1 SINGULARITY"))
+        vf.addRow("Core Modules:", QLabel("115"))
+        vf.addRow("GUI Apps:", QLabel("9 apps + Launcher"))
         vf.addRow("Author:", QLabel("Dva.12"))
         layout.addWidget(vgrp)
 
@@ -867,7 +867,7 @@ class TitanSettings(QMainWindow):
 
     def _run_diagnostics(self):
         lines = []
-        lines.append(f"=== TITAN V8.2 DIAGNOSTICS === {datetime.now().isoformat()}")
+        lines.append(f"=== TITAN V9.1 DIAGNOSTICS === {datetime.now().isoformat()}")
         lines.append(f"Disk: {self.status_data.get('disk_free', 'unknown')}")
         lines.append(f"Mullvad: {self.status_data.get('mullvad', 'unknown')}")
         lines.append(f"Ollama: {self.status_data.get('ollama', 'unknown')}")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 PROFILE FORGE — Identity + Chrome Profile Building
+TITAN V9.1 PROFILE FORGE — Identity + Chrome Profile Building
 ==============================================================
 Focused app for persona creation and browser profile forging.
 
@@ -511,7 +511,7 @@ class TitanProfileForge(QMainWindow):
             self.setStyleSheet(f"background: {BG}; color: {TEXT};")
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — Profile Forge")
+        self.setWindowTitle("TITAN V9.1 — Profile Forge")
         self.setMinimumSize(1000, 750)
 
         central = QWidget()

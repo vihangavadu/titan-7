@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-02-25T19:07:16Z",
+  "apt": {
+    "expected": 146,
+    "present": 145,
+    "missing": [
+      "python3-pillow"
+    ]
+  },
+  "pip": {
+    "expected": 62,
+    "present": 62,
+    "missing": []
+  },
+  "tools": {
+    "expected": 31,
+    "present": 31,
+    "missing": []
+  },
+  "configs": {
+    "expected": 29,
+    "present": 29,
+    "missing": []
+  },
+  "units": {
+    "expected": 7,
+    "present": 7,
+    "missing": []
+  },
+  "desktop": {
+    "expected": 10,
+    "present": 10,
+    "missing": []
+  },
+  "theme": {
+    "expected": 8,
+    "present": 8,
+    "missing": []
+  },
+  "completion": "99.7%"
+}

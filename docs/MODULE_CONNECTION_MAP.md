@@ -58,9 +58,9 @@ Profile generation, browser construction, and anti-detect layers.
 | `multilogin_forge.py` | 1432 | `MultiloginForgeEngine` | — | integration_bridge |
 | `antidetect_importer.py` | 987 | `OblivionImporter` | — | integration_bridge |
 | `level9_antidetect.py` | 1876 | `Level9Antidetect` | multiple fingerprint modules | integration_bridge |
-| `profile_realism_engine.py` | 1156 | `ProfileRealismEngine` | — | orphan |
+| `profile_realism_engine.py` | 1156 | `ProfileRealismEngine` | — | titan_operations, app_profile_forge |
 | `advanced_profile_generator.py` | 1432 | `AdvancedProfileGenerator` | genesis_core | titan_api |
-| `profile_isolation.py` | 654 | `ProfileIsolation` | — | orphan |
+| `profile_isolation.py` | 654 | `ProfileIsolation` | — | titan_admin |
 | `profile_burner.py` | 876 | `ProfileBurner` | — | — |
 
 ### 4. FINGERPRINT (11 modules)
@@ -69,7 +69,7 @@ Low-level browser fingerprint spoofing and consistency enforcement.
 | Module | Lines | Key Classes | Depends On | Depended By |
 |--------|-------|-------------|------------|-------------|
 | `fingerprint_injector.py` | 1543 | `FingerprintInjector` | — | level9_antidetect |
-| `canvas_noise.py` | 432 | `CanvasNoiseEngine` | — | orphan |
+| `canvas_noise.py` | 432 | `CanvasNoiseEngine` | — | titan_operations |
 | `canvas_subpixel_shim.py` | 654 | `CanvasSubPixelShim` | — | integration_bridge |
 | `webgl_angle.py` | 1234 | `WebGLAngleShim`, `GPUProfileValidator` | — | integration_bridge |
 | `font_sanitizer.py` | 876 | `FontSanitizer` | — | integration_bridge |
@@ -86,7 +86,7 @@ VPN, proxy management, and network-level stealth.
 | Module | Lines | Key Classes | Depends On | Depended By |
 |--------|-------|-------------|------------|-------------|
 | `proxy_manager.py` | 1321 | `ResidentialProxyManager`, `ProxyHealthChecker` | — | 5 modules |
-| `network_shield.py` | 876 | `NetworkShield` | — | orphan |
+| `network_shield.py` | 876 | `NetworkShield` | — | titan_network |
 | `network_shield_loader.py` | 432 | `NetworkShield` | — | integration_bridge |
 | `network_jitter.py` | 654 | `NetworkJitterEngine`, `JitterProfile` | — | integration_bridge |
 | `quic_proxy.py` | 543 | `QUICProxyProtocol` | — | integration_bridge |
@@ -112,9 +112,9 @@ Card validation, payment strategy, 3DS bypass, and issuer defense.
 |--------|-------|-------------|------------|-------------|
 | `cerberus_core.py` | 1876 | `CerberusValidator`, `CardAsset`, `CardCoolingSystem` | — | titan_automation |
 | `cerberus_enhanced.py` | 2987 | `BINScoringEngine`, `CardQualityGrader`, `MaxDrainEngine` | ai_intelligence_engine | 4 modules |
-| `payment_preflight.py` | 876 | `PaymentPreflightValidator` | — | orphan |
-| `payment_success_metrics.py` | 1265 | `PaymentSuccessMetricsDB`, `TitanPrometheusExporter` | — | orphan (V9.1 Prometheus) |
-| `payment_sandbox_tester.py` | 654 | `PaymentSandboxTester` | — | orphan |
+| `payment_preflight.py` | 876 | `PaymentPreflightValidator` | — | titan_operations |
+| `payment_success_metrics.py` | 1265 | `PaymentSuccessMetricsDB`, `TitanPrometheusExporter` | — | app_browser_launch, titan_operations |
+| `payment_sandbox_tester.py` | 654 | `PaymentSandboxTester` | — | titan_operations |
 | `three_ds_strategy.py` | 1654 | `ThreeDSBypassEngine`, `NonVBVRecommendationEngine` | target_intelligence | 5 modules |
 | `titan_3ds_ai_exploits.py` | 987 | `ThreeDSAIEngine` | ai_intelligence_engine | — |
 | `issuer_algo_defense.py` | 1543 | `IssuerDeclineDefenseEngine`, `AmountOptimizer` | — | integration_bridge, titan_api |
@@ -138,8 +138,8 @@ Cookie, localStorage, IndexedDB, LevelDB synthesis and data enrichment.
 
 | Module | Lines | Key Classes | Depends On | Depended By |
 |--------|-------|-------------|------------|-------------|
-| `cookie_forge.py` | 987 | `CookieForge` | — | orphan |
-| `chromium_cookie_engine.py` | 1234 | `ChromiumCookieEngine` | — | orphan |
+| `cookie_forge.py` | 987 | `CookieForge` | — | titan_operations |
+| `chromium_cookie_engine.py` | 1234 | `ChromiumCookieEngine` | — | app_profile_forge |
 | `indexeddb_lsng_synthesis.py` | 1543 | `IndexedDBShardSynthesizer`, `LocalStorageSynthesizer` | — | integration_bridge, titan_api |
 | `leveldb_writer.py` | 654 | `LevelDBWriter` | — | integration_bridge |
 | `dynamic_data.py` | 1234 | `DataFusionEngine`, `DataQualityValidator` | — | 5 modules |
@@ -153,9 +153,9 @@ Anti-forensic, detection analysis, and emergency cleanup.
 | Module | Lines | Key Classes | Depends On | Depended By |
 |--------|-------|-------------|------------|-------------|
 | `forensic_monitor.py` | 1465 | `ForensicMonitor`, `ThreatCorrelationEngine` | ollama_bridge | 2 modules |
-| `forensic_cleaner.py` | 354 | `ForensicCleaner`, `EmergencyWiper` | — | orphan |
+| `forensic_cleaner.py` | 354 | `ForensicCleaner`, `EmergencyWiper` | — | titan_network |
 | `forensic_alignment.py` | 507 | `ForensicAlignment` | — | integration_bridge |
-| `forensic_synthesis_engine.py` | 705 | `ForensicSynthesisEngine` | — | orphan |
+| `forensic_synthesis_engine.py` | 705 | `ForensicSynthesisEngine` | — | titan_operations, app_profile_forge |
 | `kill_switch.py` | 1835 | `KillSwitch` | genesis_core, mullvad_vpn, titan_ai_operations_guard | 3 modules |
 | `titan_detection_analyzer.py` | 1244 | `DetectionAnalyzer`, `RootCauseAnalysis` | — | 2 modules |
 | `titan_detection_lab.py` | 1138 | `DetectionLab` | standalone test tool | — |
@@ -192,11 +192,11 @@ Location, timezone, hardware, sensor, and device spoofing.
 
 | Module | Lines | Key Classes | Depends On | Depended By |
 |--------|-------|-------------|------------|-------------|
-| `location_spoofer.py` | 88 | `LocationSpoofer` | — | orphan (lightweight) |
+| `location_spoofer.py` | 88 | `LocationSpoofer` | — | titan_network |
 | `location_spoofer_linux.py` | 1631 | `LinuxLocationSpoofer` | — | 2 modules |
 | `timezone_enforcer.py` | 1196 | `TimezoneEnforcer` | — | 3 modules |
 | `ntp_isolation.py` | 394 | `IsolationManager` | — | 1 module |
-| `time_dilator.py` | 240 | `TimeDilator` | — | orphan |
+| `time_dilator.py` | 240 | `TimeDilator` | — | titan_operations |
 | `time_safety_validator.py` | 331 | `SafetyValidator` | — | 1 module |
 | `temporal_entropy.py` | 317 | `EntropyGenerator` | — | 2 modules |
 | `immutable_os.py` | 1428 | `ImmutableOSManager` | — | 3 modules |
@@ -205,7 +205,7 @@ Location, timezone, hardware, sensor, and device spoofing.
 | `usb_peripheral_synth.py` | 866 | `USBDeviceManager`, `USBProfileGenerator` | — | 2 modules |
 | `waydroid_sync.py` | 985 | `CrossDeviceActivityOrchestrator` | — | 2 modules |
 | `windows_font_provisioner.py` | 770 | `WindowsFontProvisioner` | — | 2 modules |
-| `ga_triangulation.py` | 485 | `GAMPTriangulation` | — | orphan |
+| `ga_triangulation.py` | 485 | `GAMPTriangulation` | — | titan_operations |
 | `gamp_triangulation_v2.py` | 465 | `GAMPTriangulation` | — | 1 module |
 
 ---

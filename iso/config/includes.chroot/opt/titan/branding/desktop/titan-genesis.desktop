@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Titan Genesis
+Comment=Profile Generation Engine
+Exec=python3 /opt/titan/apps/app_genesis.py
+Icon=/opt/titan/branding/icons/titan_genesis_128.png
+Terminal=false
+Type=Application
+Categories=System;Security;
+StartupWMClass=titan-genesis
+Keywords=titan;genesis;profile;

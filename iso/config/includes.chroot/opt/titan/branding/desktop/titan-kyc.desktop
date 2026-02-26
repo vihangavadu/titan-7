@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Titan KYC
+Comment=Virtual Camera & KYC Bypass
+Exec=python3 /opt/titan/apps/app_kyc.py
+Icon=/opt/titan/branding/icons/titan_kyc_128.png
+Terminal=false
+Type=Application
+Categories=System;Security;
+StartupWMClass=titan-kyc
+Keywords=titan;kyc;camera;

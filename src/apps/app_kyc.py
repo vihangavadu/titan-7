@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 SINGULARITY — Verification Compliance Module
+TITAN V9.1 SINGULARITY — Verification Compliance Module
 Virtual Camera Controller GUI
 
 PyQt6 Desktop Application for system-level virtual camera control.
@@ -197,7 +197,7 @@ class KYCApp(QMainWindow):
         self.refresh_cameras()
     
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — KYC Studio")
+        self.setWindowTitle("TITAN V9.1 — KYC Studio")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, "#9c27b0")
@@ -528,7 +528,7 @@ class KYCApp(QMainWindow):
         layout.addWidget(cameras_group)
         
         # Footer
-        footer = QLabel("TITAN V8.0 MAXIMUM | Verification Compliance")
+        footer = QLabel("TITAN V9.1 MAXIMUM | Verification Compliance")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setStyleSheet("color: #64748B; font-size: 10px;")
         layout.addWidget(footer)

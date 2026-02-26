@@ -1,0 +1,19 @@
+[Unit]
+Description=TITAN Dev Hub — Agentic IDE with full OS control
+After=network.target ollama.service redis-server.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/titan
+ExecStart=/usr/bin/python3 /opt/titan/apps/titan_dev_hub.py --host 0.0.0.0 --port 8877
+Restart=on-failure
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/titan:/opt/titan/core:/opt/titan/apps
+Environment=TITAN_ROOT=/opt/titan
+
+[Install]
+WantedBy=multi-user.target

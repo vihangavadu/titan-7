@@ -1,0 +1,66 @@
+﻿"""
+TITAN V8.1 ΓÇö Canvas Noise Deterministic Generator
+Derives entropy seed from profile UUID via SHA-256 + Perlin noise.
+Ensures cross-session fingerprint stability.
+"""
+import hashlib
+import math
+import struct
+from typing import List, Tuple
+
+
+class PerlinNoise:
+    """2D Perlin noise generator for canvas pixel perturbation."""
+    
+    def __init__(self, seed: int):
+        self.p = list(range(256))
+        import random
+        rng = random.Random(seed)
+        rng.shuffle(self.p)
+        self.p *= 2
+    
+    def _fade(self, t): return t * t * t * (t * (t * 6 - 15) + 10)
+    def _lerp(self, t, a, b): return a + t * (b - a)
+    
+    def _grad(self, h, x, y):
+        h = h & 3
+        u = x if h < 2 else y
+        v = y if h < 2 else x
+        return (u if h & 1 == 0 else -u) + (v if h & 2 == 0 else -v)
+    
+    def noise(self, x: float, y: float) -> float:
+        X = int(math.floor(x)) & 255
+        Y = int(math.floor(y)) & 255
+        x -= math.floor(x)
+        y -= math.floor(y)
+        u = self._fade(x)
+        v = self._fade(y)
+        A = self.p[X] + Y
+        B = self.p[X + 1] + Y
+        return self._lerp(v,
+            self._lerp(u, self._grad(self.p[A], x, y), self._grad(self.p[B], x - 1, y)),
+            self._lerp(u, self._grad(self.p[A + 1], x, y - 1), self._grad(self.p[B + 1], x - 1, y - 1)))
+
+
+class CanvasNoiseGenerator:
+    """Deterministic canvas noise from profile UUID."""
+    
+    def __init__(self, profile_uuid: str):
+        self.seed = int(hashlib.sha256(profile_uuid.encode()).hexdigest()[:16], 16)
+        self.perlin = PerlinNoise(self.seed & 0xFFFFFFFF)
+    
+    def get_pixel_offset(self, x: int, y: int, channel: int = 0) -> int:
+        """Get deterministic noise offset for a canvas pixel."""
+        scale = 0.05
+        val = self.perlin.noise(x * scale + channel * 100, y * scale)
+        return int(val * 2)  # +/- 2 LSB noise
+    
+    def get_noise_matrix(self, width: int, height: int) -> List[List[int]]:
+        """Generate full noise matrix for canvas dimensions."""
+        return [[self.get_pixel_offset(x, y) for x in range(width)] for y in range(height)]
+
+
+def generate_canvas_noise(profile_uuid: str, width: int = 300, height: int = 150) -> List[List[int]]:
+    """Convenience function for canvas noise generation."""
+    gen = CanvasNoiseGenerator(profile_uuid)
+    return gen.get_noise_matrix(width, height)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 CARD VALIDATOR — BIN Check, Card Quality, AVS
+TITAN V9.1 CARD VALIDATOR — BIN Check, Card Quality, AVS
 =========================================================
 Focused app for card validation and intelligence.
 
@@ -348,7 +348,7 @@ class TitanCardValidator(QMainWindow):
             self.setStyleSheet(f"background: {BG}; color: {TEXT};")
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — Card Validator")
+        self.setWindowTitle("TITAN V9.1 — Card Validator")
         self.setMinimumSize(900, 700)
 
         central = QWidget()

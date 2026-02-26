@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.2 OPERATIONS CENTER — Daily Workflow
+TITAN V9.1 OPERATIONS CENTER — Daily Workflow
 ================================================
 The primary app operators use for 90% of tasks.
 
@@ -600,7 +600,7 @@ class ForgeWorker(QThread):
 
 class TitanOperations(QMainWindow):
     """
-    TITAN V8.2 Operations Center — Daily Workflow
+    TITAN V9.1 Operations Center — Daily Workflow
 
     5 tabs, 38+ core modules, session-persistent, cross-app aware.
     """
@@ -616,7 +616,7 @@ class TitanOperations(QMainWindow):
         QTimer.singleShot(400, self._restore_session)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.2 — Operations Center")
+        self.setWindowTitle("TITAN V9.1 — Operations Center")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)

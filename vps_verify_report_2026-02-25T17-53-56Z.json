@@ -1,0 +1,311 @@
+{
+  "meta": {
+    "timestamp": "2026-02-25T17-53-56Z",
+    "host": "72.62.72.48",
+    "user": "root",
+    "remote_root": "/opt/titan",
+    "local_root": "C:\\Users\\Administrator\\Downloads\\titan-7\\titan-7\\titan-7"
+  },
+  "folder_parity": [
+    {
+      "folder": ".github",
+      "local_files": 5,
+      "remote_files": -1,
+      "status": "fail",
+      "note": "remote missing"
+    },
+    {
+      "folder": "config",
+      "local_files": 4,
+      "remote_files": 5,
+      "status": "warn",
+      "note": "count drift (>=80% mirrored)"
+    },
+    {
+      "folder": "docs",
+      "local_files": 76,
+      "remote_files": 76,
+      "status": "pass",
+      "note": "exact match"
+    },
+    {
+      "folder": "hostinger-dev",
+      "local_files": 6,
+      "remote_files": -1,
+      "status": "fail",
+      "note": "remote missing"
+    },
+    {
+      "folder": "iso",
+      "local_files": 159,
+      "remote_files": -1,
+      "status": "fail",
+      "note": "remote missing"
+    },
+    {
+      "folder": "modelfiles",
+      "local_files": 4,
+      "remote_files": 6,
+      "status": "warn",
+      "note": "count drift (>=80% mirrored)"
+    },
+    {
+      "folder": "plans",
+      "local_files": 1,
+      "remote_files": -1,
+      "status": "fail",
+      "note": "remote missing"
+    },
+    {
+      "folder": "scripts",
+      "local_files": 30,
+      "remote_files": 38,
+      "status": "warn",
+      "note": "count drift (>=80% mirrored)"
+    },
+    {
+      "folder": "src",
+      "local_files": 266,
+      "remote_files": 426,
+      "status": "warn",
+      "note": "count drift (>=80% mirrored)"
+    },
+    {
+      "folder": "tests",
+      "local_files": 14,
+      "remote_files": 28,
+      "status": "warn",
+      "note": "count drift (>=80% mirrored)"
+    },
+    {
+      "folder": "training",
+      "local_files": 49,
+      "remote_files": 76,
+      "status": "warn",
+      "note": "count drift (>=80% mirrored)"
+    }
+  ],
+  "critical_files": [
+    {
+      "path": "/opt/titan/core/titan_api.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/core/integration_bridge.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/core/titan_session.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/core/kyc_core.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/core/kyc_enhanced.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/core/kyc_voice_engine.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/core/waydroid_sync.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/core/cockpit_daemon.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/apps/titan_dev_hub.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/apps/app_kyc.py",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/scripts/setup_waydroid_android.sh",
+      "present": true
+    },
+    {
+      "path": "/opt/titan/scripts/deploy_android_vm.sh",
+      "present": true
+    }
+  ],
+  "python_syntax": {
+    "checked": 370,
+    "failed": []
+  },
+  "imports": {
+    "results": [
+      {
+        "module": "integration_bridge",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "module": "titan_session",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "module": "titan_api",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "module": "kyc_core",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "module": "kyc_enhanced",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "module": "kyc_voice_engine",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "module": "waydroid_sync",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "module": "cockpit_daemon",
+        "ok": true,
+        "error": ""
+      }
+    ],
+    "error": ""
+  },
+  "services": [
+    {
+      "service": "redis-server",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "service": "ollama",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "service": "xray",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "service": "ntfy",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "service": "titan-dev-hub",
+      "active": "active",
+      "enabled": "enabled"
+    },
+    {
+      "service": "titan-api",
+      "active": "inactive",
+      "enabled": "unknown"
+    },
+    {
+      "service": "waydroid-container",
+      "active": "inactive",
+      "enabled": "unknown"
+    }
+  ],
+  "tools": [
+    {
+      "tool": "python3",
+      "present": true,
+      "path": "/usr/bin/python3"
+    },
+    {
+      "tool": "pip3",
+      "present": true,
+      "path": "/usr/bin/pip3"
+    },
+    {
+      "tool": "git",
+      "present": true,
+      "path": "/usr/bin/git"
+    },
+    {
+      "tool": "curl",
+      "present": true,
+      "path": "/usr/bin/curl"
+    },
+    {
+      "tool": "ffmpeg",
+      "present": false,
+      "path": ""
+    },
+    {
+      "tool": "node",
+      "present": false,
+      "path": ""
+    },
+    {
+      "tool": "npm",
+      "present": false,
+      "path": ""
+    },
+    {
+      "tool": "redis-cli",
+      "present": true,
+      "path": "/usr/bin/redis-cli"
+    },
+    {
+      "tool": "ollama",
+      "present": true,
+      "path": "/usr/local/bin/ollama"
+    },
+    {
+      "tool": "waydroid",
+      "present": false,
+      "path": ""
+    }
+  ],
+  "api": [
+    {
+      "endpoint": "http://127.0.0.1:5000/api/v1/health",
+      "http_code": "000",
+      "ok": false,
+      "sample": ""
+    },
+    {
+      "endpoint": "http://127.0.0.1:5000/api/v1/modules",
+      "http_code": "000",
+      "ok": false,
+      "sample": ""
+    },
+    {
+      "endpoint": "http://127.0.0.1:5000/api/v1/android/status",
+      "http_code": "000",
+      "ok": false,
+      "sample": ""
+    }
+  ],
+  "waydroid": {
+    "installed": false,
+    "binary": "",
+    "binder_nodes": [],
+    "status": "",
+    "images": {
+      "/var/lib/waydroid/images/system.img": false,
+      "/var/lib/waydroid/images/vendor.img": false
+    }
+  },
+  "summary": {
+    "pass": 26,
+    "warn": 10,
+    "fail": 11
+  }
+}

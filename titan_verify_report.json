@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-02-26T08:02:37Z",
+  "kernel": "6.1.0-42-amd64",
+  "debian": "12.13",
+  "verify_pass": 29,
+  "verify_warn": 9,
+  "verify_fail": 1,
+  "install_pass": 81,
+  "install_warn": 1,
+  "install_fail": 0,
+  "dkms_status": "titan-hw/6.2.0: added",
+  "titan_hw_ko": "",
+  "hw_shield_so": "present",
+  "tailscale": "installed",
+  "total_files": 992,
+  "python_files": 400,
+  "c_sources": 15
+}
