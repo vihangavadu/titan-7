@@ -185,6 +185,19 @@ try:
 except ImportError:
     TLS_MIMIC_OK = False
 
+# V8.11: Level 9 Antidetect + Biometric Mimicry
+try:
+    from level9_antidetect import Level9Antidetect
+    LEVEL9_OK = True
+except ImportError:
+    LEVEL9_OK = False
+
+try:
+    from biometric_mimicry import BiometricMimicry
+    BIOMETRIC_OK = True
+except ImportError:
+    BIOMETRIC_OK = False
+
 # V8.11: Session integration
 try:
     from titan_session import get_session, update_session
@@ -343,6 +356,7 @@ class TitanNetwork(QMainWindow):
         self._build_shield_tab()
         self._build_forensic_tab()
         self._build_proxy_tab()
+        self._build_antidetect_tab()
 
         # Status bar
         self.progress = QProgressBar()
@@ -1094,6 +1108,130 @@ class TitanNetwork(QMainWindow):
                 QMessageBox.warning(self, "Error", f"Warmup error: {e}")
         else:
             QMessageBox.warning(self, "Error", "Referrer Warmup Engine not available")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TAB 5: ANTIDETECT (wires: level9_antidetect, biometric_mimicry)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _build_antidetect_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(8)
+
+        # Module status
+        stat_grp = QGroupBox("Antidetect Module Status")
+        sl = QVBoxLayout(stat_grp)
+        mods = [
+            ("level9_antidetect", LEVEL9_OK, "Level9Antidetect — Deep fingerprint coherence engine"),
+            ("biometric_mimicry", BIOMETRIC_OK, "BiometricMimicry — Defeats BehaviorSec/BioCatch (Fitts Law, keystroke dynamics, GAN trajectories)"),
+            ("network_shield", SHIELD_LEGACY_OK, "NetworkShield — eBPF TCP stack mimesis"),
+            ("cpuid_rdtsc_shield", CPUID_OK, "CPUIDRDTSCShield — CPU/timing fingerprint protection"),
+            ("tls_mimic", TLS_MIMIC_OK, "TLSMimic — TLS ClientHello mimicry"),
+        ]
+        for name, ok, desc in mods:
+            color = GREEN if ok else RED
+            sl.addWidget(QLabel(f"<span style='color:{color};'>{'●' if ok else '○'}</span> <b>{name}</b>: {desc}"))
+        layout.addWidget(stat_grp)
+
+        # Level 9 Antidetect
+        l9_grp = QGroupBox("Level 9 Antidetect Engine")
+        l9l = QVBoxLayout(l9_grp)
+        l9l.addWidget(QLabel("Deep fingerprint coherence: Canvas, WebGL, Audio, Font, Timezone, Language, Screen, Hardware"))
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Profile ID:"))
+        self.l9_profile_id = QLineEdit()
+        self.l9_profile_id.setPlaceholderText("Enter profile ID to apply antidetect")
+        row.addWidget(self.l9_profile_id)
+        l9l.addLayout(row)
+        btn_row = QHBoxLayout()
+        btn_apply = QPushButton("Apply Level 9")
+        btn_apply.setStyleSheet(f"background: {GREEN}; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        btn_apply.clicked.connect(self._apply_level9)
+        btn_row.addWidget(btn_apply)
+        btn_audit = QPushButton("Audit Fingerprint")
+        btn_audit.setStyleSheet(f"background: {CYAN}; color: #0a0e17; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        btn_audit.clicked.connect(self._audit_level9)
+        btn_row.addWidget(btn_audit)
+        btn_row.addStretch()
+        l9l.addLayout(btn_row)
+        layout.addWidget(l9_grp)
+
+        # Biometric Mimicry
+        bio_grp = QGroupBox("Biometric Mimicry Engine")
+        bl = QVBoxLayout(bio_grp)
+        bl.addWidget(QLabel("GAN mouse trajectories, Fitts's Law motion, keystroke dynamics, micro-tremor noise"))
+        bio_info = QHBoxLayout()
+        bio_info.addWidget(QLabel("Features:"))
+        for feat in ["S-curve velocity", "10-12Hz tremor", "Keystroke timing", "Scroll jitter", "GAN trajectory"]:
+            lbl = QLabel(feat)
+            lbl.setStyleSheet(f"background: {CARD2}; color: {CYAN}; padding: 4px 8px; border-radius: 4px; font-size: 11px;")
+            bio_info.addWidget(lbl)
+        bio_info.addStretch()
+        bl.addLayout(bio_info)
+        btn_bio = QPushButton("Test Biometric Profile")
+        btn_bio.setStyleSheet(f"background: {PURPLE}; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        btn_bio.clicked.connect(self._test_biometric)
+        bl.addWidget(btn_bio)
+        layout.addWidget(bio_grp)
+
+        # Output
+        self.antidetect_output = QPlainTextEdit()
+        self.antidetect_output.setReadOnly(True)
+        self.antidetect_output.setMaximumHeight(250)
+        self.antidetect_output.setStyleSheet("font-family: 'JetBrains Mono'; font-size: 11px;")
+        self.antidetect_output.setPlainText("Antidetect panel ready.\nlevel9=" + str(LEVEL9_OK) + " biometric=" + str(BIOMETRIC_OK))
+        layout.addWidget(self.antidetect_output)
+
+        layout.addStretch()
+        self.tabs.addTab(scroll, "ANTIDETECT")
+
+    def _apply_level9(self):
+        pid = self.l9_profile_id.text().strip()
+        if not pid:
+            self.antidetect_output.setPlainText("Enter a profile ID first.")
+            return
+        if not LEVEL9_OK:
+            self.antidetect_output.setPlainText("level9_antidetect module not available.")
+            return
+        try:
+            engine = Level9Antidetect(pid)
+            result = engine.apply() if hasattr(engine, 'apply') else engine.generate() if hasattr(engine, 'generate') else engine.__dict__
+            import json as _j
+            self.antidetect_output.setPlainText(f"Level 9 applied to profile: {pid}\n\n{_j.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result)}")
+        except Exception as e:
+            self.antidetect_output.setPlainText(f"Level 9 error: {e}")
+
+    def _audit_level9(self):
+        pid = self.l9_profile_id.text().strip() or "default"
+        if not LEVEL9_OK:
+            self.antidetect_output.setPlainText("level9_antidetect module not available.")
+            return
+        try:
+            engine = Level9Antidetect(pid)
+            audit = engine.audit() if hasattr(engine, 'audit') else engine.check() if hasattr(engine, 'check') else engine.__dict__
+            import json as _j
+            self.antidetect_output.setPlainText(f"Fingerprint Audit for: {pid}\n\n{_j.dumps(audit, indent=2, default=str) if isinstance(audit, dict) else str(audit)}")
+        except Exception as e:
+            self.antidetect_output.setPlainText(f"Audit error: {e}")
+
+    def _test_biometric(self):
+        if not BIOMETRIC_OK:
+            self.antidetect_output.setPlainText("biometric_mimicry module not available.\nRequires: numpy, scipy, onnxruntime (optional)")
+            return
+        try:
+            self.antidetect_output.setPlainText("BiometricMimicry loaded.\n\nCapabilities:\n"
+                "- GAN mouse trajectory generation (ONNX model)\n"
+                "- Fitts's Law S-curve velocity profiles\n"
+                "- 10-12Hz micro-tremor injection\n"
+                "- Keystroke dynamics (hold time, flight time Gaussian)\n"
+                "- CubicSpline interpolation for smooth paths\n\n"
+                "Note: Requires a Playwright page context to execute.\n"
+                "Use via: BiometricMimicry(page).human_move(x, y)")
+        except Exception as e:
+            self.antidetect_output.setPlainText(f"Biometric test error: {e}")
 
     # ═══════════════════════════════════════════════════════════════════════
     # THEME

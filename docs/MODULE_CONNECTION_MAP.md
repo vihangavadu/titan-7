@@ -1,18 +1,21 @@
 # TITAN OS — Full Module Connection Map
 
-**Generated: 2026-02-23 | Version: V9.1 | Status: 110/110 modules operational**
+**Generated: 2026-02-26 | Version: V9.1 | Status: 115/115 modules operational**
 
 ## System Health Summary
 
 | Metric | Value |
 |--------|-------|
-| Core modules (parse) | 110/110 ✅ |
-| Core modules (import) | 110/110 ✅ |
+| Core modules (parse) | 115/115 ✅ |
+| Core modules (import) | 115/115 ✅ |
 | titan_api endpoints | 59/59 ✅ |
 | integration_bridge subsystems | 69/69 (100%) ✅ |
 | Boot warnings | 0 ✅ |
 | External services | 4/4 (Redis, Ollama, Xray, ntfy) ✅ |
-| Config files | 3/3 (llm_config, oblivion_template, titan.env) ✅ |
+| Config files | 4/4 (llm_config, oblivion_template, titan.env, dev_hub_config) ✅ |
+| Ollama models | 6/6 (3 base + 3 custom titan) ✅ |
+| ONNX model | Phi-4-mini INT4 (~50MB, 33 task routes) ✅ |
+| Training data | 2,200 operator examples (ChatML JSONL) ✅ |
 
 ---
 
@@ -30,18 +33,19 @@ Central control plane — these modules wire everything together.
 | `titan_master_verify.py` | 1448 | `VerificationOrchestrator`, `RemediationEngine` | integration_bridge | titan_api |
 | `cockpit_daemon.py` | 1206 | `CockpitDaemon`, `CommandQueue` | titan_env | titan_api |
 
-### 2. AI / LLM (7 modules)
-AI reasoning layer — routes tasks to Ollama models.
+### 2. AI / LLM (8 modules)
+AI reasoning layer — routes tasks to Ollama models + ONNX CPU inference.
 
 | Module | Lines | Key Classes | Depends On | Depended By |
 |--------|-------|-------------|------------|-------------|
-| `ai_intelligence_engine.py` | 1842 | `AIIntelligenceEngine`, `AIModelSelector` | ollama_bridge, titan_vector_memory | 5 modules |
+| `ai_intelligence_engine.py` | 1842 | `AIModelSelector`, `AI3DSStrategy`, `AIDeclineAutopsy` | ollama_bridge, titan_vector_memory | 5 modules |
 | `ollama_bridge.py` | 1665 | `LLMLoadBalancer`, `PromptOptimizer` | — | 5 modules |
 | `cognitive_core.py` | 1539 | `CognitiveCoreLocal`, `TitanCognitiveCore` | ollama_bridge, titan_vector_memory | titan_api |
 | `titan_agent_chain.py` | 894 | `TitanChain`, `TitanAgent`, `TitanToolRegistry` | ollama_bridge | — |
 | `titan_realtime_copilot.py` | 1312 | `RealtimeCopilot` | ai_intelligence_engine, ollama_bridge | titan_services, titan_autonomous |
 | `titan_ai_operations_guard.py` | 1089 | `AIOperationsGuard` | ai_intelligence_engine | 6 modules |
 | `titan_vector_memory.py` | 889 | `TitanVectorMemory` | — | 6 modules |
+| `titan_onnx_engine.py` | 375 | `TitanOnnxEngine` | onnxruntime_genai, ollama_bridge | 33 task routes |
 
 ### 3. BROWSER / PROFILE (10 modules)
 Profile generation, browser construction, and anti-detect layers.

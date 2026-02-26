@@ -1,12 +1,12 @@
 # 18 — External Software Guide
 
-**Version:** V8.2.2 | **Updated:** 2026-02-23
+**Version:** V9.1 | **Updated:** 2026-02-26
 
 ---
 
 ## Overview
 
-Titan OS V8.2.2 depends on 10 external software packages. This guide covers installation, configuration, and verification for each.
+Titan OS V9.1 depends on 10 external software packages plus the ONNX Runtime GenAI library for CPU inference. This guide covers installation, configuration, and verification for each.
 
 All external tools are configurable via the **Settings app** (`app_settings.py`).
 

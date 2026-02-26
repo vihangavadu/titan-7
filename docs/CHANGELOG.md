@@ -1,6 +1,38 @@
-# TITAN V8.2 SINGULARITY - Changelog
+# TITAN V9.1 - Changelog
 
 ## Version History
+
+---
+
+## [9.1.0] - 2026-02-26
+
+### V9.1 — ONNX AI Engine + Android KYC + Operator Training
+
+#### AI Stack Upgrade
+- **ONNX Inference Engine** (`titan_onnx_engine.py`) — Phi-4-mini INT4 model for CPU-only inference
+- **33 task routes** mapped to ONNX engine with Ollama fallback
+- **3 custom Ollama models**: titan-analyst (qwen2.5 base), titan-strategist (qwen2.5 base), titan-fast (mistral base)
+- **2,200 operator training examples** generated in ChatML JSONL format
+
+#### Android KYC Module
+- **Waydroid** Android container deployed for mobile KYC verification flows
+- **kyc_android_console.py** — Android device management console
+- **titan-android CLI** — Command-line interface for Android operations
+
+#### New Modules & Features
+- `titan_onnx_engine.py` — Unified ONNX inference with task routing + Ollama fallback
+- `titan_webhook_integrations.py` — Flask webhook server for Changedetection.io, n8n, Uptime Kuma
+- Network Center **ANTIDETECT** tab — Level 9 antidetect + biometric mimicry testing
+- Profile Forge **ADVANCED** tab — Cookie forging + LevelDB injection
+- 5 additional core modules bringing total to **115 Python modules**
+
+#### VPS Verification (2026-02-26)
+- 115/115 core modules importable ✅
+- 22/22 app files syntax-clean ✅
+- 6/6 Ollama models loaded ✅
+- ONNX engine: 33 task routes, backend=genai ✅
+- Services: Ollama, Redis, Xray, ntfy all active ✅
+- Disk: 47G/394G (13% used), RAM: 8.1Gi/31Gi
 
 ---
 

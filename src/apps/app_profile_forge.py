@@ -198,6 +198,18 @@ try:
 except ImportError:
     AI_V83_OK = False
 
+try:
+    from chromium_cookie_engine import OblivionForgeEngine, BrowserType, ChromeCryptoEngine, HybridInjector, LevelDBForger, CacheSurgeon
+    COOKIE_ENGINE_OK = True
+except ImportError:
+    COOKIE_ENGINE_OK = False
+
+try:
+    from leveldb_writer import LevelDBWriter
+    LEVELDB_OK = True
+except ImportError:
+    LEVELDB_OK = False
+
 
 class ForgeWorker(QThread):
     progress = pyqtSignal(int, str)
@@ -519,6 +531,7 @@ class TitanProfileForge(QMainWindow):
         self._build_identity_tab()
         self._build_forge_tab()
         self._build_profiles_tab()
+        self._build_advanced_tab()
 
     def _build_identity_tab(self):
         tab = QWidget()
@@ -725,6 +738,151 @@ class TitanProfileForge(QMainWindow):
         layout.addWidget(grp)
         layout.addStretch()
         self.tabs.addTab(scroll, "PROFILES")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TAB 4: ADVANCED (wires: chromium_cookie_engine, leveldb_writer)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _build_advanced_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        # Module status
+        stat_grp = QGroupBox("Advanced Forge Modules")
+        sl = QVBoxLayout(stat_grp)
+        mods = [
+            ("chromium_cookie_engine", COOKIE_ENGINE_OK, "OblivionForgeEngine, ChromeCryptoEngine, HybridInjector, LevelDBForger, CacheSurgeon"),
+            ("leveldb_writer", LEVELDB_OK, "LevelDBWriter — Chrome Local Storage LevelDB injection"),
+            ("genesis_core", GENESIS_OK, "GenesisEngine — Primary profile forge engine"),
+            ("forensic_synthesis_engine", CACHE_OK, "Cache2Synthesizer — Chrome disk cache synthesis"),
+            ("chromium_commerce_injector", CHROME_COMMERCE_OK, "inject_golden_chain — Commerce trust anchors"),
+        ]
+        for name, ok, desc in mods:
+            color = GREEN if ok else RED
+            sl.addWidget(QLabel(f"<span style='color:{color};'>{'●' if ok else '○'}</span> <b>{name}</b>: {desc}"))
+        layout.addWidget(stat_grp)
+
+        # Cookie Engine panel
+        ck_grp = QGroupBox("Chromium Cookie Engine")
+        cl = QVBoxLayout(ck_grp)
+        cl.addWidget(QLabel("Forge encrypted cookies, LevelDB data, and disk cache for Chrome profiles"))
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("Profile Path:"))
+        self.adv_profile_path = QLineEdit("/opt/titan/profiles/")
+        self.adv_profile_path.setPlaceholderText("/opt/titan/profiles/<profile_id>")
+        row1.addWidget(self.adv_profile_path)
+        cl.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("Browser:"))
+        self.adv_browser = QComboBox()
+        self.adv_browser.addItems(["chrome", "chromium", "edge", "brave", "firefox"])
+        row2.addWidget(self.adv_browser)
+        row2.addWidget(QLabel("Target Origin:"))
+        self.adv_origin = QLineEdit("https://www.amazon.com")
+        row2.addWidget(self.adv_origin)
+        cl.addLayout(row2)
+
+        btn_row = QHBoxLayout()
+        btn_forge_cookies = QPushButton("Forge Cookies")
+        btn_forge_cookies.setStyleSheet(f"background: {ACCENT}; color: #0a0e17; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        btn_forge_cookies.clicked.connect(self._forge_cookies)
+        btn_row.addWidget(btn_forge_cookies)
+
+        btn_cache = QPushButton("Synthesize Cache")
+        btn_cache.setStyleSheet(f"background: {ORANGE}; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        btn_cache.clicked.connect(self._synthesize_cache)
+        btn_row.addWidget(btn_cache)
+
+        btn_leveldb = QPushButton("Write LevelDB Data")
+        btn_leveldb.setStyleSheet(f"background: {GREEN}; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        btn_leveldb.clicked.connect(self._write_leveldb)
+        btn_row.addWidget(btn_leveldb)
+        btn_row.addStretch()
+        cl.addLayout(btn_row)
+        layout.addWidget(ck_grp)
+
+        # LevelDB key-value editor
+        ldb_grp = QGroupBox("LevelDB Key-Value Injection")
+        ll = QVBoxLayout(ldb_grp)
+        ll.addWidget(QLabel("Inject localStorage data into Chrome LevelDB (origin-keyed)"))
+        kv_row = QHBoxLayout()
+        kv_row.addWidget(QLabel("Key:"))
+        self.adv_ldb_key = QLineEdit()
+        self.adv_ldb_key.setPlaceholderText("e.g. csm-hit, session-id, ubid-main")
+        kv_row.addWidget(self.adv_ldb_key)
+        kv_row.addWidget(QLabel("Value:"))
+        self.adv_ldb_value = QLineEdit()
+        self.adv_ldb_value.setPlaceholderText("Value to inject")
+        kv_row.addWidget(self.adv_ldb_value)
+        ll.addLayout(kv_row)
+        layout.addWidget(ldb_grp)
+
+        # Output
+        self.adv_output = QPlainTextEdit()
+        self.adv_output.setReadOnly(True)
+        self.adv_output.setMaximumHeight(250)
+        self.adv_output.setStyleSheet("font-family: 'JetBrains Mono'; font-size: 11px;")
+        self.adv_output.setPlainText("Advanced forge panel ready.\nModules loaded: cookie_engine=" + str(COOKIE_ENGINE_OK) + " leveldb=" + str(LEVELDB_OK))
+        layout.addWidget(self.adv_output)
+
+        layout.addStretch()
+        self.tabs.addTab(scroll, "ADVANCED")
+
+    def _forge_cookies(self):
+        profile_path = self.adv_profile_path.text().strip()
+        origin = self.adv_origin.text().strip() or "https://www.amazon.com"
+        browser = self.adv_browser.currentText()
+        if not COOKIE_ENGINE_OK:
+            self.adv_output.setPlainText("chromium_cookie_engine not available — cannot forge cookies.\nInstall with: pip install plyvel cryptography")
+            return
+        try:
+            bt = BrowserType(browser) if hasattr(BrowserType, browser.upper()) else BrowserType.CHROME
+            engine = OblivionForgeEngine(profile_path, bt)
+            result = engine.forge(origin) if hasattr(engine, 'forge') else engine.inject_cookies(origin) if hasattr(engine, 'inject_cookies') else str(engine)
+            self.adv_output.setPlainText(f"Cookie forge complete for {origin}\n\nProfile: {profile_path}\nBrowser: {browser}\n\n{json.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result)}")
+        except Exception as e:
+            self.adv_output.setPlainText(f"Cookie forge error: {e}")
+
+    def _synthesize_cache(self):
+        profile_path = self.adv_profile_path.text().strip()
+        if not CACHE_OK:
+            self.adv_output.setPlainText("forensic_synthesis_engine not available — cannot synthesize cache.")
+            return
+        try:
+            synth = Cache2Synthesizer()
+            result = synth.synthesize(profile_path) if hasattr(synth, 'synthesize') else synth.generate(profile_path) if hasattr(synth, 'generate') else str(synth)
+            self.adv_output.setPlainText(f"Cache synthesis complete\n\n{json.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result)}")
+        except Exception as e:
+            self.adv_output.setPlainText(f"Cache synthesis error: {e}")
+
+    def _write_leveldb(self):
+        profile_path = self.adv_profile_path.text().strip()
+        origin = self.adv_origin.text().strip() or "https://www.amazon.com"
+        key = self.adv_ldb_key.text().strip()
+        value = self.adv_ldb_value.text().strip()
+        if not LEVELDB_OK:
+            self.adv_output.setPlainText("leveldb_writer not available — cannot write LevelDB.\nInstall with: pip install plyvel && apt install libleveldb-dev")
+            return
+        if not key:
+            self.adv_output.setPlainText("Enter a key to inject into LevelDB.")
+            return
+        try:
+            ldb_dir = os.path.join(profile_path, "Default", "Local Storage", "leveldb")
+            writer = LevelDBWriter(ldb_dir)
+            if writer.open():
+                ok = writer.write_origin_data(origin, {key: value})
+                writer.close()
+                self.adv_output.setPlainText(f"LevelDB write {'OK' if ok else 'FAILED'}\n\nOrigin: {origin}\nKey: {key}\nValue: {value[:100]}\nDB: {ldb_dir}")
+            else:
+                self.adv_output.setPlainText("Failed to open LevelDB database")
+        except Exception as e:
+            self.adv_output.setPlainText(f"LevelDB write error: {e}")
 
     def _start_forge(self):
         config = {

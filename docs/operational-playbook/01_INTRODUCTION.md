@@ -2,7 +2,7 @@
 
 ## What Is Titan OS
 
-Titan OS is a purpose-built operating system designed for automated online transaction processing with maximum stealth. Built on Debian 12 Linux, it combines 90 specialized Python modules, 5 PyQt6 GUI applications, kernel-level network masquerade, AI-powered decision making, and a forensic-grade browser profile engine into a single cohesive platform.
+Titan OS is a purpose-built operating system designed for automated online transaction processing with maximum stealth. Built on Debian 12 Linux, it combines 115 specialized Python modules, 9 PyQt6 GUI applications, kernel-level network masquerade, AI-powered decision making (Ollama LLM + Phi-4-mini ONNX for CPU inference), and a forensic-grade browser profile engine into a single cohesive platform.
 
 The system is designed so that a **human operator** manually browses websites, selects products, and fills checkout forms — while Titan OS works **silently in the background** to ensure the operator's digital identity appears as a legitimate consumer to every layer of antifraud detection.
 
@@ -54,7 +54,7 @@ The Ghost Motor engine drives the mouse and keyboard with human-like patterns: B
 | **Storage** | 100 GB SSD minimum (profiles consume ~500 MB each) |
 | **Python** | 3.11+ |
 | **Browser** | Camoufox (bundled — anti-detection Firefox fork) |
-| **AI** | Ollama with mistral:7b, qwen2.5:7b, deepseek-r1:8b |
+| **AI** | Ollama (mistral:7b, qwen2.5:7b, deepseek-r1:8b + titan-analyst, titan-strategist, titan-fast) + Phi-4-mini ONNX INT4 |
 | **Network** | Mullvad VPN (WireGuard) or residential proxy pool |
 | **Display** | X11 with XFCE desktop (for GUI apps) or headless mode |
 
@@ -80,11 +80,12 @@ VMs are detectable through hypervisor artifacts (CPUID, RDTSC timing, DMI string
 │                    HUMAN OPERATOR                            │
 │              (browses, clicks, types)                        │
 ├─────────────────────────────────────────────────────────────┤
-│                   5 GUI APPLICATIONS                         │
+│                   9 GUI APPLICATIONS                         │
 │  Operations │ Intelligence │ Network │ KYC │ Admin          │
+│  Settings │ Profile Forge │ Card Validator │ Browser Launch  │
 ├─────────────────────────────────────────────────────────────┤
 │               INTEGRATION BRIDGE                             │
-│        (orchestrates all 90 modules)                         │
+│        (orchestrates all 115 modules)                        │
 ├──────────┬──────────┬──────────┬──────────┬─────────────────┤
 │ Genesis  │ Cerberus │ Network  │   AI     │  Automation     │
 │ Profile  │ Card     │ Shield   │ Engine   │  Orchestrator   │
@@ -103,39 +104,45 @@ VMs are detectable through hypervisor artifacts (CPUID, RDTSC timing, DMI string
 
 ---
 
-## The 90-Module Ecosystem
+## The 115-Module Ecosystem
 
-Titan OS contains 90 Python modules, 3 C source files, and 3 shell scripts in `src/core/`. These are organized into functional categories:
+Titan OS contains 115 Python modules, 3 C source files, and 2 shell scripts in `src/core/`. These are organized into functional categories:
 
 | Category | Count | Purpose |
 |----------|-------|---------|
-| Identity & Profile | 8 | Generate aged browser profiles, personas, purchase history |
-| Anti-Detection & Fingerprint | 10 | Spoof canvas, audio, fonts, WebGL, TLS, WebRTC |
-| Network & Infrastructure | 11 | VPN, proxy, eBPF shield, QUIC, DNS, jitter |
-| Transaction & Payment | 11 | Card validation, 3DS strategy, decline decoding |
-| AI & Intelligence | 11 | Ollama LLM, vector memory, agent chain, co-pilot |
+| Identity & Profile | 10 | Generate aged browser profiles, personas, purchase history, Oblivion/Multilogin forge |
+| Anti-Detection & Fingerprint | 11 | Spoof canvas, audio, fonts, WebGL, TLS, WebRTC, biometric mimicry |
+| Network & Infrastructure | 7 | VPN, proxy, eBPF shield, QUIC, DNS, jitter |
+| Transaction & Payment | 10 | Card validation, 3DS strategy, decline decoding, sandbox testing |
+| AI & Intelligence | 8 | Ollama LLM, ONNX engine, vector memory, agent chain, co-pilot |
 | Target & Recon | 6 | Target discovery, scoring, intelligence, presets |
-| KYC & Verification | 7 | Face reenactment, document synthesis, depth maps |
-| Automation & Orchestration | 7 | 12-phase orchestrator, autonomous engine, logger |
-| Security & Forensics | 3 | Kill switch, forensic cleaner, forensic monitor |
-| System & Services | 8 | API server, service manager, config, cockpit |
+| KYC & Verification | 6 | Face reenactment, document synthesis, depth maps, Waydroid |
+| Automation & Orchestration | 6 | 12-phase orchestrator, autonomous engine, logger |
+| Security & Forensics | 8 | Kill switch, forensic cleaner/monitor/alignment, detection labs |
+| System & Services | 8 | API server, service manager, config, cockpit, webhooks |
+| Spoof & Emulation | 15 | Location, timezone, NTP, hardware, sensor, USB, fonts, GA triangulation |
+| Storage & Data | 8 | Cookie forge, LevelDB, IndexedDB, commerce injection |
 | **Behavioral** | 2 | Ghost Motor (mouse/keyboard), handover protocol |
-| **Browser Extensions** | 2 | Ghost Motor JS, TX Monitor JS |
+| **Browser Extensions** | 3 | Ghost Motor JS, TX Monitor JS, Golden Trap JS |
 
 Every module is designed to be independently importable and gracefully degrading — if a dependency is missing, the module reports reduced capability rather than crashing.
 
 ---
 
-## The 5 GUI Applications
+## The 9 GUI Applications
 
 | App | Color Theme | Tabs | Primary Use |
 |-----|-------------|------|-------------|
 | **Operations Center** | Cyan (#00d4ff) | 5 | Daily workflow: target → identity → validate → launch → results |
-| **Intelligence Center** | Purple (#a855f7) | 5 | AI analysis, 3DS strategy, detection patterns, reconnaissance |
-| **Network Center** | Green (#22c55e) | 4 | VPN management, eBPF shield, forensic monitoring, proxy config |
-| **KYC Studio** | Purple (#9c27b0) | 4 | Virtual camera, document injection, mobile sync, voice |
-| **Admin Panel** | Amber (#f59e0b) | 5 | Services, bug reporting, system health, automation, config |
-| **Launcher** | Multi | — | Dashboard hub with health status cards for all apps |
+| **Intelligence Center** | Purple (#a855f7) | 8 | AI copilot, 3DS strategy, detection, recon, memory, OSINT |
+| **Network Center** | Green (#22c55e) | 5 | VPN, eBPF shield, forensic, proxy/DNS, antidetect |
+| **KYC Studio** | Purple (#9c27b0) | 5 | Virtual camera, documents, mobile sync, voice, Android |
+| **Admin Panel** | Amber (#f59e0b) | 6 | Services, tools, system, automation, config, webhooks |
+| **Settings** | Indigo (#6366f1) | 6 | VPN, AI, services, browser, API keys, system |
+| **Profile Forge** | Cyan (#00d4ff) | 4 | Identity input, 9-stage forge pipeline, profiles, advanced |
+| **Card Validator** | Yellow (#eab308) | 3 | Validate, BIN intelligence, history |
+| **Browser Launch** | Green (#22c55e) | 3 | Preflight, Camoufox launch, TX monitor, handover |
+| **Launcher** | Multi | — | 3×3 grid dashboard hub with health status cards |
 
 Each application is a standalone PyQt6 window that imports modules from `src/core/` and presents them through an intuitive tabbed interface. All apps share the same dark theme with category-specific accent colors.
 
@@ -156,7 +163,7 @@ The **Integration Bridge** (`integration_bridge.py`) is the central nervous syst
 9. Runs pre-flight validation checks
 10. Hands control to the human operator
 
-From this point, the operator browses naturally while 40+ modules work invisibly in the background.
+From this point, the operator browses naturally while 60+ modules work invisibly in the background.
 
 ---
 

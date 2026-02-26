@@ -2,7 +2,7 @@
 
 ## Objective
 
-Cross-reference all previous Titan OS versions against V8.1 to identify valuable modules and features that existed in earlier versions but were dropped during restructuring. Recover and re-apply anything of value.
+Cross-reference all previous Titan OS versions against V9.1 to identify valuable modules and features that existed in earlier versions but were dropped during restructuring. Recover and re-apply anything of value.
 
 ---
 
@@ -14,7 +14,9 @@ Cross-reference all previous Titan OS versions against V8.1 to identify valuable
 | V7.0.3 | `54389f2` | First Titan rebrand | ~45 modules |
 | V7.5 | `728ab72` | Singularity enhancement | ~60 modules |
 | V8.0 | `fcd2a00` | Maximum level | ~85 modules |
-| **V8.1 (current)** | `a5f6a96` | Singularity final | **84 modules** |
+| V8.1 | `a5f6a96` | Singularity final | 90 modules |
+| V8.2.2 | — | 9-App Architecture | 110 modules |
+| **V9.1 (current)** | — | ONNX AI + Android KYC | **115 modules** |
 
 ---
 
@@ -121,7 +123,9 @@ Cross-reference all previous Titan OS versions against V8.1 to identify valuable
 | Old titan/ dir | 5 modules | 0 | 5 |
 | **Total** | **34 modules** | **4** | **30** |
 
-### New Module Count
-- **Before:** 84 Python modules in `src/core/`
-- **After:** 87 Python modules in `src/core/` (+ 3 recovered core modules)
-- **Apps:** 6 GUI apps (+ 1 recovered bug reporter)
+### Module Count Evolution
+- **V8.0:** 84 Python modules in `src/core/`
+- **V8.1:** 90 modules (+ recovered detection labs, bug reporter, profile isolation)
+- **V8.2.2:** 110 modules (+ self-hosted stack, webhooks, session management)
+- **V9.1 (current):** 115 modules (+ ONNX engine, operator training, Android KYC)
+- **Apps:** 9 GUI apps + launcher (22 .py files in apps/)

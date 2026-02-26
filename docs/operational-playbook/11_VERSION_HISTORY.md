@@ -238,7 +238,7 @@ A collection of standalone Python scripts for basic browser automation. No unifi
 
 ---
 
-## V8.1 — SINGULARITY (Current)
+## V8.1 — SINGULARITY
 
 **Codename:** SINGULARITY
 **Author:** Dva.12
@@ -256,69 +256,121 @@ A collection of standalone Python scripts for basic browser automation. No unifi
 - Complete restructured codebase (flat `src/` instead of 8-level nesting)
 - Comprehensive documentation suite
 
-### Key Additions (V8.1 specific)
-- `titan_ai_operations_guard.py` — 4-phase AI advisor (previously orphaned → Intelligence Center Tab 3)
-- `titan_3ds_ai_exploits.py` — AI checkout co-pilot (previously orphaned → Intelligence Center Tab 2)
-- `titan_realtime_copilot.py` — real-time guidance (previously orphaned → Intelligence Center Tab 1)
-- `titan_detection_analyzer.py` — detection patterns (previously orphaned → Intelligence Center Tab 3)
-- `intel_monitor.py` — target monitoring (previously orphaned → Intelligence Center Tab 5)
-- `cockpit_daemon.py` — system health (previously orphaned → Admin Panel Tab 4)
-- `bug_patch_bridge.py` — bug reporting (previously orphaned → Admin Panel Tab 2)
-- `titan_master_verify.py` — integrity verification (previously orphaned → Admin Panel Tab 3)
-
 ### Architecture
 - **Module count:** 90 Python + 3 C + 3 Shell
 - **GUI:** 5 apps + 1 launcher = 23 tabs
 - **Browser extensions:** 2 (Ghost Motor, TX Monitor)
 - **AI models:** 3 (mistral:7b, qwen2.5:7b, deepseek-r1:8b)
 - **API endpoints:** 47
-- **Zero orphaned modules** — every module wired into at least one GUI app
 
-### Codebase Stats (V8.1)
+---
+
+## V8.2.2 — 9-App Architecture + External Software
+
+**Key Milestone:** Split 5 mega-apps into 9 focused apps, external software stack installed
+
+### What Changed
+- 5 complex apps split into 9 focused single-purpose windows
+- 3×3 launcher grid replacing card-based hub
+- 4 new apps: Settings, Profile Forge, Card Validator, Browser Launch
+- External software installed: Mullvad VPN, Xray, Redis, ntfy
+- LLM routing config (`llm_config.json`) with 20 task-to-model mappings
+- Cross-app session wiring via `titan_session.py`
+- 9-stage forge pipeline with quality scoring
+- 13 orphan modules registered in `__init__.py`
+- 110 core modules audited — all parse and import cleanly
+
+### Architecture
+- **Module count:** 110 Python + 3 C + 2 Shell
+- **GUI:** 9 apps + 1 launcher = 38+ tabs
+- **Browser extensions:** 3 (Ghost Motor, TX Monitor, Golden Trap)
+- **AI models:** 6 Ollama (mistral:7b, qwen2.5:7b, deepseek-r1:8b + 3 custom titan models)
+- **External services:** Ollama, Redis, Xray, ntfy, Mullvad
+
+---
+
+## V9.1 — ONNX AI + Android KYC + Operator Training (Current)
+
+**Key Milestone:** CPU-optimized AI inference, Android KYC module, operator training data, full VPS verification
+
+### What Changed
+- **ONNX Inference Engine** (`titan_onnx_engine.py`) — Phi-4-mini INT4 model for CPU-only inference replacing 3 Ollama models for latency-sensitive tasks
+- **33 task routes** mapped to ONNX engine with Ollama fallback
+- **3 custom Ollama models** created: titan-analyst, titan-strategist, titan-fast
+- **2,200 operator training examples** generated (ChatML JSONL) for fine-tuning
+- **Waydroid Android container** deployed for mobile KYC flows
+- **kyc_android_console.py** + **titan-android CLI** for Android device management
+- **Webhook integrations** (`titan_webhook_integrations.py`) for Changedetection.io, n8n, Uptime Kuma
+- **Level 9 antidetect** and **biometric mimicry** wired into Network Center ANTIDETECT tab
+- **Advanced cookie forging** and **LevelDB injection** wired into Profile Forge ADVANCED tab
+- **5 additional core modules** added bringing total to 115
+- Full VPS operator-level verification: 115/115 modules importable, all 22 app files syntax-clean
+
+### Key Additions (V9.1 specific)
+- `titan_onnx_engine.py` — Unified ONNX inference with task routing + Ollama fallback
+- `titan_webhook_integrations.py` — Flask webhook server for self-hosted tool events
+- Waydroid Android container with KYC console and CLI
+- Operator training data generator (`generate_operator_training_data.py`)
+- Custom Ollama models: titan-analyst (qwen2.5 base), titan-strategist (qwen2.5 base), titan-fast (mistral base)
+
+### Architecture
+- **Module count:** 115 Python + 3 C + 2 Shell
+- **GUI:** 9 apps + 1 launcher = 38+ tabs
+- **Browser extensions:** 3 (Ghost Motor, TX Monitor, Golden Trap)
+- **AI models:** 6 Ollama + Phi-4-mini ONNX INT4 (33 task routes)
+- **Training data:** 2,200 operator examples (ChatML JSONL)
+- **External services:** Ollama, Redis, Xray, ntfy, Mullvad
+- **Android:** Waydroid container + kyc_android_console + titan-android CLI
+- **API endpoints:** 59+
+
+### VPS-Verified Stats (V9.1)
 | Metric | Value |
 |--------|-------|
-| Total tracked files | 328 |
-| Core modules (Python) | 90 |
+| Core modules (Python) | 115 |
 | C source files | 3 |
-| Shell scripts | 3 |
-| GUI app files | 13 |
-| Browser extension files | 5 |
-| Test files | 11 |
-| Documentation files | 15 + 18 research papers |
-| ISO build configs | ~50 |
-| Total Python LoC (est.) | ~80,000 |
+| Shell scripts | 2 |
+| GUI app files | 22 |
+| Browser extension files | 6 |
+| Config files | 4 (llm_config, oblivion_template, titan.env, dev_hub_config) |
+| Ollama models | 6 (3 base + 3 custom titan) |
+| ONNX model | Phi-4-mini INT4 (~50MB) |
+| Training examples | 2,200 |
+| Disk usage | 47G/394G (13%) |
+| RAM | 8.1Gi/31Gi |
+| Kernel | 6.1.0-42-amd64 |
+| Python | 3.11.2 |
 
 ---
 
 ## Version Comparison Matrix
 
-| Feature | V1 | V4-5 | V6 | V7.5 | V7.6 | V8.0 | V8.1 |
-|---------|:--:|:----:|:--:|:----:|:----:|:----:|:----:|
-| Browser automation | Selenium | Playwright | Camoufox | Camoufox | Camoufox | Camoufox | Camoufox |
-| Fingerprint spoofing | — | Basic | Full | Full | Full | Full | Full |
-| Network masquerade | — | sysctl | eBPF | eBPF | eBPF | eBPF | eBPF |
-| Hardware shield | — | — | Kernel | Kernel | Kernel | Kernel | Kernel |
-| Profile generation | — | Basic | Basic | Forensic | Forensic | Forensic | Forensic |
-| AI integration | — | — | — | Ollama+ChromaDB | Full stack | Full stack | Full stack |
-| 3DS strategy | — | — | — | Basic | Advanced | Advanced | Advanced |
-| KYC bypass | — | — | — | — | — | Full | Full |
-| GUI apps | — | — | — | — | — | 5 apps | 5 apps |
-| Automation | Script | Script | Script | Orchestrator | Autonomous | Autonomous | Autonomous |
-| Self-improvement | — | — | — | — | Auto-patcher | Auto-patcher | Auto-patcher |
-| Module count | ~5 | ~15 | ~40 | ~65 | ~80 | ~86 | **90** |
+| Feature | V1 | V4-5 | V6 | V7.5 | V7.6 | V8.0 | V8.1 | V8.2.2 | V9.1 |
+|---------|:--:|:----:|:--:|:----:|:----:|:----:|:----:|:------:|:----:|
+| Browser automation | Selenium | Playwright | Camoufox | Camoufox | Camoufox | Camoufox | Camoufox | Camoufox | Camoufox |
+| Fingerprint spoofing | — | Basic | Full | Full | Full | Full | Full | Full | Full |
+| Network masquerade | — | sysctl | eBPF | eBPF | eBPF | eBPF | eBPF | eBPF | eBPF |
+| Hardware shield | — | — | Kernel | Kernel | Kernel | Kernel | Kernel | Kernel | Kernel |
+| Profile generation | — | Basic | Basic | Forensic | Forensic | Forensic | Forensic | 9-stage | 9-stage |
+| AI integration | — | — | — | Ollama+ChromaDB | Full stack | Full stack | Full stack | Full+LLM routing | **ONNX+Ollama** |
+| 3DS strategy | — | — | — | Basic | Advanced | Advanced | Advanced | Advanced | Advanced |
+| KYC bypass | — | — | — | — | — | Full | Full | Full | **+Android** |
+| GUI apps | — | — | — | — | — | 5 apps | 5 apps | **9 apps** | **9 apps** |
+| Automation | Script | Script | Script | Orchestrator | Autonomous | Autonomous | Autonomous | Autonomous | Autonomous |
+| Self-improvement | — | — | — | — | Auto-patcher | Auto-patcher | Auto-patcher | Auto-patcher | **+Training data** |
+| Module count | ~5 | ~15 | ~40 | ~65 | ~80 | ~86 | 90 | 110 | **115** |
 
 ---
 
 ## Looking Forward
 
-V8.1 Singularity represents the culmination of the current architecture. Every planned module is implemented, every module is wired into the GUI, and the documentation is complete.
+V9.1 represents the most complete and verified version of Titan OS. All 115 modules are importable on the VPS, all 9 apps are syntax-clean, and the AI stack includes both Ollama LLM and ONNX CPU inference.
 
 Areas for future development:
-- **Mobile-native operations** — full Android support via Waydroid
+- **Fine-tuned operator model** — LoRA fine-tune Phi-4-mini on 2,200 training examples
 - **Multi-machine coordination** — distributed operations across VPS fleet
-- **Advanced ML models** — custom-trained fingerprint and behavioral models
+- **Reinforcement learning** — reward model from operation outcomes
 - **Additional PSP integrations** — deeper sandbox testing coverage
-- **Enhanced autonomous learning** — reinforcement learning from operation outcomes
+- **Mobile-native KYC** — full Waydroid integration for banking app verification
 
 ---
 

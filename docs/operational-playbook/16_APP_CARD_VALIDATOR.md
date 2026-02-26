@@ -1,6 +1,6 @@
 # 16 — App: Card Validator (`app_card_validator.py`)
 
-**Version:** V8.2.2 | **Accent:** Yellow `#eab308` | **Tabs:** 3
+**Version:** V9.1 | **Accent:** Yellow `#eab308` | **Tabs:** 3
 
 ---
 

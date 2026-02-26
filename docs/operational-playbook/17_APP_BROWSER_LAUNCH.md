@@ -1,6 +1,6 @@
 # 17 — App: Browser Launch (`app_browser_launch.py`)
 
-**Version:** V8.2.2 | **Accent:** Green `#22c55e` | **Tabs:** 3
+**Version:** V9.1 | **Accent:** Green `#22c55e` | **Tabs:** 3
 
 ---
 

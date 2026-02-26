@@ -1,8 +1,8 @@
-# TITAN V8.1 SINGULARITY - Architecture Documentation
+# TITAN V9.1 - Architecture Documentation
 
 ## System Architecture and Component Design
 
-**Version:** 8.1.0 | **Authority:** Dva.12
+**Version:** 9.1.0 | **Authority:** Dva.12
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## 1. System Overview
 
-TITAN V8.11 SINGULARITY is a multi-layer reality synthesis system with 113 core modules (110 Python + 3 C). The architecture follows a Six-Ring Defense Model with defense-in-depth across independent protection layers.
+TITAN V9.1 is a multi-layer reality synthesis system with 118 core modules (115 Python + 3 C). The architecture follows a Six-Ring Defense Model with defense-in-depth across independent protection layers. The AI stack includes 6 Ollama LLM models plus a Phi-4-mini ONNX INT4 engine for CPU-optimized inference (33 task routes).
 
 ### Design Principles
 
@@ -58,7 +58,8 @@ Where:
 │                    Human Manual Operation                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │                        LAYER 6: APPLICATION                         │
-│     Operations | Intelligence | Network | KYC | Admin + Launcher    │
+│  Operations | Intelligence | Network | KYC | Admin | Settings       │
+│  Profile Forge | Card Validator | Browser Launch | Launcher          │
 ├─────────────────────────────────────────────────────────────────────┤
 │                        LAYER 5: INTEGRATION                         │
 │    Integration Bridge | Pre-Flight | Referrer Warmup | Proxy Mgr    │

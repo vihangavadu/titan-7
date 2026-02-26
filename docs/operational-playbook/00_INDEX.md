@@ -1,8 +1,8 @@
-# TITAN OS V8.2.2 — Operational Playbook
+# TITAN OS V9.1 — Operational Playbook
 
 ## Complete System Documentation
 
-This playbook covers every aspect of Titan OS V8.2.2 — from architecture to daily operations. It is the definitive reference for understanding what every module does, how the **9 GUI applications** work feature-by-feature, and how a human operator uses the system in real-world scenarios.
+This playbook covers every aspect of Titan OS V9.1 — from architecture to daily operations. It is the definitive reference for understanding what every module does, how the **9 GUI applications** work feature-by-feature, and how a human operator uses the system in real-world scenarios.
 
 ---
 
@@ -12,7 +12,7 @@ This playbook covers every aspect of Titan OS V8.2.2 — from architecture to da
 |---|----------|-------------|
 | 01 | [Introduction](01_INTRODUCTION.md) | What is Titan OS, philosophy, design principles, system overview |
 | 02 | [Techniques & Methods](02_TECHNIQUES_AND_METHODS.md) | Anti-detection techniques, fingerprint evasion, network masquerade, behavioral mimicry |
-| 03 | [Core Modules Reference](03_CORE_MODULES.md) | All 110 modules — purpose, function, how each helps operations |
+| 03 | [Core Modules Reference](03_CORE_MODULES.md) | All 115 modules — purpose, function, how each helps operations |
 | 04 | [App: Operations Center](04_APP_OPERATIONS_CENTER.md) | 5 tabs: Target → Identity → Validate → Forge → Results |
 | 05 | [App: Intelligence Center](05_APP_INTELLIGENCE_CENTER.md) | 5 tabs: AI Copilot → 3DS Strategy → Detection → Recon → Memory |
 | 06 | [App: Network Center](06_APP_NETWORK_CENTER.md) | 5 tabs: Mullvad VPN → Network Shield → Forensic → Proxy/DNS → TLS |
@@ -33,15 +33,18 @@ This playbook covers every aspect of Titan OS V8.2.2 — from architecture to da
 
 ## Quick Reference
 
-- **Total Core Modules:** 110 Python + 3 C
-- **GUI Applications:** 9 apps (8 + launcher) — 36 tabs total
-- **Browser Extensions:** 2 (Ghost Motor, TX Monitor)
+- **Total Core Modules:** 115 Python + 3 C + 2 Shell
+- **GUI Applications:** 9 apps + launcher (22 .py files in apps/) — 38+ tabs total
+- **Browser Extensions:** 3 (Ghost Motor, TX Monitor, Golden Trap)
 - **External Tools:** 10 (Mullvad, Xray, Redis, ntfy, Ollama, Camoufox, curl_cffi, plyvel, aioquic, minio)
-- **AI Models:** 6 via Ollama (mistral:7b, qwen2.5:7b, deepseek-r1:8b + 3 custom)
+- **AI Models:** 6 Ollama (mistral:7b, qwen2.5:7b, deepseek-r1:8b + titan-analyst, titan-strategist, titan-fast) + Phi-4-mini ONNX INT4
+- **ONNX Engine:** Phi-4-mini INT4 for CPU inference (33 task routes) with Ollama fallback
+- **Training Data:** 2,200 operator examples (ChatML JSONL)
 - **Platform:** Debian 12 | Python 3.11 | Camoufox 0.4.11 | PyQt6
 - **Architecture:** Six-Ring Defense Model + 9-stage Forge Pipeline
 - **Automation:** 12-phase orchestrator + 24/7 autonomous engine
+- **Android/KYC:** Waydroid container + kyc_android_console + titan-android CLI
 
 ---
 
-*Updated for V8.2.2 (Feb 2026). Architecture overhauled from 5 mega-apps to 9 focused apps. External software stack installed and configurable via Settings app.*
+*Updated for V9.1 (Feb 2026). 115 core modules verified importable on VPS. ONNX inference engine added for CPU-only AI. 6 Ollama models + Phi-4-mini ONNX. Waydroid Android KYC module deployed. 2,200 operator training examples generated.*

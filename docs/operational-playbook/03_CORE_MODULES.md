@@ -1,6 +1,6 @@
 # 03 — Core Modules Reference (Part 1)
 
-All 90 modules in `src/core/` documented with purpose, function, and key APIs. Split into two parts for readability.
+All 115 modules in `src/core/` documented with purpose, function, and key APIs. Split into two parts for readability.
 
 - **Part 1** (this file): Identity, Anti-Detection, Network, Transaction
 - **Part 2** (`03B_CORE_MODULES_PART2.md`): AI, Target/Recon, KYC, Automation, Security, System

@@ -187,6 +187,12 @@ try:
 except ImportError:
     BRIDGE_AVAILABLE = False
 
+try:
+    from titan_webhook_integrations import WebhookEvent
+    WEBHOOK_AVAILABLE = True
+except ImportError:
+    WEBHOOK_AVAILABLE = False
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # WORKERS
@@ -330,6 +336,7 @@ class TitanAdmin(QMainWindow):
         self._build_system_tab()
         self._build_automation_tab()
         self._build_config_tab()
+        self._build_webhook_tab()
 
         # Status bar
         self.status_bar = QLabel("Ready")
@@ -1139,6 +1146,104 @@ class TitanAdmin(QMainWindow):
                 self.bridge_output.setPlainText(f"Trajectory model: {json.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result)}")
             except Exception as e:
                 self.bridge_output.setPlainText(f"Trajectory model error: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TAB 6: WEBHOOKS (wires: titan_webhook_integrations)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _build_webhook_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(8)
+
+        # Status
+        wh_status = QGroupBox("Webhook Integration Status")
+        ws = QVBoxLayout(wh_status)
+        avail = WEBHOOK_AVAILABLE
+        ws.addWidget(QLabel(f"titan_webhook_integrations: {'LOADED' if avail else 'NOT AVAILABLE'}"))
+        ws.addWidget(QLabel("Receives events from: Changedetection.io, n8n, Uptime Kuma"))
+        ws.addWidget(QLabel("Default webhook port: 9300"))
+        layout.addWidget(wh_status)
+
+        # Webhook server control
+        ctrl_grp = QGroupBox("Webhook Server Control")
+        cl = QVBoxLayout(ctrl_grp)
+        self.wh_port = QLineEdit("9300")
+        self.wh_port.setPlaceholderText("Webhook listen port")
+        cl.addWidget(QLabel("Port:"))
+        cl.addWidget(self.wh_port)
+        row = QHBoxLayout()
+        btn_start = QPushButton("Check Webhook Health")
+        btn_start.setStyleSheet(f"background: {GREEN}; color: white; padding: 8px; border-radius: 6px; font-weight: bold;")
+        btn_start.clicked.connect(self._check_webhook_health)
+        row.addWidget(btn_start)
+        btn_test = QPushButton("Send Test Event")
+        btn_test.setStyleSheet(f"background: {ACCENT}; color: #0a0e17; padding: 8px; border-radius: 6px; font-weight: bold;")
+        btn_test.clicked.connect(self._send_test_webhook)
+        row.addWidget(btn_test)
+        cl.addLayout(row)
+        layout.addWidget(ctrl_grp)
+
+        # Event sources
+        src_grp = QGroupBox("Registered Event Sources")
+        sl = QVBoxLayout(src_grp)
+        sources = [
+            ("Changedetection.io", "/webhook/changedetection", "Site change alerts → target defense update"),
+            ("n8n", "/webhook/n8n", "Workflow automation events → decline autopsy"),
+            ("Uptime Kuma", "/webhook/uptime", "Service health alerts → kill switch trigger"),
+            ("Custom", "/webhook/custom", "Generic JSON payload → operation logger"),
+        ]
+        for name, path, desc in sources:
+            lbl = QLabel(f"  {name}  →  {path}  —  {desc}")
+            lbl.setStyleSheet(f"color: {TEXT_PRIMARY}; font-family: 'JetBrains Mono'; font-size: 11px; padding: 3px;")
+            sl.addWidget(lbl)
+        layout.addWidget(src_grp)
+
+        # Output
+        self.wh_output = QPlainTextEdit()
+        self.wh_output.setReadOnly(True)
+        self.wh_output.setMaximumHeight(250)
+        self.wh_output.setStyleSheet("font-family: 'JetBrains Mono'; font-size: 11px;")
+        self.wh_output.setPlainText("Webhook panel ready. Check health or send a test event.")
+        layout.addWidget(self.wh_output)
+
+        layout.addStretch()
+        self.tabs.addTab(scroll, "WEBHOOKS")
+
+    def _check_webhook_health(self):
+        port = self.wh_port.text().strip() or "9300"
+        try:
+            import urllib.request
+            url = f"http://127.0.0.1:{port}/health"
+            req = urllib.request.Request(url, method="GET")
+            req.add_header("User-Agent", "TITAN-Admin/8.2")
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = resp.read().decode()
+                self.wh_output.setPlainText(f"Webhook server on port {port}: ONLINE\n\nResponse:\n{data}")
+        except Exception as e:
+            self.wh_output.setPlainText(f"Webhook server on port {port}: OFFLINE\n\nError: {e}\n\nHint: Start with 'systemctl start titan-webhook' or run titan_webhook_integrations.py")
+
+    def _send_test_webhook(self):
+        port = self.wh_port.text().strip() or "9300"
+        try:
+            import urllib.request
+            payload = json.dumps({
+                "source": "titan-admin",
+                "event_type": "test",
+                "payload": {"message": "Test event from Admin Panel", "timestamp": datetime.now().isoformat()},
+            }).encode()
+            url = f"http://127.0.0.1:{port}/webhook/custom"
+            req = urllib.request.Request(url, data=payload, method="POST")
+            req.add_header("Content-Type", "application/json")
+            req.add_header("User-Agent", "TITAN-Admin/8.2")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = resp.read().decode()
+                self.wh_output.setPlainText(f"Test event sent to port {port}!\n\nResponse:\n{data}")
+        except Exception as e:
+            self.wh_output.setPlainText(f"Failed to send test event to port {port}\n\nError: {e}")
 
     def apply_theme(self):
         palette = QPalette()

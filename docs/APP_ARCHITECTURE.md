@@ -1,6 +1,6 @@
-# TITAN V8.2.2 — 9-App Architecture
+# TITAN V9.1 — 9-App Architecture
 
-**Version:** 8.2.2 | **Author:** Dva.12 | **Updated:** 2026-02-23
+**Version:** 9.1.0 | **Author:** Dva.12 | **Updated:** 2026-02-26
 
 ---
 
@@ -8,12 +8,14 @@
 
 | Metric | Value |
 |--------|-------|
-| **Core Python modules** | 110 |
+| **Core Python modules** | 115 |
 | **Core C modules** | 3 |
 | **GUI apps** | 9 (8 focused apps + launcher) |
-| **Total tabs** | 36 across all apps |
+| **Total tabs** | 38+ across all apps |
 | **External tools** | 10 (Mullvad, Xray, Redis, ntfy, Ollama, Camoufox, plyvel, aioquic, minio, curl_cffi) |
-| **AI models** | 6 (3 base + 3 Titan custom) via Ollama |
+| **AI models** | 6 Ollama (3 base + 3 Titan custom) + Phi-4-mini ONNX INT4 |
+| **ONNX engine** | 33 task routes, CPU inference with Ollama fallback |
+| **Training data** | 2,200 operator examples (ChatML JSONL) |
 | **Platform** | Debian 12, Python 3.11, PyQt6 |
 
 ---

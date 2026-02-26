@@ -1,6 +1,6 @@
 # 14 — App: Settings (`app_settings.py`)
 
-**Version:** V8.2.2 | **Accent:** Indigo `#6366f1` | **Tabs:** 6
+**Version:** V9.1 | **Accent:** Indigo `#6366f1` | **Tabs:** 6
 
 ---
 

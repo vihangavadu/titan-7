@@ -1,11 +1,11 @@
-# TITAN V8.11 — 110 Core Module Operational Guide
+# TITAN V9.1 — 115 Core Module Operational Guide
 
 ## How Every Module Contributes to Real-World Operation Success
 
-**Version**: 8.1.0 SINGULARITY  
+**Version**: 9.1.0  
 **Authority**: Dva.12  
 **Last Updated**: February 2026  
-**Module Count**: 113 Core Modules (110 Python + 3 C)
+**Module Count**: 120 Core Files (115 Python + 3 C + 2 Shell)
 
 ---
 
@@ -27,7 +27,7 @@
 
 ## 1. Architecture Overview
 
-TITAN OS uses a concentric ring architecture where each layer builds upon the previous one. The 56 core modules work together to create a forensically clean operational environment that is indistinguishable from a genuine Windows desktop user.
+TITAN OS uses a concentric ring architecture where each layer builds upon the previous one. The 115 core Python modules work together to create a forensically clean operational environment that is indistinguishable from a genuine Windows desktop user. The AI stack includes 6 Ollama LLM models plus a Phi-4-mini ONNX INT4 engine for CPU-optimized inference.
 
 ```
 ┌─────────────────────────────────────────────────┐
