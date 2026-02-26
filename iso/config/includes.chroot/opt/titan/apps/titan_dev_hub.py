@@ -2238,6 +2238,380 @@ class SmartCommandRouter:
         ]
 
 
+
+# ─── OH-MY-OPENCODE STYLE DISCIPLINE AGENTS ────────────────────────────────
+#
+# Mapped to Titan's local Ollama models:
+#   Sisyphus  (orchestrator)  → titan-strategist / deepseek-r1:8b
+#   Prometheus (planner)      → titan-strategist / deepseek-r1:8b
+#   Hephaestus (deep worker)  → titan-analyst    / qwen2.5:7b
+#   Atlas      (executor)     → titan-fast       / mistral:7b
+#
+# External providers (Windsurf/Copilot) are used when configured.
+
+AGENT_PROFILES: Dict[str, Dict[str, Any]] = {
+    "sisyphus": {
+        "role": "orchestrator",
+        "description": "Main orchestrator. Plans, delegates to specialists, drives tasks to completion with aggressive parallel execution. Does not stop halfway.",
+        "ollama_model": "deepseek-r1:8b",
+        "model_role": "strategize",
+        "system_prompt": (
+            "You are Sisyphus, the master orchestrator for Titan OS development. "
+            "You plan complex tasks, break them into subtasks, delegate to specialists, "
+            "and drive execution to completion. You never stop halfway. "
+            "When given a task, immediately decompose it, identify what each specialist "
+            "agent should do, and produce a structured work plan. "
+            "Output your plan as a JSON object with keys: summary, subtasks (list of {id, title, agent, prompt, depends_on})."
+        ),
+    },
+    "prometheus": {
+        "role": "planner",
+        "description": "Strategic planner. Interviews you like a real engineer, identifies scope and ambiguities, builds a verified plan before touching code.",
+        "ollama_model": "deepseek-r1:8b",
+        "model_role": "strategize",
+        "system_prompt": (
+            "You are Prometheus, the strategic planner for Titan OS development. "
+            "You interview the developer to understand scope, identify ambiguities, "
+            "and build a detailed, verified work plan before any code is written. "
+            "Ask clarifying questions one at a time. When you have enough information, "
+            "output a structured plan as JSON: {questions_answered: [...], plan: {title, acceptance_criteria: [...], steps: [{id, title, type, description, files_affected: [...]}], risks: [...], estimated_complexity}}."
+        ),
+    },
+    "hephaestus": {
+        "role": "deep_worker",
+        "description": "Autonomous deep worker. Explores the codebase, researches patterns, and executes end-to-end without hand-holding.",
+        "ollama_model": "qwen2.5:7b",
+        "model_role": "analyze",
+        "system_prompt": (
+            "You are Hephaestus, the deep code worker for Titan OS development. "
+            "You receive a specific coding task and execute it completely — exploring the codebase, "
+            "understanding patterns, writing correct code, and validating your output. "
+            "You are thorough, precise, and produce complete implementations. "
+            "Output your work as JSON: {analysis: str, implementation: str, files_changed: [...], validation: str, complete: bool}."
+        ),
+    },
+    "atlas": {
+        "role": "executor",
+        "description": "Task executor. Receives a specific subtask and executes it, reporting results back to the orchestrator.",
+        "ollama_model": "mistral:7b",
+        "model_role": "execute",
+        "system_prompt": (
+            "You are Atlas, the task executor for Titan OS development. "
+            "You receive specific, well-defined tasks and execute them efficiently. "
+            "You produce concrete outputs: code, commands, configurations, or analysis. "
+            "Be concise and precise. Output exactly what was asked for."
+        ),
+    },
+}
+
+
+@dataclass
+class AgentSubtask:
+    id: str
+    title: str
+    agent: str
+    prompt: str
+    depends_on: List[str] = field(default_factory=list)
+    status: str = "pending"
+    result: Optional[str] = None
+    error: str = ""
+    started_at: str = ""
+    completed_at: str = ""
+
+
+@dataclass
+class WorkSession:
+    session_id: str
+    title: str
+    mode: str
+    status: str = "pending"
+    plan: Optional[Dict[str, Any]] = None
+    subtasks: List[Dict[str, Any]] = field(default_factory=list)
+    interview_log: List[Dict[str, str]] = field(default_factory=list)
+    created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
+    final_summary: str = ""
+
+
+class WorkSessionStore:
+    def __init__(self, state_dir: Path) -> None:
+        self.state_dir = state_dir
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+
+    def _path(self, session_id: str) -> Path:
+        return self.state_dir / f"session_{session_id}.json"
+
+    def save(self, session: WorkSession) -> None:
+        session.updated_at = utc_now()
+        with self._lock:
+            save_json(self._path(session.session_id), asdict(session))
+
+    def load(self, session_id: str) -> Optional[WorkSession]:
+        path = self._path(session_id)
+        if not path.exists():
+            return None
+        data = load_json(path, None)
+        if not data:
+            return None
+        return WorkSession(**{k: v for k, v in data.items()})
+
+    def list_sessions(self) -> List[Dict[str, Any]]:
+        results = []
+        for p in sorted(self.state_dir.glob("session_*.json"), reverse=True)[:50]:
+            data = load_json(p, None)
+            if data:
+                results.append({
+                    "session_id": data.get("session_id", ""),
+                    "title": data.get("title", ""),
+                    "mode": data.get("mode", ""),
+                    "status": data.get("status", ""),
+                    "subtask_count": len(data.get("subtasks", [])),
+                    "updated_at": data.get("updated_at", ""),
+                })
+        return results
+
+
+class DisciplineAgentOrchestrator:
+    """
+    Oh-My-OpenCode style orchestration for Titan Dev Hub.
+
+    Modes:
+      ultrawork  - Full auto: Sisyphus decomposes → Atlas/Hephaestus execute in parallel
+      prometheus - Plan first: Prometheus interviews → generates plan → /start-work executes
+      single     - Single agent handles the whole task
+    """
+
+    def __init__(self, ai_client: "AIClient", config: Dict[str, Any]) -> None:
+        self.ai = ai_client
+        self.config = config
+
+    def _call_agent(self, agent_name: str, user_prompt: str, extra_context: str = "") -> Dict[str, Any]:
+        profile = AGENT_PROFILES.get(agent_name, AGENT_PROFILES["atlas"])
+        ollama_cfg = self.config.get("providers", {}).get("ollama", {})
+        endpoint = ollama_cfg.get("endpoint", "http://127.0.0.1:11434/api/generate")
+        model = profile["ollama_model"]
+        timeout = int(self.config.get("ai", {}).get("timeout_seconds", 120))
+
+        full_prompt = f"{profile['system_prompt']}\n\n"
+        if extra_context.strip():
+            full_prompt += f"Context:\n{extra_context.strip()}\n\n"
+        full_prompt += f"Task:\n{user_prompt.strip()}"
+
+        try:
+            resp = requests.post(
+                endpoint,
+                json={"model": model, "prompt": full_prompt, "stream": False},
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return {
+                "ok": True,
+                "agent": agent_name,
+                "model": model,
+                "response": data.get("response", ""),
+            }
+        except Exception as exc:
+            return {"ok": False, "agent": agent_name, "model": model, "error": str(exc)}
+
+    def _extract_json_from_response(self, text: str) -> Optional[Dict[str, Any]]:
+        text = text.strip()
+        for start_char, end_char in [('{', '}'), ('[', ']')]:
+            start = text.find(start_char)
+            end = text.rfind(end_char)
+            if start != -1 and end != -1 and end > start:
+                try:
+                    return json.loads(text[start:end + 1])
+                except Exception:
+                    pass
+        return None
+
+    def ultrawork(self, task: str, context: str = "") -> Dict[str, Any]:
+        """
+        ultrawork mode: Sisyphus orchestrates, subtasks run in parallel via Atlas/Hephaestus.
+        """
+        # Step 1: Sisyphus decomposes
+        decomp_result = self._call_agent(
+            "sisyphus",
+            f"Decompose this task for Titan OS development. Return JSON plan.\n\nTask: {task}",
+            extra_context=context,
+        )
+        if not decomp_result.get("ok"):
+            return {"ok": False, "mode": "ultrawork", "error": decomp_result.get("error"), "agent": "sisyphus"}
+
+        plan_data = self._extract_json_from_response(decomp_result["response"])
+        if not plan_data:
+            plan_data = {
+                "summary": decomp_result["response"][:500],
+                "subtasks": [{"id": "t1", "title": task, "agent": "hephaestus", "prompt": task, "depends_on": []}],
+            }
+
+        subtasks_raw = plan_data.get("subtasks", [])
+        if not subtasks_raw:
+            subtasks_raw = [{"id": "t1", "title": task, "agent": "hephaestus", "prompt": task, "depends_on": []}]
+
+        subtasks: List[AgentSubtask] = []
+        for raw in subtasks_raw[:8]:
+            subtasks.append(AgentSubtask(
+                id=str(raw.get("id", uuid.uuid4().hex[:6])),
+                title=str(raw.get("title", "subtask")),
+                agent=str(raw.get("agent", "atlas")),
+                prompt=str(raw.get("prompt", task)),
+                depends_on=list(raw.get("depends_on", [])),
+            ))
+
+        # Step 2: Execute subtasks (parallel where no deps)
+        completed: Dict[str, str] = {}
+
+        def run_subtask(st: AgentSubtask) -> None:
+            st.status = "running"
+            st.started_at = utc_now()
+            dep_ctx = ""
+            for dep_id in st.depends_on:
+                if dep_id in completed:
+                    dep_ctx += f"\n[Result of {dep_id}]:\n{completed[dep_id][:600]}\n"
+            result = self._call_agent(st.agent, st.prompt, extra_context=dep_ctx)
+            st.completed_at = utc_now()
+            if result.get("ok"):
+                st.status = "completed"
+                st.result = result.get("response", "")
+                completed[st.id] = st.result or ""
+            else:
+                st.status = "failed"
+                st.error = result.get("error", "unknown error")
+
+        # Sort by dependency order, parallel within each wave
+        def get_wave(all_tasks: List[AgentSubtask]) -> List[List[AgentSubtask]]:
+            waves: List[List[AgentSubtask]] = []
+            remaining = list(all_tasks)
+            done_ids: Set[str] = set()
+            max_waves = 10
+            while remaining and max_waves > 0:
+                max_waves -= 1
+                wave = [t for t in remaining if all(d in done_ids for d in t.depends_on)]
+                if not wave:
+                    wave = remaining[:1]
+                waves.append(wave)
+                for t in wave:
+                    done_ids.add(t.id)
+                remaining = [t for t in remaining if t not in wave]
+            return waves
+
+        for wave in get_wave(subtasks):
+            with ThreadPoolExecutor(max_workers=min(4, len(wave))) as pool:
+                list(pool.map(run_subtask, wave))
+
+        # Step 3: Sisyphus summarizes
+        subtask_summaries = "\n".join(
+            f"[{s.id} | {s.title} | {s.status}]: {(s.result or s.error or '')[:400]}"
+            for s in subtasks
+        )
+        summary_result = self._call_agent(
+            "sisyphus",
+            f"All subtasks are complete. Produce a final executive summary of the work done.\n\nSubtask results:\n{subtask_summaries}",
+        )
+
+        return {
+            "ok": True,
+            "mode": "ultrawork",
+            "task": task,
+            "plan_summary": plan_data.get("summary", ""),
+            "subtasks": [asdict(s) for s in subtasks],
+            "final_summary": summary_result.get("response", "") if summary_result.get("ok") else "",
+            "sisyphus_decomposition": decomp_result.get("response", ""),
+        }
+
+    def prometheus_interview(self, user_message: str, interview_history: List[Dict[str, str]]) -> Dict[str, Any]:
+        """
+        Prometheus interview mode: chat-style planning interview.
+        Returns either a follow-up question or a completed plan.
+        """
+        history_text = ""
+        for entry in interview_history[-10:]:
+            role = entry.get("role", "user")
+            content = entry.get("content", "")
+            history_text += f"[{role.upper()}]: {content}\n"
+
+        prompt = (
+            f"Interview history so far:\n{history_text}\n"
+            f"Latest user message: {user_message}\n\n"
+            "Continue the interview. If you have enough information to build a complete plan, "
+            "output a JSON plan object. Otherwise, ask ONE clarifying question. "
+            "If outputting a plan, start your response with PLAN_READY: followed by the JSON."
+        )
+
+        result = self._call_agent("prometheus", prompt)
+        if not result.get("ok"):
+            return {"ok": False, "error": result.get("error"), "plan_ready": False}
+
+        response_text = result.get("response", "")
+        plan_ready = "PLAN_READY:" in response_text
+
+        plan_data = None
+        message = response_text
+        if plan_ready:
+            plan_json_text = response_text.split("PLAN_READY:", 1)[1].strip()
+            plan_data = self._extract_json_from_response(plan_json_text)
+            message = "Plan is ready. Use /start-work to execute."
+
+        return {
+            "ok": True,
+            "plan_ready": plan_ready,
+            "message": message,
+            "plan": plan_data,
+            "agent": "prometheus",
+            "model": result.get("model", ""),
+        }
+
+    def start_work(self, plan: Dict[str, Any], context: str = "") -> Dict[str, Any]:
+        """
+        Execute a Prometheus-generated plan using Atlas subtask execution.
+        """
+        steps = plan.get("steps", [])
+        if not steps:
+            return {"ok": False, "error": "Plan has no steps"}
+
+        results = []
+        for step in steps[:10]:
+            step_id = str(step.get("id", uuid.uuid4().hex[:6]))
+            step_title = str(step.get("title", "step"))
+            step_desc = str(step.get("description", step_title))
+            files = step.get("files_affected", [])
+            agent_name = "hephaestus" if step.get("type", "") in ("implement", "code", "fix") else "atlas"
+
+            step_ctx = context
+            if files:
+                step_ctx += f"\nFiles to work on: {', '.join(str(f) for f in files[:5])}"
+
+            result = self._call_agent(agent_name, step_desc, extra_context=step_ctx)
+            results.append({
+                "step_id": step_id,
+                "title": step_title,
+                "agent": agent_name,
+                "ok": result.get("ok", False),
+                "response": result.get("response", "")[:800] if result.get("ok") else "",
+                "error": result.get("error", "") if not result.get("ok") else "",
+            })
+
+        completed = sum(1 for r in results if r.get("ok"))
+        return {
+            "ok": True,
+            "mode": "start_work",
+            "plan_title": plan.get("title", ""),
+            "total_steps": len(results),
+            "completed_steps": completed,
+            "results": results,
+        }
+
+    def single_agent(self, agent_name: str, prompt: str, context: str = "") -> Dict[str, Any]:
+        """Invoke a single named discipline agent directly."""
+        if agent_name not in AGENT_PROFILES:
+            return {"ok": False, "error": f"Unknown agent: {agent_name}. Choose from: {list(AGENT_PROFILES.keys())}"}
+        result = self._call_agent(agent_name, prompt, extra_context=context)
+        return result
+
+
 class SystemOpsManager:
     def __init__(self, titan_root: Path, config: Dict[str, Any]) -> None:
         self.titan_root = titan_root.resolve()
@@ -2713,6 +3087,7 @@ label.sm{display:block;font-size:11px;color:var(--dim);margin:2px 0 4px}
   <button onclick="tab('pScrape',this)">Web Scraper</button>
   <button onclick="tab('pSys',this)">System</button>
   <button onclick="tab('pApi',this)">API Connectors</button>
+  <button onclick="tab('pAgents',this)">🤖 Agents</button>
 </div>
 
 <!-- ═══ COMMAND CENTER ═══ -->
@@ -2985,6 +3360,59 @@ label.sm{display:block;font-size:11px;color:var(--dim);margin:2px 0 4px}
    </div>
    <textarea id="fContent" style="min-height:200px" placeholder="File content will appear here..."></textarea>
    <div id="fOut" class="out">No file loaded.</div>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ DISCIPLINE AGENTS (Oh-My-OpenCode style) ═══ -->
+<div id="pAgents" class="panel">
+ <div class="g2">
+  <div class="card w2" style="background:linear-gradient(135deg,#0d1a2e,#0a1220);border-color:#2a4060">
+   <h3 style="color:#22d68a;font-size:15px">🪄 ultrawork — Full Auto Orchestration</h3>
+   <p class="d">Sisyphus decomposes your task → delegates to Hephaestus + Atlas in parallel → synthesizes final result. Just describe what you want.</p>
+   <div style="display:flex;gap:8px">
+    <input id="uwTask" placeholder="ultrawork: describe your task in plain English..." style="flex:1;font-size:13px;border-color:#2a6a4a"/>
+    <button class="b p" style="background:linear-gradient(135deg,#1a5e3f,#18905e);font-size:13px;padding:0 20px" onclick="runUltrawork()">⚡ ultrawork</button>
+   </div>
+   <textarea id="uwContext" placeholder="Optional context (files, constraints, current state)..." style="min-height:60px;margin-top:6px"></textarea>
+   <div id="uwOut" class="out" style="min-height:120px;margin-top:6px">ultrawork ready. Type your task and hit the button.</div>
+  </div>
+  <div class="card">
+   <h3>🔮 Prometheus — Plan Mode</h3>
+   <p class="d">Prometheus interviews you to understand scope, then builds a verified plan. Type your goal to start the interview, then answer questions one by one.</p>
+   <div id="promChat" class="out" style="min-height:140px;max-height:260px;overflow-y:auto">Start by describing your goal below.</div>
+   <div style="display:flex;gap:8px;margin-top:6px">
+    <input id="promMsg" placeholder="Describe your goal or answer the question..." style="flex:1" onkeydown="if(event.key==='Enter')sendToPrometheus()"/>
+    <button class="b" onclick="sendToPrometheus()">Send</button>
+   </div>
+   <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+    <button class="b p" id="startWorkBtn" style="display:none" onclick="runStartWork()">▶ /start-work</button>
+    <button class="b" onclick="resetPrometheus()">Reset</button>
+   </div>
+   <div id="promOut" class="out" style="min-height:60px;margin-top:6px">No plan yet.</div>
+  </div>
+  <div class="card">
+   <h3>👤 Single Agent</h3>
+   <p class="d">Invoke one discipline agent directly. Each has a specialized system prompt and model.</p>
+   <label class="sm">Agent</label>
+   <select id="agentSelect">
+    <option value="sisyphus">Sisyphus — Orchestrator (deepseek-r1:8b)</option>
+    <option value="prometheus">Prometheus — Planner (deepseek-r1:8b)</option>
+    <option value="hephaestus">Hephaestus — Deep Worker (qwen2.5:7b)</option>
+    <option value="atlas">Atlas — Executor (mistral:7b)</option>
+   </select>
+   <textarea id="agentPrompt" placeholder="What should this agent do?" style="min-height:80px;margin-top:4px"></textarea>
+   <textarea id="agentCtx" placeholder="Optional context..." style="min-height:50px"></textarea>
+   <button class="b p" onclick="runSingleAgent()">Run Agent</button>
+   <div id="agentOut" class="out" style="min-height:80px;margin-top:6px">No response yet.</div>
+  </div>
+  <div class="card w2">
+   <h3>📋 Work Sessions</h3>
+   <p class="d">Past ultrawork and Prometheus sessions. Click a session to view results.</p>
+   <div style="display:flex;gap:8px;margin-bottom:8px">
+    <button class="b" onclick="loadSessions()">Refresh</button>
+   </div>
+   <div id="sessionsOut" class="out" style="min-height:80px">No sessions loaded.</div>
   </div>
  </div>
 </div>
@@ -3426,6 +3854,93 @@ async function loadEnvEditor(){
  out.textContent=txt;
 }
 
+/* ── discipline agents ── */
+let prometheusHistory=[];
+let prometheusCurrentPlan=null;
+
+async function runUltrawork(){
+ const task=document.getElementById('uwTask').value.trim();
+ if(!task){alert('Enter a task description');return}
+ const out=document.getElementById('uwOut');
+ out.textContent='⚡ Sisyphus is decomposing your task...\n(This runs multiple Ollama models — may take 1-3 minutes)';
+ tab('pAgents',document.querySelectorAll('.nav button')[6]);
+ const d=await A('/api/agents/ultrawork','POST',{task,context:document.getElementById('uwContext').value||''});
+ if(!d.ok){out.textContent='Error: '+(d.error||J(d));return}
+ let t='✅ ultrawork complete\n\n';
+ t+='📋 Plan Summary:\n'+(d.plan_summary||'(see decomposition)')+'\n\n';
+ t+='🔧 Subtasks ('+( d.subtasks||[]).length+'):\n';
+ for(const s of (d.subtasks||[])){
+  const icon=s.status==='completed'?'✓':s.status==='failed'?'✗':'…';
+  t+=icon+' ['+s.agent+'] '+s.title+' → '+(s.status)+'\n';
+  if(s.result)t+='  '+s.result.slice(0,300)+'\n';
+  if(s.error)t+='  ERROR: '+s.error+'\n';
+ }
+ if(d.final_summary){t+='\n🎯 Final Summary:\n'+d.final_summary}
+ out.textContent=t;
+ loadSessions();
+}
+
+async function sendToPrometheus(){
+ const msg=document.getElementById('promMsg').value.trim();
+ if(!msg)return;
+ document.getElementById('promMsg').value='';
+ prometheusHistory.push({role:'user',content:msg});
+ const chat=document.getElementById('promChat');
+ chat.textContent+='[YOU]: '+msg+'\n\n';
+ chat.scrollTop=chat.scrollHeight;
+ const d=await A('/api/agents/prometheus/interview','POST',{message:msg,history:prometheusHistory});
+ if(!d.ok){chat.textContent+='[ERROR]: '+(d.error||'unknown')+'\n\n';return}
+ prometheusHistory.push({role:'prometheus',content:d.message||''});
+ chat.textContent+='[PROMETHEUS]: '+(d.message||'')+'\n\n';
+ chat.scrollTop=chat.scrollHeight;
+ if(d.plan_ready&&d.plan){
+  prometheusCurrentPlan=d.plan;
+  document.getElementById('promOut').textContent='Plan ready:\n'+J(d.plan);
+  document.getElementById('startWorkBtn').style.display='inline-flex';
+ }
+}
+
+function resetPrometheus(){
+ prometheusHistory=[];prometheusCurrentPlan=null;
+ document.getElementById('promChat').textContent='Start by describing your goal below.\n';
+ document.getElementById('promOut').textContent='No plan yet.';
+ document.getElementById('startWorkBtn').style.display='none';
+}
+
+async function runStartWork(){
+ if(!prometheusCurrentPlan){document.getElementById('promOut').textContent='No plan ready. Complete the interview first.';return}
+ const out=document.getElementById('promOut');
+ out.textContent='▶ Atlas executing plan steps...\n';
+ const d=await A('/api/agents/start-work','POST',{plan:prometheusCurrentPlan,context:''});
+ if(!d.ok){out.textContent='Error: '+(d.error||J(d));return}
+ let t='✅ /start-work complete | '+d.completed_steps+'/'+d.total_steps+' steps\n\n';
+ for(const r of (d.results||[])){
+  t+=(r.ok?'✓':'✗')+' ['+r.agent+'] '+r.title+'\n';
+  if(r.response)t+='  '+r.response.slice(0,300)+'\n';
+  if(r.error)t+='  ERROR: '+r.error+'\n';
+ }
+ out.textContent=t;
+ loadSessions();
+}
+
+async function runSingleAgent(){
+ const out=document.getElementById('agentOut');
+ const agent=document.getElementById('agentSelect').value;
+ const prompt=document.getElementById('agentPrompt').value.trim();
+ if(!prompt){out.textContent='Enter a prompt first.';return}
+ out.textContent='Running '+agent+'...';
+ const d=await A('/api/agents/single','POST',{agent,prompt,context:document.getElementById('agentCtx').value||''});
+ if(d.ok){out.textContent='['+agent+' | '+d.model+']\n\n'+(d.response||'')}
+ else{out.textContent='Error: '+(d.error||J(d))}
+}
+
+async function loadSessions(){
+ const out=document.getElementById('sessionsOut');
+ const d=await A('/api/agents/sessions');
+ if(!d.ok||!d.sessions||!d.sessions.length){out.textContent='No sessions yet.';return}
+ out.textContent=d.sessions.map(s=>'['+s.status+'] '+s.session_id+' | '+s.mode+' | '+s.title+' | subtasks:'+s.subtask_count+' | '+s.updated_at).join('\n');
+}
+
 /* ── health ── */
 async function refreshHealth(){
  const h=await A('/api/health');const el=document.getElementById('health');
@@ -3458,6 +3973,8 @@ def create_app(
     system_ops: Optional[SystemOpsManager] = None,
     pipeline_engine: Optional[AgenticPipelineEngine] = None,
     checkpoint_store: Optional[CheckpointStore] = None,
+    agent_orchestrator: Optional[DisciplineAgentOrchestrator] = None,
+    work_session_store: Optional[WorkSessionStore] = None,
 ) -> Flask:
     app = Flask(__name__)
     executor = TaskExecutor(scanner, editor, research_client, hostinger_client)
@@ -4298,6 +4815,120 @@ def create_app(
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)})
 
+    # ─── DISCIPLINE AGENT ROUTES (Oh-My-OpenCode style) ──────────────────────
+
+    _agent_orch = agent_orchestrator or DisciplineAgentOrchestrator(ai_client, config)
+    _session_store = work_session_store or WorkSessionStore(titan_root / "state" / "work_sessions")
+
+    @app.post("/api/agents/ultrawork")
+    @require_token
+    def agents_ultrawork_route() -> Any:
+        payload = request.get_json(silent=True) or {}
+        task = str(payload.get("task", "")).strip()
+        if not task:
+            return jsonify({"ok": False, "error": "task is required"}), 400
+        context = str(payload.get("context", ""))
+
+        result = _agent_orch.ultrawork(task=task, context=context)
+
+        if result.get("ok") and _session_store:
+            session = WorkSession(
+                session_id=uuid.uuid4().hex[:12],
+                title=task[:80],
+                mode="ultrawork",
+                status="completed",
+                subtasks=result.get("subtasks", []),
+                final_summary=result.get("final_summary", ""),
+            )
+            _session_store.save(session)
+
+        status = 200 if result.get("ok") else 500
+        return jsonify(result), status
+
+    @app.post("/api/agents/prometheus/interview")
+    @require_token
+    def agents_prometheus_interview_route() -> Any:
+        payload = request.get_json(silent=True) or {}
+        message = str(payload.get("message", "")).strip()
+        if not message:
+            return jsonify({"ok": False, "error": "message is required"}), 400
+        history = payload.get("history", [])
+        if not isinstance(history, list):
+            history = []
+
+        result = _agent_orch.prometheus_interview(
+            user_message=message,
+            interview_history=history,
+        )
+        status = 200 if result.get("ok") else 500
+        return jsonify(result), status
+
+    @app.post("/api/agents/start-work")
+    @require_token
+    def agents_start_work_route() -> Any:
+        payload = request.get_json(silent=True) or {}
+        plan = payload.get("plan", {})
+        if not isinstance(plan, dict) or not plan:
+            return jsonify({"ok": False, "error": "plan is required (dict)"}), 400
+        context = str(payload.get("context", ""))
+
+        result = _agent_orch.start_work(plan=plan, context=context)
+
+        if result.get("ok") and _session_store:
+            session = WorkSession(
+                session_id=uuid.uuid4().hex[:12],
+                title=str(plan.get("title", "Prometheus plan"))[:80],
+                mode="prometheus",
+                status="completed",
+                plan=plan,
+                subtasks=result.get("results", []),
+            )
+            _session_store.save(session)
+
+        status = 200 if result.get("ok") else 500
+        return jsonify(result), status
+
+    @app.post("/api/agents/single")
+    @require_token
+    def agents_single_route() -> Any:
+        payload = request.get_json(silent=True) or {}
+        agent_name = str(payload.get("agent", "atlas")).strip()
+        prompt = str(payload.get("prompt", "")).strip()
+        if not prompt:
+            return jsonify({"ok": False, "error": "prompt is required"}), 400
+        context = str(payload.get("context", ""))
+
+        result = _agent_orch.single_agent(agent_name=agent_name, prompt=prompt, context=context)
+        status = 200 if result.get("ok") else 400
+        return jsonify(result), status
+
+    @app.get("/api/agents/profiles")
+    @require_token
+    def agents_profiles_route() -> Any:
+        profiles = {
+            name: {
+                "role": p["role"],
+                "description": p["description"],
+                "ollama_model": p["ollama_model"],
+            }
+            for name, p in AGENT_PROFILES.items()
+        }
+        return jsonify({"ok": True, "agents": profiles})
+
+    @app.get("/api/agents/sessions")
+    @require_token
+    def agents_sessions_route() -> Any:
+        sessions = _session_store.list_sessions()
+        return jsonify({"ok": True, "sessions": sessions})
+
+    @app.get("/api/agents/sessions/<session_id>")
+    @require_token
+    def agents_session_detail_route(session_id: str) -> Any:
+        session = _session_store.load(session_id)
+        if not session:
+            return jsonify({"ok": False, "error": "Session not found"}), 404
+        return jsonify({"ok": True, "session": asdict(session)})
+
     return app
 
 
@@ -4428,6 +5059,8 @@ def main() -> int:
         checkpoint_store=checkpoint_store,
         config=config,
     )
+    agent_orchestrator = DisciplineAgentOrchestrator(ai_client=ai_client, config=config)
+    work_session_store = WorkSessionStore(titan_root / "state" / "work_sessions")
 
     if args.cli:
         return run_cli(scanner, task_store, executor)
@@ -4446,6 +5079,8 @@ def main() -> int:
         system_ops=system_ops,
         pipeline_engine=pipeline_engine,
         checkpoint_store=checkpoint_store,
+        agent_orchestrator=agent_orchestrator,
+        work_session_store=work_session_store,
     )
 
     host = config.get("service", {}).get("host", "0.0.0.0")
