@@ -1,0 +1,137 @@
+═══════════════════════════════════════════════════════════════════
+ TITAN DEV HUB + OPENCODE — MANUAL DEPLOY INSTRUCTIONS
+ (Use these when SSH from Windows is blocked)
+═══════════════════════════════════════════════════════════════════
+
+CONNECT VIA XRDP:
+  Computer : 187.77.186.252:3389
+  Username : root
+  Password : Chilaw@123@llm
+
+Once connected, open a terminal (right-click desktop → Terminal).
+
+───────────────────────────────────────────────────────────────────
+STEP 1: Update titan_dev_hub.py on the VPS
+───────────────────────────────────────────────────────────────────
+
+The updated file is in this repo at:
+  iso/config/includes.chroot/opt/titan/apps/titan_dev_hub.py
+
+Option A — If the repo is already synced on the VPS:
+  cp /root/workspace/titan-7/iso/config/includes.chroot/opt/titan/apps/titan_dev_hub.py \
+     /opt/titan/apps/titan_dev_hub.py
+
+Option B — If you need to pull latest from git:
+  cd /root/workspace/titan-7
+  git pull
+  cp iso/config/includes.chroot/opt/titan/apps/titan_dev_hub.py \
+     /opt/titan/apps/titan_dev_hub.py
+
+Option C — Direct Python syntax check then copy:
+  python3 -c "import ast; ast.parse(open('/root/workspace/titan-7/iso/config/includes.chroot/opt/titan/apps/titan_dev_hub.py').read()); print('OK')"
+  cp /root/workspace/titan-7/iso/config/includes.chroot/opt/titan/apps/titan_dev_hub.py \
+     /opt/titan/apps/titan_dev_hub.py
+
+───────────────────────────────────────────────────────────────────
+STEP 2: Restart the Titan Dev Hub service
+───────────────────────────────────────────────────────────────────
+
+  # Try systemd first:
+  systemctl restart titan-dev-hub
+
+  # If no systemd service, kill and relaunch:
+  pkill -f titan_dev_hub.py || true
+  sleep 1
+  nohup python3 /opt/titan/apps/titan_dev_hub.py > /tmp/titan_dev_hub.log 2>&1 &
+
+  # Verify it's running:
+  curl -s http://localhost:8877/api/health
+
+───────────────────────────────────────────────────────────────────
+STEP 3: Verify new Agents API routes are live
+───────────────────────────────────────────────────────────────────
+
+  # List agent profiles:
+  curl -s http://localhost:8877/api/agents/profiles | python3 -m json.tool
+
+  # Quick single-agent test (Atlas):
+  curl -X POST http://localhost:8877/api/agents/single \
+    -H 'Content-Type: application/json' \
+    -d '{"agent": "atlas", "prompt": "Say hello from Atlas executor"}'
+
+  # Expected: {"ok": true, "agent": "atlas", "model": "mistral:7b", "response": "..."}
+
+───────────────────────────────────────────────────────────────────
+STEP 4: Install OpenCode + Oh-My-OpenCode (optional but recommended)
+───────────────────────────────────────────────────────────────────
+
+  # Copy install script if not already on VPS:
+  cp /root/workspace/titan-7/scripts/vps/install_opencode_omo.sh /tmp/
+  chmod +x /tmp/install_opencode_omo.sh
+
+  # Run it:
+  bash /tmp/install_opencode_omo.sh
+
+  # After install, launch OpenCode from terminal:
+  titan-opencode
+  # Or:
+  cd /root/workspace/titan-7 && opencode
+
+───────────────────────────────────────────────────────────────────
+STEP 5: Verify Dev Hub UI has new Agents tab
+───────────────────────────────────────────────────────────────────
+
+  Open in browser (inside XRDP): http://localhost:8877
+  You should see a new "🤖 Agents" tab in the navigation bar.
+
+  The Agents tab contains:
+    - ⚡ ultrawork bar (Sisyphus multi-agent orchestration)
+    - 🔮 Prometheus interview mode (plan-first)
+    - 👤 Single Agent invoker (Sisyphus/Prometheus/Hephaestus/Atlas)
+    - 📋 Work Sessions viewer
+
+───────────────────────────────────────────────────────────────────
+NEW API ENDPOINTS ADDED
+───────────────────────────────────────────────────────────────────
+
+  POST /api/agents/ultrawork
+    Body: {"task": "...", "context": "..."}
+    → Sisyphus decomposes → parallel Atlas/Hephaestus subtasks
+
+  POST /api/agents/prometheus/interview
+    Body: {"message": "...", "history": [...]}
+    → Prometheus asks clarifying questions → returns plan when ready
+
+  POST /api/agents/start-work
+    Body: {"plan": {...}, "context": "..."}
+    → Executes a Prometheus-generated plan step by step
+
+  POST /api/agents/single
+    Body: {"agent": "sisyphus|prometheus|hephaestus|atlas", "prompt": "...", "context": "..."}
+    → Direct single-agent invocation
+
+  GET  /api/agents/profiles   → List all agent profiles + models
+  GET  /api/agents/sessions   → List past work sessions
+  GET  /api/agents/sessions/<id> → Full session detail
+
+───────────────────────────────────────────────────────────────────
+TROUBLESHOOTING
+───────────────────────────────────────────────────────────────────
+
+  # Check dev hub logs:
+  tail -f /tmp/titan_dev_hub.log
+  # or:
+  journalctl -u titan-dev-hub -f
+
+  # Check Ollama is running (required for agents):
+  curl http://localhost:11434/api/tags
+
+  # If deepseek-r1:8b is not installed:
+  ollama pull deepseek-r1:8b
+  ollama pull qwen2.5:7b
+  ollama pull mistral:7b
+
+  # If mistral:7b is not available, Atlas falls back to qwen2.5:7b
+  # (The agents use whatever model is listed in AGENT_PROFILES in titan_dev_hub.py)
+
+═══════════════════════════════════════════════════════════════════
