@@ -1,0 +1,18 @@
+{
+  "patched_files": [
+    "package.json",
+    "PATCH_MANIFEST.json",
+    "dist\\bundle.js",
+    "dist\\express-server.js",
+    "dist\\preload.js",
+    "renderer\\multilogin\\en\\index.html",
+    "renderer\\multilogin\\en\\main.7a8d80207b5bcadd.js",
+    "renderer\\multilogin\\en\\splash.html",
+    "renderer\\multilogin\\ru\\index.html",
+    "renderer\\multilogin\\ru\\main.7a8d80207b5bcadd.js",
+    "renderer\\multilogin\\ru\\splash.html",
+    "renderer\\multilogin\\zh-Hans\\index.html",
+    "renderer\\multilogin\\zh-Hans\\main.7a8d80207b5bcadd.js",
+    "renderer\\multilogin\\zh-Hans\\splash.html"
+  ]
+}

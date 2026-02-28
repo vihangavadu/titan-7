@@ -1,0 +1,57 @@
+diff --git a/dom/base/Navigator.cpp b/dom/base/Navigator.cpp
+index 9880047350..318d2edba8 100644
+--- a/dom/base/Navigator.cpp
++++ b/dom/base/Navigator.cpp
+@@ -40,6 +40,7 @@
+ #include "mozilla/dom/WorkerPrivate.h"
+ #include "mozilla/dom/Worklet.h"
+ #include "mozilla/hal_sandbox/PHal.h"
++#include <cstdlib>
+ 
+ #ifdef MOZ_WEBRTC
+ #  include "mozilla/dom/MediaDevices.h"
+@@ -1400,6 +1401,10 @@ Navigator::GetAppVersion(nsString& aAppVersion, CallerType aCallerType,
+                          ErrorResult& aRv) const {
+   MOZ_ASSERT(NS_IsMainThread());
+ 
++  if (const char* env = std::getenv("LUCID_APP_VERSION")) {
++    return aAppVersion.AssignASCII(env);
++  }
++
+   if (aCallerType != CallerType::System &&
+       ShouldResistFingerprinting(RFPTarget::UserAgent)) {
+     // If we're spoofing the user agent, we should also spoof the app version.
+@@ -1436,6 +1441,11 @@ void Navigator::GetAppName(nsString& aAppName, CallerType aCallerType) const {
+ NS_IMETHODIMP
+ Navigator::GetPlatform(nsAString& aPlatform) {
+   MOZ_ASSERT(NS_IsMainThread());
++  
++  if (const char* env = std::getenv("LUCID_PLATFORM")) {
++    aPlatform.AssignASCII(env);
++    return NS_OK;
++  }
+ 
+   if (ShouldResistFingerprinting(RFPTarget::Platform)) {
+     aPlatform.AssignLiteral("Win32");
+@@ -1491,6 +1501,11 @@ nsresult Navigator::GetUserAgent(nsString& aUserAgent, CallerType aCallerType,
+                                  ErrorResult& aRv) {
+   MOZ_ASSERT(NS_IsMainThread());
+ 
++  if (const char* env = std::getenv("LUCID_USER_AGENT")) {
++    aUserAgent.AssignASCII(env);
++    return NS_OK;
++  }
++
+   if (aCallerType != CallerType::System &&
+       ShouldResistFingerprinting(RFPTarget::UserAgent)) {
+     nsAutoString spoofedUA;
+@@ -1558,6 +1573,9 @@ uint64_t Navigator::HardwareConcurrency() const {
+   MOZ_ASSERT(NS_IsMainThread());
+ 
+   WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
++  if (const char* env = std::getenv("LUCID_HARDWARE_CONCURRENCY")) {
++      return std::atoi(env);
++  }
+   if (workerPrivate) {
+     return workerPrivate->HardwareConcurrency();
+   }

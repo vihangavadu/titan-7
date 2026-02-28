@@ -1,0 +1,87 @@
+﻿"""
+TITAN V8.1 ΓÇö Location Spoofer
+Coordinates geolocation, timezone, and locale spoofing.
+Enforces WebRTC peerconnection disable.
+"""
+import json
+import math
+import random
+from pathlib import Path
+from typing import Dict, Optional, Tuple
+
+
+# WebRTC must be disabled to prevent IP leak
+WEBRTC_PREFS = {
+    "media.peerconnection.enabled": False,
+    "media.peerconnection.ice.default_address_only": True,
+    "media.peerconnection.ice.no_host": True,
+    "media.peerconnection.ice.proxy_only": True,
+}
+
+
+class LocationSpoofer:
+    """Spoof geolocation to match billing address."""
+    
+    # Major US city coordinates
+    CITY_COORDS = {
+        "New York": (40.7128, -74.0060),
+        "Los Angeles": (34.0522, -118.2437),
+        "Chicago": (41.8781, -87.6298),
+        "Houston": (29.7604, -95.3698),
+        "Phoenix": (33.4484, -112.0740),
+        "Philadelphia": (39.9526, -75.1652),
+        "San Antonio": (29.4241, -98.4936),
+        "San Diego": (32.7157, -117.1611),
+        "Dallas": (32.7767, -96.7970),
+        "Austin": (30.2672, -97.7431),
+        "Miami": (25.7617, -80.1918),
+        "Seattle": (47.6062, -122.3321),
+        "Denver": (39.7392, -104.9903),
+        "Atlanta": (33.7490, -84.3880),
+        "Boston": (42.3601, -71.0589),
+    }
+    
+    STATE_TIMEZONE = {
+        "CA": "America/Los_Angeles", "WA": "America/Los_Angeles", "OR": "America/Los_Angeles",
+        "NV": "America/Los_Angeles", "AZ": "America/Phoenix",
+        "TX": "America/Chicago", "IL": "America/Chicago", "MN": "America/Chicago",
+        "WI": "America/Chicago", "MO": "America/Chicago",
+        "NY": "America/New_York", "FL": "America/New_York", "GA": "America/New_York",
+        "PA": "America/New_York", "MA": "America/New_York", "VA": "America/New_York",
+        "NC": "America/New_York", "NJ": "America/New_York", "OH": "America/New_York",
+        "MI": "America/New_York", "CO": "America/Denver", "UT": "America/Denver",
+    }
+    
+    def __init__(self):
+        self.current_location = None
+        self.current_timezone = None
+    
+    def get_coords_for_city(self, city: str) -> Optional[Tuple[float, float]]:
+        """Get coordinates for a city with slight randomization."""
+        coords = self.CITY_COORDS.get(city)
+        if coords:
+            lat = coords[0] + random.uniform(-0.02, 0.02)
+            lon = coords[1] + random.uniform(-0.02, 0.02)
+            return (round(lat, 6), round(lon, 6))
+        return None
+    
+    def get_timezone_for_state(self, state: str) -> str:
+        return self.STATE_TIMEZONE.get(state, "America/New_York")
+    
+    def get_webrtc_prefs(self) -> Dict:
+        """Return WebRTC disable preferences."""
+        return WEBRTC_PREFS.copy()
+    
+    def generate_spoof_config(self, city: str, state: str) -> Dict:
+        """Generate complete location spoof configuration."""
+        coords = self.get_coords_for_city(city) or (40.7128 + random.uniform(-0.5, 0.5), -74.006 + random.uniform(-0.5, 0.5))
+        tz = self.get_timezone_for_state(state)
+        
+        return {
+            "latitude": coords[0],
+            "longitude": coords[1],
+            "accuracy": random.randint(20, 100),
+            "timezone": tz,
+            "locale": "en-US",
+            "webrtc_prefs": self.get_webrtc_prefs(),
+        }

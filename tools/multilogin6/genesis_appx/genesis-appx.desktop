@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Genesis AppX
+Exec=/opt/genesis-appx/launch_genesis_appx.sh
+Terminal=false
+Type=Application
+Icon=genesis-appx
+StartupWMClass=Multilogin
+Comment=Genesis AppX - Titan OS Anti-Detect Browser with AI-powered profile generation, forensic-grade fingerprinting, and target-specific optimization.
+Categories=Network;WebBrowser;Utility;
+Keywords=browser;profile;fingerprint;anti-detect;genesis;titan;

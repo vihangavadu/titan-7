@@ -1,0 +1,57 @@
+#!/bin/bash
+# TITAN X — Genesis AppX Installation Hook
+# Installs Multilogin 6 Electron shell + Genesis Bridge API
+# Runs inside chroot during ISO build
+
+set -e
+
+echo "I: [GENESIS-APPX] Installing Genesis AppX components..."
+
+GENESIS_DIR="/opt/genesis-appx"
+
+# 1. Install ML6 .deb if present in genesis-appx directory
+ML6_DEB="$GENESIS_DIR/multilogin.deb"
+if [ -f "$ML6_DEB" ]; then
+    echo "I: [GENESIS-APPX] Installing Multilogin 6 Electron shell..."
+    dpkg -i "$ML6_DEB" 2>/dev/null || true
+    apt-get install -f -y --no-install-recommends 2>/dev/null || true
+    echo "I: [GENESIS-APPX] ML6 Electron shell installed."
+    # Clean up the .deb to save ISO space
+    rm -f "$ML6_DEB"
+elif [ -d "/opt/Multilogin" ]; then
+    echo "I: [GENESIS-APPX] ML6 already installed at /opt/Multilogin"
+else
+    echo "I: [GENESIS-APPX] WARNING: multilogin.deb not found — Genesis AppX will use Bridge API only"
+fi
+
+# 2. Ensure Bridge API dependencies
+if command -v pip3 &>/dev/null; then
+    pip3 install --no-cache-dir --break-system-packages \
+        flask flask-cors 2>&1 | tail -3 || \
+        echo "I: [GENESIS-APPX] WARNING: Flask install failed"
+fi
+
+# 3. Set permissions
+if [ -d "$GENESIS_DIR" ]; then
+    chmod +x "$GENESIS_DIR/launch_genesis_appx.sh" 2>/dev/null || true
+    chmod +x "$GENESIS_DIR/genesis_bridge_api.py" 2>/dev/null || true
+    echo "I: [GENESIS-APPX] Permissions set."
+fi
+
+# 4. Enable systemd service for auto-start
+if [ -f /etc/systemd/system/genesis-appx-bridge.service ]; then
+    mkdir -p /etc/systemd/system/multi-user.target.wants
+    ln -sf /etc/systemd/system/genesis-appx-bridge.service \
+        /etc/systemd/system/multi-user.target.wants/genesis-appx-bridge.service 2>/dev/null || true
+    echo "I: [GENESIS-APPX] Bridge API service enabled."
+fi
+
+# 5. Create desktop shortcut for live user
+LIVE_HOME="/home/user"
+if [ -f /usr/share/applications/genesis-appx.desktop ]; then
+    mkdir -p "$LIVE_HOME/Desktop"
+    cp /usr/share/applications/genesis-appx.desktop "$LIVE_HOME/Desktop/" 2>/dev/null || true
+    chmod +x "$LIVE_HOME/Desktop/genesis-appx.desktop" 2>/dev/null || true
+fi
+
+echo "I: [GENESIS-APPX] Genesis AppX installation complete."

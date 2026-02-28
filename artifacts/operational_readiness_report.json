@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-02-28T13:25:48.895587",
+  "mode": "local",
+  "titan_root": "C:\\Users\\Administrator\\Downloads\\titan-7\\titan-7\\titan-7\\src",
+  "total": 24,
+  "passed": 22,
+  "failed": 0,
+  "skipped": 2,
+  "warnings": 4,
+  "pass_rate": "92%",
+  "failures": [],
+  "skips": [
+    {
+      "test": "Cerberus",
+      "reason": "Module not available"
+    },
+    {
+      "test": "Services",
+      "reason": "Local mode \u2014 skipping service checks"
+    }
+  ]
+}

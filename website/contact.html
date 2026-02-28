@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Lucid Empire — Titan OS</title>
+    <meta name="description" content="Contact Lucid Empire for Titan OS licensing, custom development, support, and partnership inquiries. Developed by Lucid.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="nav-logo">
+                <div class="logo-icon"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 4L4 12V28L20 36L36 28V12L20 4Z"/><circle cx="20" cy="20" r="6"/></svg></div>
+                <span class="logo-text">Titan<span class="accent">OS</span></span>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="about.html" class="nav-link">About</a>
+                <a href="features.html" class="nav-link">Features</a>
+                <a href="services.html" class="nav-link">Pricing</a>
+                <a href="docs.html" class="nav-link">Docs</a>
+                <a href="contact.html" class="nav-link active">Contact</a>
+            </div>
+            <div class="nav-actions">
+                <a href="contact.html" class="btn btn-primary btn-sm">Get Started</a>
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-hero">
+        <div class="hero-bg">
+            <div class="grid-overlay"></div>
+            <div class="gradient-orb orb-1"></div>
+            <div class="gradient-orb orb-2"></div>
+        </div>
+        <div class="container">
+            <div class="page-hero-content">
+                <span class="section-tag">Contact</span>
+                <h1 class="hero-title">Contact <span class="gradient-text">Lucid Empire</span></h1>
+                <p class="hero-subtitle">Interested in Titan OS? Reach out to discuss licensing, custom development, technical support, or partnership opportunities.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Content -->
+    <section class="section">
+        <div class="container">
+            <div class="contact-grid">
+                <!-- Contact Form -->
+                <div class="contact-form-wrapper">
+                    <h2>Send a Message</h2>
+                    <p>Fill out the form below and Lucid Empire will respond within 24 hours.</p>
+                    <form class="contact-form" id="contactForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="firstName">First Name</label>
+                                <input type="text" id="firstName" name="firstName" placeholder="Your first name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="lastName">Last Name</label>
+                                <input type="text" id="lastName" name="lastName" placeholder="Your last name" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input type="email" id="email" name="email" placeholder="you@company.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="company">Organization</label>
+                            <input type="text" id="company" name="company" placeholder="Your organization (optional)">
+                        </div>
+                        <div class="form-group">
+                            <label for="subject">Subject</label>
+                            <select id="subject" name="subject" required>
+                                <option value="">Select a topic...</option>
+                                <option value="licensing">Titan OS Licensing</option>
+                                <option value="demo">Request a Demo</option>
+                                <option value="custom">Custom Development</option>
+                                <option value="support">Technical Support</option>
+                                <option value="partnership">Partnership</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="message">Message</label>
+                            <textarea id="message" name="message" rows="5" placeholder="Tell us what you need..." required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg btn-block">
+                            Send Message
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10H16M16 10L11 5M16 10L11 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
+                    </form>
+                    <div class="form-success" id="formSuccess" style="display:none;">
+                        <div class="success-icon">
+                            <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2"/><path d="M16 24L22 30L32 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </div>
+                        <h3>Message Sent!</h3>
+                        <p>Thank you for reaching out. Lucid Empire will respond within 24 hours.</p>
+                    </div>
+                </div>
+
+                <!-- Contact Info -->
+                <div class="contact-info">
+                    <div class="info-card">
+                        <div class="info-icon">
+                            <svg viewBox="0 0 48 48" fill="none"><path d="M8 12L24 24L40 12" stroke="currentColor" stroke-width="2"/><rect x="8" y="12" width="32" height="24" rx="2" stroke="currentColor" stroke-width="2"/></svg>
+                        </div>
+                        <h3>Email</h3>
+                        <p>For licensing and general inquiries</p>
+                        <a href="mailto:contact@lucidempire.dev">contact@lucidempire.dev</a>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">
+                            <svg viewBox="0 0 48 48" fill="none"><path d="M24 4L4 14V34L24 44L42 34V14L24 4Z" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="24" r="3" fill="currentColor"/></svg>
+                        </div>
+                        <h3>Developer</h3>
+                        <p>Titan OS is developed by</p>
+                        <span>Lucid — Founder, Lucid Empire</span>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">
+                            <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="2"/><path d="M24 12V24L32 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        </div>
+                        <h3>Response Time</h3>
+                        <p>All inquiries answered promptly</p>
+                        <span>Within 24 hours</span>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">
+                            <svg viewBox="0 0 48 48" fill="none"><rect x="8" y="8" width="32" height="32" rx="4" stroke="currentColor" stroke-width="2"/><path d="M16 20H32M16 28H26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        </div>
+                        <h3>Licensing</h3>
+                        <p>Three tiers available</p>
+                        <a href="services.html">View Pricing Plans</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">FAQ</span>
+                <h2 class="section-title">Common Questions</h2>
+            </div>
+            <div class="faq-grid">
+                <div class="faq-item">
+                    <h4>How do I get Titan OS?</h4>
+                    <p>Contact Lucid Empire to discuss licensing. After purchase, you receive the full V9.1 ISO image, deployment scripts, and documentation.</p>
+                </div>
+                <div class="faq-item">
+                    <h4>What VPS do I need?</h4>
+                    <p>Any Debian 12 KVM VPS with 4+ CPU cores and 4GB+ RAM. Recommended: 8 cores, 8GB+ RAM, 100GB+ disk. Tested on Hostinger KVM 8.</p>
+                </div>
+                <div class="faq-item">
+                    <h4>Is custom development available?</h4>
+                    <p>Yes. Professional and Enterprise licenses include custom module development, AI model fine-tuning, and feature requests directly from Lucid.</p>
+                </div>
+                <div class="faq-item">
+                    <h4>What support is included?</h4>
+                    <p>All licenses include email support. Professional tier adds priority support. Enterprise tier includes dedicated support from Lucid with SLA guarantee.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="nav-logo">
+                        <div class="logo-icon"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 4L4 12V28L20 36L36 28V12L20 4Z"/><circle cx="20" cy="20" r="6"/></svg></div>
+                        <span class="logo-text">Titan<span class="accent">OS</span></span>
+                    </a>
+                    <p>Titan OS by Lucid Empire. A complete multi-layer operating system with 115 modules, 9 apps, and 6 AI models. Developed by Lucid.</p>
+                </div>
+                <div class="footer-links"><h4>Platform</h4><a href="features.html">Features</a><a href="services.html">Pricing</a><a href="docs.html">Documentation</a><a href="about.html">About</a></div>
+                <div class="footer-links"><h4>Resources</h4><a href="docs.html#quickstart">Quick Start</a><a href="docs.html#api">API Reference</a><a href="docs.html#changelog">Changelog</a></div>
+                <div class="footer-links"><h4>Lucid Empire</h4><a href="about.html">About Us</a><a href="contact.html">Contact</a><a href="#">GitHub</a></div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Lucid Empire. All rights reserved. Developer: Lucid</p>
+                <div class="footer-legal"><a href="#">Privacy Policy</a><a href="#">Terms of Service</a></div>
+            </div>
+        </div>
+    </footer>
+    <script src="js/main.js"></script>
+</body>
+</html>

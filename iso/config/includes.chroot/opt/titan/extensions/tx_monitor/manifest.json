@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Network Analytics",
+  "version": "1.0.0",
+  "description": "Network request analytics and diagnostics",
+  "permissions": ["webRequest", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["tx_monitor.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

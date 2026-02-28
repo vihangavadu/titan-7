@@ -1,0 +1,21 @@
+[Unit]
+Description=Genesis AppX Bridge API
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=user
+Group=user
+WorkingDirectory=/opt/genesis-appx
+Environment=PYTHONPATH=/opt/titan:/opt/titan/core:/opt/titan/apps
+Environment=TITAN_ROOT=/opt/titan
+Environment=GENESIS_BRIDGE_PORT=36200
+ExecStart=/usr/bin/python3 /opt/genesis-appx/genesis_bridge_api.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

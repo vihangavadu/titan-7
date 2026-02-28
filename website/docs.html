@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation — Titan OS by Lucid Empire</title>
+    <meta name="description" content="Complete documentation for Titan OS V9.1 — deployment guides, API reference, module documentation, and system architecture. Developed by Lucid at Lucid Empire.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="nav-logo">
+                <div class="logo-icon"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 4L4 12V28L20 36L36 28V12L20 4Z"/><circle cx="20" cy="20" r="6"/></svg></div>
+                <span class="logo-text">Titan<span class="accent">OS</span></span>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="about.html" class="nav-link">About</a>
+                <a href="features.html" class="nav-link">Features</a>
+                <a href="services.html" class="nav-link">Pricing</a>
+                <a href="docs.html" class="nav-link active">Docs</a>
+                <a href="contact.html" class="nav-link">Contact</a>
+            </div>
+            <div class="nav-actions">
+                <a href="contact.html" class="btn btn-primary btn-sm">Get Started</a>
+                <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-hero">
+        <div class="hero-bg">
+            <div class="grid-overlay"></div>
+            <div class="gradient-orb orb-1"></div>
+            <div class="gradient-orb orb-2"></div>
+        </div>
+        <div class="container">
+            <div class="page-hero-content">
+                <span class="section-tag">Documentation</span>
+                <h1 class="hero-title">Titan OS <span class="gradient-text">Docs</span></h1>
+                <p class="hero-subtitle">Deployment guides, API reference, module documentation, and system architecture for Titan OS V9.1. Built by Lucid at Lucid Empire.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Docs Content -->
+    <section class="section docs-section">
+        <div class="container">
+            <div class="docs-layout">
+                <!-- Sidebar -->
+                <aside class="docs-sidebar">
+                    <div class="sidebar-group">
+                        <h4>Getting Started</h4>
+                        <a href="#quickstart" class="sidebar-link active">Quick Start</a>
+                        <a href="#installation" class="sidebar-link">ISO Deployment</a>
+                        <a href="#vps-setup" class="sidebar-link">VPS Setup</a>
+                    </div>
+                    <div class="sidebar-group">
+                        <h4>Architecture</h4>
+                        <a href="#architecture" class="sidebar-link">8-Ring Defense Model</a>
+                        <a href="#modules" class="sidebar-link">Module Reference</a>
+                        <a href="#apps" class="sidebar-link">GUI Applications</a>
+                    </div>
+                    <div class="sidebar-group">
+                        <h4>API &amp; Integration</h4>
+                        <a href="#api" class="sidebar-link">API Reference</a>
+                        <a href="#endpoints" class="sidebar-link">59 Endpoints</a>
+                        <a href="#ai-models" class="sidebar-link">AI Models</a>
+                    </div>
+                    <div class="sidebar-group">
+                        <h4>Resources</h4>
+                        <a href="#changelog" class="sidebar-link">Changelog</a>
+                        <a href="#faq" class="sidebar-link">FAQ</a>
+                    </div>
+                </aside>
+
+                <!-- Main Content -->
+                <main class="docs-main">
+                    <!-- Quick Start -->
+                    <div class="doc-section" id="quickstart">
+                        <h2>Quick Start Guide</h2>
+                        <p>Get Titan OS V9.1 deployed and operational. This guide covers deployment from the bootable ISO or VPS installation.</p>
+
+                        <div class="doc-step">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <h3>Obtain Titan OS License</h3>
+                                <p>Contact Lucid Empire to obtain your Titan OS license and receive the V9.1 ISO image (2.7GB).</p>
+                            </div>
+                        </div>
+                        <div class="doc-step">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <h3>Deploy the ISO</h3>
+                                <div class="code-snippet">
+                                    <div class="code-snippet-header">
+                                        <span>Terminal</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                    </div>
+                                    <pre><code><span class="comment"># Boot from ISO (bare metal or VM)</span>
+<span class="comment"># OR deploy to VPS via SSH</span>
+scp titan-os-9.1.iso root@your-vps-ip:/tmp/
+ssh root@your-vps-ip
+bash /opt/titan/scripts/install_titan.sh</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="doc-step">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <h3>First Boot Setup</h3>
+                                <div class="code-snippet">
+                                    <div class="code-snippet-header">
+                                        <span>Terminal</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                    </div>
+                                    <pre><code><span class="comment"># Titan OS auto-configures on first boot:</span>
+<span class="comment"># - Redis, Ollama, Xray, ntfy services start</span>
+<span class="comment"># - 6 AI models load into Ollama</span>
+<span class="comment"># - XFCE desktop + XRDP remote access enabled</span>
+<span class="comment"># - All 115 core modules verified</span>
+
+<span class="comment"># Verify installation:</span>
+python3 /opt/titan/verify_all.py
+<span class="comment"># Expected: OK:113 FAIL:0</span></code></pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="doc-step">
+                            <div class="step-number">4</div>
+                            <div class="step-content">
+                                <h3>Launch the GUI</h3>
+                                <div class="code-snippet">
+                                    <div class="code-snippet-header">
+                                        <span>Terminal</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                    </div>
+                                    <pre><code><span class="comment"># Connect via XRDP (port 3389) or local desktop</span>
+<span class="comment"># Launch the Titan OS 3x3 app launcher:</span>
+python3 /opt/titan/apps/titan_launcher.py
+
+<span class="comment"># Or launch individual apps:</span>
+python3 /opt/titan/apps/titan_operations.py
+python3 /opt/titan/apps/titan_intelligence.py
+python3 /opt/titan/apps/app_browser_launch.py</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ISO Deployment -->
+                    <div class="doc-section" id="installation">
+                        <h2>ISO Deployment</h2>
+                        <p>Titan OS ships as a 2.7GB bootable Debian 12 ISO with UEFI + BIOS dual-boot support.</p>
+
+                        <h3>ISO Contents</h3>
+                        <div class="code-snippet">
+                            <div class="code-snippet-header"><span>Contents</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre><code>Titan OS V9.1 ISO (2.7GB)
+├── Debian 12 base (kernel 6.1.0)
+├── 1,505 pre-installed packages
+├── /opt/titan/core/     → 115 Python + C modules
+├── /opt/titan/apps/     → 9 PyQt6 GUI applications
+├── /opt/titan/training/ → AI model files + training data
+├── /opt/titan/docs/     → 17 research documents
+├── /opt/titan/scripts/  → Deployment + management scripts
+└── SquashFS compressed, UEFI + BIOS bootable</code></pre>
+                        </div>
+
+                        <h3>System Requirements</h3>
+                        <div class="requirements-table">
+                            <table>
+                                <thead><tr><th>Component</th><th>Minimum</th><th>Recommended</th></tr></thead>
+                                <tbody>
+                                    <tr><td>CPU</td><td>4 cores</td><td>8 cores</td></tr>
+                                    <tr><td>RAM</td><td>4GB</td><td>8GB+</td></tr>
+                                    <tr><td>Disk</td><td>50GB</td><td>100GB+</td></tr>
+                                    <tr><td>Python</td><td>3.11</td><td>3.11+</td></tr>
+                                    <tr><td>Network</td><td>100Mbps</td><td>1Gbps</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- VPS Setup -->
+                    <div class="doc-section" id="vps-setup">
+                        <h2>VPS Setup</h2>
+                        <p>Deploy Titan OS to any Debian 12 VPS. Tested on Hostinger KVM 8 (8 CPU, 32GB RAM, 400GB disk).</p>
+                        <div class="code-snippet">
+                            <div class="code-snippet-header"><span>Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre><code><span class="comment"># 1. SSH into your VPS</span>
+ssh root@your-vps-ip
+
+<span class="comment"># 2. Upload and extract Titan OS</span>
+scp titan_deploy.zip root@your-vps-ip:/opt/
+cd /opt && unzip titan_deploy.zip
+
+<span class="comment"># 3. Run the installer</span>
+bash /opt/titan/scripts/install_titan.sh
+
+<span class="comment"># 4. Install external dependencies</span>
+<span class="comment"># Ollama, Camoufox, Mullvad VPN, Xray, Redis, ntfy</span>
+bash /opt/titan/scripts/install_self_hosted_stack.sh
+
+<span class="comment"># 5. Load AI models</span>
+bash /opt/titan/modelfiles/deploy_models.sh
+
+<span class="comment"># 6. Verify</span>
+python3 /opt/titan/verify_all.py</code></pre>
+                        </div>
+                        <div class="callout callout-warning">
+                            <strong>Note:</strong> Titan OS requires root access for kernel module installation and network stack modifications. VPS must run Debian 12 with kernel 6.1+.
+                        </div>
+                    </div>
+
+                    <!-- Architecture -->
+                    <div class="doc-section" id="architecture">
+                        <h2>8-Ring Defense Architecture</h2>
+                        <p>Titan OS uses a concentric ring defense model. Each ring adds a layer of protection, from hardware to operator.</p>
+                        <div class="code-snippet">
+                            <div class="code-snippet-header"><span>Architecture</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre><code>Ring 0 — Kernel Shield     → Hardware identity spoofing (C modules, eBPF)
+Ring 1 — Network Shield    → TLS parroting, JA4 rotation, VPN, proxy
+Ring 2 — Environment       → Canvas, WebGL, font, audio, timezone synthesis
+Ring 3 — Identity/Profile  → Genesis profile engine, behavioral biometrics
+Ring 4 — Transaction       → Cerberus engine, 3DS bypass, BIN intelligence
+Ring 5 — Intelligence/AI   → ONNX engine, 6 models, 33 task routes
+Ring 6 — KYC               → Face depth synthesis, IR pattern generation
+Ring 7 — Operations        → Redis pub/sub, forensic cleanup, kill switch</code></pre>
+                        </div>
+                    </div>
+
+                    <!-- Module Reference -->
+                    <div class="doc-section" id="modules">
+                        <h2>Module Reference</h2>
+                        <p>Titan OS V9.1 includes 115 core Python modules and 3 C kernel modules. Key modules per ring:</p>
+
+                        <h3>Ring 0 — Kernel Shield</h3>
+                        <ul class="doc-list">
+                            <li><code>cpuid_rdtsc_shield.py</code> — CPUID/RDTSC instruction interception</li>
+                            <li><code>immutable_os.py</code> — Filesystem immutability enforcement</li>
+                            <li><code>kill_switch.py</code> — Emergency forensic cleanup</li>
+                        </ul>
+
+                        <h3>Ring 1 — Network Shield</h3>
+                        <ul class="doc-list">
+                            <li><code>tls_parrot.py</code> — Chrome/Firefox TLS fingerprint parroting</li>
+                            <li><code>ja4_permutation_engine.py</code> — JA4 hash rotation</li>
+                            <li><code>lucid_vpn.py</code> — Mullvad VPN management</li>
+                            <li><code>proxy_manager.py</code> — Residential proxy rotation</li>
+                        </ul>
+
+                        <h3>Ring 3 — Identity/Profile</h3>
+                        <ul class="doc-list">
+                            <li><code>genesis_core.py</code> — 9-stage profile generation pipeline</li>
+                            <li><code>ghost_motor_v6.py</code> — Human behavioral biometrics</li>
+                            <li><code>purchase_history_engine.py</code> — Shopping history synthesis</li>
+                        </ul>
+
+                        <h3>Ring 4 — Transaction</h3>
+                        <ul class="doc-list">
+                            <li><code>cerberus_core.py</code> — Transaction processing engine</li>
+                            <li><code>three_ds_strategy.py</code> — 3DS bypass and downgrade</li>
+                            <li><code>tra_exemption_engine.py</code> — TRA exemption optimization</li>
+                        </ul>
+                        <p><em>Full module reference: 115 modules across all 8 rings. See <a href="features.html">Features</a> for complete listing.</em></p>
+                    </div>
+
+                    <!-- GUI Applications -->
+                    <div class="doc-section" id="apps">
+                        <h2>GUI Applications</h2>
+                        <p>9 PyQt6 desktop applications organized in a 3x3 launcher grid.</p>
+                        <div class="requirements-table">
+                            <table>
+                                <thead><tr><th>App</th><th>Tabs</th><th>Function</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Operations</td><td>5</td><td>Unified operation center, mission control</td></tr>
+                                    <tr><td>Intelligence</td><td>5</td><td>AI analysis, target discovery, dark web monitoring</td></tr>
+                                    <tr><td>Network</td><td>5</td><td>VPN, proxy, TLS, network diagnostics</td></tr>
+                                    <tr><td>KYC Studio</td><td>3</td><td>Face synthesis, depth maps, IR patterns</td></tr>
+                                    <tr><td>Admin</td><td>5</td><td>System admin, logs, service management</td></tr>
+                                    <tr><td>Settings</td><td>6</td><td>VPN, AI, services, browser, API keys, system</td></tr>
+                                    <tr><td>Profile Forge</td><td>3</td><td>Identity generation, 9-stage pipeline</td></tr>
+                                    <tr><td>Card Validator</td><td>3</td><td>BIN validation, intelligence, history</td></tr>
+                                    <tr><td>Browser Launch</td><td>3</td><td>Camoufox launch, TX monitor, handover</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- API Reference -->
+                    <div class="doc-section" id="api">
+                        <h2>API Reference</h2>
+                        <p>Titan OS exposes 59 internal API endpoints through <code>titan_api.py</code>. The API serves as the bridge between all modules and the GUI layer.</p>
+                        <div class="code-snippet">
+                            <div class="code-snippet-header"><span>Python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre><code><span class="kw">from</span> core.titan_api <span class="kw">import</span> TitanAPI
+
+api = TitanAPI()
+
+<span class="comment"># Generate a new profile via Genesis engine</span>
+profile = api.genesis_create_profile(
+    country=<span class="str">"US"</span>,
+    age_range=<span class="str">"25-35"</span>,
+    gender=<span class="str">"male"</span>
+)
+
+<span class="comment"># Run AI analysis</span>
+result = api.ai_analyze(
+    task=<span class="str">"risk_assessment"</span>,
+    data=profile
+)
+
+<span class="comment"># Check system health</span>
+status = api.health_check()
+<span class="kw">print</span>(f<span class="str">"Modules: {status.modules_ok}/115"</span>)</code></pre>
+                        </div>
+                    </div>
+
+                    <!-- Endpoints -->
+                    <div class="doc-section" id="endpoints">
+                        <h2>Key API Endpoints</h2>
+
+                        <div class="endpoint-card">
+                            <div class="endpoint-method post">POST</div>
+                            <div class="endpoint-path">/api/genesis/create-profile</div>
+                            <p>Generate a new synthetic identity via the 9-stage Genesis pipeline.</p>
+                        </div>
+
+                        <div class="endpoint-card">
+                            <div class="endpoint-method post">POST</div>
+                            <div class="endpoint-path">/api/cerberus/validate-card</div>
+                            <p>Validate card details and retrieve BIN intelligence data.</p>
+                        </div>
+
+                        <div class="endpoint-card">
+                            <div class="endpoint-method post">POST</div>
+                            <div class="endpoint-path">/api/ai/analyze</div>
+                            <p>Route task to appropriate AI model (33 task routes available).</p>
+                        </div>
+
+                        <div class="endpoint-card">
+                            <div class="endpoint-method get">GET</div>
+                            <div class="endpoint-path">/api/network/status</div>
+                            <p>Get current VPN, proxy, and network shield status.</p>
+                        </div>
+
+                        <div class="endpoint-card">
+                            <div class="endpoint-method post">POST</div>
+                            <div class="endpoint-path">/api/browser/launch</div>
+                            <p>Launch Camoufox with preflight checks and profile injection.</p>
+                        </div>
+
+                        <div class="endpoint-card">
+                            <div class="endpoint-method get">GET</div>
+                            <div class="endpoint-path">/api/health</div>
+                            <p>System health check — modules, services, AI models, disk status.</p>
+                        </div>
+                    </div>
+
+                    <!-- AI Models -->
+                    <div class="doc-section" id="ai-models">
+                        <h2>AI Models</h2>
+                        <p>Titan OS includes 6 custom AI models with no external API dependencies.</p>
+                        <div class="requirements-table">
+                            <table>
+                                <thead><tr><th>Model</th><th>Type</th><th>Size</th><th>Purpose</th></tr></thead>
+                                <tbody>
+                                    <tr><td>ONNX Engine</td><td>INT4</td><td>Varies</td><td>33 task routes, fast inference</td></tr>
+                                    <tr><td>Titan Analyst</td><td>Ollama</td><td>4.7GB</td><td>Deep analysis, risk assessment</td></tr>
+                                    <tr><td>Titan Strategist</td><td>Ollama</td><td>5.2GB</td><td>Strategy planning, decision support</td></tr>
+                                    <tr><td>Titan Fast</td><td>Ollama</td><td>4.4GB</td><td>Quick responses, triage</td></tr>
+                                    <tr><td>DeepSeek-R1:8B</td><td>Ollama</td><td>8B</td><td>Supplementary reasoning</td></tr>
+                                    <tr><td>Qwen2.5:7B</td><td>Ollama</td><td>7B</td><td>Multi-language analysis</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Changelog -->
+                    <div class="doc-section" id="changelog">
+                        <h2>Changelog</h2>
+                        <div class="changelog-entry">
+                            <div class="changelog-version">V9.1.0</div>
+                            <div class="changelog-date">February 2026</div>
+                            <ul class="doc-list">
+                                <li>ONNX AI Engine with 33 task routes</li>
+                                <li>Android KYC module via Waydroid</li>
+                                <li>Webhook integrations module</li>
+                                <li>9-app GUI architecture (from 5 apps)</li>
+                                <li>Settings, Profile Forge, Card Validator, Browser Launch apps</li>
+                            </ul>
+                        </div>
+                        <div class="changelog-entry">
+                            <div class="changelog-version">V8.2.2</div>
+                            <div class="changelog-date">February 2026</div>
+                            <ul class="doc-list">
+                                <li>9-app 3x3 launcher grid</li>
+                                <li>Mullvad VPN, Xray, Redis, ntfy integration</li>
+                                <li>plyvel, aioquic, minio external packages</li>
+                                <li>6-tab Settings app</li>
+                            </ul>
+                        </div>
+                        <div class="changelog-entry">
+                            <div class="changelog-version">V8.0.0</div>
+                            <div class="changelog-date">January 2026</div>
+                            <ul class="doc-list">
+                                <li>24/7 Transaction Monitor</li>
+                                <li>3DS Bypass &amp; Downgrade Engine</li>
+                                <li>DarkWeb Intelligence Monitor</li>
+                                <li>Target Discovery Engine</li>
+                                <li>Non-VBV Card Recommendation Engine</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- FAQ -->
+                    <div class="doc-section" id="faq">
+                        <h2>Frequently Asked Questions</h2>
+                        <div class="faq-item">
+                            <h4>What VPS provider is recommended?</h4>
+                            <p>Titan OS is tested on Hostinger KVM 8 (8 CPU, 32GB RAM, 400GB disk) with Debian 12. Any KVM VPS with 4+ cores and 4GB+ RAM running Debian 12 will work.</p>
+                        </div>
+                        <div class="faq-item">
+                            <h4>Are the AI models trained on custom data?</h4>
+                            <p>Yes. The 3 custom Ollama models (Analyst, Strategist, Fast) are fine-tuned on 2,200+ training examples specific to Titan OS operations. The ONNX engine uses INT4 quantization for fast inference.</p>
+                        </div>
+                        <div class="faq-item">
+                            <h4>Can I customize the GUI applications?</h4>
+                            <p>Yes. All 9 apps are written in PyQt6 and are fully extensible. The Enterprise license includes source code access for custom modifications.</p>
+                        </div>
+                        <div class="faq-item">
+                            <h4>How do I get support?</h4>
+                            <p>Contact Lucid Empire directly. All licenses include email support. Professional and Enterprise tiers include priority support from Lucid.</p>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="nav-logo">
+                        <div class="logo-icon"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 4L4 12V28L20 36L36 28V12L20 4Z"/><circle cx="20" cy="20" r="6"/></svg></div>
+                        <span class="logo-text">Titan<span class="accent">OS</span></span>
+                    </a>
+                    <p>Titan OS by Lucid Empire. A complete multi-layer operating system with 115 modules, 9 apps, and 6 AI models. Developed by Lucid.</p>
+                </div>
+                <div class="footer-links"><h4>Platform</h4><a href="features.html">Features</a><a href="services.html">Pricing</a><a href="docs.html">Documentation</a><a href="about.html">About</a></div>
+                <div class="footer-links"><h4>Resources</h4><a href="docs.html#quickstart">Quick Start</a><a href="docs.html#api">API Reference</a><a href="docs.html#changelog">Changelog</a></div>
+                <div class="footer-links"><h4>Lucid Empire</h4><a href="about.html">About Us</a><a href="contact.html">Contact</a><a href="#">GitHub</a></div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Lucid Empire. All rights reserved. Developer: Lucid</p>
+                <div class="footer-legal"><a href="#">Privacy Policy</a><a href="#">Terms of Service</a></div>
+            </div>
+        </div>
+    </footer>
+    <script src="js/main.js"></script>
+</body>
+</html>

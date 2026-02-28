@@ -1,0 +1,41 @@
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════════════════════
+# TITAN X V10.0 — Consolidated Python Pip Dependencies
+# ═══════════════════════════════════════════════════════════════════════════
+# Installs ALL pip packages needed by 106 core modules in one shot.
+# This replaces scattered pip installs across multiple hooks.
+set -e
+
+echo "[TITAN] Installing Python pip dependencies for 106 core modules..."
+
+pip3 install --break-system-packages -q \
+    flask-cors \
+    plyvel \
+    chromadb \
+    aioquic \
+    curl_cffi \
+    langchain \
+    langchain-core \
+    langchain-ollama \
+    onnxruntime \
+    ollama \
+    pydantic \
+    mmh3 \
+    flatbuffers \
+    python-dateutil \
+    2>/dev/null || true
+
+echo "[TITAN] Pip dependencies installed."
+
+# Verify critical imports
+PASS=0
+FAIL=0
+for mod in flask_cors plyvel chromadb aioquic curl_cffi langchain onnxruntime ollama pydantic; do
+    if python3 -c "import $mod" 2>/dev/null; then
+        PASS=$((PASS+1))
+    else
+        echo "  [WARN] Failed to import: $mod"
+        FAIL=$((FAIL+1))
+    fi
+done
+echo "[TITAN] Pip verification: $PASS passed, $FAIL failed"

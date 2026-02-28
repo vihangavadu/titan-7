@@ -1,0 +1,146 @@
+<!DOCTYPE html><html lang="ru" dir="ltr"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self';
+      script-src 'self' https://beacon-v2.helpscout.net 'unsafe-inline';
+      connect-src *;
+      img-src 'self' https://chatapi-prod.s3.amazonaws.com https://*.cloudfront.net data:;
+      style-src 'self' 'unsafe-inline';
+      style-src-elem 'self' https://fonts.googleapis.com 'unsafe-inline';
+      font-src 'self' https://fonts.gstatic.com;
+      media-src 'self' https://beacon-v2.helpscout.net;">
+    <title>Genesis AppX</title>
+    <script>
+      const currentLocation = window.location;
+      if (
+        currentLocation.protocol === "jar:" ||
+        currentLocation.protocol === "file:"
+      ) {
+        document.write('<base href="' + currentLocation.toString() + '" />');
+      } else {
+        document.write('<base href="/" />');
+      }
+    </script>
+    <script>
+      (function (send, open) {
+        const methodsToSpoofing = ["DELETE", "POST", "PUT"];
+        const hrefFilter = new RegExp(
+          '"jar:file:/[a-z]:/|"jar:file:/|"file:///',
+          "gi"
+        );
+        const sanitizeHrefFilter = new RegExp(
+          '^(?:https:\/\/127.0.0.1\/):|\\?|\\\\|\\*|"|<|>|\\||%|\!|#|@|\\(|\\)|\{|\}$',
+          "gi"
+        );
+        const hrefReplace = '"https://127.0.0.1/';
+        XMLHttpRequest.prototype.hsFlag = false;
+        XMLHttpRequest.prototype.open = function () {
+          let hsUrl = false;
+          let hsMethod = false;
+          if (
+            typeof arguments[0] === "string" &&
+            typeof arguments[1] === "string" &&
+            arguments[0].length > 0 &&
+            arguments[1].length > 0
+          ) {
+            hsUrl = /helpscout/gi.test(arguments[1]);
+            hsMethod = methodsToSpoofing.indexOf(arguments[0]) > -1;
+          }
+          this.hsFlag = hsUrl && hsMethod;
+          return open.apply(this, [].slice.call(arguments));
+        };
+        XMLHttpRequest.prototype.send = function () {
+          if (this.hsFlag) {
+            try {
+              this.hsFlag = false;
+              const data = arguments.hasOwnProperty(0) ? arguments[0] : null;
+              if (typeof data === "string" && data.length > 0) {
+                let preparedData = data.replace(hrefFilter, hrefReplace);
+                const parsedData = JSON.parse(preparedData);
+                if (
+                  parsedData !== null &&
+                  parsedData !== undefined &&
+                  parsedData.constructor === {}.constructor &&
+                  parsedData.hasOwnProperty("timeline") &&
+                  parsedData.timeline.constructor === [].constructor
+                ) {
+                  for (let i = 0; i < parsedData.timeline.length; ++i) {
+                    if (
+                      parsedData.timeline[i].constructor === {}.constructor &&
+                      parsedData.timeline[i].hasOwnProperty("url")
+                    ) {
+                      parsedData.timeline[i].url = parsedData.timeline[
+                        i
+                      ].url.replace(sanitizeHrefFilter, "");
+                    }
+                  }
+                  arguments[0] = JSON.stringify(parsedData);
+                }
+              }
+            } catch (e) {
+              this.hsFlag = false;
+            }
+          }
+          try {
+            return send.apply(this, [].slice.call(arguments));
+          } catch (e) {
+            console.log(e);
+          }
+        };
+      })(XMLHttpRequest.prototype.send, XMLHttpRequest.prototype.open);
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <style>:root{--primary:#10b981;--primary-100:#d1fae5;--primary-200:#a7f3d0;--primary-300:#6ee7b7;--primary-400:#34d399;--primary-500:#059669;--primary-600:#065f46;--primary-700:#064e3b;--info:#828b93;--info-100:#f9f9f9;--info-200:#e0e2e7;--info-300:#c2c6ce;--info-400:#9ca5ae;--info-500:#666666;--info-600:#303542;--danger:#ff3c3c;--danger-100:#ffebeb;--danger-200:#ffdcdc;--danger-300:#ebc6c5;--danger-400:#b25352;--danger-500:#a94948;--success:#78b300;--success-50:#73ab00;--success-100:#d9f7e1;--success-200:#5fd13c;--success-300:#267e3f;--success-text:var(--success-300);--success-icon:var(--success-300);--warn:#fbc531;--warn-100:#fff4e5;--warn-200:#fec547;--warn-300:#f7931a;--warn-400:#ff6300;--accent:#714fdf;--white:#ffffff;--background:var(--white);--background-accent:var(--primary);--background-ternary:var(--white);--foreground:var(--info-500);--foreground-link:var(--primary-500);--foreground-inactive:var(--info);--foreground-disabled:var(--info-300);--foreground-accent:var(--primary-200);--foreground-accent-100:var(--white);--sidebar-background-accent:var(--primary-400);--sidebar-background:var(--background-accent);--sidebar-background-active:var(--primary-400);--sidebar-foreground:var(--primary-200);--sidebar-foreground-active:var(--white);--sidebar-border:transparent;--sidebar-inner-border:var(--primary-400);--sidebar-footer-background:var(--white-high-opacity);--sidebar-footer-foreground:var(--white);--sidebar-footer-border:rgba(255, 255, 255, .2);--sidebar-footer-upgrade:var(--warn-200);--sidebar-quick-button-color:var(--primary-200);--sidebar-quick-button-border-color:var(--primary-400);--white-high-opacity:rgba(255, 255, 255, .05);--shadow-primary:rgba(0, 0, 0, .17);--dialog-overlay:rgba(48, 53, 66, .5);--border-primary:var(--info-200);--background-ternary:var(--info-100);--edit-sidebar-update-button:var(--success);--icon-primary:var(--info-300);--icon-active:var(--info-400);--scrollbar:var(--info-300);--scrollbar-light:rgba(255, 255, 255, .2);--play:rgba(225, 234, 255, .4);--play-outer:rgb(225, 234, 255)}@font-face{font-family:Roboto;src:url(Roboto-Bold.447291a88c067396.woff2) format("woff2");font-weight:700;font-style:normal}@font-face{font-family:Roboto;src:url(Roboto-BoldItalic.1b15168ef6fa4e16.woff2) format("woff2");font-weight:700;font-style:italic}@font-face{font-family:Roboto;src:url(Roboto-Medium.457532032ceb0168.woff2) format("woff2");font-weight:500;font-style:normal}@font-face{font-family:Roboto;src:url(Roboto-MediumItalic.872f7060602d55d2.woff2) format("woff2");font-weight:500;font-style:italic}@font-face{font-family:Roboto;src:url(Roboto-Regular.475ba9e4e2d63456.woff2) format("woff2");font-weight:400;font-style:normal}@font-face{font-family:Roboto;src:url(Roboto-RegularItalic.e3a9ebdaac06bbc4.woff2) format("woff2");font-weight:400;font-style:italic}@font-face{font-family:Roboto;src:url(Roboto-Light.0e01b6cd13b3857f.woff2) format("woff2");font-weight:300;font-style:normal}@font-face{font-family:Roboto;src:url(Roboto-LightItalic.232ef4b20215f720.woff2) format("woff2");font-weight:300;font-style:italic}.mat-typography{font:400 14px/20px Roboto,Helvetica Neue,sans-serif;letter-spacing:normal}html,body{-webkit-user-select:none;user-select:none}html{overflow:hidden}html,body{-webkit-text-size-adjust:none;margin:0;width:100vw;height:100vh}body{width:100%;height:100%;box-sizing:border-box;overflow:auto;background-color:var(--background)}.app-wrapper{height:100%;min-width:1150px}</style><link rel="stylesheet" href="styles.efb9319d26f9bdd7.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="styles.efb9319d26f9bdd7.css"></noscript>
+    <script>
+      // Genesis AppX - Auth Bypass & Bridge Connection
+      window.__GENESIS_APPX__ = true;
+      window.__GENESIS_BRIDGE__ = 'http://127.0.0.1:36200';
+
+      // Intercept fetch to redirect ML6 API calls to Genesis Bridge
+      (function(){
+        var _f = window.fetch;
+        window.fetch = function(u, o) {
+          var s = typeof u === 'string' ? u : (u && u.url) || '';
+          // List of paths to redirect to Genesis Bridge
+          var bridge = ['/bridge/','/rest/','/api/v1/','/version','/browser-cores',
+            '/systemScreen','/msgs/','/mimic/','/stealth_fox/','/download-browser','/health'];
+          for (var i = 0; i < bridge.length; i++) {
+            if (s.indexOf(bridge[i]) !== -1) {
+              try {
+                var p = new URL(s, 'http://localhost').pathname;
+                var q = new URL(s, 'http://localhost').search;
+                return _f(window.__GENESIS_BRIDGE__ + p + q, o);
+              } catch(e) {}
+            }
+          }
+          return _f(u, o);
+        };
+
+        // Also intercept XMLHttpRequest
+        var _xo = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(m, u) {
+          var s = typeof u === 'string' ? u : '';
+          var bridge = ['/bridge/','/rest/','/api/v1/'];
+          for (var i = 0; i < bridge.length; i++) {
+            if (s.indexOf(bridge[i]) !== -1) {
+              try {
+                var p = new URL(s, 'http://localhost').pathname;
+                var q = new URL(s, 'http://localhost').search;
+                return _xo.call(this, m, window.__GENESIS_BRIDGE__ + p + q);
+              } catch(e) {}
+            }
+          }
+          return _xo.apply(this, arguments);
+        };
+        console.log('[Genesis AppX] Bridge at ' + window.__GENESIS_BRIDGE__);
+      })();
+    </script>
+  </head>
+  <body class="mat-typography">
+    <div class="app-wrapper">
+      <app-root></app-root>
+    </div>
+  <script src="runtime.25b894becc46daaf.js" type="module"></script><script src="polyfills.810e389791d96a29.js" type="module"></script><script src="vendor.3dfc8e8c1245e5a7.js" type="module"></script><script src="main.7a8d80207b5bcadd.js" type="module"></script>
+
+</body></html>

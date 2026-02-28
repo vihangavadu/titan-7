@@ -498,7 +498,7 @@ class TitanIntelligence(QMainWindow):
         QTimer.singleShot(300, self._restore_session_context)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V9.1 — Intelligence Center")
+        self.setWindowTitle("TITAN X — Intelligence Center")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -568,21 +568,56 @@ class TitanIntelligence(QMainWindow):
         layout.setSpacing(10)
         layout.setContentsMargins(12, 12, 12, 12)
 
-        # Status bar
-        status_grp = QGroupBox("AI Engine Status")
-        sf = QHBoxLayout(status_grp)
+        # AI Model Health + Engine Toggle
+        status_grp = QGroupBox("AI Engine Status & Model Selection")
+        sf = QVBoxLayout(status_grp)
+
+        # Engine status dots
+        dot_row = QHBoxLayout()
         engines = [
             ("AI Intelligence", AI_OK),
             ("Ollama Bridge", OLLAMA_OK),
+            ("ONNX Engine", ONNX_OK),
             ("Realtime Copilot", COPILOT_OK),
-            ("Agent Chain", AGENT_OK),
             ("Vector Memory", VECTOR_OK),
         ]
         for name, ok in engines:
             dot = QLabel(f"{'●' if ok else '○'} {name}")
             dot.setStyleSheet(f"color: {GREEN if ok else RED}; font-size: 11px;")
-            sf.addWidget(dot)
-        sf.addStretch()
+            dot_row.addWidget(dot)
+        dot_row.addStretch()
+        sf.addLayout(dot_row)
+
+        # Model selector + ONNX toggle
+        model_row = QHBoxLayout()
+        model_row.addWidget(QLabel("Engine:"))
+        self.ai_engine_selector = QComboBox()
+        self.ai_engine_selector.addItems(["Auto (Ollama + ONNX)", "Ollama Only", "ONNX Only"])
+        self.ai_engine_selector.setMaximumWidth(220)
+        model_row.addWidget(self.ai_engine_selector)
+
+        model_row.addWidget(QLabel("Fast Model:"))
+        self.fast_model = QLabel("qwen2.5:3b" if OLLAMA_OK else "N/A")
+        self.fast_model.setStyleSheet(f"color: {GREEN if OLLAMA_OK else RED}; font-weight: bold;")
+        model_row.addWidget(self.fast_model)
+
+        model_row.addWidget(QLabel("Analyst:"))
+        self.analyst_model = QLabel("qwen2.5:7b" if OLLAMA_OK else "N/A")
+        self.analyst_model.setStyleSheet(f"color: {GREEN if OLLAMA_OK else RED}; font-weight: bold;")
+        model_row.addWidget(self.analyst_model)
+
+        model_row.addWidget(QLabel("ONNX:"))
+        self.onnx_model = QLabel("phi-4-mini" if ONNX_OK else "N/A")
+        self.onnx_model.setStyleSheet(f"color: {GREEN if ONNX_OK else RED}; font-weight: bold;")
+        model_row.addWidget(self.onnx_model)
+
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setStyleSheet(f"background: {CARD2}; color: {TXT}; padding: 4px 10px; border-radius: 4px; font-size: 10px;")
+        refresh_btn.clicked.connect(self._refresh_ai_health)
+        model_row.addWidget(refresh_btn)
+
+        model_row.addStretch()
+        sf.addLayout(model_row)
         layout.addWidget(status_grp)
 
         # Chat interface
@@ -612,10 +647,10 @@ class TitanIntelligence(QMainWindow):
         # Quick actions
         qa_row = QHBoxLayout()
         for label, action in [
+            ("Pre-Op Checklist", lambda: self._generate_preop_checklist()),
             ("Plan Operation", lambda: self._quick_ask("Plan a full operation for the current target")),
             ("Analyze BIN", lambda: self._quick_ask("Analyze BIN intelligence for the card I'm using")),
             ("3DS Advice", lambda: self._quick_ask("What 3DS strategy should I use for this target?")),
-            ("Profile Audit", lambda: self._quick_ask("Audit my current profile for detection risks")),
         ]:
             btn = QPushButton(label)
             btn.setStyleSheet(f"background: {CARD2}; color: {TXT}; padding: 6px 12px; border-radius: 4px; font-size: 11px;")
@@ -675,6 +710,19 @@ class TitanIntelligence(QMainWindow):
         btn_row.addWidget(self.tds_ai_btn)
         btn_row.addStretch()
         bf.addRow("", btn_row)
+
+        # Non-VBV BIN Finder
+        nvbv_row = QHBoxLayout()
+        nvbv_btn = QPushButton("Find Non-VBV BINs")
+        nvbv_btn.setStyleSheet(f"background: {GREEN}; color: black; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        nvbv_btn.clicked.connect(self._find_non_vbv)
+        nvbv_row.addWidget(nvbv_btn)
+        self.nvbv_country = QComboBox()
+        self.nvbv_country.addItems(["US", "UK", "CA", "AU", "DE", "FR", "NL", "SE", "JP", "ALL"])
+        self.nvbv_country.setFixedWidth(80)
+        nvbv_row.addWidget(self.nvbv_country)
+        nvbv_row.addStretch()
+        bf.addRow("", nvbv_row)
 
         layout.addWidget(bypass_grp)
 
@@ -996,6 +1044,41 @@ class TitanIntelligence(QMainWindow):
     # ACTIONS
     # ═══════════════════════════════════════════════════════════════════════
 
+    def _refresh_ai_health(self):
+        """Check which AI models are loaded and available."""
+        # Ollama models
+        if OLLAMA_OK:
+            try:
+                from ollama_bridge import LLMLoadBalancer
+                bridge = LLMLoadBalancer()
+                if bridge.is_available():
+                    self.fast_model.setText("qwen2.5:3b ✓")
+                    self.fast_model.setStyleSheet(f"color: {GREEN}; font-weight: bold;")
+                    self.analyst_model.setText("qwen2.5:7b ✓")
+                    self.analyst_model.setStyleSheet(f"color: {GREEN}; font-weight: bold;")
+                else:
+                    self.fast_model.setText("offline")
+                    self.fast_model.setStyleSheet(f"color: {RED}; font-weight: bold;")
+                    self.analyst_model.setText("offline")
+                    self.analyst_model.setStyleSheet(f"color: {RED}; font-weight: bold;")
+            except Exception:
+                self.fast_model.setText("error")
+                self.fast_model.setStyleSheet(f"color: {RED};")
+        # ONNX
+        if ONNX_OK:
+            try:
+                from titan_onnx_engine import get_engine
+                engine = get_engine()
+                if engine and engine.is_available():
+                    self.onnx_model.setText("phi-4-mini ✓")
+                    self.onnx_model.setStyleSheet(f"color: {GREEN}; font-weight: bold;")
+                else:
+                    self.onnx_model.setText("not loaded")
+                    self.onnx_model.setStyleSheet(f"color: {YELLOW}; font-weight: bold;")
+            except Exception:
+                self.onnx_model.setText("error")
+                self.onnx_model.setStyleSheet(f"color: {RED};")
+
     def _ask_copilot(self):
         query = self.copilot_input.text().strip()
         if not query:
@@ -1009,6 +1092,58 @@ class TitanIntelligence(QMainWindow):
         self._ai_worker.finished.connect(self._on_copilot_response)
         self._ai_worker.start()
 
+    def _generate_preop_checklist(self):
+        session = get_session() if _SESSION_OK else {}
+        target = session.get("target", "unknown")
+        bin6 = session.get("last_bin", "")
+        profile_path = session.get("last_profile_path", "")
+        quality = session.get("last_forge_quality", 0)
+        lines = [
+            "╔══════════════════════════════════════════════════════════╗",
+            "║            PRE-OPERATION CHECKLIST                      ║",
+            "╚══════════════════════════════════════════════════════════╝",
+            "",
+            f"Target: {target}",
+            f"BIN: {bin6 or 'NOT SET — validate a card first'}",
+            f"Profile: {profile_path or 'NOT SET — forge a profile first'}",
+            f"Quality: {quality}/100" if quality else "Quality: NOT SCORED",
+            "",
+            "═══ ENVIRONMENT ═══",
+            "[ ] VPN connected to billing region",
+            "[ ] IP reputation checked (not datacenter/VPN flagged)",
+            "[ ] Timezone matches billing state",
+            "[ ] DNS leak test passed",
+            "[ ] Hardware shield active (TITAN_HW_SPOOF=ACTIVE)",
+            "",
+            "═══ PROFILE ═══",
+            f"[ ] Profile forged with {'✅ ' + str(quality) + '/100' if quality >= 80 else '⚠️ LOW QUALITY — re-forge'}",
+            "[ ] Autofill data pre-populated (name, address, card)",
+            "[ ] Stripe __stripe_mid cookie present (pre-aged 30+ days)",
+            "[ ] Cache size ≥ 100MB",
+            "[ ] History entries ≥ 100",
+            "",
+            "═══ CARD ═══",
+            f"[ ] BIN validated: {bin6 or 'PENDING'}",
+            "[ ] Luhn check passed",
+            "[ ] AVS pre-check (ZIP matches state)",
+            "[ ] Card not in cooling period",
+            "[ ] Issuer velocity limit not reached",
+            "",
+            "═══ EXECUTION TIMING ═══",
+            "[ ] Time: weekday 10am-8pm local (billing timezone)",
+            "[ ] Session warm-up: 2-3 mins browsing before target",
+            "[ ] Page dwell: 15-30s per page (not instant)",
+            "[ ] Checkout typing: ~85 WPM (not instant)",
+            "[ ] 3DS delay: 10-15s (simulate phone unlock)",
+            "",
+            "═══ POST-OP ═══",
+            "[ ] Check email tab for receipt (45s wait)",
+            "[ ] Do NOT close browser immediately",
+            "[ ] Log result in Operations Center",
+            "[ ] Cool card BIN for minimum 2 hours",
+        ]
+        self.copilot_output.setPlainText("\n".join(lines))
+
     def _quick_ask(self, query):
         self.copilot_input.setText(query)
         self._ask_copilot()
@@ -1016,6 +1151,50 @@ class TitanIntelligence(QMainWindow):
     def _on_copilot_response(self, response):
         self.copilot_send.setEnabled(True)
         self.copilot_history.append(f"\n{response}\n{'─' * 60}")
+
+    def _find_non_vbv(self):
+        country = self.nvbv_country.currentText()
+        lines = ["═══ NON-VBV / LOW-3DS BIN INTELLIGENCE ═══", ""]
+        if THREEDS_OK:
+            try:
+                if country == "ALL":
+                    bins = get_all_non_vbv_bins() if hasattr(get_all_non_vbv_bins, '__call__') else []
+                else:
+                    easy = get_easy_countries() if hasattr(get_easy_countries, '__call__') else {}
+                    bins = get_all_non_vbv_bins() if hasattr(get_all_non_vbv_bins, '__call__') else []
+                    if isinstance(bins, dict):
+                        bins = bins.get(country, [])
+                    elif isinstance(bins, list):
+                        bins = [b for b in bins if isinstance(b, dict) and b.get("country", "") == country]
+                if bins:
+                    lines.append(f"Found {len(bins) if isinstance(bins, list) else 'N/A'} non-VBV BINs for {country}:")
+                    lines.append(json.dumps(bins, indent=2, default=str)[:3000])
+                else:
+                    lines.append(f"No non-VBV BINs found for {country} in database")
+            except Exception as e:
+                lines.append(f"Error: {e}")
+        else:
+            lines.append("three_ds_strategy module not loaded")
+
+        lines.append("\n═══ EASY COUNTRIES (Low 3DS Enforcement) ═══")
+        if THREEDS_OK:
+            try:
+                easy = get_easy_countries() if hasattr(get_easy_countries, '__call__') else {}
+                if easy:
+                    lines.append(json.dumps(easy, indent=2, default=str)[:1500])
+                else:
+                    lines.append("No easy country data available")
+            except Exception as e:
+                lines.append(f"Error: {e}")
+
+        if INTEL_V2_FULL_OK:
+            try:
+                lines.append("\n═══ PSP 3DS BEHAVIOR ═══")
+                lines.append(json.dumps(dict(list(PSP_3DS_BEHAVIOR.items())[:5]), indent=2, default=str)[:1000])
+            except Exception:
+                pass
+
+        self.tds_output.setPlainText("\n".join(lines))
 
     def _generate_3ds_plan(self):
         if not THREEDS_OK:

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-TITAN V9.1 LAUNCHER — Clean Entry Point
-========================================
-9 apps, 3×3 grid, 115 core modules — zero orphans.
+TITAN X LAUNCHER — Clean Entry Point
+======================================
+11 apps, 4-row grid, 115 core modules — zero orphans.
 
-App Structure (V9.1):
+App Structure (Titan X):
   Row 1: Operations Center | Intelligence Center | Network Center
   Row 2: KYC Studio | Admin Panel | Settings
   Row 3: Profile Forge | Card Validator | Browser Launch
+  Row 4: Genesis AppX | Bug Reporter
 """
 
 import sys
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QFrame, QGridLayout, QGroupBox
+    QLabel, QPushButton, QFrame, QGridLayout, QGroupBox, QMessageBox
 )
 from PyQt6.QtCore import Qt, QTimer, QProcess
 from PyQt6.QtGui import QFont, QColor, QPalette, QPainter, QLinearGradient
@@ -160,11 +161,12 @@ class HealthIndicator(QFrame):
 
 class TitanLauncher(QMainWindow):
     """
-    TITAN V9.1 Launcher — 9 apps, 3×3 grid, 115 modules, zero orphans.
+    TITAN X Launcher — 11 apps, 4-row grid, 115 modules, zero orphans.
 
     Row 1: Operations (38) | Intelligence (20) | Network (18)
-    Row 2: KYC Studio (8) | Admin (14) | Settings (all tools)
+    Row 2: KYC Studio (12) | Admin (14) | Settings (all tools)
     Row 3: Profile Forge (9 stages) | Card Validator | Browser Launch
+    Row 4: Genesis AppX (standalone) | Bug Reporter
     """
 
     def __init__(self):
@@ -174,13 +176,13 @@ class TitanLauncher(QMainWindow):
         QTimer.singleShot(500, self._check_health)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V9.1 — Launcher")
+        self.setWindowTitle("TITAN X — Launcher")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
         except Exception:
             pass
-        self.setFixedSize(1180, 700)
+        self.setFixedSize(1180, 980)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -189,13 +191,13 @@ class TitanLauncher(QMainWindow):
         layout.setSpacing(16)
 
         # Header
-        header = QLabel("TITAN V9.1")
+        header = QLabel("TITAN X")
         header.setFont(QFont("Inter", 28, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(f"color: {ACCENT};")
         layout.addWidget(header)
 
-        subtitle = QLabel("SINGULARITY \u2014 MAXIMUM LEVEL")
+        subtitle = QLabel("V10.0 \u2014 115 MODULES \u2022 11 APPS \u2022 ZERO ORPHANS")
         subtitle.setFont(QFont("JetBrains Mono", 11))
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet(f"color: {TEXT_SECONDARY}; letter-spacing: 4px;")
@@ -298,6 +300,30 @@ class TitanLauncher(QMainWindow):
 
         layout.addLayout(row3)
 
+        row4 = QHBoxLayout()
+        row4.setSpacing(12)
+
+        row4.addWidget(AppCard(
+            title="Genesis AppX",
+            subtitle="STANDALONE \u2022 ML6 BROWSER",
+            description="Profile management via Genesis engine\nGolden Ticket \u2022 Target-aware forge \u2022 Bridge API",
+            accent="#10b981",
+            icon_char="\ud83d\udc8e",
+            script="../../../tools/multilogin6/genesis_appx/launch_genesis_appx.sh",
+        ))
+
+        row4.addWidget(AppCard(
+            title="Bug Reporter",
+            subtitle="REPORT \u2022 PATCH \u2022 TRACK",
+            description="Decline patterns \u2022 Auto-patcher\nWindsurf IDE bridge \u2022 Bug database",
+            accent="#5588ff",
+            icon_char="\ud83d\udc1b",
+            script="app_bug_reporter.py",
+        ))
+
+        row4.addStretch()
+        layout.addLayout(row4)
+
         # Health Status Bar
         health_frame = QFrame()
         health_frame.setStyleSheet(f"""
@@ -360,7 +386,7 @@ class TitanLauncher(QMainWindow):
                 spec.loader.exec_module(mod)
                 self.h_version.set_status(mod.__version__, GREEN)
         except Exception:
-            self.h_version.set_status("9.1.0", ACCENT)
+            self.h_version.set_status("10.0.0", ACCENT)
 
         # Module count
         core_dir = Path(__file__).parent.parent / "core"

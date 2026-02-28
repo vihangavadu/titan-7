@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Titan OS — By Lucid Empire | Advanced Operating System Platform</title>
+    <meta name="description" content="Titan OS by Lucid Empire. A complete operating system with 115 core modules, 9 GUI applications, 6 AI models, and 8-ring defense architecture. Built by Lucid.">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="nav-logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M20 4L4 12V28L20 36L36 28V12L20 4Z"/>
+                        <circle cx="20" cy="20" r="6"/>
+                    </svg>
+                </div>
+                <span class="logo-text">Titan<span class="accent">OS</span></span>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="index.html" class="nav-link active">Home</a>
+                <a href="about.html" class="nav-link">About</a>
+                <a href="features.html" class="nav-link">Features</a>
+                <a href="services.html" class="nav-link">Pricing</a>
+                <a href="docs.html" class="nav-link">Docs</a>
+                <a href="contact.html" class="nav-link">Contact</a>
+            </div>
+            <div class="nav-actions">
+                <a href="docs.html" class="btn btn-ghost btn-sm">Documentation</a>
+                <a href="contact.html" class="btn btn-primary btn-sm">Get Started</a>
+                <button class="menu-toggle" id="menuToggle">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-bg">
+            <div class="grid-overlay"></div>
+            <div class="gradient-orb orb-1"></div>
+            <div class="gradient-orb orb-2"></div>
+            <div class="gradient-orb orb-3"></div>
+        </div>
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="badge-dot"></span>
+                    Titan OS V9.1 — By Lucid Empire
+                </div>
+                <h1 class="hero-title">
+                    The Most Advanced <span class="gradient-text">Operating System</span> Ever Built
+                </h1>
+                <p class="hero-subtitle">
+                    Titan OS is a multi-layer reality synthesis operating system with 115 core modules, 9 GUI applications, 6 custom AI models, and an 8-ring defense architecture. Engineered by <strong>Lucid</strong> at <strong>Lucid Empire</strong>.
+                </p>
+                <div class="hero-cta">
+                    <a href="features.html" class="btn btn-primary btn-lg">Explore Features</a>
+                    <a href="services.html" class="btn btn-ghost btn-lg">View Pricing</a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number" data-count="115">0</span><span class="stat-suffix">+</span>
+                        <span class="stat-label">Core Modules</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat">
+                        <span class="stat-number" data-count="9">0</span>
+                        <span class="stat-label">GUI Applications</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat">
+                        <span class="stat-number" data-count="6">0</span>
+                        <span class="stat-label">AI Models</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat">
+                        <span class="stat-number" data-count="38">0</span><span class="stat-suffix">+</span>
+                        <span class="stat-label">Tabs & Panels</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Terminal Animation -->
+        <div class="hero-visual">
+            <div class="terminal-window">
+                <div class="terminal-header">
+                    <div class="terminal-dots">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                    </div>
+                    <span class="terminal-title">lucid@titan-os:~</span>
+                </div>
+                <div class="terminal-body" id="terminalBody">
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="command">titan --status</span>
+                    </div>
+                    <div class="terminal-line output">
+                        <span class="success">&#10003;</span>
+                        <span class="command">Core modules: 115/115 loaded</span>
+                    </div>
+                    <div class="terminal-line output">
+                        <span class="success">&#10003;</span>
+                        <span class="command">AI models: 6 active (ONNX + Ollama)</span>
+                    </div>
+                    <div class="terminal-line output">
+                        <span class="success">&#10003;</span>
+                        <span class="command">8-Ring Defense: ALL GREEN</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="command">titan --verify --full</span>
+                    </div>
+                    <div class="terminal-line output">
+                        <span class="info">&#8635;</span>
+                        <span class="command">Verifying 50+ vectors...</span>
+                    </div>
+                    <div class="terminal-line output">
+                        <span class="success">&#10003;</span>
+                        <span class="command">SYSTEM OPERATIONAL | v9.1.0</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="prompt">$</span>
+                        <span class="cursor">&#9610;</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Platform Overview -->
+    <section class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Platform Overview</span>
+                <h2 class="section-title">A Complete <span class="gradient-text">Operating System</span></h2>
+                <p class="section-desc">Titan OS is not just software — it's a full operating system built on Debian 12, with kernel-level modules, GUI desktop environment, AI inference stack, and 115+ integrated Python modules.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <h3>8-Ring Defense Architecture</h3>
+                    <p>Concentric ring model: Kernel Shield, Network Shield, Environment, Identity, Transaction, Intelligence/AI, KYC Verification, and Operations — each ring independent.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                        </svg>
+                    </div>
+                    <h3>6 Custom AI Models</h3>
+                    <p>Phi-4-mini ONNX INT4 engine with 33 task routes + 3 custom Ollama models (Analyst, Strategist, Fast) trained on 2,200+ operator examples.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>
+                        </svg>
+                    </div>
+                    <h3>9 GUI Applications</h3>
+                    <p>Professional PyQt6 desktop apps in a 3x3 launcher grid — Operations, Intelligence, Network, KYC Studio, Admin, Settings, Profile Forge, Card Validator, Browser Launch.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9"/>
+                        </svg>
+                    </div>
+                    <h3>Network Sovereignty</h3>
+                    <p>eBPF/XDP kernel-level packet manipulation, JA3/JA4 TLS fingerprint parroting, QUIC/HTTP3 proxy, residential proxy management, and DNS-over-HTTPS isolation.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/>
+                        </svg>
+                    </div>
+                    <h3>Genesis Profile Engine</h3>
+                    <p>700MB+ forensic-grade browser profiles with 9-stage forge pipeline, 90-day browsing history, purchase records, IndexedDB synthesis, and realism scoring (0-100).</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>
+                        </svg>
+                    </div>
+                    <h3>Kill Switch &amp; Forensics</h3>
+                    <p>Sub-500ms emergency destruction, immutable OS states, secure byte-level wiping, dead-man trigger, and forensic synthesis engine for cache artifact generation.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="section">
+        <div class="container">
+            <div class="tech-content">
+                <div class="tech-text">
+                    <span class="section-tag">Technology Stack</span>
+                    <h2 class="section-title">Built by <span class="gradient-text">Lucid</span> at Lucid Empire</h2>
+                    <p>Titan OS runs on Debian 12 with a complete software stack — from kernel modules written in C to Python core engines and PyQt6 desktop applications. Every component engineered by Lucid.</p>
+                    <ul class="tech-list">
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                            115 Python + 3 C core modules
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                            9 PyQt6 GUI applications (38+ tabs)
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                            6 AI models (Ollama + ONNX INT4)
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                            10 external tools (Camoufox, Mullvad, Xray, Redis, Ollama, ntfy...)
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                            2 browser extensions (Ghost Motor, TX Monitor)
+                        </li>
+                        <li>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                            Bootable ISO with UEFI + BIOS support
+                        </li>
+                    </ul>
+                    <a href="features.html" class="btn btn-outline btn-lg">See All Features</a>
+                </div>
+                <div class="code-block">
+                    <div class="code-header">
+                        <span>titan_init.py</span>
+                        <span>Python 3.11</span>
+                    </div>
+                    <div class="code-content">
+                        <code>
+<span class="comment"># Titan OS V9.1 — Lucid Empire</span>
+<span class="kw">from</span> titan.core <span class="kw">import</span> <span class="fn">IntegrationBridge</span>
+<span class="kw">from</span> titan.ai <span class="kw">import</span> <span class="fn">OnnxEngine</span>
+
+<span class="comment"># Initialize all 115 modules</span>
+bridge = <span class="fn">IntegrationBridge</span>()
+bridge.<span class="fn">initialize</span>()
+<span class="kw">print</span>(f<span class="str">"Modules: {bridge.module_count}"</span>)
+<span class="comment"># → Modules: 115</span>
+
+<span class="comment"># AI engine — 33 task routes</span>
+ai = <span class="fn">OnnxEngine</span>(
+    model=<span class="str">"phi-4-mini-int4"</span>,
+    task_routes=<span class="num">33</span>
+)
+
+<span class="comment"># 9 apps, 38 tabs, 8 rings</span>
+<span class="comment"># All operational. Built by Lucid.</span>
+result = ai.<span class="fn">analyze</span>(<span class="str">"system_health"</span>)
+<span class="kw">print</span>(f<span class="str">"Status: {result.status}"</span>)
+<span class="comment"># → Status: ALL_GREEN</span>
+                        </code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-card">
+                <div class="cta-content">
+                    <h2>Ready to Experience Titan OS?</h2>
+                    <p>Built by Lucid at Lucid Empire. The most comprehensive operating system platform available. Contact us for licensing and deployment.</p>
+                    <div class="cta-buttons">
+                        <a href="services.html" class="btn btn-white btn-lg">View Pricing</a>
+                        <a href="contact.html" class="btn btn-ghost-white btn-lg">Contact Lucid Empire</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="nav-logo">
+                        <div class="logo-icon">
+                            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <path d="M20 4L4 12V28L20 36L36 28V12L20 4Z"/>
+                                <circle cx="20" cy="20" r="6"/>
+                            </svg>
+                        </div>
+                        <span class="logo-text">Titan<span class="accent">OS</span></span>
+                    </a>
+                    <p>Titan OS by Lucid Empire. A complete multi-layer operating system with 115 modules, 9 apps, and 6 AI models. Developed by Lucid.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Platform</h4>
+                    <a href="features.html">Features</a>
+                    <a href="services.html">Pricing</a>
+                    <a href="docs.html">Documentation</a>
+                    <a href="about.html">About</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <a href="docs.html#quickstart">Quick Start</a>
+                    <a href="docs.html#api">API Reference</a>
+                    <a href="docs.html#changelog">Changelog</a>
+                    <a href="docs.html#faq">FAQ</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Lucid Empire</h4>
+                    <a href="about.html">About Us</a>
+                    <a href="contact.html">Contact</a>
+                    <a href="#">GitHub</a>
+                    <a href="#">Discord</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>&copy; 2026 Lucid Empire. All rights reserved. Developer: Lucid</span>
+                <div class="footer-legal">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

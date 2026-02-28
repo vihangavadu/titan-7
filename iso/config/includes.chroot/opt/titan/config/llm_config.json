@@ -1,11 +1,19 @@
 {
-  "_comment": "TITAN V7.5 — Multi-Provider LLM Configuration",
-  "_doc": "Priority order: providers are tried top-to-bottom per task. First available provider wins.",
+  "_comment": "TITAN X V10.0 — 4-Model ONNX AI Architecture (67 task routes, CPU-only, no GPU)",
+  "_doc": "4 ONNX INT4 models, zero Ollama overhead. FLASH=Qwen2.5-0.5B (350MB, <1s), ANALYST=Qwen2.5-1.5B (1GB, ~2s), STRATEGIST=Phi-3.5-mini (2.2GB, ~4s), OPERATOR=SmolLM2-1.7B (1.1GB, ~2s). Total AI RAM: ~4.65GB (was 9GB).",
 
   "providers": {
-    "openai": {
+    "ollama": {
       "enabled": true,
       "api_key": "",
+      "base_url": "http://127.0.0.1:11434",
+      "default_model": "titan-fast",
+      "max_retries": 2,
+      "timeout": 180
+    },
+    "openai": {
+      "enabled": true,
+      "api_key": "Chilaw@123@llm",
       "base_url": "https://api.openai.com/v1",
       "default_model": "gpt-4o-mini",
       "max_retries": 2,
@@ -13,7 +21,7 @@
     },
     "anthropic": {
       "enabled": true,
-      "api_key": "",
+      "api_key": "Chilaw@123@llm",
       "base_url": "https://api.anthropic.com/v1",
       "default_model": "claude-3-5-sonnet-20241022",
       "max_retries": 2,
@@ -21,74 +29,341 @@
     },
     "groq": {
       "enabled": true,
-      "api_key": "",
+      "api_key": "Chilaw@123@llm",
       "base_url": "https://api.groq.com/openai/v1",
       "default_model": "llama-3.1-70b-versatile",
       "max_retries": 2,
       "timeout": 60
+    }
+  },
+
+  "models": {
+    "_doc": "4 ONNX INT4 models. All CPU-native, zero Ollama overhead. Total 4.65GB RAM (was 9GB).",
+    "titan-flash": {
+      "base": "Qwen2.5-0.5B-Instruct",
+      "format": "ONNX-INT4",
+      "params": "0.5B",
+      "size_mb": 350,
+      "strengths": ["speed", "generation", "warmup_content", "cookie_values", "search_queries", "behavioral_tuning"],
+      "context_window": 32768,
+      "avg_response_sec": 1,
+      "path": "/opt/titan/models/flash",
+      "_note": "Replaces qwen2.5:3b — 6x smaller (350MB vs 1.9GB), 3x faster, ONNX native"
     },
-    "openrouter": {
-      "enabled": true,
-      "api_key": "",
-      "base_url": "https://openrouter.ai/api/v1",
-      "default_model": "meta-llama/llama-3.1-70b-instruct",
-      "max_retries": 2,
-      "timeout": 120
+    "titan-analyst": {
+      "base": "Qwen2.5-1.5B-Instruct",
+      "format": "ONNX-INT4",
+      "params": "1.5B",
+      "size_mb": 1000,
+      "strengths": ["structured_output", "json_extraction", "bin_analysis", "profile_validation", "coherence_check"],
+      "context_window": 32768,
+      "avg_response_sec": 2,
+      "path": "/opt/titan/models/analyst",
+      "_note": "Replaces qwen2.5:7b — 5x faster (2s vs 10s), maintains JSON quality"
     },
-    "ollama": {
-      "enabled": true,
-      "api_key": "",
-      "base_url": "http://127.0.0.1:11434",
-      "default_model": "qwen2.5:7b",
-      "max_retries": 1,
-      "timeout": 180
+    "titan-strategist": {
+      "base": "Phi-3.5-mini-instruct",
+      "format": "ONNX-INT4",
+      "params": "3.8B",
+      "size_mb": 2200,
+      "strengths": ["strategy", "risk_analysis", "multi_step_planning", "detection_analysis", "deep_reasoning"],
+      "context_window": 131072,
+      "avg_response_sec": 4,
+      "path": "/opt/titan/models/strategist",
+      "_note": "Replaces phi-4-mini — same size but 128K context (was 4K), better reasoning"
+    },
+    "titan-operator": {
+      "base": "SmolLM2-1.7B-Instruct",
+      "format": "ONNX-INT4",
+      "params": "1.7B",
+      "size_mb": 1100,
+      "strengths": ["human_reasoning", "situation_assessment", "instinct", "timing", "abort_decisions", "conversational"],
+      "context_window": 8192,
+      "avg_response_sec": 2,
+      "path": "/opt/titan/models/operator",
+      "_note": "NEW — Human operator copilot. Thinks like a seasoned operator: cautious, adaptive, instinct-driven"
     }
   },
 
   "task_routing": {
-    "_doc": "Maps task types to preferred provider+model combos. Tried in order; first available wins.",
+    "_doc": "Maps AI function → best model. Each task uses the model whose strengths match the need.",
+
+    "bin_analysis": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Custom-tuned for structured BIN data extraction + JSON"}
+    ],
     "bin_generation": [
-      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
-      {"provider": "openai",     "model": "gpt-4o-mini"},
-      {"provider": "openrouter", "model": "meta-llama/llama-3.1-70b-instruct"},
-      {"provider": "ollama",     "model": "qwen2.5:7b"}
+      {"provider": "ollama", "model": "titan-analyst"}
+    ],
+    "target_recon": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Custom-tuned for structured intel extraction"}
     ],
     "site_discovery": [
-      {"provider": "openai",     "model": "gpt-4o-mini"},
-      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
-      {"provider": "anthropic",  "model": "claude-3-5-sonnet-20241022"},
-      {"provider": "ollama",     "model": "qwen2.5:7b"}
+      {"provider": "ollama", "model": "titan-analyst"}
     ],
-    "preset_generation": [
-      {"provider": "anthropic",  "model": "claude-3-5-sonnet-20241022"},
-      {"provider": "openai",     "model": "gpt-4o"},
-      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
-      {"provider": "ollama",     "model": "qwen2.5:7b"}
+    "three_ds_strategy": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Custom-tuned for 3DS multi-factor risk reasoning"}
     ],
-    "country_profiles": [
-      {"provider": "openai",     "model": "gpt-4o-mini"},
-      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
-      {"provider": "anthropic",  "model": "claude-3-5-sonnet-20241022"},
-      {"provider": "ollama",     "model": "qwen2.5:7b"}
+    "operation_planning": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Custom-tuned for multi-step operation strategy"}
     ],
-    "dork_generation": [
-      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
-      {"provider": "openai",     "model": "gpt-4o-mini"},
-      {"provider": "openrouter", "model": "meta-llama/llama-3.1-70b-instruct"},
-      {"provider": "ollama",     "model": "mistral:7b-instruct-v0.2-q4_0"}
+    "detection_analysis": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Custom-tuned for detection root cause analysis"}
+    ],
+    "decline_analysis": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Custom-tuned for decline pattern correlation"}
+    ],
+    "preflight_advisor": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Custom-tuned for go/no-go risk assessment"}
+    ],
+    "profile_audit": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Custom-tuned for structured profile quality analysis"}
+    ],
+    "behavioral_tuning": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Custom-tuned for fast behavioral guidance"}
+    ],
+    "persona_enrichment": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Custom-tuned for structured demographic generation"}
+    ],
+    "coherence_check": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Custom-tuned for JSON coherence scoring"}
+    ],
+    "copilot_guidance": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Custom-tuned for fast real-time operator guidance"}
     ],
     "warmup_searches": [
-      {"provider": "groq",       "model": "llama-3.1-8b-instant"},
-      {"provider": "openai",     "model": "gpt-4o-mini"},
-      {"provider": "ollama",     "model": "mistral:7b-instruct-v0.2-q4_0"}
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Custom-tuned for fast search generation"}
     ],
+    "dork_generation": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Custom-tuned for fast dork generation"}
+    ],
+    "preset_generation": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Custom-tuned for structured target preset JSON"}
+    ],
+    "country_profiles": [
+      {"provider": "ollama", "model": "titan-analyst"}
+    ],
+    "bug_analysis": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Custom-tuned for code reasoning + patch suggestions"}
+    ],
+    "general_query": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Custom-tuned for fast Titan OS guidance"}
+    ],
+
+    "_v83_comment": "V8.3 — 12 new detection vector sanitization tasks",
+    "fingerprint_coherence": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Cross-signal fingerprint validation needs structured analysis"}
+    ],
+    "identity_graph": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Identity plausibility needs structured demographic analysis"}
+    ],
+    "session_rhythm": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Session timing needs multi-factor strategic planning"}
+    ],
+    "environment_coherence": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Network/geo/locale coherence needs structured validation"}
+    ],
+    "navigation_path": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Navigation path generation needs fast creative output"}
+    ],
+    "card_rotation": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Card rotation needs strategic reasoning over decline history"}
+    ],
+    "form_fill_cadence": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Form fill timing needs fast behavioral parameter generation"}
+    ],
+    "velocity_schedule": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Velocity planning needs risk-aware strategic reasoning"}
+    ],
+    "avs_prevalidation": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "AVS validation needs structured address format analysis"}
+    ],
+    "defense_tracking": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Defense change detection needs deep pattern reasoning"}
+    ],
+    "decline_autopsy": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Decline root cause analysis needs deep multi-factor reasoning"}
+    ],
+    "cross_session": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Cross-session pattern analysis needs strategic reasoning"}
+    ],
+
+    "_v90_comment": "V9.0 — 25 new AI tasks for complete module coverage",
+
+    "_v90_critical": "CRITICAL: Directly prevents operation failures",
+    "copilot_abort_prediction": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Predict operation failure 30-60s before it happens from live session signals"}
+    ],
+    "live_target_scoring": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Real-time target vulnerability scoring based on latest decline patterns"}
+    ],
+    "detection_root_cause": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Deep reasoning over detection logs for root causes + module-specific patches"}
+    ],
+    "profile_optimization": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Optimize profile params (browser/OS/screen/locale) per specific target"}
+    ],
+    "persona_consistency_check": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Cross-validate all persona fields for internal consistency"}
+    ],
+    "trajectory_tuning": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Tune ghost_motor mouse dynamics per target antifraud engine (Forter/Riskified/Sift)"}
+    ],
+    "first_session_warmup_plan": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Plan targeted warmup to eliminate first-session bias (15% of failures)"}
+    ],
+    "card_target_matching": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Score card-to-target compatibility using historical success data"}
+    ],
+    "issuer_behavior_prediction": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Predict issuer ML scoring response to transaction params (35% of declines)"}
+    ],
+
+    "_v90_high": "HIGH: Significant success rate improvement",
+    "patch_reasoning": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Decide which patches to apply, predict effectiveness, validate results"}
+    ],
+    "operation_pattern_mining": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Discover hidden patterns in operation logs (time/BIN/target combos)"}
+    ],
+    "intel_prioritization": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Prioritize actionable intelligence from scraped feeds"}
+    ],
+    "history_pattern_planning": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Plan realistic 900-day browsing history tailored to persona + target"}
+    ],
+    "cookie_value_generation": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Generate realistic cookie values matching target site format"}
+    ],
+    "autofill_data_generation": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Generate matching saved form data for persona"}
+    ],
+    "kyc_strategy": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Optimal KYC bypass strategy per provider and challenge type"}
+    ],
+    "biometric_profile_tuning": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Adapt biometric params to match persona demographics vs BioCatch/BehaviorSec"}
+    ],
+    "tls_profile_selection": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Select optimal JA4 TLS profile per target CDN/WAF (Cloudflare/Akamai)"}
+    ],
+    "validation_strategy": [
+      {"provider": "ollama", "model": "titan-strategist", "_reason": "Choose optimal card validation method to avoid burning cards"}
+    ],
+    "detection_prediction": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Predict detection 30s before it happens using fraud score trajectory"}
+    ],
+
+    "_v90_medium": "MEDIUM: Polish and completeness",
+    "intel_synthesis": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Synthesize web search results into structured operational intel"}
+    ],
+    "storage_pattern_planning": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Plan IndexedDB stores matching real user patterns per target"}
+    ],
+    "purchase_history_generation": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Generate realistic past purchase history for profile credibility"}
+    ],
+    "ga_event_planning": [
+      {"provider": "ollama", "model": "titan-fast", "_reason": "Plan realistic GA event sequences matching client-side browsing"}
+    ],
+    "hardware_profile_coherence": [
+      {"provider": "ollama", "model": "titan-analyst", "_reason": "Validate USB/hardware tree matches claimed OS/hardware profile"}
+    ],
+
+    "_v10_comment": "V10.0 — 12 new OPERATOR copilot tasks (human-like reasoning)",
+    "situation_assessment": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Human-like gut-feel assessment of current operation state"}
+    ],
+    "decline_diagnosis": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Immediate operator-level diagnosis: what went wrong, what to do next"}
+    ],
+    "target_selection": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Which target to hit right now given cards, profiles, and time of day"}
+    ],
+    "daily_planning": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Plan the day: targets, order, attempt count, timing windows"}
+    ],
+    "emergency_response": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "3DS appeared / detection alert — what to do in next 15 seconds"}
+    ],
+    "session_timing": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "How long to browse, when to checkout, best time windows"}
+    ],
+    "amount_optimization": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Optimal amount for this BIN+target combo to maximize success"}
+    ],
+    "ip_proxy_selection": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Mullvad vs residential proxy for this specific target"}
+    ],
+    "fingerprint_check": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Quick red-flag check on current profile before launch"}
+    ],
+    "profile_readiness": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Rate profile 1-10 for this specific target + explain gaps"}
+    ],
+    "post_op_analysis": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "What to learn from success/failure, adjust strategy for next attempt"}
+    ],
+    "operator_intel_priority": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Which intelligence to act on first, what to ignore"}
+    ],
+
     "default": [
-      {"provider": "groq",       "model": "llama-3.1-70b-versatile"},
-      {"provider": "openai",     "model": "gpt-4o-mini"},
-      {"provider": "anthropic",  "model": "claude-3-5-sonnet-20241022"},
-      {"provider": "openrouter", "model": "meta-llama/llama-3.1-70b-instruct"},
-      {"provider": "ollama",     "model": "qwen2.5:7b"}
+      {"provider": "ollama", "model": "titan-fast"}
     ]
+  },
+
+  "app_model_map": {
+    "_doc": "V10.0 — 4-model mapping with 67 AI tasks across 9 apps + OPERATOR copilot",
+    "titan_operations": {
+      "primary": "titan-analyst",
+      "functions": ["persona_enrichment", "coherence_check", "profile_audit", "bin_analysis", "fingerprint_coherence", "identity_graph", "form_fill_cadence", "persona_consistency_check", "profile_optimization"],
+      "why": "Operations needs structured validation of personas, profiles, BINs, and V9 consistency checks"
+    },
+    "titan_intelligence": {
+      "primary": "titan-strategist",
+      "secondary": "titan-fast",
+      "functions": ["operation_planning", "three_ds_strategy", "detection_analysis", "decline_analysis", "copilot_guidance", "defense_tracking", "decline_autopsy", "cross_session", "copilot_abort_prediction", "detection_root_cause", "live_target_scoring", "intel_prioritization", "intel_synthesis", "operation_pattern_mining"],
+      "why": "Intelligence is the brain — deep reasoning for strategy, real-time predictions, pattern mining, and intel synthesis"
+    },
+    "titan_network": {
+      "primary": "titan-fast",
+      "functions": ["general_query", "environment_coherence", "tls_profile_selection"],
+      "why": "Network uses AI for TLS profile selection per CDN/WAF + environment coherence"
+    },
+    "app_kyc": {
+      "primary": "titan-strategist",
+      "functions": ["persona_enrichment", "identity_graph", "kyc_strategy"],
+      "why": "KYC needs strategic bypass planning per provider + persona validation"
+    },
+    "titan_admin": {
+      "primary": "titan-strategist",
+      "functions": ["bug_analysis", "detection_analysis", "cross_session", "patch_reasoning", "operation_pattern_mining"],
+      "why": "Admin powers the self-healing loop — detection analysis, patch reasoning, pattern mining"
+    },
+    "app_settings": {
+      "primary": "titan-fast",
+      "functions": ["general_query"],
+      "why": "Settings uses AI only for diagnostics queries"
+    },
+    "app_profile_forge": {
+      "primary": "titan-analyst",
+      "secondary": "titan-strategist",
+      "functions": ["profile_audit", "fingerprint_coherence", "identity_graph", "session_rhythm", "navigation_path", "profile_optimization", "persona_consistency_check", "history_pattern_planning", "autofill_data_generation", "cookie_value_generation", "storage_pattern_planning", "purchase_history_generation", "ga_event_planning"],
+      "why": "Profile Forge is the most AI-intensive app — generates, validates, and optimizes every aspect of identity"
+    },
+    "app_card_validator": {
+      "primary": "titan-analyst",
+      "secondary": "titan-strategist",
+      "functions": ["bin_analysis", "card_rotation", "velocity_schedule", "avs_prevalidation", "three_ds_strategy", "card_target_matching", "validation_strategy", "issuer_behavior_prediction"],
+      "why": "Card Validator covers full card lifecycle — BIN analysis, target matching, issuer prediction, validation strategy"
+    },
+    "app_browser_launch": {
+      "primary": "titan-strategist",
+      "secondary": "titan-fast",
+      "functions": ["preflight_advisor", "environment_coherence", "behavioral_tuning", "session_rhythm", "form_fill_cadence", "trajectory_tuning", "biometric_profile_tuning", "first_session_warmup_plan", "copilot_abort_prediction", "detection_prediction", "tls_profile_selection", "hardware_profile_coherence"],
+      "why": "Browser Launch is mission-critical — preflight, warmup, biometrics, TLS, real-time detection prediction"
+    }
   },
 
   "cache": {

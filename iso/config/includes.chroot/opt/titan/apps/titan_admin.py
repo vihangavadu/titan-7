@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TITAN V8.1 ADMIN PANEL — System Administration & Diagnostics
+TITAN V9.1 ADMIN PANEL — System Administration & Diagnostics
 =============================================================
 Consolidates: titan_mission_control.py + titan_dev_hub.py + app_bug_reporter.py
 
@@ -69,14 +69,34 @@ try:
 except ImportError:
     BUG_BRIDGE_AVAILABLE = False
 
+# V8.1 Recovered: Detection Lab (stealth testing)
 try:
-    from titan_auto_patcher import TitanAutoPatcher
+    from titan_detection_lab import DetectionLab
+    DETECTION_LAB_AVAILABLE = True
+except ImportError:
+    DETECTION_LAB_AVAILABLE = False
+
+try:
+    from titan_detection_lab_v2 import DetectionLabV2
+    DETECTION_LAB_V2_AVAILABLE = True
+except ImportError:
+    DETECTION_LAB_V2_AVAILABLE = False
+
+# V8.1 Recovered: Profile Isolation (namespace/cgroup)
+try:
+    from profile_isolation import ProfileIsolator, ResourceLimits
+    PROFILE_ISOLATION_AVAILABLE = True
+except ImportError:
+    PROFILE_ISOLATION_AVAILABLE = False
+
+try:
+    from titan_auto_patcher import AutoPatcher as TitanAutoPatcher
     PATCHER_AVAILABLE = True
 except ImportError:
     PATCHER_AVAILABLE = False
 
 try:
-    from ollama_bridge import OllamaBridge
+    from ollama_bridge import LLMLoadBalancer as OllamaBridge
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
@@ -86,6 +106,12 @@ try:
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
+
+try:
+    from titan_onnx_engine import TitanOnnxEngine, get_engine as get_onnx_engine
+    ONNX_AVAILABLE = True
+except ImportError:
+    ONNX_AVAILABLE = False
 
 try:
     from lucid_vpn import LucidVPN, VPNStatus
@@ -100,26 +126,26 @@ except ImportError:
     FORENSIC_AVAILABLE = False
 
 try:
-    from immutable_os import verify_system_integrity, get_boot_status
+    from immutable_os import verify_system_integrity, get_boot_status, ImmutableOSManager
     IMMUTABLE_AVAILABLE = True
 except ImportError:
     IMMUTABLE_AVAILABLE = False
 
 # V8.1: Previously orphaned modules — now wired into Admin
 try:
-    from titan_automation_orchestrator import AutomationOrchestrator
+    from titan_automation_orchestrator import TitanOrchestrator as AutomationOrchestrator
     ORCHESTRATOR_AVAILABLE = True
 except ImportError:
     ORCHESTRATOR_AVAILABLE = False
 
 try:
-    from titan_autonomous_engine import TitanAutonomousEngine
+    from titan_autonomous_engine import AutonomousEngine as TitanAutonomousEngine
     AUTONOMOUS_AVAILABLE = True
 except ImportError:
     AUTONOMOUS_AVAILABLE = False
 
 try:
-    from titan_env import ConfigValidator, TitanEnvManager
+    from titan_env import ConfigValidator, SecureConfigManager as TitanEnvManager
     ENV_AVAILABLE = True
 except ImportError:
     ENV_AVAILABLE = False
@@ -130,6 +156,13 @@ try:
 except ImportError:
     MASTER_AUTO_AVAILABLE = False
 
+# V8.2: MCP Interface (autonomous tool execution via Model Context Protocol)
+try:
+    from mcp_interface import MCPClient
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+
 try:
     from titan_operation_logger import OperationLog
     OP_LOG_AVAILABLE = True
@@ -137,13 +170,13 @@ except ImportError:
     OP_LOG_AVAILABLE = False
 
 try:
-    from titan_master_verify import MasterVerifier
+    from titan_master_verify import VerificationOrchestrator as MasterVerifier
     MASTER_VERIFY_AVAILABLE = True
 except ImportError:
     MASTER_VERIFY_AVAILABLE = False
 
 try:
-    from generate_trajectory_model import TrajectoryModelGenerator
+    from generate_trajectory_model import TrajectoryPlanner as TrajectoryModelGenerator
     TRAJECTORY_AVAILABLE = True
 except ImportError:
     TRAJECTORY_AVAILABLE = False
@@ -159,6 +192,12 @@ try:
     BRIDGE_AVAILABLE = True
 except ImportError:
     BRIDGE_AVAILABLE = False
+
+try:
+    from titan_webhook_integrations import WebhookEvent
+    WEBHOOK_AVAILABLE = True
+except ImportError:
+    WEBHOOK_AVAILABLE = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -238,7 +277,7 @@ class HealthCheckWorker(QThread):
 
 class TitanAdmin(QMainWindow):
     """
-    TITAN V8.1 Admin Panel
+    TITAN V9.1 Admin Panel
 
     Consolidated system administration:
     - Tab 1: SERVICES — health monitoring, start/stop, memory pressure
@@ -256,7 +295,7 @@ class TitanAdmin(QMainWindow):
         QTimer.singleShot(300, self._run_health_check)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V8.1 \u2014 Admin Panel")
+        self.setWindowTitle("TITAN V9.1 — Admin Panel")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -271,7 +310,7 @@ class TitanAdmin(QMainWindow):
         layout.setSpacing(6)
 
         # Header
-        header = QLabel("TITAN V8.1 ADMIN")
+        header = QLabel("TITAN V9.1 ADMIN")
         header.setFont(QFont("Inter", 20, QFont.Weight.Bold))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(f"color: {ACCENT};")
@@ -303,6 +342,7 @@ class TitanAdmin(QMainWindow):
         self._build_system_tab()
         self._build_automation_tab()
         self._build_config_tab()
+        self._build_webhook_tab()
 
         # Status bar
         self.status_bar = QLabel("Ready")
@@ -867,6 +907,9 @@ class TitanAdmin(QMainWindow):
         dot3 = QLabel(f"{'●' if MASTER_AUTO_AVAILABLE else '○'} Master Automation")
         dot3.setStyleSheet(f"color: {GREEN if MASTER_AUTO_AVAILABLE else RED};")
         orch_status_row.addWidget(dot3)
+        dot4 = QLabel(f"{'●' if MCP_AVAILABLE else '○'} MCP Interface")
+        dot4.setStyleSheet(f"color: {GREEN if MCP_AVAILABLE else RED};")
+        orch_status_row.addWidget(dot4)
         orch_status_row.addStretch()
         of.addLayout(orch_status_row)
 
@@ -1109,6 +1152,104 @@ class TitanAdmin(QMainWindow):
                 self.bridge_output.setPlainText(f"Trajectory model: {json.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result)}")
             except Exception as e:
                 self.bridge_output.setPlainText(f"Trajectory model error: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TAB 6: WEBHOOKS (wires: titan_webhook_integrations)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _build_webhook_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(8)
+
+        # Status
+        wh_status = QGroupBox("Webhook Integration Status")
+        ws = QVBoxLayout(wh_status)
+        avail = WEBHOOK_AVAILABLE
+        ws.addWidget(QLabel(f"titan_webhook_integrations: {'LOADED' if avail else 'NOT AVAILABLE'}"))
+        ws.addWidget(QLabel("Receives events from: Changedetection.io, n8n, Uptime Kuma"))
+        ws.addWidget(QLabel("Default webhook port: 9300"))
+        layout.addWidget(wh_status)
+
+        # Webhook server control
+        ctrl_grp = QGroupBox("Webhook Server Control")
+        cl = QVBoxLayout(ctrl_grp)
+        self.wh_port = QLineEdit("9300")
+        self.wh_port.setPlaceholderText("Webhook listen port")
+        cl.addWidget(QLabel("Port:"))
+        cl.addWidget(self.wh_port)
+        row = QHBoxLayout()
+        btn_start = QPushButton("Check Webhook Health")
+        btn_start.setStyleSheet(f"background: {GREEN}; color: white; padding: 8px; border-radius: 6px; font-weight: bold;")
+        btn_start.clicked.connect(self._check_webhook_health)
+        row.addWidget(btn_start)
+        btn_test = QPushButton("Send Test Event")
+        btn_test.setStyleSheet(f"background: {ACCENT}; color: #0a0e17; padding: 8px; border-radius: 6px; font-weight: bold;")
+        btn_test.clicked.connect(self._send_test_webhook)
+        row.addWidget(btn_test)
+        cl.addLayout(row)
+        layout.addWidget(ctrl_grp)
+
+        # Event sources
+        src_grp = QGroupBox("Registered Event Sources")
+        sl = QVBoxLayout(src_grp)
+        sources = [
+            ("Changedetection.io", "/webhook/changedetection", "Site change alerts → target defense update"),
+            ("n8n", "/webhook/n8n", "Workflow automation events → decline autopsy"),
+            ("Uptime Kuma", "/webhook/uptime", "Service health alerts → kill switch trigger"),
+            ("Custom", "/webhook/custom", "Generic JSON payload → operation logger"),
+        ]
+        for name, path, desc in sources:
+            lbl = QLabel(f"  {name}  →  {path}  —  {desc}")
+            lbl.setStyleSheet(f"color: {TEXT_PRIMARY}; font-family: 'JetBrains Mono'; font-size: 11px; padding: 3px;")
+            sl.addWidget(lbl)
+        layout.addWidget(src_grp)
+
+        # Output
+        self.wh_output = QPlainTextEdit()
+        self.wh_output.setReadOnly(True)
+        self.wh_output.setMaximumHeight(250)
+        self.wh_output.setStyleSheet("font-family: 'JetBrains Mono'; font-size: 11px;")
+        self.wh_output.setPlainText("Webhook panel ready. Check health or send a test event.")
+        layout.addWidget(self.wh_output)
+
+        layout.addStretch()
+        self.tabs.addTab(scroll, "WEBHOOKS")
+
+    def _check_webhook_health(self):
+        port = self.wh_port.text().strip() or "9300"
+        try:
+            import urllib.request
+            url = f"http://127.0.0.1:{port}/health"
+            req = urllib.request.Request(url, method="GET")
+            req.add_header("User-Agent", "TITAN-Admin/8.2")
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = resp.read().decode()
+                self.wh_output.setPlainText(f"Webhook server on port {port}: ONLINE\n\nResponse:\n{data}")
+        except Exception as e:
+            self.wh_output.setPlainText(f"Webhook server on port {port}: OFFLINE\n\nError: {e}\n\nHint: Start with 'systemctl start titan-webhook' or run titan_webhook_integrations.py")
+
+    def _send_test_webhook(self):
+        port = self.wh_port.text().strip() or "9300"
+        try:
+            import urllib.request
+            payload = json.dumps({
+                "source": "titan-admin",
+                "event_type": "test",
+                "payload": {"message": "Test event from Admin Panel", "timestamp": datetime.now().isoformat()},
+            }).encode()
+            url = f"http://127.0.0.1:{port}/webhook/custom"
+            req = urllib.request.Request(url, data=payload, method="POST")
+            req.add_header("Content-Type", "application/json")
+            req.add_header("User-Agent", "TITAN-Admin/8.2")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = resp.read().decode()
+                self.wh_output.setPlainText(f"Test event sent to port {port}!\n\nResponse:\n{data}")
+        except Exception as e:
+            self.wh_output.setPlainText(f"Failed to send test event to port {port}\n\nError: {e}")
 
     def apply_theme(self):
         palette = QPalette()

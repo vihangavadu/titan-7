@@ -1,6 +1,6 @@
 {
-  "_comment": "TITAN V9.0 — Complete AI Module Assignment (57 task routes across 110+ modules)",
-  "_doc": "3 local Ollama models assigned to AI functions by capability. 25 new tasks added for full module coverage. Cloud providers available if API keys are set.",
+  "_comment": "TITAN X V10.0 — 4-Model ONNX AI Architecture (67 task routes, CPU-only, no GPU)",
+  "_doc": "4 ONNX INT4 models, zero Ollama overhead. FLASH=Qwen2.5-0.5B (350MB, <1s), ANALYST=Qwen2.5-1.5B (1GB, ~2s), STRATEGIST=Phi-3.5-mini (2.2GB, ~4s), OPERATOR=SmolLM2-1.7B (1.1GB, ~2s). Total AI RAM: ~4.65GB (was 9GB).",
 
   "providers": {
     "ollama": {
@@ -12,24 +12,24 @@
       "timeout": 180
     },
     "openai": {
-      "enabled": false,
-      "api_key": "",
+      "enabled": true,
+      "api_key": "Chilaw@123@llm",
       "base_url": "https://api.openai.com/v1",
       "default_model": "gpt-4o-mini",
       "max_retries": 2,
       "timeout": 120
     },
     "anthropic": {
-      "enabled": false,
-      "api_key": "",
+      "enabled": true,
+      "api_key": "Chilaw@123@llm",
       "base_url": "https://api.anthropic.com/v1",
       "default_model": "claude-3-5-sonnet-20241022",
       "max_retries": 2,
       "timeout": 120
     },
     "groq": {
-      "enabled": false,
-      "api_key": "",
+      "enabled": true,
+      "api_key": "Chilaw@123@llm",
       "base_url": "https://api.groq.com/openai/v1",
       "default_model": "llama-3.1-70b-versatile",
       "max_retries": 2,
@@ -38,21 +38,50 @@
   },
 
   "models": {
-    "_doc": "Model capabilities: mistral=fast/general, qwen2.5=structured/JSON, deepseek-r1=deep reasoning",
-    "mistral:7b": {
-      "strengths": ["speed", "general_knowledge", "conversation", "warmup_content"],
+    "_doc": "4 ONNX INT4 models. All CPU-native, zero Ollama overhead. Total 4.65GB RAM (was 9GB).",
+    "titan-flash": {
+      "base": "Qwen2.5-0.5B-Instruct",
+      "format": "ONNX-INT4",
+      "params": "0.5B",
+      "size_mb": 350,
+      "strengths": ["speed", "generation", "warmup_content", "cookie_values", "search_queries", "behavioral_tuning"],
       "context_window": 32768,
-      "avg_response_sec": 8
+      "avg_response_sec": 1,
+      "path": "/opt/titan/models/flash",
+      "_note": "Replaces qwen2.5:3b — 6x smaller (350MB vs 1.9GB), 3x faster, ONNX native"
     },
-    "qwen2.5:7b": {
-      "strengths": ["structured_output", "json_extraction", "code_analysis", "data_enrichment"],
-      "context_window": 131072,
-      "avg_response_sec": 10
+    "titan-analyst": {
+      "base": "Qwen2.5-1.5B-Instruct",
+      "format": "ONNX-INT4",
+      "params": "1.5B",
+      "size_mb": 1000,
+      "strengths": ["structured_output", "json_extraction", "bin_analysis", "profile_validation", "coherence_check"],
+      "context_window": 32768,
+      "avg_response_sec": 2,
+      "path": "/opt/titan/models/analyst",
+      "_note": "Replaces qwen2.5:7b — 5x faster (2s vs 10s), maintains JSON quality"
     },
-    "deepseek-r1:8b": {
-      "strengths": ["complex_reasoning", "strategy", "risk_analysis", "multi_step_planning"],
+    "titan-strategist": {
+      "base": "Phi-3.5-mini-instruct",
+      "format": "ONNX-INT4",
+      "params": "3.8B",
+      "size_mb": 2200,
+      "strengths": ["strategy", "risk_analysis", "multi_step_planning", "detection_analysis", "deep_reasoning"],
       "context_window": 131072,
-      "avg_response_sec": 15
+      "avg_response_sec": 4,
+      "path": "/opt/titan/models/strategist",
+      "_note": "Replaces phi-4-mini — same size but 128K context (was 4K), better reasoning"
+    },
+    "titan-operator": {
+      "base": "SmolLM2-1.7B-Instruct",
+      "format": "ONNX-INT4",
+      "params": "1.7B",
+      "size_mb": 1100,
+      "strengths": ["human_reasoning", "situation_assessment", "instinct", "timing", "abort_decisions", "conversational"],
+      "context_window": 8192,
+      "avg_response_sec": 2,
+      "path": "/opt/titan/models/operator",
+      "_note": "NEW — Human operator copilot. Thinks like a seasoned operator: cautious, adaptive, instinct-driven"
     }
   },
 
@@ -241,13 +270,51 @@
       {"provider": "ollama", "model": "titan-analyst", "_reason": "Validate USB/hardware tree matches claimed OS/hardware profile"}
     ],
 
+    "_v10_comment": "V10.0 — 12 new OPERATOR copilot tasks (human-like reasoning)",
+    "situation_assessment": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Human-like gut-feel assessment of current operation state"}
+    ],
+    "decline_diagnosis": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Immediate operator-level diagnosis: what went wrong, what to do next"}
+    ],
+    "target_selection": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Which target to hit right now given cards, profiles, and time of day"}
+    ],
+    "daily_planning": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Plan the day: targets, order, attempt count, timing windows"}
+    ],
+    "emergency_response": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "3DS appeared / detection alert — what to do in next 15 seconds"}
+    ],
+    "session_timing": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "How long to browse, when to checkout, best time windows"}
+    ],
+    "amount_optimization": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Optimal amount for this BIN+target combo to maximize success"}
+    ],
+    "ip_proxy_selection": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Mullvad vs residential proxy for this specific target"}
+    ],
+    "fingerprint_check": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Quick red-flag check on current profile before launch"}
+    ],
+    "profile_readiness": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Rate profile 1-10 for this specific target + explain gaps"}
+    ],
+    "post_op_analysis": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "What to learn from success/failure, adjust strategy for next attempt"}
+    ],
+    "operator_intel_priority": [
+      {"provider": "onnx", "model": "titan-operator", "_reason": "Which intelligence to act on first, what to ignore"}
+    ],
+
     "default": [
       {"provider": "ollama", "model": "titan-fast"}
     ]
   },
 
   "app_model_map": {
-    "_doc": "V9.0 — Complete model-to-app mapping with 57 AI tasks across 9 apps",
+    "_doc": "V10.0 — 4-model mapping with 67 AI tasks across 9 apps + OPERATOR copilot",
     "titan_operations": {
       "primary": "titan-analyst",
       "functions": ["persona_enrichment", "coherence_check", "profile_audit", "bin_analysis", "fingerprint_coherence", "identity_graph", "form_fill_cadence", "persona_consistency_check", "profile_optimization"],

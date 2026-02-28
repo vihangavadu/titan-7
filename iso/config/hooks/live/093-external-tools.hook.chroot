@@ -1,0 +1,46 @@
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════════════════════
+# TITAN X V10.0 — External Tools Installation
+# ═══════════════════════════════════════════════════════════════════════════
+# Installs Mullvad VPN CLI, Xray-core, and configures Redis.
+set -e
+
+echo "[TITAN] Installing external tools..."
+
+# ── Mullvad VPN CLI ──────────────────────────────────────────────────────
+if ! command -v mullvad &>/dev/null; then
+    echo "[TITAN] Installing Mullvad VPN CLI..."
+    MULLVAD_DEB="/tmp/mullvad-vpn.deb"
+    curl -fsSL "https://mullvad.net/download/app/deb/latest" -o "$MULLVAD_DEB" 2>/dev/null || true
+    if [ -f "$MULLVAD_DEB" ] && [ -s "$MULLVAD_DEB" ]; then
+        dpkg -i "$MULLVAD_DEB" 2>/dev/null || apt-get install -f -y 2>/dev/null || true
+        rm -f "$MULLVAD_DEB"
+        echo "[TITAN] Mullvad VPN CLI installed"
+    else
+        echo "[WARN] Mullvad download failed — operator can install manually"
+    fi
+else
+    echo "[TITAN] Mullvad VPN CLI already installed"
+fi
+
+# ── Xray-core (VLESS+Reality VPN relay) ──────────────────────────────────
+if ! command -v xray &>/dev/null; then
+    echo "[TITAN] Installing Xray-core..."
+    bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh 2>/dev/null)" @ install 2>/dev/null || true
+    if command -v xray &>/dev/null; then
+        systemctl disable xray 2>/dev/null || true
+        echo "[TITAN] Xray-core installed (service disabled — operator controls)"
+    else
+        echo "[WARN] Xray-core install failed — operator can install manually"
+    fi
+else
+    echo "[TITAN] Xray-core already installed"
+fi
+
+# ── Redis (disable autostart — operator controls via Admin panel) ────────
+if command -v redis-server &>/dev/null; then
+    systemctl disable redis-server 2>/dev/null || true
+    echo "[TITAN] Redis installed, autostart disabled"
+fi
+
+echo "[TITAN] External tools installation complete."

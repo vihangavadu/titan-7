@@ -616,7 +616,7 @@ class TitanOperations(QMainWindow):
         QTimer.singleShot(400, self._restore_session)
 
     def init_ui(self):
-        self.setWindowTitle("TITAN V9.1 — Operations Center")
+        self.setWindowTitle("TITAN X — Operations Center")
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
@@ -643,6 +643,44 @@ class TitanOperations(QMainWindow):
         self.status_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         hdr.addWidget(self.status_lbl)
         main.addLayout(hdr)
+
+        # Quick Op Panel — single-flow: Target → Persona → Validate → Forge → Launch
+        quick_grp = QGroupBox("QUICK OP — One-Click Workflow")
+        quick_grp.setStyleSheet(f"QGroupBox {{ background: {CARD}; border: 1px solid {ACCENT}; border-radius: 10px; margin-top: 12px; padding-top: 18px; color: {TXT}; font-weight: bold; }} QGroupBox::title {{ color: {ACCENT}; }}")
+        qf = QHBoxLayout(quick_grp)
+        qf.setSpacing(8)
+
+        self.qo_target = QComboBox()
+        self.qo_target.setMinimumWidth(130)
+        self.qo_target.setPlaceholderText("Target")
+        qf.addWidget(self.qo_target)
+
+        self.qo_name = QLineEdit()
+        self.qo_name.setPlaceholderText("Persona Name")
+        self.qo_name.setMaximumWidth(150)
+        qf.addWidget(self.qo_name)
+
+        self.qo_card = QLineEdit()
+        self.qo_card.setPlaceholderText("Card Number")
+        self.qo_card.setMaximumWidth(170)
+        qf.addWidget(self.qo_card)
+
+        self.qo_status = QLabel("Ready")
+        self.qo_status.setStyleSheet(f"color: {TXT2}; font-size: 10px;")
+        self.qo_status.setMaximumWidth(100)
+        qf.addWidget(self.qo_status)
+
+        qo_auto_btn = QPushButton("AUTO-FILL")
+        qo_auto_btn.setStyleSheet(f"background: {YELLOW}; color: black; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 11px;")
+        qo_auto_btn.clicked.connect(self._quick_op_autofill)
+        qf.addWidget(qo_auto_btn)
+
+        qo_run_btn = QPushButton("RUN FULL OP")
+        qo_run_btn.setStyleSheet(f"background: {GREEN}; color: black; padding: 6px 16px; border-radius: 6px; font-weight: bold; font-size: 11px;")
+        qo_run_btn.clicked.connect(self._quick_op_run)
+        qf.addWidget(qo_run_btn)
+
+        main.addWidget(quick_grp)
 
         # Tabs
         self.tabs = QTabWidget()
@@ -1247,6 +1285,65 @@ class TitanOperations(QMainWindow):
     # ACTIONS
     # ═══════════════════════════════════════════════════════════════════════
 
+    def _quick_op_autofill(self):
+        """Auto-fill Quick Op panel with generated persona + random target."""
+        self.qo_status.setText("Filling...")
+        self.qo_status.setStyleSheet(f"color: {YELLOW};")
+        # Pick target from Quick Op dropdown or main dropdown
+        if self.qo_target.count() == 0:
+            for i in range(self.target_combo.count()):
+                self.qo_target.addItem(self.target_combo.itemText(i))
+        # Auto-generate persona name
+        if PERSONA_OK:
+            try:
+                from persona_enrichment_engine import PersonaEnrichmentEngine
+                engine = PersonaEnrichmentEngine()
+                persona = engine.generate_random_persona()
+                self.qo_name.setText(persona.get("name", "Alex Mercer"))
+            except Exception:
+                import random as _r
+                names = ["Alex Mercer", "Sarah Chen", "Michael Torres", "Emily Watson", "David Kim", "Jessica Lee", "Ryan Cooper", "Amanda Hill"]
+                self.qo_name.setText(_r.choice(names))
+        else:
+            import random as _r
+            names = ["Alex Mercer", "Sarah Chen", "Michael Torres", "Emily Watson", "David Kim"]
+            self.qo_name.setText(_r.choice(names))
+        self.qo_status.setText("Ready")
+        self.qo_status.setStyleSheet(f"color: {GREEN};")
+
+    def _quick_op_run(self):
+        """Run full operation: validate card → forge profile → launch browser."""
+        target = self.qo_target.currentText()
+        name = self.qo_name.text().strip()
+        card = self.qo_card.text().strip().replace(" ", "").replace("-", "")
+        if not target:
+            self.qo_status.setText("Select target")
+            self.qo_status.setStyleSheet(f"color: {RED};")
+            return
+        if not name:
+            self.qo_status.setText("Enter name")
+            self.qo_status.setStyleSheet(f"color: {RED};")
+            return
+        if not card or len(card) < 13:
+            self.qo_status.setText("Enter card")
+            self.qo_status.setStyleSheet(f"color: {RED};")
+            return
+        self.qo_status.setText("Running...")
+        self.qo_status.setStyleSheet(f"color: {CYAN};")
+        self.status_lbl.setText(f"Quick Op: {target} | {name} | {card[:6]}...")
+        # Set target in main tab
+        idx = self.target_combo.findText(target)
+        if idx >= 0:
+            self.target_combo.setCurrentIndex(idx)
+        # Set card in validate tab
+        if hasattr(self, 'card_input'):
+            self.card_input.setText(card)
+        # Auto-forge
+        self.tabs.setCurrentIndex(3)  # Switch to FORGE tab
+        self.qo_status.setText("Forging...")
+        self.qo_status.setStyleSheet(f"color: {ACCENT};")
+        QTimer.singleShot(500, self._forge_profile)
+
     def _load_targets(self):
         if TARGETS_OK:
             targets = list(TARGET_PRESETS.keys()) if isinstance(TARGET_PRESETS, dict) else []
@@ -1483,10 +1580,25 @@ class TitanOperations(QMainWindow):
             self.launch_btn.setEnabled(True)
             quality = result.get("quality_score", 0)
             layers = result.get("layers_applied", 0)
+            size_mb = result.get("total_size_mb", 0)
             self.forge_output.append(f"\n✅ Profile forged: {self._current_profile}")
             self.forge_output.append(f"   Quality Score: {quality}/100 | Hardening Layers: {layers}/7")
+            if size_mb:
+                self.forge_output.append(f"   Profile Size: {size_mb} MB")
             self.status_lbl.setText(f"Profile ready — Quality {quality}/100")
             self.status_lbl.setStyleSheet(f"color: {GREEN};")
+
+            # Show Handover Protocol if available
+            try:
+                hp_path = Path(self._current_profile) / "HANDOVER_PROTOCOL.txt"
+                if hp_path.exists():
+                    hp_text = hp_path.read_text()
+                    self.forge_output.append(f"\n{'='*60}")
+                    self.forge_output.append("OPERATOR HANDOVER PROTOCOL")
+                    self.forge_output.append(f"{'='*60}")
+                    self.forge_output.append(hp_text)
+            except Exception:
+                pass
         else:
             self.forge_output.append(f"\n❌ Forge failed: {result.get('error')}")
             self.status_lbl.setText("Forge failed")
@@ -1530,15 +1642,32 @@ class TitanOperations(QMainWindow):
             self.forge_output.append(f"❌ Launch error: {e}")
 
     def _refresh_metrics(self):
+        lines = []
         if METRICS_OK:
             try:
                 db = get_metrics_db()
                 summary = db.get_summary() if hasattr(db, 'get_summary') else str(db)
-                self.metrics_display.setPlainText(json.dumps(summary, indent=2, default=str)[:2000])
+                lines.append(json.dumps(summary, indent=2, default=str)[:1500])
             except Exception as e:
-                self.metrics_display.setPlainText(f"Metrics error: {e}")
+                lines.append(f"Metrics error: {e}")
         else:
-            self.metrics_display.setPlainText("Payment Success Metrics not available")
+            lines.append("Payment Success Metrics DB not loaded")
+
+        if TX_MON_OK:
+            try:
+                mon = TransactionMonitor()
+                recent = mon.get_recent_events(limit=10) if hasattr(mon, 'get_recent_events') else []
+                if recent:
+                    lines.append(f"\n{'='*40}\nRECENT TRANSACTIONS ({len(recent)})\n{'='*40}")
+                    for ev in recent[:10]:
+                        ts = ev.get("timestamp", "?")[:19] if isinstance(ev, dict) else str(ev)[:60]
+                        status = ev.get("status", "?") if isinstance(ev, dict) else ""
+                        amount = ev.get("amount", "") if isinstance(ev, dict) else ""
+                        lines.append(f"  [{ts}] {status} ${amount}" if amount else f"  [{ts}] {status}")
+            except Exception:
+                pass
+
+        self.metrics_display.setPlainText("\n".join(lines) if lines else "No metrics data available")
 
     def _decode_decline(self):
         code = self.decline_input.text().strip()

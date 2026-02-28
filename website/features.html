@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Features — Titan OS by Lucid Empire</title>
+    <meta name="description" content="Complete feature breakdown of Titan OS: 115 modules, 9 apps, 8 defense rings, 6 AI models, milestones, and technical specifications. Built by Lucid.">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="nav-logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M20 4L4 12V28L20 36L36 28V12L20 4Z"/>
+                        <circle cx="20" cy="20" r="6"/>
+                    </svg>
+                </div>
+                <span class="logo-text">Titan<span class="accent">OS</span></span>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="about.html" class="nav-link">About</a>
+                <a href="features.html" class="nav-link active">Features</a>
+                <a href="services.html" class="nav-link">Pricing</a>
+                <a href="docs.html" class="nav-link">Docs</a>
+                <a href="contact.html" class="nav-link">Contact</a>
+            </div>
+            <div class="nav-actions">
+                <a href="docs.html" class="btn btn-ghost btn-sm">Documentation</a>
+                <a href="contact.html" class="btn btn-primary btn-sm">Get Started</a>
+                <button class="menu-toggle" id="menuToggle">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="page-hero">
+        <div class="hero-bg">
+            <div class="grid-overlay"></div>
+            <div class="gradient-orb orb-1"></div>
+            <div class="gradient-orb orb-2"></div>
+        </div>
+        <div class="container">
+            <div class="page-hero-content">
+                <span class="section-tag">Complete Feature Breakdown</span>
+                <h1 class="hero-title">Everything Inside <span class="gradient-text">Titan OS</span></h1>
+                <p class="hero-subtitle">115 core modules, 9 GUI applications, 8 defense rings, 6 AI models, 2 browser extensions, 10 external tools, and a bootable ISO. Every component documented.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Stats Bar -->
+    <section class="section" style="padding-top: 2rem; padding-bottom: 2rem;">
+        <div class="container">
+            <div class="hero-stats" style="justify-content: center; flex-wrap: wrap; gap: 2rem;">
+                <div class="stat">
+                    <span class="stat-number" data-count="115">0</span><span class="stat-suffix">+</span>
+                    <span class="stat-label">Core Modules</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-number" data-count="9">0</span>
+                    <span class="stat-label">GUI Apps</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-number" data-count="8">0</span>
+                    <span class="stat-label">Defense Rings</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-number" data-count="6">0</span>
+                    <span class="stat-label">AI Models</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-number" data-count="38">0</span><span class="stat-suffix">+</span>
+                    <span class="stat-label">Tabs</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-number" data-count="50">0</span><span class="stat-suffix">+</span>
+                    <span class="stat-label">Vectors Covered</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 8-Ring Defense Architecture -->
+    <section class="section section-alt" id="rings">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Architecture</span>
+                <h2 class="section-title">The 8-Ring <span class="gradient-text">Defense Model</span></h2>
+                <p class="section-desc">Titan OS employs a concentric ring architecture. Each ring operates independently, providing defense-in-depth from kernel to application layer.</p>
+            </div>
+
+            <!-- Ring 0 -->
+            <div class="feature-detail-card">
+                <div class="feature-detail-header">
+                    <div class="ring-badge">Ring 0</div>
+                    <h3>Kernel Shield</h3>
+                </div>
+                <p class="feature-detail-desc">Hardware-level identity masking at the CPU instruction level. Compiled C modules that intercept CPUID and RDTSC instructions, preventing hypervisor detection and hardware fingerprinting.</p>
+                <div class="module-grid">
+                    <div class="module-chip"><strong>cpuid_rdtsc_shield.py</strong> &mdash; CPUID/RDTSC instruction interception, KVM marker suppression</div>
+                    <div class="module-chip"><strong>immutable_os.py</strong> &mdash; OverlayFS immutable root, factory-reset on reboot</div>
+                    <div class="module-chip"><strong>kill_switch.py</strong> &mdash; Sub-500ms panic destruction with dead-man trigger</div>
+                    <div class="module-chip"><strong>hardware_shield_v6.c</strong> &mdash; Compiled C kernel module for hardware identity masking</div>
+                </div>
+            </div>
+
+            <!-- Ring 1 -->
+            <div class="feature-detail-card">
+                <div class="feature-detail-header">
+                    <div class="ring-badge">Ring 1</div>
+                    <h3>Network Shield</h3>
+                </div>
+                <p class="feature-detail-desc">eBPF/XDP kernel-level packet manipulation that rewrites TCP/IP stack signatures in real-time. Makes Linux VPS traffic indistinguishable from Windows desktop traffic.</p>
+                <div class="module-grid">
+                    <div class="module-chip"><strong>network_shield_loader.py</strong> &mdash; eBPF/XDP program loader, TCP window/TTL/MSS rewriting</div>
+                    <div class="module-chip"><strong>network_jitter.py</strong> &mdash; ISP-specific latency patterns (50+ ISP profiles)</div>
+                    <div class="module-chip"><strong>tls_parrot.py</strong> &mdash; JA3/JA4 TLS fingerprint synthesis for Chrome/Firefox/Safari</div>
+                    <div class="module-chip"><strong>ja4_permutation_engine.py</strong> &mdash; Dynamic JA4 hash permutation per session</div>
+                    <div class="module-chip"><strong>lucid_vpn.py</strong> &mdash; Custom VPN with VLESS+Reality protocol via Xray</div>
+                    <div class="module-chip"><strong>proxy_manager.py</strong> &mdash; Multi-provider residential proxy rotation (IPRoyal, SOAX, Bright Data, Oxylabs)</div>
+                    <div class="module-chip"><strong>quic_proxy.py</strong> &mdash; QUIC/HTTP3 tunnel proxy</div>
+                    <div class="module-chip"><strong>location_spoofer_linux.py</strong> &mdash; GPS/geolocation coordination with proxy exit IP</div>
+                </div>
+            </div>
+
+            <!-- Ring 2 -->
+            <div class="feature-detail-card">
+                <div class="feature-detail-header">
+                    <div class="ring-badge">Ring 2</div>
+                    <h3>Environment Layer</h3>
+                </div>
+                <p class="feature-detail-desc">Browser environment synthesis — canvas fingerprints, WebGL rendering, audio context, font enumeration, and timezone coordination. Makes every session appear as a unique, legitimate device.</p>
+                <div class="module-grid">
+                    <div class="module-chip"><strong>fingerprint_injector.py</strong> &mdash; Master fingerprint coordinator across all browser APIs</div>
+                    <div class="module-chip"><strong>font_sanitizer.py</strong> &mdash; Font enumeration defense (400+ font profiles)</div>
+                    <div class="module-chip"><strong>canvas_subpixel_shim.py</strong> &mdash; Deterministic canvas noise per profile UUID</div>
+                    <div class="module-chip"><strong>audio_hardener.py</strong> &mdash; AudioContext fingerprint synthesis (50+ profiles)</div>
+                    <div class="module-chip"><strong>webgl_angle.py</strong> &mdash; WebGL renderer/vendor emulation (15+ GPU profiles)</div>
+                    <div class="module-chip"><strong>timezone_enforcer.py</strong> &mdash; Timezone/locale coordination with IP geolocation</div>
+                    <div class="module-chip"><strong>usb_peripheral_synth.py</strong> &mdash; USB device tree synthesis for hardware fingerprinting</div>
+                    <div class="module-chip"><strong>verify_deep_identity.py</strong> &mdash; Cross-layer identity consistency verification</div>
+                </div>
+            </div>
+
+            <!-- Ring 3 -->
+            <div class="feature-detail-card">
+                <div class="feature-detail-header">
+                    <div class="ring-badge">Ring 3</div>
+                    <h3>Identity &amp; Profile Layer</h3>
+                </div>
+                <p class="feature-detail-desc">The Genesis Profile Engine — generates 700MB+ forensic-grade browser profiles with 90-day browsing histories, purchase records, form data, cookies, and IndexedDB entries.</p>
+                <div class="module-grid">
+                    <div class="module-chip"><strong>genesis_core.py</strong> &mdash; 9-stage profile forge pipeline, 700MB+ output per profile</div>
+                    <div class="module-chip"><strong>advanced_profile_generator.py</strong> &mdash; Cross-validated hardware presets (7 Win32 + 4 MacIntel)</div>
+                    <div class="module-chip"><strong>indexeddb_lsng_synthesis.py</strong> &mdash; IndexedDB + localStorage injection for web apps</div>
+                    <div class="module-chip"><strong>purchase_history_engine.py</strong> &mdash; Realistic e-commerce purchase funnel generation</div>
+                    <div class="module-chip"><strong>form_autofill_injector.py</strong> &mdash; Chrome/Firefox autofill database population</div>
+                    <div class="module-chip"><strong>first_session_bias_eliminator.py</strong> &mdash; Eliminates "new device" detection signals</div>
+                    <div class="module-chip"><strong>referrer_warmup.py</strong> &mdash; Multi-step referrer chain generation (Google &rarr; social &rarr; target)</div>
+                    <div class="module-chip"><strong>ghost_motor_v6.py</strong> &mdash; Diffusion-model mouse trajectories + keyboard dynamics</div>
+                    <div class="module-chip"><strong>persona_enrichment_engine.py</strong> &mdash; AI demographic profiling + purchase coherence validation</div>
+                    <div class="module-chip"><strong>chromium_commerce_injector.py</strong> &mdash; Chrome History DB purchase funnel injection</div>
+                    <div class="module-chip"><strong>profile_realism_engine.py</strong> &mdash; Profile quality scoring (0-100 realism scale)</div>
+                </div>
+            </div>
+
+            <!-- Ring 4 -->
+            <div class="feature-detail-card">
+                <div class="feature-detail-header">
+                    <div class="ring-badge">Ring 4</div>
+                    <h3>Transaction Layer</h3>
+                </div>
+                <p class="feature-detail-desc">The Cerberus Transaction Engine — card validation, BIN intelligence, 3DS bypass strategies, issuer bank pattern prediction, and real-time transaction monitoring across 200+ decline codes.</p>
+                <div class="module-grid">
+                    <div class="module-chip"><strong>cerberus_core.py</strong> &mdash; Card validation, Luhn check, BIN lookup, quality grading</div>
+                    <div class="module-chip"><strong>cerberus_enhanced.py</strong> &mdash; AVS matching, issuer bank pattern predictor, MaxDrain engine</div>
+                    <div class="module-chip"><strong>three_ds_strategy.py</strong> &mdash; 3DS bypass engine, 4 downgrade attacks, 6 PSP profiles, 100+ non-VBV BINs across 28 countries</div>
+                    <div class="module-chip"><strong>tra_exemption_engine.py</strong> &mdash; PSD2 TRA exemption exploitation (low-value, recurring, trusted beneficiary)</div>
+                    <div class="module-chip"><strong>issuer_algo_defense.py</strong> &mdash; Bank-specific fraud model reverse engineering (13 banks profiled)</div>
+                    <div class="module-chip"><strong>transaction_monitor.py</strong> &mdash; 24/7 real-time capture, 200+ decline code decoder (Stripe, Adyen, Authorize.net, ISO 8583)</div>
+                </div>
+            </div>
+
+            <!-- Ring 5 -->
+            <div class="feature-detail-card">
+                <div class="feature-detail-header">
+                    <div class="ring-badge">Ring 5</div>
+                    <h3>Intelligence &amp; AI Layer</h3>
+                </div>
+                <p class="feature-detail-desc">6 custom AI models with intelligent task routing. ONNX INT4 inference engine for CPU-optimized execution, plus Ollama-hosted models for deep analysis, strategy planning, and real-time copilot assistance.</p>
+                <div class="module-grid">
+                    <div class="module-chip"><strong>cognitive_core.py</strong> &mdash; ONNX INT4 inference engine, 33 task routes, PagedAttention for concurrent agents</div>
+                    <div class="module-chip"><strong>ollama_bridge.py</strong> &mdash; Multi-provider LLM bridge (Ollama, OpenAI, Anthropic, Groq, OpenRouter)</div>
+                    <div class="module-chip"><strong>dynamic_data.py</strong> &mdash; AI-generated data replacing hardcoded databases (500+ dynamic entries)</div>
+                    <div class="module-chip"><strong>target_discovery.py</strong> &mdash; Auto-discovering merchant database (1000+ sites, daily health checks)</div>
+                    <div class="module-chip"><strong>target_intelligence.py</strong> &mdash; Deep profiles of 21 antifraud platforms (Forter, Riskified, Sift, Kount, SEON...)</div>
+                    <div class="module-chip"><strong>target_presets.py</strong> &mdash; Pre-configured target profiles with domain-specific optimization</div>
+                    <div class="module-chip"><strong>intel_monitor.py</strong> &mdash; DarkWeb/forum intelligence monitoring (16 curated sources)</div>
+                    <div class="module-chip"><strong>forensic_monitor.py</strong> &mdash; Real-time OS forensic analysis using LLM for artifact detection</div>
+                    <div class="module-chip"><strong>titan_realtime_copilot.py</strong> &mdash; Real-time AI co-pilot for live operations with HITL timing guardrails</div>
+                    <div class="module-chip"><strong>titan_autonomous_engine.py</strong> &mdash; 24/7 self-improving operation loop with self-patching</div>
+                </div>
+            </div>
+
+            <!-- Ring 6 -->
+            <div class="feature-detail-card">
+                <div class="feature-detail-header">
+                    <div class="ring-badge">Ring 6</div>
+                    <h3>KYC &amp; Identity Verification</h3>
+                </div>
+                <p class="feature-detail-desc">Complete KYC bypass system — virtual camera control, facial reenactment, document injection, voice synthesis, 3D depth map generation, and cross-device synchronization via Waydroid Android container.</p>
+                <div class="module-grid">
+                    <div class="module-chip"><strong>kyc_core.py</strong> &mdash; v4l2loopback virtual camera, 17 liveness motion types</div>
+                    <div class="module-chip"><strong>kyc_enhanced.py</strong> &mdash; 5 document types, 8 KYC providers (Jumio, Onfido, Veriff, SumSub, Persona...)</div>
+                    <div class="module-chip"><strong>kyc_voice_engine.py</strong> &mdash; TTS with voice cloning (4 backends, 8 accents, age range support)</div>
+                    <div class="module-chip"><strong>tof_depth_synthesis.py</strong> &mdash; 3D Time-of-Flight depth maps defeating TrueDepth, ToF, LiDAR sensors</div>
+                    <div class="module-chip"><strong>waydroid_sync.py</strong> &mdash; Cross-device synchronization via Android container</div>
+                </div>
+            </div>
+
+            <!-- Ring 7 -->
+            <div class="feature-detail-card">
+                <div class="feature-detail-header">
+                    <div class="ring-badge">Ring 7</div>
+                    <h3>Operations &amp; Infrastructure</h3>
+                </div>
+                <p class="feature-detail-desc">Operational workflow management, verification protocols, background services, and the integration bridge connecting all 115 modules into a unified system.</p>
+                <div class="module-grid">
+                    <div class="module-chip"><strong>integration_bridge.py</strong> &mdash; Central hub connecting all modules with unified API</div>
+                    <div class="module-chip"><strong>handover_protocol.py</strong> &mdash; Automated-to-manual transition (Prepare &rarr; Freeze &rarr; Handover)</div>
+                    <div class="module-chip"><strong>preflight_validator.py</strong> &mdash; Comprehensive pre-flight validation (IP reputation, proxy, fingerprint)</div>
+                    <div class="module-chip"><strong>titan_master_verify.py</strong> &mdash; 4-layer master verification protocol</div>
+                    <div class="module-chip"><strong>titan_services.py</strong> &mdash; Background service orchestrator (TX Monitor, Discovery, Feedback Loop)</div>
+                    <div class="module-chip"><strong>cockpit_daemon.py</strong> &mdash; Privileged backend daemon with HMAC-SHA256 signed commands</div>
+                    <div class="module-chip"><strong>bug_patch_bridge.py</strong> &mdash; Auto-dispatches bug reports and applies known fixes</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 9 GUI Applications -->
+    <section class="section" id="apps">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Desktop Applications</span>
+                <h2 class="section-title">9 Professional <span class="gradient-text">GUI Applications</span></h2>
+                <p class="section-desc">PyQt6 desktop applications organized in a 3x3 launcher grid. Dark cyberpunk theme with color-coded accent per app. 38+ specialized tabs across all applications.</p>
+            </div>
+
+            <div class="apps-grid">
+                <!-- App 1: Operations -->
+                <div class="app-card" style="border-top: 3px solid #00ff88;">
+                    <div class="app-header">
+                        <div class="app-number">01</div>
+                        <h3>Operations Center</h3>
+                        <span class="app-accent" style="background: #00ff88;">Primary</span>
+                    </div>
+                    <p>The unified operations hub. Controls the full operational pipeline from profile creation to execution handover.</p>
+                    <div class="app-tabs">
+                        <span>FORGE</span><span>LAUNCH</span><span>GUARD</span><span>HANDOVER</span><span>TX MONITOR</span><span>DISCOVERY</span>
+                    </div>
+                    <div class="app-modules">Modules: genesis_core, fingerprint_injector, handover_protocol, transaction_monitor, target_discovery, chromium_commerce_injector</div>
+                </div>
+
+                <!-- App 2: Intelligence -->
+                <div class="app-card" style="border-top: 3px solid #00bfff;">
+                    <div class="app-header">
+                        <div class="app-number">02</div>
+                        <h3>Intelligence</h3>
+                        <span class="app-accent" style="background: #00bfff;">Cyan</span>
+                    </div>
+                    <p>AI-powered intelligence dashboard. Manages target research, antifraud analysis, forum monitoring, and strategic planning.</p>
+                    <div class="app-tabs">
+                        <span>TARGETS</span><span>INTEL</span><span>ANALYSIS</span><span>AI CHAT</span>
+                    </div>
+                    <div class="app-modules">Modules: target_intelligence, intel_monitor, cognitive_core, ollama_bridge, dynamic_data</div>
+                </div>
+
+                <!-- App 3: Network -->
+                <div class="app-card" style="border-top: 3px solid #ff6600;">
+                    <div class="app-header">
+                        <div class="app-number">03</div>
+                        <h3>Network</h3>
+                        <span class="app-accent" style="background: #ff6600;">Orange</span>
+                    </div>
+                    <p>Network sovereignty control panel. Manages VPN connections, proxy rotation, eBPF shields, and DNS protection.</p>
+                    <div class="app-tabs">
+                        <span>PROXIES</span><span>VPN</span><span>SHIELD</span><span>DNS</span>
+                    </div>
+                    <div class="app-modules">Modules: proxy_manager, lucid_vpn, network_shield_loader, network_jitter, quic_proxy</div>
+                </div>
+
+                <!-- App 4: KYC Studio -->
+                <div class="app-card" style="border-top: 3px solid #ff00ff;">
+                    <div class="app-header">
+                        <div class="app-number">04</div>
+                        <h3>KYC Studio</h3>
+                        <span class="app-accent" style="background: #ff00ff;">Magenta</span>
+                    </div>
+                    <p>Identity verification bypass studio. Controls virtual camera, document injection, face reenactment, voice synthesis, and 3D depth spoofing.</p>
+                    <div class="app-tabs">
+                        <span>CAMERA</span><span>DOCUMENTS</span><span>LIVENESS</span><span>VOICE</span><span>DEPTH</span>
+                    </div>
+                    <div class="app-modules">Modules: kyc_core, kyc_enhanced, kyc_voice_engine, tof_depth_synthesis, waydroid_sync</div>
+                </div>
+
+                <!-- App 5: Admin -->
+                <div class="app-card" style="border-top: 3px solid #ffcc00;">
+                    <div class="app-header">
+                        <div class="app-number">05</div>
+                        <h3>Admin</h3>
+                        <span class="app-accent" style="background: #ffcc00;">Gold</span>
+                    </div>
+                    <p>System administration panel. Module status monitoring, service management, automation controls, and master verification.</p>
+                    <div class="app-tabs">
+                        <span>STATUS</span><span>SERVICES</span><span>CONFIG</span><span>AUTOMATION</span><span>VERIFY</span>
+                    </div>
+                    <div class="app-modules">Modules: titan_master_verify, titan_services, cockpit_daemon, mcp_interface, integration_bridge</div>
+                </div>
+
+                <!-- App 6: Settings -->
+                <div class="app-card" style="border-top: 3px solid #888;">
+                    <div class="app-header">
+                        <div class="app-number">06</div>
+                        <h3>Settings</h3>
+                        <span class="app-accent" style="background: #888;">Gray</span>
+                    </div>
+                    <p>System-wide configuration manager. Proxy providers, AI model selection, notification preferences, and environment variables.</p>
+                    <div class="app-tabs">
+                        <span>GENERAL</span><span>PROXY</span><span>AI</span><span>NOTIFICATIONS</span>
+                    </div>
+                    <div class="app-modules">Modules: titan.env configuration, intel_monitor settings, proxy provider API keys</div>
+                </div>
+
+                <!-- App 7: Profile Forge -->
+                <div class="app-card" style="border-top: 3px solid #00ff88;">
+                    <div class="app-header">
+                        <div class="app-number">07</div>
+                        <h3>Profile Forge</h3>
+                        <span class="app-accent" style="background: #00ff88;">Green</span>
+                    </div>
+                    <p>Dedicated profile creation and management. 9-stage forge pipeline visualization, profile library, realism scoring, and bulk generation.</p>
+                    <div class="app-tabs">
+                        <span>CREATE</span><span>LIBRARY</span><span>SCORE</span><span>BULK</span>
+                    </div>
+                    <div class="app-modules">Modules: genesis_core, advanced_profile_generator, profile_realism_engine, persona_enrichment_engine</div>
+                </div>
+
+                <!-- App 8: Card Validator -->
+                <div class="app-card" style="border-top: 3px solid #ff3333;">
+                    <div class="app-header">
+                        <div class="app-number">08</div>
+                        <h3>Card Validator</h3>
+                        <span class="app-accent" style="background: #ff3333;">Red</span>
+                    </div>
+                    <p>Cerberus-powered card validation. BIN intelligence, quality grading, AVS matching, 3DS bypass scoring, and MaxDrain strategy planning.</p>
+                    <div class="app-tabs">
+                        <span>VALIDATE</span><span>BIN INTEL</span><span>3DS BYPASS</span><span>MAXDRAIN</span>
+                    </div>
+                    <div class="app-modules">Modules: cerberus_core, cerberus_enhanced, three_ds_strategy, issuer_algo_defense</div>
+                </div>
+
+                <!-- App 9: Browser Launch -->
+                <div class="app-card" style="border-top: 3px solid #9966ff;">
+                    <div class="app-header">
+                        <div class="app-number">09</div>
+                        <h3>Browser Launch</h3>
+                        <span class="app-accent" style="background: #9966ff;">Purple</span>
+                    </div>
+                    <p>Camoufox anti-detect browser launcher with full profile injection, extension loading (Ghost Motor + TX Monitor), and proxy binding.</p>
+                    <div class="app-tabs">
+                        <span>LAUNCH</span><span>PROFILES</span><span>EXTENSIONS</span>
+                    </div>
+                    <div class="app-modules">Modules: Camoufox v0.4.11, Ghost Motor extension, TX Monitor extension, fingerprint_injector</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI Stack -->
+    <section class="section section-alt" id="ai">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Artificial Intelligence</span>
+                <h2 class="section-title">6 Custom <span class="gradient-text">AI Models</span></h2>
+                <p class="section-desc">Locally-hosted AI inference with zero external API dependencies for core operations. ONNX INT4 for CPU speed, Ollama for deep reasoning.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+                    <h3>Phi-4-mini ONNX INT4</h3>
+                    <p>33 CPU-optimized task routes for real-time inference. CAPTCHA solving, DOM analysis, risk assessment, and natural language generation without GPU requirement.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+                    <h3>Titan-Analyst (4.7GB)</h3>
+                    <p>Structured JSON intelligence output. Trained on 2,200+ operator examples for BIN analysis, site profiling, and risk scoring.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div>
+                    <h3>Titan-Strategist (5.2GB)</h3>
+                    <p>Deep operation planning and multi-step strategy generation. Produces detailed playbooks with timing, sequencing, and risk mitigation.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+                    <h3>Titan-Fast (4.4GB)</h3>
+                    <p>Sub-10s rapid analysis for time-critical decisions. Quick BIN checks, site risk scoring, and real-time operational guidance.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                    <h3>DeepSeek-R1:8B</h3>
+                    <p>Advanced reasoning model for complex analytical tasks. Chain-of-thought processing for multi-variable decision making.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg></div>
+                    <h3>Qwen2.5:7B + Mistral:7B</h3>
+                    <p>General-purpose models for fallback reasoning, natural language understanding, and supplementary analysis tasks.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- External Tools -->
+    <section class="section" id="tools">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Software Stack</span>
+                <h2 class="section-title">10 Integrated <span class="gradient-text">External Tools</span></h2>
+                <p class="section-desc">Enterprise-grade open-source tools integrated into the Titan OS runtime environment.</p>
+            </div>
+            <div class="tools-grid">
+                <div class="tool-item">
+                    <h4>Ollama v0.16.3</h4>
+                    <p>Local LLM inference server hosting 6 custom models</p>
+                </div>
+                <div class="tool-item">
+                    <h4>Camoufox v0.4.11</h4>
+                    <p>Anti-detect Firefox-based browser with Playwright integration</p>
+                </div>
+                <div class="tool-item">
+                    <h4>Mullvad VPN v2025.14</h4>
+                    <p>Privacy VPN with WireGuard protocol and DAITA obfuscation</p>
+                </div>
+                <div class="tool-item">
+                    <h4>Xray-core v26.2.6</h4>
+                    <p>VLESS+Reality relay protocol for undetectable tunneling</p>
+                </div>
+                <div class="tool-item">
+                    <h4>Redis v7.0.15</h4>
+                    <p>In-memory session and cache store for real-time data</p>
+                </div>
+                <div class="tool-item">
+                    <h4>ntfy v2.11.0</h4>
+                    <p>Self-hosted push notification server for operational alerts</p>
+                </div>
+                <div class="tool-item">
+                    <h4>curl_cffi v0.14.0</h4>
+                    <p>Chrome TLS fingerprint impersonation for HTTP requests</p>
+                </div>
+                <div class="tool-item">
+                    <h4>plyvel v1.5.1</h4>
+                    <p>LevelDB bindings for Chrome localStorage manipulation</p>
+                </div>
+                <div class="tool-item">
+                    <h4>aioquic v1.3.0</h4>
+                    <p>QUIC/HTTP3 protocol implementation for next-gen proxy</p>
+                </div>
+                <div class="tool-item">
+                    <h4>MinIO v7.2.20</h4>
+                    <p>S3-compatible object storage for profile and data management</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Browser Extensions -->
+    <section class="section section-alt" id="extensions">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Browser Extensions</span>
+                <h2 class="section-title">2 Custom <span class="gradient-text">Browser Extensions</span></h2>
+                <p class="section-desc">Injected into every Camoufox session for behavioral synthesis and transaction monitoring.</p>
+            </div>
+            <div class="features-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/></svg></div>
+                    <h3>Ghost Motor Extension</h3>
+                    <p>Diffusion-model mouse trajectory synthesis, keyboard dynamics with field familiarity analysis, page attention simulation, scroll reading behavior, idle period injection, and fatigue entropy for long sessions. Defeats BioCatch, Forter, and all behavioral biometric systems.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+                    <h3>TX Monitor Extension</h3>
+                    <p>Intercepts XMLHttpRequest and fetch() to capture PSP API responses in real-time. 10 PSP endpoint patterns (Stripe, Adyen, Braintree, Shopify, etc.), PSP-specific response parsers, page content scanner for order confirmation detection.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Milestones Timeline -->
+    <section class="section" id="milestones">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Development History</span>
+                <h2 class="section-title">Version <span class="gradient-text">Milestones</span></h2>
+                <p class="section-desc">The evolution of Titan OS from initial concept to the current V9.1 release. Every version represents a major leap in capability.</p>
+            </div>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">V9.1.0 &mdash; February 2026</div>
+                        <h3>ONNX AI Engine + Android KYC</h3>
+                        <p>Phi-4-mini ONNX INT4 engine with 33 task routes for CPU inference. Android KYC module via Waydroid container. Webhook integrations for operational automation. 110 core modules fully audited with 0 broken, 0 stubs.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">V8.2.2 &mdash; February 2026</div>
+                        <h3>9-App GUI Restructure</h3>
+                        <p>Restructured from 5 to 9 applications. Added dedicated Settings, Profile Forge, Card Validator, and Browser Launch apps. GUI app wiring for chromium_commerce_injector and MCP interface. 17 research documents completed.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">V8.1.0 &mdash; February 2026</div>
+                        <h3>Persona Enrichment + Cognitive Profiling</h3>
+                        <p>AI-powered persona_enrichment_engine with demographic profiling, 18 purchase categories, coherence validation. Real-time AI co-pilot with HITL timing guardrails and behavioral anomaly detection. 7 copilot API routes.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">V8.0.0 &mdash; February 2026</div>
+                        <h3>Autonomous Engine + 16 Critical Patches</h3>
+                        <p>24/7 self-improving autonomous operation loop with self-patching. Ghost Motor seeded RNG (66 random calls fixed). DNS-over-HTTPS, eBPF auto-load, CPUID shield auto-apply. Session IP monitor with 30s proxy rotation polling.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">V7.6.0 &mdash; February 2026</div>
+                        <h3>Deep Hardening</h3>
+                        <p>42 files changed, 5,395 insertions. All 56 core modules analyzed and hardened. 171 unseeded random calls fixed. Updated browser targets (Chrome 132/133, Firefox 134). Expanded databases: +25 timezones, +40 fonts, +16 email domains, +5 GPU profiles.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">V7.0.3 &mdash; February 2026</div>
+                        <h3>SINGULARITY Release</h3>
+                        <p>Full VPS deployment + bootable ISO (2.7GB, 1505 packages). 8 detection gap fixes, 9 bug fixes, 200+ assertion verification suite. Transaction Monitor, Target Discovery Engine, 3DS Bypass Engine, MaxDrain Strategy, Non-VBV BIN database (100+ BINs, 28 countries), DarkWeb Intelligence Monitor.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-date">V7.0.2 &mdash; February 2026</div>
+                        <h3>Security Hardening + Cognitive Engine</h3>
+                        <p>WebRTC leak fix, Kill Switch network sever (nftables DROP before browser kill). IP reputation scoring (Scamalytics + IPQS). Ghost Motor cognitive timing engine with field familiarity, page attention, scroll behavior. Issuing Bank Pattern Predictor for 13 banks.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Antifraud Coverage -->
+    <section class="section section-alt" id="coverage">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Detection Coverage</span>
+                <h2 class="section-title">21 Antifraud Platforms <span class="gradient-text">Mapped</span></h2>
+                <p class="section-desc">Every major antifraud platform has been studied, profiled, and specific evasion techniques developed for each detection method.</p>
+            </div>
+            <div class="tools-grid">
+                <div class="tool-item"><h4>Forter</h4><p>Behavioral biometrics + device fingerprint</p></div>
+                <div class="tool-item"><h4>BioCatch</h4><p>Mouse/keyboard dynamics analysis</p></div>
+                <div class="tool-item"><h4>Riskified</h4><p>Machine learning fraud scoring</p></div>
+                <div class="tool-item"><h4>Sift</h4><p>Real-time fraud detection engine</p></div>
+                <div class="tool-item"><h4>Kount</h4><p>Device intelligence network</p></div>
+                <div class="tool-item"><h4>Signifyd</h4><p>Guaranteed fraud protection</p></div>
+                <div class="tool-item"><h4>SEON</h4><p>Device fingerprint intelligence</p></div>
+                <div class="tool-item"><h4>Stripe Radar</h4><p>Payment fraud ML model</p></div>
+                <div class="tool-item"><h4>Adyen Risk</h4><p>Payment risk engine</p></div>
+                <div class="tool-item"><h4>CyberSource</h4><p>Visa Decision Manager</p></div>
+                <div class="tool-item"><h4>Accertify</h4><p>Digital identity trust</p></div>
+                <div class="tool-item"><h4>ThreatMetrix</h4><p>Device/identity graph</p></div>
+                <div class="tool-item"><h4>iovation</h4><p>Device reputation network</p></div>
+                <div class="tool-item"><h4>Arkose Labs</h4><p>Bot/CAPTCHA detection</p></div>
+                <div class="tool-item"><h4>Castle</h4><p>Account security platform</p></div>
+                <div class="tool-item"><h4>Sardine</h4><p>Behavioral biometrics + device</p></div>
+                <div class="tool-item"><h4>Maxmind</h4><p>minFraud IP intelligence</p></div>
+                <div class="tool-item"><h4>Jumio</h4><p>Identity verification (KYC)</p></div>
+                <div class="tool-item"><h4>Onfido</h4><p>Document + facial verification</p></div>
+                <div class="tool-item"><h4>Veriff</h4><p>Video-based identity check</p></div>
+                <div class="tool-item"><h4>SumSub</h4><p>KYC/AML compliance platform</p></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ISO & Deployment -->
+    <section class="section" id="deployment">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Deployment</span>
+                <h2 class="section-title">Bootable <span class="gradient-text">ISO Image</span></h2>
+                <p class="section-desc">Titan OS ships as a complete bootable Debian 12 ISO with UEFI + BIOS dual-boot support. Deploy on bare metal, VPS, or virtual machines.</p>
+            </div>
+            <div class="features-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                <div class="feature-card">
+                    <h3>2.7 GB ISO</h3>
+                    <p>Compressed SquashFS with XZ compression. 1,505 packages pre-installed.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Dual Boot</h3>
+                    <p>ISOLINUX (BIOS) + GRUB EFI (UEFI) hybrid bootloader.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>VPS Ready</h3>
+                    <p>Tested and verified on Hostinger KVM 8. SSH + XRDP remote access.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>First Boot Setup</h3>
+                    <p>Automated first-boot script configures all services, AI models, and environment.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-card">
+                <div class="cta-content">
+                    <h2>Experience the Full Power of Titan OS</h2>
+                    <p>115 modules. 9 applications. 6 AI models. 8 defense rings. Built by Lucid at Lucid Empire. Available now.</p>
+                    <div class="cta-buttons">
+                        <a href="services.html" class="btn btn-white btn-lg">View Pricing</a>
+                        <a href="contact.html" class="btn btn-ghost-white btn-lg">Contact Lucid Empire</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="nav-logo">
+                        <div class="logo-icon">
+                            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <path d="M20 4L4 12V28L20 36L36 28V12L20 4Z"/>
+                                <circle cx="20" cy="20" r="6"/>
+                            </svg>
+                        </div>
+                        <span class="logo-text">Titan<span class="accent">OS</span></span>
+                    </a>
+                    <p>Titan OS by Lucid Empire. A complete multi-layer operating system with 115 modules, 9 apps, and 6 AI models. Developed by Lucid.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Platform</h4>
+                    <a href="features.html">Features</a>
+                    <a href="services.html">Pricing</a>
+                    <a href="docs.html">Documentation</a>
+                    <a href="about.html">About</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <a href="docs.html#quickstart">Quick Start</a>
+                    <a href="docs.html#api">API Reference</a>
+                    <a href="docs.html#changelog">Changelog</a>
+                    <a href="docs.html#faq">FAQ</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Lucid Empire</h4>
+                    <a href="about.html">About Us</a>
+                    <a href="contact.html">Contact</a>
+                    <a href="#">GitHub</a>
+                    <a href="#">Discord</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>&copy; 2026 Lucid Empire. All rights reserved. Developer: Lucid</span>
+                <div class="footer-legal">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
