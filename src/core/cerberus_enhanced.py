@@ -43,6 +43,17 @@ except ImportError:
 
 logger = logging.getLogger("TITAN-V7-CERBERUS-ENHANCED")
 
+# ── Hyperswitch Analytics (V2.0) ──
+try:
+    from cerberus_hyperswitch import (
+        get_hyperswitch_analytics, get_hyperswitch_client,
+        is_hyperswitch_available, HyperswitchAnalytics,
+        ConnectorAnalytics,
+    )
+    _HYPERSWITCH_ENHANCED = True
+except ImportError:
+    _HYPERSWITCH_ENHANCED = False
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # AVS (ADDRESS VERIFICATION SYSTEM) ENGINE

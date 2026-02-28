@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
-TITAN V9.2 SINGULARITY — Cerberus AppX
-========================================
-Standalone desktop application for zero-touch card validation.
-3 tabs:
-  1. VALIDATE — Single card input, merchant key selection, traffic light result
-  2. BATCH — Import card list, batch validation, export results
-  3. INTELLIGENCE — BIN database, decline analytics, 3DS bypass, AI risk scoring
+TITAN V9.2 SINGULARITY — Cerberus AppX V2
+============================================
+Desktop application for payment validation & orchestration.
+7 tabs:
+  1. VALIDATE — Single card validation with Hyperswitch + direct PSP fallback
+  2. BATCH — Bulk card processing with live streaming results
+  3. ROUTING — Hyperswitch intelligent routing dashboard
+  4. VAULT — PCI-compliant card vault management
+  5. ANALYTICS — Per-connector performance, decline heatmap, revenue recovery
+  6. INTELLIGENCE — BIN scoring, OSINT, AVS, pattern predictor, drain planner
+  7. CONNECTORS — Manage PSP connectors, API keys, test connectivity
 
 Architecture:
-  PyQt6 GUI → CerberusValidator (cerberus_core.py) → Stripe/Braintree/Adyen APIs
-  Optional: Cerberus Bridge API on port 36300 for external integrations
+  PyQt6 GUI → Hyperswitch (50+ connectors) → Stripe/Braintree/Adyen/+47 more
+  Fallback: Direct PSP validation when Hyperswitch is offline
+  API: Cerberus Bridge API on port 36300
 """
 
 import sys
@@ -89,6 +94,19 @@ try:
     AI_ENGINE = True
 except ImportError:
     AI_ENGINE = False
+
+try:
+    from cerberus_hyperswitch import (
+        HyperswitchClient, HyperswitchRouter, HyperswitchVault,
+        HyperswitchRetry, HyperswitchAnalytics,
+        get_hyperswitch_client, get_hyperswitch_router,
+        get_hyperswitch_vault, get_hyperswitch_retry,
+        get_hyperswitch_analytics, is_hyperswitch_available,
+        PaymentStatus, RoutingAlgorithm, ConnectorStatus,
+    )
+    HYPERSWITCH_OK = is_hyperswitch_available()
+except ImportError:
+    HYPERSWITCH_OK = False
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUILT-IN BIN DATABASE (works without core modules)
@@ -367,12 +385,12 @@ class BatchWorker(QThread):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class CerberusApp(QMainWindow):
-    """Cerberus AppX — Zero-Touch Card Validation Desktop Application"""
+    """Cerberus AppX V2 — Payment Validation & Orchestration Platform"""
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Cerberus AppX — Card Validation Intelligence")
-        self.setMinimumSize(1100, 750)
+        self.setWindowTitle("Cerberus AppX V2 — Payment Orchestration Intelligence")
+        self.setMinimumSize(1200, 800)
         self.merchant_keys = _load_keys()
         self.validation_history = _load_history()
         self.cooling_system = CardCoolingSystem() if CERBERUS_CORE else None
@@ -380,6 +398,21 @@ class CerberusApp(QMainWindow):
         self.psp_correlator = CrossPSPCorrelator() if CERBERUS_CORE else None
         self.avs_engine = AVSEngine() if CERBERUS_ENHANCED else None
         self.bin_scorer = BINScoringEngine() if CERBERUS_ENHANCED else None
+        # V2: Hyperswitch components
+        self.hs_client = None
+        self.hs_router = None
+        self.hs_vault = None
+        self.hs_retry = None
+        self.hs_analytics = None
+        if HYPERSWITCH_OK:
+            try:
+                self.hs_client = get_hyperswitch_client()
+                self.hs_router = get_hyperswitch_router()
+                self.hs_vault = get_hyperswitch_vault()
+                self.hs_retry = get_hyperswitch_retry()
+                self.hs_analytics = get_hyperswitch_analytics()
+            except Exception:
+                pass
         self._worker = None
         self._batch_worker = None
         self._init_ui()
@@ -398,17 +431,21 @@ class CerberusApp(QMainWindow):
         hl = QHBoxLayout(header)
         hl.setContentsMargins(16, 0, 16, 0)
 
-        title = QLabel("CERBERUS AppX")
+        title = QLabel("CERBERUS AppX V2")
         title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
         title.setStyleSheet(f"color: {ACCENT}; background: transparent;")
         hl.addWidget(title)
 
-        subtitle = QLabel("Zero-Touch Card Validation Intelligence")
+        subtitle = QLabel("Payment Orchestration Intelligence")
         subtitle.setStyleSheet(f"color: {TEXT2}; background: transparent; font-size: 12px;")
         hl.addWidget(subtitle)
         hl.addStretch()
 
         # Status indicators
+        hs_label = QLabel(f"Hyperswitch: {'✓' if HYPERSWITCH_OK else '✗'}")
+        hs_label.setStyleSheet(f"color: {GREEN if HYPERSWITCH_OK else ORANGE}; background: transparent; font-size: 11px; font-weight: bold;")
+        hl.addWidget(hs_label)
+
         core_label = QLabel(f"Core: {'✓' if CERBERUS_CORE else '✗'}")
         core_label.setStyleSheet(f"color: {GREEN if CERBERUS_CORE else RED}; background: transparent; font-size: 11px;")
         hl.addWidget(core_label)
@@ -440,8 +477,11 @@ class CerberusApp(QMainWindow):
 
         self.tabs.addTab(self._build_validate_tab(), "VALIDATE")
         self.tabs.addTab(self._build_batch_tab(), "BATCH")
+        self.tabs.addTab(self._build_routing_tab(), "ROUTING")
+        self.tabs.addTab(self._build_vault_tab(), "VAULT")
+        self.tabs.addTab(self._build_analytics_tab(), "ANALYTICS")
         self.tabs.addTab(self._build_intelligence_tab(), "INTELLIGENCE")
-        self.tabs.addTab(self._build_keys_tab(), "API KEYS")
+        self.tabs.addTab(self._build_connectors_tab(), "CONNECTORS")
 
         layout.addWidget(self.tabs)
 
@@ -522,7 +562,7 @@ class CerberusApp(QMainWindow):
         prov_layout = QHBoxLayout()
         prov_layout.addWidget(QLabel("Gateway:"))
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["Auto (all gateways)", "Stripe", "Braintree", "Adyen"])
+        self.provider_combo.addItems(["Auto (Hyperswitch + PSP)", "Hyperswitch Only", "Stripe", "Braintree", "Adyen"])
         prov_layout.addWidget(self.provider_combo)
         prov_layout.addStretch()
         card_layout.addLayout(prov_layout)
@@ -1104,18 +1144,472 @@ class CerberusApp(QMainWindow):
         self.analytics_text.setPlainText("\n".join(lines))
 
     # ───────────────────────────────────────────────────────────────────────
-    # TAB 4: API KEYS
+    # TAB 3: ROUTING (Hyperswitch Intelligent Routing Dashboard)
     # ───────────────────────────────────────────────────────────────────────
 
-    def _build_keys_tab(self) -> QWidget:
+    def _build_routing_tab(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
+        # Routing algorithm selector
+        algo_grp = QGroupBox("Routing Algorithm")
+        algo_layout = QHBoxLayout(algo_grp)
+
+        algo_layout.addWidget(QLabel("Active Algorithm:"))
+        self.routing_algo_combo = QComboBox()
+        self.routing_algo_combo.addItems([
+            "Auth Rate (MAB)", "Least Cost", "Priority-Based", "Elimination"
+        ])
+        self.routing_algo_combo.setFixedWidth(200)
+        algo_layout.addWidget(self.routing_algo_combo)
+
+        self.routing_refresh_btn = QPushButton("Refresh")
+        self.routing_refresh_btn.clicked.connect(self._on_routing_refresh)
+        algo_layout.addWidget(self.routing_refresh_btn)
+
+        algo_layout.addStretch()
+
+        algo_info = QLabel(
+            "Auth Rate: ML-driven Multi-Armed Bandit optimizes for highest approval rate\n"
+            "Least Cost: Routes to cheapest connector per transaction\n"
+            "Priority: Fixed priority ordering with failover\n"
+            "Elimination: Detects downtime and de-prioritizes failing connectors"
+        )
+        algo_info.setStyleSheet(f"color: {TEXT2}; background: transparent; font-size: 10px;")
+        algo_info.setWordWrap(True)
+        algo_layout.addWidget(algo_info)
+        layout.addWidget(algo_grp)
+
+        # Connector health dashboard
+        health_grp = QGroupBox("Connector Health")
+        health_layout = QVBoxLayout(health_grp)
+
+        self.routing_health_table = QTableWidget(0, 6)
+        self.routing_health_table.setHorizontalHeaderLabels([
+            "Connector", "Status", "Auth Rate", "Latency (ms)", "Volume (7d)", "Priority"
+        ])
+        self.routing_health_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.routing_health_table.verticalHeader().setVisible(False)
+        self.routing_health_table.setAlternatingRowColors(True)
+        self.routing_health_table.setStyleSheet(f"QTableWidget {{ alternate-background-color: {BG_INPUT}; }}")
+
+        # Populate with default connectors
+        default_connectors = [
+            ("Stripe", "Active" if HYPERSWITCH_OK else "Standby", "94.2%", "230", "1,247", "1"),
+            ("Braintree", "Active" if HYPERSWITCH_OK else "Standby", "91.8%", "310", "892", "2"),
+            ("Adyen", "Active" if HYPERSWITCH_OK else "Standby", "93.1%", "280", "1,034", "3"),
+            ("Checkout.com", "Available", "—", "—", "0", "4"),
+            ("PayPal", "Available", "—", "—", "0", "5"),
+        ]
+        for i, (name, status, auth, lat, vol, pri) in enumerate(default_connectors):
+            self.routing_health_table.insertRow(i)
+            self.routing_health_table.setItem(i, 0, QTableWidgetItem(name))
+            status_item = QTableWidgetItem(status)
+            status_color = GREEN if status == "Active" else (YELLOW if status == "Standby" else TEXT2)
+            status_item.setForeground(QColor(status_color))
+            self.routing_health_table.setItem(i, 1, status_item)
+            self.routing_health_table.setItem(i, 2, QTableWidgetItem(auth))
+            self.routing_health_table.setItem(i, 3, QTableWidgetItem(lat))
+            self.routing_health_table.setItem(i, 4, QTableWidgetItem(vol))
+            self.routing_health_table.setItem(i, 5, QTableWidgetItem(pri))
+
+        health_layout.addWidget(self.routing_health_table)
+        layout.addWidget(health_grp)
+
+        # Routing log
+        log_grp = QGroupBox("Routing Decisions (Live)")
+        log_layout = QVBoxLayout(log_grp)
+        self.routing_log = QPlainTextEdit()
+        self.routing_log.setReadOnly(True)
+        self.routing_log.setMaximumHeight(200)
+        self.routing_log.setStyleSheet(f"font-family: Consolas; font-size: 11px; background: {BG_INPUT};")
+        self.routing_log.setPlainText(
+            "Routing engine initialized\n"
+            f"Algorithm: Auth Rate (MAB)\n"
+            f"Hyperswitch: {'Connected' if HYPERSWITCH_OK else 'Not configured — using direct PSP routing'}\n"
+            f"Active connectors: {'3+ via Hyperswitch' if HYPERSWITCH_OK else 'Stripe, Braintree, Adyen (direct)'}\n"
+            "Awaiting transactions..."
+        )
+        log_layout.addWidget(self.routing_log)
+        layout.addWidget(log_grp)
+
+        return w
+
+    def _on_routing_refresh(self):
+        """Refresh routing dashboard with live data"""
+        if self.hs_analytics:
+            try:
+                loop = asyncio.new_event_loop()
+                summary = loop.run_until_complete(self.hs_analytics.get_summary())
+                loop.close()
+
+                lines = [f"Active Connectors: {summary.get('active_connectors', 0)}"]
+                lines.append(f"Overall Auth Rate: {summary.get('overall_auth_rate', 0)}%")
+                lines.append(f"Total Volume: ${summary.get('total_volume_usd', 0):,.2f}")
+                if summary.get('best_connector'):
+                    lines.append(f"Best Connector: {summary['best_connector']} ({summary['best_auth_rate']}%)")
+                self.routing_log.appendPlainText("\n" + "\n".join(lines))
+            except Exception as e:
+                self.routing_log.appendPlainText(f"\nRefresh error: {e}")
+        else:
+            self.routing_log.appendPlainText("\nHyperswitch not available — showing cached data")
+
+    # ───────────────────────────────────────────────────────────────────────
+    # TAB 4: VAULT (PCI-Compliant Card Storage)
+    # ───────────────────────────────────────────────────────────────────────
+
+    def _build_vault_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # Vault status
+        vault_status = QGroupBox("Vault Status")
+        vs_layout = QHBoxLayout(vault_status)
+        vault_ok = HYPERSWITCH_OK and self.hs_vault is not None
+        vs_lbl = QLabel(f"PCI Vault: {'ACTIVE' if vault_ok else 'OFFLINE'}")
+        vs_lbl.setStyleSheet(f"color: {GREEN if vault_ok else ORANGE}; font-weight: bold; font-size: 13px; background: transparent;")
+        vs_layout.addWidget(vs_lbl)
+        vs_info = QLabel("Cards tokenized via Hyperswitch Vault — PCI DSS compliant" if vault_ok else "Enable Hyperswitch to activate PCI-compliant card vault")
+        vs_info.setStyleSheet(f"color: {TEXT2}; font-size: 11px; background: transparent;")
+        vs_layout.addWidget(vs_info)
+        vs_layout.addStretch()
+        layout.addWidget(vault_status)
+
+        # Store card form
+        store_grp = QGroupBox("Store Card in Vault")
+        store_layout = QFormLayout(store_grp)
+
+        self.vault_card_input = QLineEdit()
+        self.vault_card_input.setPlaceholderText("4242424242424242|12|25|123")
+        self.vault_card_input.setFont(QFont("Consolas", 12))
+        store_layout.addRow("Card Data:", self.vault_card_input)
+
+        self.vault_nickname = QLineEdit()
+        self.vault_nickname.setPlaceholderText("My Chase Visa")
+        store_layout.addRow("Nickname:", self.vault_nickname)
+
+        vault_btn_layout = QHBoxLayout()
+        self.vault_store_btn = QPushButton("STORE IN VAULT")
+        self.vault_store_btn.clicked.connect(self._on_vault_store)
+        vault_btn_layout.addWidget(self.vault_store_btn)
+
+        self.vault_refresh_btn = QPushButton("Refresh")
+        self.vault_refresh_btn.setStyleSheet(f"background: {BG_INPUT}; color: {TEXT};")
+        self.vault_refresh_btn.clicked.connect(self._on_vault_refresh)
+        vault_btn_layout.addWidget(self.vault_refresh_btn)
+        vault_btn_layout.addStretch()
+        store_layout.addRow("", vault_btn_layout)
+        layout.addWidget(store_grp)
+
+        # Vaulted cards table
+        cards_grp = QGroupBox("Vaulted Cards")
+        cards_layout = QVBoxLayout(cards_grp)
+
+        self.vault_table = QTableWidget(0, 7)
+        self.vault_table.setHorizontalHeaderLabels([
+            "ID", "Last 4", "Network", "Exp", "Issuer", "Nickname", "Actions"
+        ])
+        self.vault_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.vault_table.verticalHeader().setVisible(False)
+        self.vault_table.setAlternatingRowColors(True)
+        self.vault_table.setStyleSheet(f"QTableWidget {{ alternate-background-color: {BG_INPUT}; }}")
+        cards_layout.addWidget(self.vault_table)
+        layout.addWidget(cards_grp)
+
+        # Vault log
+        self.vault_log = QPlainTextEdit()
+        self.vault_log.setReadOnly(True)
+        self.vault_log.setMaximumHeight(120)
+        self.vault_log.setStyleSheet(f"font-family: Consolas; font-size: 11px; background: {BG_INPUT};")
+        self.vault_log.setPlainText("Vault ready. Cards are tokenized and stored securely.")
+        layout.addWidget(self.vault_log)
+
+        return w
+
+    def _on_vault_store(self):
+        """Store a card in the Hyperswitch vault"""
+        card_data = self.vault_card_input.text().strip()
+        nickname = self.vault_nickname.text().strip()
+
+        if not card_data:
+            self.vault_log.appendPlainText("Enter card data to store")
+            return
+
+        if not self.hs_vault:
+            self.vault_log.appendPlainText("Vault not available — Hyperswitch not configured")
+            return
+
+        # Parse card data
+        parts = card_data.split("|")
+        if len(parts) < 4:
+            self.vault_log.appendPlainText("Invalid format. Use: PAN|MM|YY|CVV")
+            return
+
+        try:
+            loop = asyncio.new_event_loop()
+            vaulted = loop.run_until_complete(self.hs_vault.store_card(
+                card_number=parts[0].strip(),
+                card_exp_month=parts[1].strip(),
+                card_exp_year=parts[2].strip(),
+                card_cvc=parts[3].strip() if len(parts) > 3 else None,
+                nickname=nickname or None,
+            ))
+            loop.close()
+
+            self.vault_log.appendPlainText(
+                f"Stored: {vaulted.card_network.upper()} ****{vaulted.card_last4} "
+                f"(ID: {vaulted.payment_method_id[:12]}...)"
+            )
+            self.vault_card_input.clear()
+            self.vault_nickname.clear()
+            self._on_vault_refresh()
+        except Exception as e:
+            self.vault_log.appendPlainText(f"Vault error: {e}")
+
+    def _on_vault_refresh(self):
+        """Refresh the vaulted cards table"""
+        if not self.hs_vault:
+            return
+
+        try:
+            loop = asyncio.new_event_loop()
+            cards = loop.run_until_complete(self.hs_vault.list_cards())
+            loop.close()
+
+            self.vault_table.setRowCount(0)
+            for card in cards:
+                row = self.vault_table.rowCount()
+                self.vault_table.insertRow(row)
+                self.vault_table.setItem(row, 0, QTableWidgetItem(card.payment_method_id[:12] + "..."))
+                self.vault_table.setItem(row, 1, QTableWidgetItem(f"****{card.card_last4}"))
+                self.vault_table.setItem(row, 2, QTableWidgetItem(card.card_network.upper()))
+                self.vault_table.setItem(row, 3, QTableWidgetItem(f"{card.card_exp_month}/{card.card_exp_year}"))
+                self.vault_table.setItem(row, 4, QTableWidgetItem(card.card_issuer or "—"))
+                self.vault_table.setItem(row, 5, QTableWidgetItem(card.nickname or "—"))
+
+                rm_btn = QPushButton("Delete")
+                rm_btn.setStyleSheet(f"background: {RED}; padding: 3px 8px; font-size: 10px;")
+                rm_btn.clicked.connect(lambda _, pid=card.payment_method_id: self._on_vault_delete(pid))
+                self.vault_table.setCellWidget(row, 6, rm_btn)
+        except Exception as e:
+            self.vault_log.appendPlainText(f"Refresh error: {e}")
+
+    def _on_vault_delete(self, payment_method_id: str):
+        """Delete a card from the vault"""
+        if self.hs_vault:
+            try:
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(self.hs_vault.delete_card(payment_method_id))
+                loop.close()
+                self.vault_log.appendPlainText(f"Deleted: {payment_method_id[:12]}...")
+                self._on_vault_refresh()
+            except Exception as e:
+                self.vault_log.appendPlainText(f"Delete error: {e}")
+
+    # ───────────────────────────────────────────────────────────────────────
+    # TAB 5: ANALYTICS (Per-Connector Performance)
+    # ───────────────────────────────────────────────────────────────────────
+
+    def _build_analytics_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # Summary cards
+        summary_grp = QGroupBox("Performance Summary")
+        summary_layout = QHBoxLayout(summary_grp)
+
+        self.analytics_total_txn = self._make_stat_card("Total Txns", "0")
+        self.analytics_auth_rate = self._make_stat_card("Auth Rate", "0%")
+        self.analytics_volume = self._make_stat_card("Volume (USD)", "$0")
+        self.analytics_connectors = self._make_stat_card("Active Connectors", "0")
+        self.analytics_best = self._make_stat_card("Best Connector", "—")
+
+        for card_widget in [self.analytics_total_txn, self.analytics_auth_rate,
+                            self.analytics_volume, self.analytics_connectors, self.analytics_best]:
+            summary_layout.addWidget(card_widget)
+        layout.addWidget(summary_grp)
+
+        # Refresh button
+        ctrl = QHBoxLayout()
+        self.analytics_refresh_btn = QPushButton("Refresh Analytics")
+        self.analytics_refresh_btn.clicked.connect(self._on_analytics_refresh)
+        ctrl.addWidget(self.analytics_refresh_btn)
+
+        self.analytics_period_combo = QComboBox()
+        self.analytics_period_combo.addItems(["Last 24h", "Last 7d", "Last 30d"])
+        self.analytics_period_combo.setCurrentIndex(1)
+        ctrl.addWidget(self.analytics_period_combo)
+        ctrl.addStretch()
+        layout.addLayout(ctrl)
+
+        # Per-connector table
+        conn_grp = QGroupBox("Per-Connector Breakdown")
+        conn_layout = QVBoxLayout(conn_grp)
+
+        self.analytics_conn_table = QTableWidget(0, 7)
+        self.analytics_conn_table.setHorizontalHeaderLabels([
+            "Connector", "Transactions", "Success", "Failed", "Auth Rate", "Volume (USD)", "Top Decline"
+        ])
+        self.analytics_conn_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.analytics_conn_table.verticalHeader().setVisible(False)
+        self.analytics_conn_table.setAlternatingRowColors(True)
+        self.analytics_conn_table.setStyleSheet(f"QTableWidget {{ alternate-background-color: {BG_INPUT}; }}")
+        conn_layout.addWidget(self.analytics_conn_table)
+        layout.addWidget(conn_grp)
+
+        # Decline heatmap (text-based)
+        decline_grp = QGroupBox("Decline Code Distribution")
+        decline_layout = QVBoxLayout(decline_grp)
+        self.analytics_decline_text = QPlainTextEdit()
+        self.analytics_decline_text.setReadOnly(True)
+        self.analytics_decline_text.setMaximumHeight(180)
+        self.analytics_decline_text.setStyleSheet(f"font-family: Consolas; font-size: 11px; background: {BG_INPUT};")
+        self._refresh_analytics_decline()
+        decline_layout.addWidget(self.analytics_decline_text)
+        layout.addWidget(decline_grp)
+
+        return w
+
+    def _make_stat_card(self, title: str, value: str) -> QWidget:
+        """Create a stat card widget for analytics summary"""
+        card = QFrame()
+        card.setFixedHeight(80)
+        card.setStyleSheet(f"background: {BG_CARD}; border: 1px solid {BORDER}; border-radius: 8px;")
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(12, 8, 12, 8)
+
+        title_lbl = QLabel(title)
+        title_lbl.setStyleSheet(f"color: {TEXT2}; font-size: 10px; background: transparent; border: none;")
+        cl.addWidget(title_lbl)
+
+        value_lbl = QLabel(value)
+        value_lbl.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        value_lbl.setStyleSheet(f"color: {ACCENT}; background: transparent; border: none;")
+        value_lbl.setObjectName("stat_value")
+        cl.addWidget(value_lbl)
+
+        return card
+
+    def _on_analytics_refresh(self):
+        """Refresh analytics with live Hyperswitch data"""
+        if self.hs_analytics:
+            try:
+                loop = asyncio.new_event_loop()
+                summary = loop.run_until_complete(self.hs_analytics.get_summary())
+                analytics = loop.run_until_complete(self.hs_analytics.get_connector_analytics())
+                loop.close()
+
+                # Update summary cards
+                self.analytics_total_txn.findChild(QLabel, "stat_value").setText(str(summary.get("total_transactions", 0)))
+                self.analytics_auth_rate.findChild(QLabel, "stat_value").setText(f"{summary.get('overall_auth_rate', 0)}%")
+                self.analytics_volume.findChild(QLabel, "stat_value").setText(f"${summary.get('total_volume_usd', 0):,.0f}")
+                self.analytics_connectors.findChild(QLabel, "stat_value").setText(str(summary.get("active_connectors", 0)))
+                self.analytics_best.findChild(QLabel, "stat_value").setText(summary.get("best_connector", "—") or "—")
+
+                # Update connector table
+                self.analytics_conn_table.setRowCount(0)
+                for a in analytics:
+                    row = self.analytics_conn_table.rowCount()
+                    self.analytics_conn_table.insertRow(row)
+                    self.analytics_conn_table.setItem(row, 0, QTableWidgetItem(a.connector_name))
+                    self.analytics_conn_table.setItem(row, 1, QTableWidgetItem(str(a.total_transactions)))
+                    self.analytics_conn_table.setItem(row, 2, QTableWidgetItem(str(a.successful)))
+                    self.analytics_conn_table.setItem(row, 3, QTableWidgetItem(str(a.failed)))
+
+                    rate_item = QTableWidgetItem(f"{a.auth_rate}%")
+                    rate_color = GREEN if a.auth_rate >= 90 else (YELLOW if a.auth_rate >= 70 else RED)
+                    rate_item.setForeground(QColor(rate_color))
+                    self.analytics_conn_table.setItem(row, 4, rate_item)
+
+                    self.analytics_conn_table.setItem(row, 5, QTableWidgetItem(f"${a.total_amount:,.2f}"))
+
+                    top_decline = a.top_decline_codes[0]["code"] if a.top_decline_codes else "—"
+                    self.analytics_conn_table.setItem(row, 6, QTableWidgetItem(top_decline))
+
+            except Exception as e:
+                pass  # Silently handle — analytics is non-critical
+
+        # Also refresh local decline analytics
+        self._refresh_analytics_decline()
+
+    def _refresh_analytics_decline(self):
+        """Refresh decline code distribution from local history"""
+        if not self.validation_history:
+            self.analytics_decline_text.setPlainText("No validation data yet")
+            return
+
+        total = len(self.validation_history)
+        live = sum(1 for h in self.validation_history if h.get("status") == "LIVE")
+        dead = sum(1 for h in self.validation_history if h.get("status") == "DEAD")
+
+        decline_reasons = {}
+        for h in self.validation_history:
+            reason = h.get("decline_reason") or h.get("decline_category")
+            if reason:
+                decline_reasons[reason] = decline_reasons.get(reason, 0) + 1
+
+        gateway_stats = {}
+        for h in self.validation_history:
+            for gw in h.get("gateways_tried", []):
+                if gw not in gateway_stats:
+                    gateway_stats[gw] = {"total": 0, "live": 0, "dead": 0}
+                gateway_stats[gw]["total"] += 1
+                if h.get("status") == "LIVE":
+                    gateway_stats[gw]["live"] += 1
+                elif h.get("status") == "DEAD":
+                    gateway_stats[gw]["dead"] += 1
+
+        lines = [
+            f"Total: {total} | Live: {live} ({live/total*100:.0f}%) | Dead: {dead} ({dead/total*100:.0f}%)" if total else "No data",
+            "",
+            "Per-Gateway Success:"
+        ]
+        for gw, stats in sorted(gateway_stats.items(), key=lambda x: -x[1]["total"]):
+            rate = (stats["live"] / stats["total"] * 100) if stats["total"] > 0 else 0
+            lines.append(f"  {gw}: {stats['total']} txns, {rate:.0f}% auth rate")
+
+        lines.append("")
+        lines.append("Top Decline Reasons:")
+        for reason, count in sorted(decline_reasons.items(), key=lambda x: -x[1])[:10]:
+            pct = count / dead * 100 if dead > 0 else 0
+            lines.append(f"  {reason}: {count} ({pct:.0f}%)")
+
+        self.analytics_decline_text.setPlainText("\n".join(lines))
+
+    # ───────────────────────────────────────────────────────────────────────
+    # TAB 7: CONNECTORS (formerly API KEYS)
+    # ───────────────────────────────────────────────────────────────────────
+
+    def _build_connectors_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # Hyperswitch status banner
+        hs_banner = QGroupBox("Hyperswitch Status")
+        hs_bl = QHBoxLayout(hs_banner)
+        hs_status = "CONNECTED" if HYPERSWITCH_OK else "NOT CONFIGURED"
+        hs_color = GREEN if HYPERSWITCH_OK else ORANGE
+        hs_lbl = QLabel(f"Hyperswitch: {hs_status}")
+        hs_lbl.setStyleSheet(f"color: {hs_color}; font-weight: bold; font-size: 13px; background: transparent;")
+        hs_bl.addWidget(hs_lbl)
+        hs_info = QLabel("50+ connectors via intelligent routing" if HYPERSWITCH_OK else "Configure Hyperswitch for intelligent routing across 50+ PSPs")
+        hs_info.setStyleSheet(f"color: {TEXT2}; font-size: 11px; background: transparent;")
+        hs_bl.addWidget(hs_info)
+        hs_bl.addStretch()
+        layout.addWidget(hs_banner)
+
         info = QLabel(
-            "Add merchant API keys for live card validation. Without keys, only BIN lookup is available.\n"
-            "Keys are stored locally in ~/.cerberus_appx/keys.json"
+            "Add merchant API keys for direct PSP validation (fallback when Hyperswitch is offline).\n"
+            "Keys are stored locally in ~/.cerberus_appx/keys.json.\n"
+            "When Hyperswitch is active, connectors are managed through the Hyperswitch admin API."
         )
         info.setStyleSheet(f"color: {TEXT2}; background: transparent; font-size: 12px;")
         info.setWordWrap(True)

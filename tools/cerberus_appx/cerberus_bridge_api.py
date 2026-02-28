@@ -85,6 +85,17 @@ try:
 except ImportError:
     AI_ENGINE = False
 
+try:
+    from cerberus_hyperswitch import (
+        get_hyperswitch_client, get_hyperswitch_router,
+        get_hyperswitch_vault, get_hyperswitch_retry,
+        get_hyperswitch_analytics, is_hyperswitch_available,
+        PaymentStatus, RoutingAlgorithm,
+    )
+    HYPERSWITCH_OK = is_hyperswitch_available()
+except ImportError:
+    HYPERSWITCH_OK = False
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -190,7 +201,7 @@ def health():
 def status():
     return jsonify({
         "service": "cerberus-bridge",
-        "version": "9.2.0",
+        "version": "9.2.1",
         "started_at": engine.started_at.isoformat(),
         "total_validations": engine.total_validations,
         "modules": {
@@ -199,6 +210,7 @@ def status():
             "decline_decoder": DECLINE_DECODER,
             "bypass_engine": BYPASS_ENGINE,
             "ai_engine": AI_ENGINE,
+            "hyperswitch": HYPERSWITCH_OK,
         },
         "keys_configured": {
             provider: len(keys) for provider, keys in engine.merchant_keys.items()
@@ -599,10 +611,272 @@ def enrollment_guide():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# V2 HYPERSWITCH ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/v2/validate", methods=["POST"])
+def v2_validate():
+    """Validate card via Hyperswitch (50+ connectors)"""
+    if not HYPERSWITCH_OK:
+        return jsonify({"error": "Hyperswitch not configured", "fallback": "/api/v1/validate"}), 503
+
+    data = request.json or {}
+    card_data = data.get("card") or data.get("card_data")
+    if not card_data:
+        return jsonify({"error": "Missing 'card' field"}), 400
+
+    parts = card_data.split("|")
+    if len(parts) < 4:
+        return jsonify({"error": "Format: PAN|MM|YY|CVV"}), 400
+
+    client = get_hyperswitch_client()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        payment = loop.run_until_complete(client.validate_card(
+            card_number=parts[0].strip(),
+            card_exp_month=parts[1].strip(),
+            card_exp_year=parts[2].strip(),
+            card_cvc=parts[3].strip(),
+        ))
+        result = {
+            "payment_id": payment.payment_id,
+            "status": payment.status.value,
+            "connector": payment.connector,
+            "error_code": payment.error_code,
+            "error_message": payment.error_message,
+            "authentication_type": payment.authentication_type,
+            "validated": payment.status in (PaymentStatus.SUCCEEDED, PaymentStatus.REQUIRES_CAPTURE),
+        }
+        engine.record_result({
+            "status": "LIVE" if result["validated"] else "DEAD",
+            "message": f"Hyperswitch ({payment.connector}): {payment.status.value}",
+            "card": f"{parts[0][:6]}******{parts[0][-4:]}",
+            "gateways_tried": ["hyperswitch"],
+        })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@app.route("/api/v2/connectors", methods=["GET"])
+def v2_connectors():
+    """List active Hyperswitch connectors + health"""
+    if not HYPERSWITCH_OK:
+        return jsonify({"error": "Hyperswitch not configured"}), 503
+
+    router = get_hyperswitch_router()
+    connectors = router.get_optimal_connectors()
+    return jsonify({
+        "connectors": connectors,
+        "routing_algorithm": "auth_rate_mab",
+        "hyperswitch_url": get_hyperswitch_client().base_url,
+    })
+
+
+@app.route("/api/v2/routing", methods=["GET"])
+def v2_routing_get():
+    """Get current routing configuration"""
+    if not HYPERSWITCH_OK:
+        return jsonify({"error": "Hyperswitch not configured"}), 503
+
+    client = get_hyperswitch_client()
+    loop = asyncio.new_event_loop()
+    try:
+        config = loop.run_until_complete(client.get_routing_config())
+        return jsonify({
+            "algorithm": config.algorithm.value,
+            "connectors": config.connectors,
+            "rules": config.rules,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@app.route("/api/v2/vault/cards", methods=["GET"])
+def v2_vault_list():
+    """List vaulted cards"""
+    if not HYPERSWITCH_OK:
+        return jsonify({"error": "Hyperswitch not configured"}), 503
+
+    vault = get_hyperswitch_vault()
+    loop = asyncio.new_event_loop()
+    try:
+        cards = loop.run_until_complete(vault.list_cards())
+        return jsonify({
+            "cards": [
+                {
+                    "id": c.payment_method_id,
+                    "last4": c.card_last4,
+                    "network": c.card_network,
+                    "exp": f"{c.card_exp_month}/{c.card_exp_year}",
+                    "nickname": c.nickname,
+                }
+                for c in cards
+            ],
+            "total": len(cards),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@app.route("/api/v2/vault/store", methods=["POST"])
+def v2_vault_store():
+    """Store a card in the vault"""
+    if not HYPERSWITCH_OK:
+        return jsonify({"error": "Hyperswitch not configured"}), 503
+
+    data = request.json or {}
+    card_data = data.get("card") or data.get("card_data")
+    if not card_data:
+        return jsonify({"error": "Missing 'card' field"}), 400
+
+    parts = card_data.split("|")
+    if len(parts) < 3:
+        return jsonify({"error": "Format: PAN|MM|YY[|CVV]"}), 400
+
+    vault = get_hyperswitch_vault()
+    loop = asyncio.new_event_loop()
+    try:
+        vaulted = loop.run_until_complete(vault.store_card(
+            card_number=parts[0].strip(),
+            card_exp_month=parts[1].strip(),
+            card_exp_year=parts[2].strip(),
+            card_cvc=parts[3].strip() if len(parts) > 3 else None,
+            nickname=data.get("nickname"),
+        ))
+        return jsonify({
+            "id": vaulted.payment_method_id,
+            "last4": vaulted.card_last4,
+            "network": vaulted.card_network,
+            "nickname": vaulted.nickname,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@app.route("/api/v2/analytics/summary", methods=["GET"])
+def v2_analytics_summary():
+    """Analytics dashboard summary"""
+    if not HYPERSWITCH_OK:
+        return jsonify({"error": "Hyperswitch not configured"}), 503
+
+    analytics = get_hyperswitch_analytics()
+    loop = asyncio.new_event_loop()
+    try:
+        summary = loop.run_until_complete(analytics.get_summary())
+        return jsonify(summary)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@app.route("/api/v2/analytics/connector/<connector_name>", methods=["GET"])
+def v2_analytics_connector(connector_name: str):
+    """Per-connector analytics"""
+    if not HYPERSWITCH_OK:
+        return jsonify({"error": "Hyperswitch not configured"}), 503
+
+    analytics = get_hyperswitch_analytics()
+    loop = asyncio.new_event_loop()
+    try:
+        data = loop.run_until_complete(analytics.get_connector_analytics(connector=connector_name))
+        if data:
+            a = data[0]
+            return jsonify({
+                "connector": a.connector_name,
+                "transactions": a.total_transactions,
+                "successful": a.successful,
+                "failed": a.failed,
+                "auth_rate": a.auth_rate,
+                "total_amount": a.total_amount,
+                "top_decline_codes": a.top_decline_codes,
+            })
+        return jsonify({"error": "Connector not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+@app.route("/api/v2/retry", methods=["POST"])
+def v2_retry():
+    """Trigger smart retry for failed payment"""
+    if not HYPERSWITCH_OK:
+        return jsonify({"error": "Hyperswitch not configured"}), 503
+
+    data = request.json or {}
+    card_data = data.get("card")
+    payment_id = data.get("payment_id")
+
+    if not card_data:
+        return jsonify({"error": "Missing 'card' field"}), 400
+
+    parts = card_data.split("|")
+    if len(parts) < 4:
+        return jsonify({"error": "Format: PAN|MM|YY|CVV"}), 400
+
+    retry_engine = get_hyperswitch_retry()
+    client = get_hyperswitch_client()
+    loop = asyncio.new_event_loop()
+    try:
+        # Get failed payment if ID provided
+        if payment_id:
+            failed = loop.run_until_complete(client.get_payment(payment_id))
+        else:
+            # Create a mock failed payment for retry
+            from cerberus_hyperswitch import HyperswitchPayment
+            failed = HyperswitchPayment(
+                payment_id="manual_retry",
+                status=PaymentStatus.FAILED,
+                amount=data.get("amount", 0),
+                currency=data.get("currency", "USD"),
+                error_code=data.get("error_code", "generic_decline"),
+                authentication_type="no_three_ds",
+            )
+
+        results = loop.run_until_complete(retry_engine.smart_retry(
+            failed_payment=failed,
+            card_number=parts[0].strip(),
+            card_exp_month=parts[1].strip(),
+            card_exp_year=parts[2].strip(),
+            card_cvc=parts[3].strip(),
+            max_attempts=data.get("max_attempts", 3),
+        ))
+
+        return jsonify({
+            "retry_results": [
+                {
+                    "attempt": r.attempt_number,
+                    "connector": r.connector_used,
+                    "status": r.status.value,
+                    "error_code": r.error_code,
+                    "delay_ms": r.delay_applied_ms,
+                }
+                for r in results
+            ],
+            "success": any(r.status in (PaymentStatus.SUCCEEDED, PaymentStatus.REQUIRES_CAPTURE) for r in results),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        loop.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    logger.info(f"Starting Cerberus Bridge API on {BRIDGE_HOST}:{BRIDGE_PORT}")
-    logger.info(f"Core: {CERBERUS_CORE} | Enhanced: {CERBERUS_ENHANCED} | Decline: {DECLINE_DECODER} | 3DS: {BYPASS_ENGINE} | AI: {AI_ENGINE}")
+    logger.info(f"Starting Cerberus Bridge API V2 on {BRIDGE_HOST}:{BRIDGE_PORT}")
+    logger.info(f"Core: {CERBERUS_CORE} | Enhanced: {CERBERUS_ENHANCED} | Hyperswitch: {HYPERSWITCH_OK} | AI: {AI_ENGINE}")
     app.run(host=BRIDGE_HOST, port=BRIDGE_PORT, debug=False)

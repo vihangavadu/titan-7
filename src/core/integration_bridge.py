@@ -481,6 +481,13 @@ except ImportError:
     logger.warning("Cerberus Enhanced not available")
 
 try:
+    from cerberus_hyperswitch import HyperswitchClient, is_hyperswitch_available
+    CERBERUS_HYPERSWITCH_AVAILABLE = True
+except ImportError:
+    CERBERUS_HYPERSWITCH_AVAILABLE = False
+    logger.warning("Cerberus Hyperswitch not available")
+
+try:
     from cpuid_rdtsc_shield import CPUIDRDTSCShield
     CPUID_SHIELD_AVAILABLE = True
 except ImportError:
@@ -675,6 +682,7 @@ def validate_imports() -> Dict[str, Any]:
         "CanvasSubpixelShim": CANVAS_SHIM_AVAILABLE,
         "CerberusCore": CERBERUS_CORE_AVAILABLE,
         "CerberusEnhanced": CERBERUS_ENHANCED_AVAILABLE,
+        "CerberusHyperswitch": CERBERUS_HYPERSWITCH_AVAILABLE,
         "CPUIDShield": CPUID_SHIELD_AVAILABLE,
         "FingerprintInjector": FINGERPRINT_INJECTOR_AVAILABLE,
         "FontSanitizer": FONT_SANITIZER_AVAILABLE,
@@ -1668,6 +1676,7 @@ class TitanIntegrationBridge:
             "canvas_subpixel_shim": CANVAS_SHIM_AVAILABLE,
             "cerberus_core": CERBERUS_CORE_AVAILABLE,
             "cerberus_enhanced": CERBERUS_ENHANCED_AVAILABLE,
+            "cerberus_hyperswitch": CERBERUS_HYPERSWITCH_AVAILABLE,
             "cpuid_rdtsc_shield": CPUID_SHIELD_AVAILABLE,
             "fingerprint_injector": FINGERPRINT_INJECTOR_AVAILABLE,
             "font_sanitizer": FONT_SANITIZER_AVAILABLE,

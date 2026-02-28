@@ -244,6 +244,14 @@ except ImportError as e:
     logger.warning(f"Cerberus core not available: {e}")
 
 try:
+    from cerberus_hyperswitch import (
+        HyperswitchClient, get_hyperswitch_client, is_hyperswitch_available,
+    )
+    MODULES_AVAILABLE["cerberus_hyperswitch"] = True
+except ImportError as e:
+    logger.warning(f"Cerberus Hyperswitch not available: {e}")
+
+try:
     from kyc_core import (
         KYCController, KYCProviderDetector, LivenessDetectionBypass,
         detect_kyc_provider, get_kyc_bypass_strategy,
