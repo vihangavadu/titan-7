@@ -1,21 +1,44 @@
-# TITAN OS V8.2 SINGULARITY
+# TITAN X (V10.0) — HYPERSWITCH SINGULARITY
 
-[![Version](https://img.shields.io/badge/version-8.2.0-blue.svg)]()
-[![Core](https://img.shields.io/badge/core_modules-113-purple.svg)]()
+[![Version](https://img.shields.io/badge/version-10.0.0-blue.svg)]()
+[![Core](https://img.shields.io/badge/core_modules-115-purple.svg)]()
 [![Apps](https://img.shields.io/badge/GUI_apps-5-cyan.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Debian_12_%7C_Python_3.11-orange.svg)]()
+[![Payment](https://img.shields.io/badge/payment-Hyperswitch_Orchestrator-green.svg)]()
 
-> **Codename:** SINGULARITY | **Author:** Dva.12  
-> **Platform:** Debian 12 | Python 3.11 | Camoufox Browser | Ollama LLM  
+> **Codename:** HYPERSWITCH SINGULARITY | **Version:** Titan X (10.0)  
+> **Platform:** Debian 12 | Python 3.11 | Camoufox Browser | Ollama LLM | Hyperswitch Payment Orchestrator  
+> **Major Upgrade:** Integrated Juspay Hyperswitch for intelligent payment routing, revenue recovery, and 50+ PSP connectors
+
+---
+
+## 🚀 What's New in Titan X
+
+### Hyperswitch Payment Orchestration
+- **Intelligent Routing**: Multi-Armed Bandit (MAB), least-cost, elimination, and contracts-based routing
+- **Revenue Recovery**: Automated retry logic with smart fallback strategies
+- **Unified API**: Single integration for 50+ payment processors (Stripe, Adyen, Braintree, PayPal, etc.)
+- **PCI-Compliant Vault**: Secure card tokenization and storage
+- **Cost Observability**: Real-time payment analytics and cost tracking
+- **Cerberus AppX V2**: Rebuilt 7-tab GUI with Hyperswitch integration
+
+### New Modules (115 Total)
+- `cerberus_hyperswitch.py` — Hyperswitch REST API client with routing, vault, retry, and analytics
+- `cerberus_bridge_api.py` — Enhanced with 10 new v2 endpoints for Hyperswitch operations
+
+### Enhanced Applications
+- **Cerberus AppX V2**: 7 tabs (VALIDATE, BATCH, ROUTING, VAULT, ANALYTICS, INTELLIGENCE, CONNECTORS)
+- **Genesis AppX**: Enhanced profile forge with Hyperswitch payment validation
+- **Titan Operations**: Integrated Hyperswitch payment orchestration
 
 ---
 
 ## Repository Structure
 
 ```
-titan-7/
+titan-x/
 ├── src/                         # All Titan source code
-│   ├── core/                    # 113 core modules (110 Python + 3 C)
+│   ├── core/                    # 115 core modules (112 Python + 3 C)
 │   ├── apps/                    # 5 PyQt6 GUI applications + launcher
 │   ├── extensions/              # Browser extensions (Ghost Motor, TX Monitor)
 │   ├── profgen/                 # Firefox profile generator library
@@ -66,7 +89,26 @@ titan-7/
 
 ---
 
-## Core Modules (113)
+## Core Modules (115)
+
+### Payment Orchestration (NEW in Titan X)
+| Module | Description |
+|--------|-------------|
+| `cerberus_hyperswitch.py` | Hyperswitch payment orchestrator integration (800 lines, 5 classes) |
+| `cerberus_core.py` | Enhanced with Hyperswitch as primary validation backend |
+| `cerberus_enhanced.py` | Integrated Hyperswitch analytics for data enrichment |
+| `cerberus_bridge_api.py` | 10 new v2 REST endpoints for Hyperswitch operations |
+
+**Hyperswitch Features:**
+- **HyperswitchClient**: Payment creation, retrieval, confirmation, cancellation
+- **HyperswitchRouter**: Intelligent routing strategies (MAB, least-cost, elimination, contracts)
+- **HyperswitchVault**: PCI-compliant card tokenization and customer management
+- **HyperswitchRetry**: Automated retry logic with smart fallback
+- **HyperswitchAnalytics**: Real-time payment metrics and cost observability
+
+---
+
+## Legacy Core Modules (113)
 
 ### Identity & Profile Generation
 | Module | Description |
@@ -192,10 +234,12 @@ titan-7/
 
 ---
 
-## 5 GUI Applications
+## 6 GUI Applications
 
 | App | File | Tabs | Purpose |
 |-----|------|------|---------|
+| **Cerberus AppX V2** | `app_cerberus.py` | 7 | VALIDATE, BATCH, ROUTING, VAULT, ANALYTICS, INTELLIGENCE, CONNECTORS |
+| **Genesis AppX** | `app_genesis.py` | 4 | Profile Forge, Browser Launch, History, Settings |
 | **Operations** | `titan_operations.py` | 5 | Target → Identity → Validate → Launch → Results |
 | **Intelligence** | `titan_intelligence.py` | 5 | AI Copilot, 3DS Strategy, Detection, Recon, Memory |
 | **Network** | `titan_network.py` | 4 | VPN, Network Shield, Forensic, Proxy/DNS |
@@ -203,10 +247,21 @@ titan-7/
 | **Admin** | `titan_admin.py` | 5 | Services, Tools, System, Automation, Config |
 | **Launcher** | `titan_launcher.py` | — | Dashboard with health status & app cards |
 
+### Cerberus AppX V2 — Payment Orchestration Hub
+**7 Tabs:**
+1. **VALIDATE** — Single card validation with Hyperswitch/Stripe/Braintree/Adyen
+2. **BATCH** — Bulk card validation with rate limiting and export
+3. **ROUTING** — Configure intelligent routing strategies (MAB, least-cost, elimination)
+4. **VAULT** — Manage tokenized cards and customer profiles
+5. **ANALYTICS** — Real-time payment metrics, success rates, cost analysis
+6. **INTELLIGENCE** — BIN lookup, decline analytics, validation history
+7. **CONNECTORS** — Manage PSP API keys and connector status (50+ supported)
+
 ---
 
 ## Quick Start
 
+### Standard Deployment
 ```bash
 # Clone
 git clone https://github.com/malithwishwa02-dot/titan-7.git
@@ -221,6 +276,49 @@ bash scripts/vps/deploy_vps.sh
 
 # Or build ISO
 bash scripts/build_iso.sh
+```
+
+### Hyperswitch Deployment (Titan X Feature)
+```bash
+# Deploy Hyperswitch payment orchestrator
+bash scripts/deploy_hyperswitch.sh
+
+# This will:
+# 1. Install Docker & Docker Compose
+# 2. Deploy Hyperswitch stack (App Server, Control Center, PostgreSQL, Redis)
+# 3. Configure environment variables in titan.env
+# 4. Run health checks
+# 5. Display Control Center URL (default: http://127.0.0.1:9000)
+
+# Enable Hyperswitch in Titan
+# Edit src/config/titan.env:
+HYPERSWITCH_ENABLED=1
+HYPERSWITCH_URL=http://127.0.0.1:8080
+HYPERSWITCH_API_KEY=your_api_key_here
+HYPERSWITCH_PUBLISHABLE_KEY=your_pk_here
+HYPERSWITCH_ADMIN_KEY=your_admin_key_here
+
+# Launch Cerberus AppX V2
+python src/apps/app_cerberus.py
+```
+
+### Cerberus Bridge API (REST Endpoints)
+```bash
+# Start Cerberus Bridge API
+python tools/cerberus_appx/cerberus_bridge_api.py
+
+# API runs on http://127.0.0.1:36300
+# V2 Endpoints (Hyperswitch):
+# POST /api/v2/validate          - Validate card via Hyperswitch
+# GET  /api/v2/connectors         - List available PSP connectors
+# POST /api/v2/routing/create     - Create routing algorithm
+# GET  /api/v2/routing/list       - List routing algorithms
+# POST /api/v2/vault/tokenize     - Tokenize card in vault
+# GET  /api/v2/vault/customers    - List vault customers
+# GET  /api/v2/analytics/metrics  - Get payment analytics
+# POST /api/v2/retry/configure    - Configure retry logic
+# GET  /api/v2/retry/status       - Get retry status
+# GET  /api/v2/health             - Hyperswitch health check
 ```
 
 ---
@@ -247,7 +345,82 @@ bash scripts/build_iso.sh
 - **Runtime:** Python 3.11
 - **Browser:** Camoufox (anti-detection Firefox fork)
 - **GUI:** PyQt6
+- **Payment:** Hyperswitch (open-source payment orchestrator)
 - **AI:** Ollama (mistral:7b, qwen2.5:7b, deepseek-r1:8b)
 - **Vector DB:** ChromaDB
 - **Network:** eBPF/XDP, WireGuard, VLESS+Reality
 - **Kernel:** Custom modules (titan_hw.ko, network_shield)
+- **Infrastructure:** Docker, PostgreSQL, Redis
+
+### Hyperswitch Stack
+- **App Server:** Rust-based payment orchestrator (port 8080)
+- **Control Center:** React dashboard (port 9000)
+- **Database:** PostgreSQL 14
+- **Cache:** Redis 7
+- **Connectors:** 50+ PSPs (Stripe, Adyen, Braintree, PayPal, Checkout.com, etc.)
+
+---
+
+## Environment Variables (Hyperswitch)
+
+Add to `src/config/titan.env`:
+
+```bash
+# Hyperswitch Configuration
+HYPERSWITCH_ENABLED=1                                    # Enable Hyperswitch (0=disabled, 1=enabled)
+HYPERSWITCH_URL=http://127.0.0.1:8080                   # Hyperswitch API URL
+HYPERSWITCH_API_KEY=your_api_key_here                   # Merchant API key
+HYPERSWITCH_PUBLISHABLE_KEY=your_pk_here                # Publishable key for client-side
+HYPERSWITCH_ADMIN_KEY=your_admin_key_here               # Admin API key
+HYPERSWITCH_CONTROL_CENTER_URL=http://127.0.0.1:9000    # Control Center dashboard
+```
+
+---
+
+## Architecture: Hyperswitch Integration
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Cerberus AppX V2 (PyQt6)                    │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────────┐   │
+│  │ VALIDATE │  BATCH   │ ROUTING  │  VAULT   │  ANALYTICS   │   │
+│  └──────────┴──────────┴──────────┴──────────┴──────────────┘   │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              cerberus_hyperswitch.py (Core Module)              │
+│  ┌──────────────┬──────────────┬──────────────┬──────────────┐  │
+│  │ Client       │ Router       │ Vault        │ Analytics    │  │
+│  │ (Payments)   │ (Strategies) │ (Tokens)     │ (Metrics)    │  │
+│  └──────────────┴──────────────┴──────────────┴──────────────┘  │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  Hyperswitch App Server (Rust)                  │
+│                         Port 8080                               │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Intelligent Routing Engine (MAB, Least-Cost, etc.)     │   │
+│  │  Retry Logic & Revenue Recovery                         │   │
+│  │  PCI-Compliant Vault                                    │   │
+│  │  Cost Observability & Analytics                         │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+         ┌───────────────┼───────────────┬──────────────┐
+         ▼               ▼               ▼              ▼
+    ┌────────┐      ┌────────┐      ┌────────┐    ┌────────┐
+    │ Stripe │      │ Adyen  │      │Braintree│    │ +47    │
+    │        │      │        │      │        │    │ more   │
+    └────────┘      └────────┘      └────────┘    └────────┘
+```
+
+### Payment Flow (Hyperswitch Mode)
+1. **User Input** → Cerberus AppX V2 (VALIDATE tab)
+2. **Validation** → `cerberus_hyperswitch.py` creates payment
+3. **Routing** → Hyperswitch applies intelligent routing algorithm
+4. **PSP Selection** → Routes to optimal PSP (Stripe/Adyen/Braintree)
+5. **Retry Logic** → Auto-retry on failure with different PSP
+6. **Response** → Return validation result to GUI
+7. **Analytics** → Track success rate, cost, latency
