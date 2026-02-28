@@ -30,6 +30,20 @@ desktop.ini
 *.bin
 plink.exe
 
+# Large binaries — exceed GitHub 100MB limit
+*.deb
+*.rpm
+*.tar.xz
+*.AppImage
+*.mp4
+*.mov
+*.avi
+
+# Extracted/unpacked third-party app data
+tools/multilogin6/extracted/
+tools/multilogin6/multilogin.deb
+tools/multilogin6/genesis_appx/patched/extracted/
+
 # Generated profiles — runtime data
 profiles/
 
