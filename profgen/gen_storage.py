@@ -109,6 +109,11 @@ def generate(profile_path):
     # SQLite stores text ~60% efficiently vs raw, so overshoot by 1.7x
     target = int(STORAGE_MB * 1024 * 1024 * 1.7)
 
+    ga_domains = {"youtube.com","reddit.com","amazon.com","eneba.com",
+                   "g2a.com","newegg.com","bestbuy.com","steampowered.com",
+                   "ubereats.com","linkedin.com"}
+    fill_keys = ["state", "payload", "entries", "config", "cache", "tokens", "assets", "chunks"]
+
     for dom in ALL_DOMAINS:
         dd = sdir / f"https+++www.{dom}" / "ls"
         dd.mkdir(parents=True, exist_ok=True)
@@ -120,12 +125,7 @@ def generate(profile_path):
             value BLOB NOT NULL
         )""")
 
-        # Domain-specific keys
         dom_keys = REALISTIC_LS_KEYS.get(dom, {})
-        # Only add GA cookies to domains that realistically use Google Analytics
-        ga_domains = ["youtube.com","reddit.com","amazon.com","eneba.com",
-                      "g2a.com","newegg.com","bestbuy.com","steampowered.com",
-                      "ubereats.com","linkedin.com"]
         if dom in ga_domains:
             ga_id = f"GA1.1.{random.randint(1000000000,9999999999)}.{int((NOW-timedelta(days=random.randint(20,AGE_DAYS))).timestamp())}"
             dom_keys["_ga"] = lambda _gid=ga_id: _gid
@@ -141,7 +141,6 @@ def generate(profile_path):
         conn.commit()
         conn.close()
 
-    # Padding with realistic cache/analytics keys (not _c_*)
     print(f"  Base: {total/(1024*1024):.1f}MB — padding to {STORAGE_MB}MB with realistic keys...")
     remaining = target - total
     pad_per = max(remaining // len(ALL_DOMAINS), 0)
@@ -157,14 +156,6 @@ def generate(profile_path):
             pattern = random.choice(CACHE_KEY_PATTERNS)
             k, vfn = pattern(idx, dom)
             v = vfn()
-            # V7.0.3 PATCH: Old code appended raw base64(random_bytes) to the
-            # end of realistic JSON values.  This creates an obvious pattern:
-            # valid JSON followed by a wall of base64 gibberish.  Fraud ML
-            # models trained on real localStorage can detect this instantly.
-            #
-            # New approach: pad by wrapping data in realistic nested JSON
-            # structures (caches, state objects, serialized Redux stores)
-            # that naturally contain large string fields.
             target_size = random.choice([512, 1024, 2048, 4096, 8192]) if written < pad_per * 0.5 else random.choice([256, 512, 1024])
             pad_obj = {
                 "v": random.randint(1, 5),
@@ -173,11 +164,13 @@ def generate(profile_path):
                 "meta": {"source": random.choice(["sw-cache", "idb-sync", "persist", "analytics", "gtm"]),
                          "rev": str(random.randint(100, 9999))}
             }
-            # Fill data with plausible key-value pairs until target size
-            fill_keys = ["state", "payload", "entries", "config", "cache", "tokens", "assets", "chunks"]
-            while len(json.dumps(pad_obj)) < target_size:
+            current_size = len(json.dumps(pad_obj))
+            while current_size < target_size:
                 fk = random.choice(fill_keys) + str(random.randint(0, 99))
-                pad_obj["data"][fk] = secrets.token_hex(random.randint(32, 256))
+                hex_val = secrets.token_hex(random.randint(32, 256))
+                entry_size = len(fk) + len(hex_val) + 6
+                pad_obj["data"][fk] = hex_val
+                current_size += entry_size
             v = json.dumps(pad_obj)
 
             try:
