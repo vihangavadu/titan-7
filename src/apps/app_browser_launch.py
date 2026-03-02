@@ -110,6 +110,24 @@ try:
 except ImportError:
     AI_V83_OK = False
 
+try:
+    from referrer_warmup import ReferrerWarmup
+    WARMUP_OK = True
+except ImportError:
+    WARMUP_OK = False
+
+try:
+    from network_jitter import NetworkJitterEngine
+    JITTER_OK = True
+except ImportError:
+    JITTER_OK = False
+
+try:
+    from first_session_bias_eliminator import FirstSessionBiasEliminator
+    FSB_OK = True
+except ImportError:
+    FSB_OK = False
+
 
 class PreflightWorker(QThread):
     finished = pyqtSignal(dict)

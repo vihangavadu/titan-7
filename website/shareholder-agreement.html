@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shareholder Agreement — Lucid Empire Titan X</title>
+  <style>
+    :root {
+      --primary: #0a0f1e;
+      --accent: #00d4ff;
+      --gold: #f0c040;
+      --text: #e0e6f0;
+      --muted: #8899aa;
+      --card: #111827;
+      --border: #1e3a5f;
+      --green: #10b981;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--primary);
+      color: var(--text);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh;
+      padding: 0 0 60px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #060c1a 0%, #0d1b33 60%, #091428 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 28px 40px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+    .header-logo {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, var(--accent), #0066cc);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 900; color: #fff; letter-spacing: -1px;
+      flex-shrink: 0;
+    }
+    .header-text h1 {
+      font-size: 1.5rem; font-weight: 800; color: var(--accent);
+      letter-spacing: 1px;
+    }
+    .header-text p { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Private Badge ── */
+    .private-badge {
+      margin-left: auto;
+      background: rgba(240,192,64,0.12);
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 20px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    /* ── Main ── */
+    .container { max-width: 860px; margin: 0 auto; padding: 40px 24px; }
+
+    /* ── Exclusive Notice ── */
+    .exclusive-notice {
+      background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(0,102,204,0.08));
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 32px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .exclusive-notice .icon { font-size: 28px; flex-shrink: 0; }
+    .exclusive-notice h3 { color: var(--accent); font-size: 1rem; margin-bottom: 4px; }
+    .exclusive-notice p { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── Section Cards ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+    }
+    .card h2 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Party Grid ── */
+    .party-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media(max-width: 600px) { .party-grid { grid-template-columns: 1fr; } }
+    .party-box {
+      background: rgba(0,212,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+    .party-box .label {
+      font-size: 0.72rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 10px;
+    }
+    .party-box .name { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .party-box .share {
+      display: inline-block;
+      background: rgba(0,212,255,0.15);
+      color: var(--accent);
+      font-size: 0.78rem; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px; margin-top: 6px;
+    }
+    .party-box.highlight { border-color: var(--gold); background: rgba(240,192,64,0.06); }
+    .party-box.highlight .share {
+      background: rgba(240,192,64,0.2);
+      color: var(--gold);
+    }
+
+    /* ── Stats Row ── */
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    @media(max-width: 600px) { .stats-row { grid-template-columns: 1fr; } }
+    .stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      text-align: center;
+    }
+    .stat-box .val { font-size: 1.8rem; font-weight: 900; color: var(--accent); }
+    .stat-box .val.gold { color: var(--gold); }
+    .stat-box .val.green { color: var(--green); }
+    .stat-box .lbl { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Terms Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th {
+      text-align: left; padding: 10px 14px;
+      background: rgba(0,212,255,0.08);
+      color: var(--accent); font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase;
+    }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .badge-yes {
+      background: rgba(16,185,129,0.15); color: var(--green);
+      font-size: 0.72rem; font-weight: 700; padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    /* ── Fee Box ── */
+    .fee-box {
+      background: linear-gradient(135deg, rgba(240,192,64,0.08), rgba(240,192,64,0.04));
+      border: 1px solid var(--gold);
+      border-radius: 12px;
+      padding: 22px 26px;
+      margin-bottom: 24px;
+    }
+    .fee-box h3 { color: var(--gold); font-size: 0.9rem; margin-bottom: 14px; }
+    .fee-steps { list-style: none; }
+    .fee-steps li {
+      display: flex; align-items: center; gap: 14px;
+      padding: 10px 0; border-bottom: 1px solid rgba(240,192,64,0.15);
+      font-size: 0.88rem;
+    }
+    .fee-steps li:last-child { border-bottom: none; }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: rgba(240,192,64,0.2); color: var(--gold);
+      font-weight: 800; font-size: 0.82rem;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .fee-steps .fee-amount { margin-left: auto; color: var(--gold); font-weight: 700; }
+    .fee-total {
+      margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid var(--gold);
+      display: flex; justify-content: space-between;
+      font-size: 1.05rem; font-weight: 800; color: var(--gold);
+    }
+
+    /* ── CTA Button ── */
+    .cta-section { text-align: center; padding: 10px 0 30px; }
+    .cta-btn {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent), #0066cc);
+      color: #fff; font-size: 1rem; font-weight: 700;
+      padding: 16px 48px; border-radius: 50px;
+      text-decoration: none; letter-spacing: 0.5px;
+      box-shadow: 0 0 30px rgba(0,212,255,0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+      cursor: pointer; border: none;
+    }
+    .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 45px rgba(0,212,255,0.5);
+    }
+    .cta-sub { color: var(--muted); font-size: 0.78rem; margin-top: 10px; }
+
+    /* ── Private Link Box ── */
+    .link-box {
+      background: rgba(0,212,255,0.05);
+      border: 1px dashed var(--accent);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-top: 20px;
+    }
+    .link-box .link-label { font-size: 0.72rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+    .link-box .link-url {
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      color: var(--accent);
+      word-break: break-all;
+    }
+    .copy-btn {
+      margin-top: 10px;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 0.78rem;
+      padding: 6px 16px; border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .copy-btn:hover { background: rgba(0,212,255,0.1); }
+
+    /* ── Signature ── */
+    .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width: 600px) { .sig-grid { grid-template-columns: 1fr; } }
+    .sig-box { padding: 16px 0 0; }
+    .sig-box .sig-line {
+      border-bottom: 1px solid var(--muted);
+      height: 40px; margin-bottom: 8px;
+    }
+    .sig-box .sig-label { font-size: 0.75rem; color: var(--muted); }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      line-height: 1.8;
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card);
+      border: 1px solid var(--accent);
+      border-radius: 16px;
+      padding: 36px 32px;
+      max-width: 480px; width: 90%;
+    }
+    .modal h3 { color: var(--accent); font-size: 1.1rem; margin-bottom: 6px; }
+    .modal p { color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+    .form-group input {
+      width: 100%; padding: 11px 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-size: 0.9rem;
+    }
+    .form-group input:focus { outline: none; border-color: var(--accent); }
+    .modal-btns { display: flex; gap: 12px; margin-top: 22px; }
+    .modal-btns button {
+      flex: 1; padding: 12px;
+      border-radius: 8px; font-weight: 700; font-size: 0.9rem;
+      cursor: pointer; border: none;
+    }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-secondary { background: transparent; border: 1px solid var(--border) !important; color: var(--muted); }
+    .fee-highlight {
+      background: rgba(240,192,64,0.1);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      padding: 12px 16px;
+      text-align: center;
+      margin: 16px 0;
+    }
+    .fee-highlight .amount { font-size: 1.6rem; font-weight: 900; color: var(--gold); }
+    .fee-highlight .desc { font-size: 0.75rem; color: var(--muted); }
+    .success-msg {
+      display: none;
+      text-align: center;
+      padding: 20px 0;
+    }
+    .success-msg .icon { font-size: 48px; }
+    .success-msg h3 { color: var(--green); margin: 10px 0 6px; }
+    .success-msg p { color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-logo">LX</div>
+  <div class="header-text">
+    <h1>LUCID EMPIRE TITAN X</h1>
+    <p>Official Shareholder Profit Partnership Agreement · Confidential</p>
+  </div>
+  <div class="private-badge">🔒 Private</div>
+</div>
+
+<div class="container">
+
+  <!-- ── Exclusive Notice ── -->
+  <div class="exclusive-notice">
+    <div class="icon">🔐</div>
+    <div>
+      <h3>Private & Confidential — Exclusive Access</h3>
+      <p>This agreement and registration portal is exclusively prepared for <strong style="color:var(--text)">H M P R Fernando</strong>. This page contains a private link for registration, account creation, and fee payment. Please do not share this page with third parties.</p>
+    </div>
+  </div>
+
+  <!-- ── Key Stats ── -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="val">15%</div>
+      <div class="lbl">Net Profit Share — Monthly</div>
+    </div>
+    <div class="stat-box">
+      <div class="val gold">$85.89</div>
+      <div class="lbl">One-Time Onboarding Fee</div>
+    </div>
+    <div class="stat-box">
+      <div class="val green">Active</div>
+      <div class="lbl">Agreement Status — 2026</div>
+    </div>
+  </div>
+
+  <!-- ── Parties ── -->
+  <div class="card">
+    <h2>Parties to This Agreement</h2>
+    <div class="party-grid">
+      <div class="party-box">
+        <div class="label">Company / Majority Party</div>
+        <div class="name">Lucid Empire Titan X</div>
+        <div style="font-size:0.8rem;color:var(--muted);margin-top:4px;">Date: March 2, 2026</div>
+        <span class="share">85% Ownership</span>
+      </div>
+      <div class="party-box highlight">
+        <div class="label">Profit Partner (Minority)</div>
+        <div class="name">H M P R Fernando</div>
+        <div style="font-size:0.8rem;color:var(--muted);margin-top:4px;">Profit Partner · March 2, 2026</div>
+        <span class="share">15% Net Profit</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Agreement Terms ── -->
+  <div class="card">
+    <h2>Key Agreement Terms</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Term</th>
+          <th>Detail</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Net Profit Entitlement</td>
+          <td><strong>15%</strong> of monthly Net Profit</td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Payment Schedule</td>
+          <td>Monthly — on or before the <strong>5th of each month</strong></td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Net Profit Calculation</td>
+          <td>Revenue minus all costs, taxes, salaries, loan repayments</td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Minimum Threshold</td>
+          <td>Distribution only if Net Profit exceeds $100.00/month</td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Audit Rights</td>
+          <td>H M P R Fernando may request an independent audit (14 days notice)</td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Transfer Restriction</td>
+          <td>Shares non-transferable without written consent of both parties</td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Financial Reporting</td>
+          <td>Monthly P&L summaries + Annual audited statements provided</td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Exit / Acquisition</td>
+          <td>15% of net sale proceeds upon Company acquisition</td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+        <tr>
+          <td>Governing Law</td>
+          <td>As per signed agreement — binding arbitration for disputes</td>
+          <td><span class="badge-yes">✓ Confirmed</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Fee & Onboarding ── -->
+  <div class="fee-box">
+    <h3>⚡ Action Required — Onboarding & Registration</h3>
+    <ul class="fee-steps">
+      <li>
+        <div class="step-num">1</div>
+        <div><strong>Complete Partner Registration Form</strong><br><span style="font-size:0.8rem;color:var(--muted)">Fill in your personal details, payment account, and confirm agreement terms</span></div>
+        <div class="fee-amount">Free</div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div><strong>Account Creation & Identity Verification</strong><br><span style="font-size:0.8rem;color:var(--muted)">Secure partner account setup on the Lucid Empire Titan X platform</span></div>
+        <div class="fee-amount">Free</div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div><strong>Administrative & Processing Fee</strong><br><span style="font-size:0.8rem;color:var(--muted)">One-time non-refundable fee covering legal documentation, processing & partner account activation</span></div>
+        <div class="fee-amount">$85.89</div>
+      </li>
+    </ul>
+    <div class="fee-total">
+      <span>Total Onboarding Fee (One-Time)</span>
+      <span>$85.89 USD</span>
+    </div>
+  </div>
+
+  <!-- ── CTA ── -->
+  <div class="cta-section">
+    <button class="cta-btn" onclick="openModal()">
+      📋 Fill Registration Form &amp; Pay Fee
+    </button>
+    <div class="cta-sub">Secure payment · One-time fee · Activates your 15% monthly profit entitlement</div>
+
+    <!-- Private Link Box -->
+    <div class="link-box" style="max-width:560px;margin:20px auto 0;">
+      <div class="link-label">🔗 Your Private Partner Registration Link</div>
+      <div class="link-url" id="privateLink">https://titanxanti.site/shareholder-agreement.html?ref=HMPR_FERNANDO_15</div>
+      <button class="copy-btn" onclick="copyLink()">📋 Copy Link</button>
+    </div>
+  </div>
+
+  <!-- ── Signature Section ── -->
+  <div class="card">
+    <h2>Signatures</h2>
+    <div class="sig-grid">
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">Lucid Empire Titan X — Authorized Representative</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Date: March 2, 2026</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-line"></div>
+        <div class="sig-label">H M P R Fernando — Profit Partner (15%)</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Date: _____________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="footer">
+    <p>This agreement is private and confidential. Prepared exclusively for <strong style="color:var(--text)">H M P R Fernando</strong>.</p>
+    <p style="margin-top:4px;">© 2026 Lucid Empire Titan X. All rights reserved.</p>
+    <p style="margin-top:8px;font-size:0.7rem;">This document was prepared for informational and commercial purposes. Both parties are advised to seek independent legal counsel before signing.</p>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ── Registration Modal ── -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div id="formSection">
+      <h3>📋 Partner Registration Form</h3>
+      <p>Complete your details below to register as a 15% Profit Partner of Lucid Empire Titan X.</p>
+
+      <div class="fee-highlight">
+        <div class="amount">$85.89 USD</div>
+        <div class="desc">One-time administrative & processing fee</div>
+      </div>
+
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" id="reg-name" value="H M P R Fernando" placeholder="Full legal name" />
+      </div>
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" id="reg-email" placeholder="your@email.com" />
+      </div>
+      <div class="form-group">
+        <label>Phone Number</label>
+        <input type="tel" id="reg-phone" placeholder="+1 000 000 0000" />
+      </div>
+      <div class="form-group">
+        <label>Bank Account Name (for profit payments)</label>
+        <input type="text" id="reg-bank-name" placeholder="Account holder name" />
+      </div>
+      <div class="form-group">
+        <label>Bank Account Number / IBAN</label>
+        <input type="text" id="reg-bank-acc" placeholder="Account number or IBAN" />
+      </div>
+
+      <div class="modal-btns">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="submitForm()">Submit &amp; Pay $85.89</button>
+      </div>
+    </div>
+
+    <div class="success-msg" id="successSection">
+      <div class="icon">✅</div>
+      <h3>Registration Submitted!</h3>
+      <p>Your partner registration for <strong>H M P R Fernando</strong> has been received.<br><br>
+      Payment of <strong style="color:var(--gold)">$85.89 USD</strong> is now due. You will receive a secure payment link at your registered email address within 24 hours.<br><br>
+      Your 15% monthly profit entitlement will be activated upon payment confirmation.</p>
+      <div style="margin-top:18px;">
+        <button class="btn-primary" style="width:100%;padding:12px;border-radius:8px;font-weight:700;cursor:pointer;border:none;font-size:0.95rem;" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openModal() {
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+    document.getElementById('formSection').style.display = 'block';
+    document.getElementById('successSection').style.display = 'none';
+  }
+  function closeModalOutside(e) {
+    if (e.target === document.getElementById('modalOverlay')) closeModal();
+  }
+  function submitForm() {
+    const name = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    if (!name || !email) {
+      alert('Please fill in at least your name and email address.');
+      return;
+    }
+    const btn = document.querySelector('.btn-primary');
+    btn.textContent = 'Redirecting to Payment...';
+    btn.disabled = true;
+    const params = new URLSearchParams({
+      name: name,
+      email: email,
+      ref: 'HMPR_FERNANDO_15',
+      amount: '85.89'
+    });
+    setTimeout(() => {
+      window.location.href = 'https://titanxanti.site/payment.html?' + params.toString();
+    }, 800);
+  }
+  function copyLink() {
+    const link = document.getElementById('privateLink').textContent;
+    navigator.clipboard.writeText(link).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => btn.textContent = '📋 Copy Link', 2000);
+    });
+  }
+</script>
+
+</body>
+</html>

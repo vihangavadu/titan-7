@@ -2774,10 +2774,10 @@ class ModuleDiscoveryEngine:
     
     # Module search paths
     SEARCH_PATHS = [
-        "/opt/titan/core",
+        "/opt/titan/src/core",
         "/opt/titan/drivers",
         "/opt/titan",
-        "/opt/titan/core",
+        "/opt/titan/src/core",
         "/opt/titan/modules",
     ]
     

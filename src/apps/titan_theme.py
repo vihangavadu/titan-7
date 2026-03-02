@@ -7,6 +7,7 @@ Usage:
 """
 
 from PyQt6.QtGui import QFont, QColor, QPalette
+from PyQt6.QtWidgets import QToolTip
 
 
 class TitanTheme:
@@ -38,10 +39,15 @@ class TitanTheme:
     BORDER = "#1e293b"
     BORDER_FOCUS = "#334155"
 
-    # Fonts
-    FONT_TITLE = "Inter"
-    FONT_MONO = "JetBrains Mono"
-    FONT_BODY = "Inter"
+    # Fonts (Linux RDP-compatible)
+    FONT_TITLE = "Noto Sans"
+    FONT_MONO = "DejaVu Sans Mono"
+    FONT_BODY = "Noto Sans"
+
+    # Mobile-friendly touch targets
+    MIN_BUTTON_HEIGHT = 44
+    MIN_INPUT_HEIGHT = 40
+    MIN_TAB_HEIGHT = 40
 
     # Sizes
     TITLE_SIZE = 18
@@ -54,7 +60,8 @@ THEME = TitanTheme()
 
 
 def apply_titan_theme(window, accent: str = THEME.CYAN):
-    """Apply the standard dark theme to any QMainWindow."""
+    """Apply the standard dark theme to any QMainWindow.
+    Includes tooltip styling, mobile-friendly sizing, and scrollbar theming."""
     pal = QPalette()
     pal.setColor(QPalette.ColorRole.Window, QColor(THEME.BG))
     pal.setColor(QPalette.ColorRole.WindowText, QColor(THEME.TEXT))
@@ -64,6 +71,13 @@ def apply_titan_theme(window, accent: str = THEME.CYAN):
     pal.setColor(QPalette.ColorRole.Button, QColor(THEME.BG_CARD))
     pal.setColor(QPalette.ColorRole.ButtonText, QColor(THEME.TEXT))
     window.setPalette(pal)
+
+    # Global tooltip font
+    try:
+        QToolTip.setFont(QFont(THEME.FONT_BODY, 10))
+    except Exception:
+        pass
+
     window.setStyleSheet(f"""
         QMainWindow {{ background: {THEME.BG}; }}
         QGroupBox {{
@@ -79,6 +93,7 @@ def apply_titan_theme(window, accent: str = THEME.CYAN):
             background: {THEME.BG_CARD2}; color: {THEME.TEXT};
             border: 1px solid {THEME.BORDER_FOCUS}; border-radius: 6px;
             padding: 8px; font-size: {THEME.BODY_SIZE}px;
+            min-height: {THEME.MIN_INPUT_HEIGHT}px;
         }}
         QLineEdit:focus, QComboBox:focus {{
             border: 1px solid {accent};
@@ -102,38 +117,72 @@ def apply_titan_theme(window, accent: str = THEME.CYAN):
             text-align: center; color: {THEME.TEXT};
         }}
         QProgressBar::chunk {{ background: {accent}; border-radius: 4px; }}
-        QCheckBox {{ color: {THEME.TEXT}; }}
+        QCheckBox {{ color: {THEME.TEXT}; spacing: 8px; }}
+        QCheckBox::indicator {{ width: 20px; height: 20px; }}
+        QPushButton {{
+            min-height: {THEME.MIN_BUTTON_HEIGHT}px;
+        }}
         QSlider::groove:horizontal {{
             background: {THEME.BG_CARD2}; height: 6px; border-radius: 3px;
         }}
         QSlider::handle:horizontal {{
-            background: {accent}; width: 16px; height: 16px;
-            margin: -5px 0; border-radius: 8px;
+            background: {accent}; width: 18px; height: 18px;
+            margin: -6px 0; border-radius: 9px;
         }}
+        QToolTip {{
+            background: {THEME.BG_CARD};
+            color: {THEME.TEXT};
+            border: 1px solid {accent}44;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 11px;
+            font-family: '{THEME.FONT_BODY}';
+        }}
+        QScrollBar:vertical {{
+            background: {THEME.BG}; width: 8px; border: none;
+        }}
+        QScrollBar::handle:vertical {{
+            background: {THEME.BORDER}; border-radius: 4px; min-height: 40px;
+        }}
+        QScrollBar::handle:vertical:hover {{ background: {accent}44; }}
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+        QScrollBar:horizontal {{
+            background: {THEME.BG}; height: 8px; border: none;
+        }}
+        QScrollBar::handle:horizontal {{
+            background: {THEME.BORDER}; border-radius: 4px; min-width: 40px;
+        }}
+        QScrollBar::handle:horizontal:hover {{ background: {accent}44; }}
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
     """)
 
 
 def make_tab_style(accent: str = THEME.CYAN) -> str:
-    """Return QTabWidget stylesheet string."""
+    """Return QTabWidget stylesheet string — mobile-friendly tab sizing."""
     return f"""
         QTabBar::tab {{
-            padding: 10px 24px; min-width: 140px;
+            padding: 10px 20px; min-width: 100px; min-height: {THEME.MIN_TAB_HEIGHT}px;
             background: {THEME.BG_CARD}; color: {THEME.TEXT_DIM};
             border: none; border-bottom: 2px solid transparent;
             font-weight: bold; font-size: {THEME.TAB_SIZE}px;
+            font-family: '{THEME.FONT_BODY}';
         }}
         QTabBar::tab:selected {{
             color: {accent}; border-bottom: 2px solid {accent};
         }}
         QTabBar::tab:hover {{ color: {THEME.TEXT}; }}
         QTabWidget::pane {{ border: none; }}
+        QTabBar {{ qproperty-drawBase: 0; }}
     """
 
 
 def make_btn(text: str, color: str, fg: str = "white", bold: bool = True) -> str:
-    """Return QPushButton stylesheet string."""
+    """Return QPushButton stylesheet string — with mobile-friendly height."""
     weight = "bold" if bold else "normal"
-    return f"background: {color}; color: {fg}; padding: 8px 16px; border-radius: 6px; font-weight: {weight};"
+    return (f"background: {color}; color: {fg}; padding: 8px 16px; "
+            f"border-radius: 8px; font-weight: {weight}; "
+            f"min-height: {THEME.MIN_BUTTON_HEIGHT}px; "
+            f"font-family: '{THEME.FONT_BODY}';")
 
 
 def make_mono_display() -> str:
@@ -145,3 +194,29 @@ def status_dot(available: bool) -> str:
     """Return colored dot for module status indicators."""
     color = THEME.GREEN if available else THEME.RED
     return f"color: {color}; font-size: 10px;"
+
+
+def make_accent_btn(accent: str = THEME.CYAN, fg: str = "#0a0e17") -> str:
+    """Return accent-colored button stylesheet with hover/press states."""
+    return (f"QPushButton {{ background: {accent}; color: {fg}; "
+            f"border: none; border-radius: 8px; font-weight: bold; "
+            f"padding: 8px 16px; min-height: {THEME.MIN_BUTTON_HEIGHT}px; "
+            f"font-family: '{THEME.FONT_BODY}'; }}"
+            f"QPushButton:hover {{ background: {accent}cc; }}"
+            f"QPushButton:pressed {{ background: {accent}88; }}")
+
+
+def make_danger_btn() -> str:
+    """Return red danger button stylesheet."""
+    return (f"QPushButton {{ background: {THEME.RED}; color: white; "
+            f"border: 2px solid #991b1b; border-radius: 8px; "
+            f"font-weight: bold; min-height: {THEME.MIN_BUTTON_HEIGHT}px; "
+            f"font-family: '{THEME.FONT_BODY}'; }}"
+            f"QPushButton:hover {{ background: #991b1b; border: 2px solid {THEME.RED}; }}")
+
+
+def make_card_frame(accent: str = None) -> str:
+    """Return styled card frame stylesheet."""
+    border = f"1px solid {accent}33" if accent else f"1px solid {THEME.BORDER}"
+    return (f"QFrame {{ background: {THEME.BG_CARD}; border: {border}; "
+            f"border-radius: 10px; }}")

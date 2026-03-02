@@ -17,7 +17,7 @@ import json
 import argparse
 
 # Add core library
-sys.path.insert(0, "/opt/titan/core")
+sys.path.insert(0, "/opt/titan/src/core")
 
 from lucid_vpn import (
     LucidVPN, VPNConfig, VPNMode, VPNStatus, ExitNodeType,

@@ -96,6 +96,36 @@ try:
 except ImportError:
     HYPERSWITCH_OK = False
 
+try:
+    from tra_exemption_engine import TRAOptimizer, TRARiskCalculator, get_tra_optimizer, assess_transaction_risk
+    TRA_ENGINE = True
+except ImportError:
+    TRA_ENGINE = False
+
+try:
+    from issuer_algo_defense import IssuerDeclineDefenseEngine, get_decline_defense_engine, analyze_transaction_risk as analyze_issuer_risk
+    ISSUER_DEFENSE = True
+except ImportError:
+    ISSUER_DEFENSE = False
+
+try:
+    from payment_sandbox_tester import PaymentSandboxTester
+    SANDBOX_ENGINE = True
+except ImportError:
+    SANDBOX_ENGINE = False
+
+try:
+    from payment_success_metrics import PaymentSuccessMetricsDB, get_metrics_db
+    METRICS_ENGINE = True
+except ImportError:
+    METRICS_ENGINE = False
+
+try:
+    from cerberus_enhanced import OSINTVerifier, CardQualityGrader
+    OSINT_ENGINE = True
+except ImportError:
+    OSINT_ENGINE = False
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -608,6 +638,108 @@ def enrollment_guide():
     if not CERBERUS_CORE:
         return jsonify({"error": "Core not loaded"}), 503
     return jsonify(get_bank_enrollment_guide())
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V1.5 EXTENDED INTELLIGENCE ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/v1/tra/calculate", methods=["POST"])
+def tra_calculate():
+    """Calculate TRA exemption eligibility"""
+    if not TRA_ENGINE:
+        return jsonify({"error": "tra_exemption_engine not available"}), 503
+    data = request.json or {}
+    amount = data.get("amount", 100)
+    try:
+        optimizer = get_tra_optimizer()
+        result = assess_transaction_risk(amount=amount) if optimizer is None else str(optimizer)
+        return jsonify(result if isinstance(result, dict) else {"result": str(result)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/issuer/risk", methods=["POST"])
+def issuer_risk():
+    """Calculate issuer-specific decline risk"""
+    if not ISSUER_DEFENSE:
+        return jsonify({"error": "issuer_algo_defense not available"}), 503
+    data = request.json or {}
+    issuer = data.get("issuer", data.get("bin6", ""))
+    params = data.get("params", {})
+    try:
+        engine = get_decline_defense_engine()
+        risk = engine.analyze_transaction_risk(**params) if engine and hasattr(engine, 'analyze_transaction_risk') else {"info": "engine loaded", "type": str(type(engine).__name__) if engine else "none"}
+        return jsonify({"risk": risk, "engine": str(type(engine).__name__) if engine else "none"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/sandbox/test", methods=["POST"])
+def sandbox_test():
+    """Test checkout flow in PSP sandbox"""
+    if not SANDBOX_ENGINE:
+        return jsonify({"error": "payment_sandbox_tester not available"}), 503
+    data = request.json or {}
+    try:
+        tester = PaymentSandboxTester()
+        result = tester.run_test(scenario=data.get("scenario", data.get("psp", "basic_auth")), custom_card=data.get("card"))
+        return jsonify({"result": str(result), "type": type(result).__name__})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/metrics/summary", methods=["GET"])
+def metrics_summary():
+    """Get payment success metrics summary"""
+    if not METRICS_ENGINE:
+        return jsonify({"error": "payment_success_metrics not available"}), 503
+    try:
+        db = get_metrics_db()
+        return jsonify({"metrics": "available", "db": str(db)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/osint/verify", methods=["POST"])
+def osint_verify():
+    """OSINT verification of cardholder data"""
+    if not OSINT_ENGINE:
+        return jsonify({"error": "cerberus_enhanced.OSINTVerifier not available"}), 503
+    data = request.json or {}
+    try:
+        verifier = OSINTVerifier()
+        result = verifier.generate_verification_checklist(
+            name=data.get("name", ""),
+            address=data.get("address", ""),
+            city=data.get("city", ""),
+            state=data.get("state", ""),
+            zip_code=data.get("zip_code", data.get("zip", "")),
+            phone=data.get("phone", ""),
+        )
+        return jsonify(result if isinstance(result, dict) else {"result": str(result)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/quality/grade", methods=["POST"])
+def quality_grade():
+    """Grade card quality (A-F)"""
+    if not OSINT_ENGINE:
+        return jsonify({"error": "cerberus_enhanced.CardQualityGrader not available"}), 503
+    data = request.json or {}
+    try:
+        grader = CardQualityGrader()
+        # grade_card needs a BINScore object; if we have a bin6, score it first
+        bin6 = data.get("bin6", data.get("card", "")[:6])
+        if CERBERUS_ENHANCED and bin6:
+            scorer = BINScoringEngine()
+            bin_score = scorer.score_bin(bin6)
+            result = grader.grade_card(bin_score)
+            return jsonify({"grade": str(result), "type": type(result).__name__})
+        return jsonify({"error": "Provide bin6 or card number for grading"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

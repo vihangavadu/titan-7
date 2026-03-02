@@ -2963,3 +2963,8 @@ if __name__ == "__main__":
         print(f"  Model: {result.model_used}")
     else:
         print("Ollama offline — run 'ollama serve' to enable AI features")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMPATIBILITY ALIASES — bridge APIs and GUI apps import these names
+# ═══════════════════════════════════════════════════════════════════════════════
+AIIntelligenceEngine = UnifiedAIOrchestrator

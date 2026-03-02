@@ -112,13 +112,13 @@ class IsolationManager:
                 try:
                     original_type, _ = winreg.QueryValueEx(key, "Type")
                     self.isolation_state['registry_original']['Type'] = original_type
-                except:
+                except Exception:
                     pass
                 
                 try:
                     original_server, _ = winreg.QueryValueEx(key, "NtpServer")
                     self.isolation_state['registry_original']['NtpServer'] = original_server
-                except:
+                except Exception:
                     pass
                 
                 # Set Type to NoSync
@@ -243,7 +243,7 @@ class IsolationManager:
             elif 'vmbus' in services:
                 return 'hyperv'
                 
-        except:
+        except Exception:
             pass
         
         return None
@@ -333,7 +333,7 @@ class IsolationManager:
                 if 'NtpServer' in self.isolation_state['registry_original']:
                     winreg.SetValueEx(key, "NtpServer", 0, winreg.REG_SZ,
                                     self.isolation_state['registry_original']['NtpServer'])
-        except:
+        except Exception:
             pass
     
     def _restore_hypervisor_sync(self):
@@ -352,7 +352,7 @@ class IsolationManager:
                 ps_cmd = "Enable-VMIntegrationService -Name 'Time Synchronization'"
                 subprocess.run(['powershell', '-Command', ps_cmd],
                              capture_output=True)
-        except:
+        except Exception:
             pass
     
     def _save_state(self):
@@ -360,7 +360,7 @@ class IsolationManager:
         try:
             with open(self.state_file, 'w') as f:
                 json.dump(self.isolation_state, f)
-        except:
+        except Exception:
             pass
     
     def _load_state(self):
@@ -369,7 +369,7 @@ class IsolationManager:
             if os.path.exists(self.state_file):
                 with open(self.state_file, 'r') as f:
                     self.isolation_state = json.load(f)
-        except:
+        except Exception:
             pass
     
     def emergency_restore(self):

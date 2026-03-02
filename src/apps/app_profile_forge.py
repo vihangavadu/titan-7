@@ -121,6 +121,34 @@ try:
 except ImportError:
     SESSION_OK = False
 
+try:
+    from antidetect_importer import OblivionImporter as AntidetectImporter
+    IMPORTER_OK = True
+except ImportError:
+    try:
+        from antidetect_importer import import_profile
+        IMPORTER_OK = True
+        AntidetectImporter = None
+    except ImportError:
+        IMPORTER_OK = False
+
+try:
+    from oblivion_forge import OblivionForgeEngine as OblivionForge
+    OBLIVION_OK = True
+except ImportError:
+    try:
+        from oblivion_forge import create_advanced_template as forge_oblivion_profile
+        OBLIVION_OK = True
+        OblivionForge = None
+    except ImportError:
+        OBLIVION_OK = False
+
+try:
+    from journey_simulator import JourneySimulator
+    JOURNEY_OK = True
+except ImportError:
+    JOURNEY_OK = False
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUILT-IN PERSONA GENERATOR (works without core modules)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -234,7 +262,29 @@ class ForgeWorker(QThread):
         profile_id = "titan_" + hashlib.sha256(
             f"{self.config.get('name','')}:{self.config.get('target','')}:{datetime.now().isoformat()}".encode()
         ).hexdigest()[:12]
-        profile_dir = Path(os.path.expanduser("~/.genesis_appx/profiles")) / profile_id
+
+        # V8.3 FIX #11: Disk space check before forge (minimum 1GB free)
+        profiles_root = Path(os.path.expanduser("~/.genesis_appx/profiles"))
+        profiles_root.mkdir(parents=True, exist_ok=True)
+        try:
+            if hasattr(os, 'statvfs'):
+                st = os.statvfs(str(profiles_root))
+                free_bytes = st.f_bavail * st.f_frsize
+            else:
+                import shutil
+                free_bytes = shutil.disk_usage(str(profiles_root)).free
+            if free_bytes < 1_073_741_824:  # 1 GB
+                self.finished.emit({"success": False, "error": f"Insufficient disk space: {free_bytes // 1_048_576}MB free, need 1024MB"})
+                return
+        except Exception:
+            pass  # Best-effort check
+
+        # V8.3 FIX #5: Atomic forge — build in temp dir, rename on success
+        final_dir = profiles_root / profile_id
+        profile_dir = profiles_root / f".tmp_{profile_id}"
+        if profile_dir.exists():
+            import shutil
+            shutil.rmtree(profile_dir, ignore_errors=True)
         profile_dir.mkdir(parents=True, exist_ok=True)
 
         target = self.config.get("target", "amazon.com")
@@ -542,8 +592,18 @@ class ForgeWorker(QThread):
         self.progress.emit(87, "Writing Firefox auxiliary files...")
         _birth = now - timedelta(days=age_days)
         _birth_ts = _birth.timestamp()
+        # V8.3 FIX #18: OS-aware compatibility.ini — write Windows strings for Windows profiles
+        _target_platform = hw.get("platform", "Win32")
+        if _target_platform == "Win32":
+            _compat_osabi = "WINNT_x86_64-msvc"
+            _compat_platdir = "C:\\Program Files\\Mozilla Firefox"
+            _compat_appdir = "C:\\Program Files\\Mozilla Firefox\\browser"
+        else:
+            _compat_osabi = "Linux_x86_64-gcc3"
+            _compat_platdir = "/usr/lib/firefox-esr"
+            _compat_appdir = "/usr/lib/firefox-esr/browser"
         (profile_dir / "compatibility.ini").write_text(
-            "[Compatibility]\nLastVersion=133.0\nLastOSABI=Linux_x86_64-gcc3\nLastPlatformDir=/usr/lib/firefox-esr\nLastAppDir=/usr/lib/firefox-esr/browser\n")
+            f"[Compatibility]\nLastVersion=133.0\nLastOSABI={_compat_osabi}\nLastPlatformDir={_compat_platdir}\nLastAppDir={_compat_appdir}\n")
         (profile_dir / "times.json").write_text(json.dumps({
             "created": int(_birth_ts * 1000),
             "firstUse": int((_birth_ts + 300) * 1000),
@@ -637,6 +697,17 @@ PHASE 4: POST-OP (Cool Down)
 AUTHORITY: Dva.12 | STATUS: READY_FOR_EXECUTION
 {'='*70}
 """)
+
+        # V8.3 FIX #5: Atomic rename — move temp dir to final path on success
+        try:
+            if final_dir.exists():
+                import shutil
+                shutil.rmtree(final_dir, ignore_errors=True)
+            profile_dir.rename(final_dir)
+            profile_dir = final_dir
+        except Exception as e:
+            import logging
+            logging.getLogger("TITAN-FORGE").warning(f"Atomic rename failed, using temp dir: {e}")
 
         self.progress.emit(97, f"Profile forged — {total_size//(1024*1024)}MB, Quality: {quality_score}/100")
         self.progress.emit(100, "Done")

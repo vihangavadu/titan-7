@@ -192,7 +192,7 @@ class OblivionImporter:
             # Cleanup on failure
             try:
                 shutil.rmtree(profile_dir, ignore_errors=True)
-            except:
+            except Exception:
                 pass
             return False
     
@@ -472,7 +472,7 @@ class OblivionImporter:
                         "path": str(db_file.relative_to(profile_dir)),
                         "tables": tables
                     })
-                except:
+                except Exception:
                     pass
             
             # Scan for cookies
@@ -664,7 +664,7 @@ class OblivionImporter:
                             except sqlite3.OperationalError:
                                 continue
                         conn.close()
-                    except:
+                    except Exception:
                         pass
             
             # Check storage — handle both Chrome and Firefox paths
@@ -741,7 +741,7 @@ class OblivionImporter:
                                 profile_data["engine"] = meta["engine"]
                             
                             break
-                        except:
+                        except Exception:
                             pass
                 
                 # Count cookies
@@ -753,7 +753,7 @@ class OblivionImporter:
                         cursor.execute("SELECT COUNT(*) FROM cookies")
                         profile_data["cookies"] = cursor.fetchone()[0]
                         conn.close()
-                    except:
+                    except Exception:
                         pass
                 
                 profiles.append(profile_data)

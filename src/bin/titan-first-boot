@@ -146,7 +146,7 @@ echo "[6/11] Verifying V7.0 Intelligence modules..."
 INTEL_OK=true
 python3 -c "
 import sys
-sys.path.insert(0, '/opt/titan/core')
+sys.path.insert(0, '/opt/titan/src/core')
 from target_intelligence import (
     get_avs_intelligence, get_visa_alerts_intel, get_fingerprint_tools,
     get_card_prechecking_intel, get_proxy_intelligence, get_paypal_defense_intel,

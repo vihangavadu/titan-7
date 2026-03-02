@@ -313,7 +313,7 @@ class TitanNetwork(QMainWindow):
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
-        except:
+        except Exception:
             pass
         self.setMinimumSize(1200, 900)
 
@@ -761,7 +761,7 @@ class TitanNetwork(QMainWindow):
                 self.net_status.setStyleSheet(f"color: {color};")
                 if state == "Connected":
                     self.vpn_status_display.setPlainText(json.dumps(status, indent=2, default=str))
-            except:
+            except Exception:
                 self.net_status.setText("Mullvad: module loaded")
                 self.net_status.setStyleSheet(f"color: {TXT2};")
         else:
@@ -946,7 +946,7 @@ class TitanNetwork(QMainWindow):
         if hasattr(self, '_forensic_mon'):
             try:
                 self._forensic_mon.stop() if hasattr(self._forensic_mon, 'stop') else None
-            except:
+            except Exception:
                 pass
 
     def _update_forensic(self):

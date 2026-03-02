@@ -493,7 +493,7 @@ class IntegrityMonitor:
     
     # Critical system paths to monitor
     CRITICAL_PATHS = [
-        "/opt/titan/core",
+        "/opt/titan/src/core",
         "/opt/titan/drivers",
         "/etc/titan",
         "/usr/local/bin/titan-*",
@@ -723,7 +723,7 @@ class SecureBootManager:
             "/lib/live/mount/medium/live/filesystem.squashfs",
             "/run/live/medium/live/filesystem.squashfs"
         ]},
-        {"name": "titan_core", "paths": ["/opt/titan/core/__init__.py"]},
+        {"name": "titan_core", "paths": ["/opt/titan/src/core/__init__.py"]},
     ]
     
     def __init__(self, signature_key_path: Optional[str] = None):

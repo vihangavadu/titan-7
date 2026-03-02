@@ -281,7 +281,7 @@ class CockpitDaemon:
         interface = data.get("interface", "eth0")
         try:
             subprocess.run(
-                ["bash", "/opt/titan/core/build_ebpf.sh", interface],
+                ["bash", "/opt/titan/src/core/build_ebpf.sh", interface],
                 capture_output=True, timeout=30,
             )
             self._logger.info(f"eBPF reloaded on: {interface}")

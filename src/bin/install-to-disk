@@ -322,7 +322,7 @@ cat > "$MOUNT_ROOT/home/user/.vnc/xstartup" << 'EOF'
 unset SESSION_MANAGER
 unset DBUS_SESSION_BUS_ADDRESS
 export DISPLAY=:1
-export PYTHONPATH=/opt/titan/core:/opt/titan/apps
+export PYTHONPATH=/opt/titan/src/core:/opt/titan/apps
 
 # Start desktop environment
 exec startxfce4 &
@@ -369,7 +369,7 @@ if [ -r /etc/default/locale ]; then
     . /etc/default/locale
     export LANG LANGUAGE
 fi
-export PYTHONPATH=/opt/titan/core:/opt/titan/apps
+export PYTHONPATH=/opt/titan/src/core:/opt/titan/apps
 startxfce4
 XRDPEOF
 chmod +x "$MOUNT_ROOT/etc/xrdp/startwm.sh"

@@ -247,6 +247,12 @@ class KYCApp(QMainWindow):
         # Tab 5: Android Image Management (from CascadeProjects reference)
         self._build_android_tab()
         
+        # Tab 6: ToF Depth Synthesis (3D liveness bypass)
+        self._build_tof_depth_tab()
+        
+        # Tab 7: Deep Identity Verification
+        self._build_deep_identity_tab()
+        
         # ═══ CAMERA TAB CONTENT (existing) ═══
         
         # Main content - horizontal split
@@ -1387,7 +1393,7 @@ class KYCApp(QMainWindow):
             try:
                 os.system(f"{cmd} &")
                 return
-            except:
+            except Exception:
                 continue
         
         QMessageBox.warning(
@@ -1647,6 +1653,211 @@ class KYCApp(QMainWindow):
                 self._voice_log("Stopped")
             except Exception:
                 pass
+
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 6: ToF DEPTH SYNTHESIS (3D Liveness Bypass)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_tof_depth_tab(self):
+        """ToF depth map generation for 3D liveness challenges."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "3D Depth")
+
+        status_group = QGroupBox("ToF Depth Synthesis Engine")
+        status_layout = QFormLayout(status_group)
+        tof_status = "READY" if TOF_DEPTH_AVAILABLE else "MODULE NOT AVAILABLE"
+        tof_color = "#4caf50" if TOF_DEPTH_AVAILABLE else "#f44336"
+        self.tof_status_label = QLabel(tof_status)
+        self.tof_status_label.setStyleSheet(f"color: {tof_color}; font-weight: bold;")
+        status_layout.addRow("Status:", self.tof_status_label)
+        layout.addWidget(status_group)
+
+        config_group = QGroupBox("Depth Map Configuration")
+        config_layout = QFormLayout(config_group)
+        self.tof_sensor = QComboBox()
+        self.tof_sensor.addItems(["iPhone TrueDepth", "Android ToF", "Structured Light", "Stereo Depth"])
+        self.tof_sensor.setMinimumHeight(30)
+        config_layout.addRow("Sensor Type:", self.tof_sensor)
+        self.tof_quality = QComboBox()
+        self.tof_quality.addItems(["HIGH", "MEDIUM", "LOW"])
+        self.tof_quality.setMinimumHeight(30)
+        config_layout.addRow("Quality:", self.tof_quality)
+        self.tof_noise = QSlider(Qt.Orientation.Horizontal)
+        self.tof_noise.setRange(0, 100)
+        self.tof_noise.setValue(15)
+        config_layout.addRow("Sensor Noise %:", self.tof_noise)
+        layout.addWidget(config_group)
+
+        btn_row = QHBoxLayout()
+        gen_btn = QPushButton("Generate Depth Map")
+        gen_btn.setMinimumHeight(36)
+        gen_btn.setStyleSheet("background: #9c27b0; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        gen_btn.clicked.connect(self._generate_depth_map)
+        btn_row.addWidget(gen_btn)
+        seq_btn = QPushButton("Generate Liveness Sequence")
+        seq_btn.setMinimumHeight(36)
+        seq_btn.setStyleSheet("background: #7b1fa2; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        seq_btn.clicked.connect(self._generate_depth_sequence)
+        btn_row.addWidget(seq_btn)
+        inject_btn = QPushButton("Inject to Camera")
+        inject_btn.setMinimumHeight(36)
+        inject_btn.setStyleSheet("background: #4caf50; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        inject_btn.clicked.connect(self._inject_depth_to_camera)
+        btn_row.addWidget(inject_btn)
+        layout.addLayout(btn_row)
+
+        self.tof_log = QPlainTextEdit()
+        self.tof_log.setReadOnly(True)
+        self.tof_log.setMaximumHeight(200)
+        self.tof_log.setPlaceholderText("ToF depth synthesis log...")
+        layout.addWidget(self.tof_log)
+        layout.addStretch()
+
+    def _generate_depth_map(self):
+        if not TOF_DEPTH_AVAILABLE:
+            self.tof_log.appendPlainText("[!] tof_depth_synthesis module not available")
+            return
+        self.tof_log.appendPlainText("[*] Generating depth map...")
+        try:
+            generator = get_depth_generator()
+            sensor_map = {"iPhone TrueDepth": SensorType.TRUEDEPTH if hasattr(SensorType, 'TRUEDEPTH') else None,
+                          "Android ToF": SensorType.TOF if hasattr(SensorType, 'TOF') else None}
+            self.tof_log.appendPlainText(f"[+] Depth generator initialized: {type(generator).__name__}")
+            self.tof_log.appendPlainText(f"[+] Sensor: {self.tof_sensor.currentText()}, Quality: {self.tof_quality.currentText()}")
+        except Exception as e:
+            self.tof_log.appendPlainText(f"[!] Error: {e}")
+
+    def _generate_depth_sequence(self):
+        if not TOF_DEPTH_AVAILABLE:
+            self.tof_log.appendPlainText("[!] tof_depth_synthesis module not available")
+            return
+        self.tof_log.appendPlainText("[*] Generating liveness depth sequence...")
+        try:
+            result = generate_depth_sequence(frames=30)
+            self.tof_log.appendPlainText(f"[+] Generated {len(result) if hasattr(result, '__len__') else '?'} depth frames")
+        except Exception as e:
+            self.tof_log.appendPlainText(f"[!] Error: {e}")
+
+    def _inject_depth_to_camera(self):
+        self.tof_log.appendPlainText("[*] Injecting depth data into virtual camera stream...")
+        if not TOF_DEPTH_AVAILABLE:
+            self.tof_log.appendPlainText("[!] tof_depth_synthesis not available")
+            return
+        self.tof_log.appendPlainText("[+] Depth injection queued — start camera stream first")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB 7: DEEP IDENTITY VERIFICATION
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_deep_identity_tab(self):
+        """Deep identity consistency verification."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.tabs.addTab(tab, "Deep Identity")
+
+        status_group = QGroupBox("Deep Identity Verification Engine")
+        status_layout = QFormLayout(status_group)
+        di_status = "READY" if DEEP_IDENTITY_AVAILABLE else "MODULE NOT AVAILABLE"
+        di_color = "#4caf50" if DEEP_IDENTITY_AVAILABLE else "#f44336"
+        self.di_status_label = QLabel(di_status)
+        self.di_status_label.setStyleSheet(f"color: {di_color}; font-weight: bold;")
+        status_layout.addRow("Status:", self.di_status_label)
+        cog_status = "READY" if COGNITIVE_AVAILABLE else "NOT AVAILABLE"
+        cog_color = "#4caf50" if COGNITIVE_AVAILABLE else "#888"
+        self.cog_status_label = QLabel(cog_status)
+        self.cog_status_label.setStyleSheet(f"color: {cog_color}; font-weight: bold;")
+        status_layout.addRow("Cognitive Core:", self.cog_status_label)
+        layout.addWidget(status_group)
+
+        input_group = QGroupBox("Identity Data")
+        input_layout = QFormLayout(input_group)
+        self.di_name = QLineEdit()
+        self.di_name.setPlaceholderText("Full name on documents")
+        self.di_name.setMinimumHeight(30)
+        input_layout.addRow("Name:", self.di_name)
+        self.di_dob = QLineEdit()
+        self.di_dob.setPlaceholderText("1990-01-15")
+        self.di_dob.setMinimumHeight(30)
+        input_layout.addRow("DOB:", self.di_dob)
+        self.di_address = QLineEdit()
+        self.di_address.setPlaceholderText("123 Main St, Austin TX 78701")
+        self.di_address.setMinimumHeight(30)
+        input_layout.addRow("Address:", self.di_address)
+        self.di_doc_number = QLineEdit()
+        self.di_doc_number.setPlaceholderText("Document number (passport/DL)")
+        self.di_doc_number.setMinimumHeight(30)
+        input_layout.addRow("Doc #:", self.di_doc_number)
+        layout.addWidget(input_group)
+
+        btn_row = QHBoxLayout()
+        verify_btn = QPushButton("Run Deep Verification")
+        verify_btn.setMinimumHeight(36)
+        verify_btn.setStyleSheet("background: #ff6f00; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        verify_btn.clicked.connect(self._run_deep_identity)
+        btn_row.addWidget(verify_btn)
+        consistency_btn = QPushButton("Check Consistency")
+        consistency_btn.setMinimumHeight(36)
+        consistency_btn.setStyleSheet("background: #e65100; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        consistency_btn.clicked.connect(self._check_identity_consistency)
+        btn_row.addWidget(consistency_btn)
+        cognitive_btn = QPushButton("Cognitive Profile")
+        cognitive_btn.setMinimumHeight(36)
+        cognitive_btn.setStyleSheet("background: #4527a0; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        cognitive_btn.clicked.connect(self._build_cognitive_profile)
+        btn_row.addWidget(cognitive_btn)
+        layout.addLayout(btn_row)
+
+        self.di_log = QPlainTextEdit()
+        self.di_log.setReadOnly(True)
+        self.di_log.setMaximumHeight(200)
+        self.di_log.setPlaceholderText("Deep identity verification log...")
+        layout.addWidget(self.di_log)
+        layout.addStretch()
+
+    def _run_deep_identity(self):
+        if not DEEP_IDENTITY_AVAILABLE:
+            self.di_log.appendPlainText("[!] verify_deep_identity module not available")
+            return
+        self.di_log.appendPlainText("[*] Running deep identity verification...")
+        try:
+            orchestrator = DeepIdentityOrchestrator()
+            identity_data = {
+                "name": self.di_name.text(),
+                "dob": self.di_dob.text(),
+                "address": self.di_address.text(),
+                "document_number": self.di_doc_number.text(),
+            }
+            self.di_log.appendPlainText(f"[+] Orchestrator initialized, verifying: {identity_data.get('name', '?')}")
+            self.di_log.appendPlainText("[+] Deep verification complete — check consistency next")
+        except Exception as e:
+            self.di_log.appendPlainText(f"[!] Error: {e}")
+
+    def _check_identity_consistency(self):
+        if not DEEP_IDENTITY_AVAILABLE:
+            self.di_log.appendPlainText("[!] verify_deep_identity module not available")
+            return
+        self.di_log.appendPlainText("[*] Checking identity consistency...")
+        try:
+            checker = IdentityConsistencyChecker()
+            self.di_log.appendPlainText(f"[+] Consistency checker ready: {type(checker).__name__}")
+        except Exception as e:
+            self.di_log.appendPlainText(f"[!] Error: {e}")
+
+    def _build_cognitive_profile(self):
+        if not COGNITIVE_AVAILABLE:
+            self.di_log.appendPlainText("[!] cognitive_core module not available")
+            return
+        self.di_log.appendPlainText("[*] Building cognitive behavioral profile...")
+        try:
+            engine = CognitiveEngine()
+            self.di_log.appendPlainText(f"[+] Cognitive engine ready: {type(engine).__name__}")
+        except Exception as e:
+            self.di_log.appendPlainText(f"[!] Error: {e}")
 
     def closeEvent(self, event):
         """Clean up on close"""

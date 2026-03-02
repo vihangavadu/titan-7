@@ -570,7 +570,7 @@ class TLSTests:
         # Check JA3/JA4 via tls.browserleaks.com
         try:
             req = urllib.request.Request("https://tls.browserleaks.com/json",
-                                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"})
+                                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"})
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read())
 
@@ -845,7 +845,7 @@ class BrowserTests:
             trust_num = 0
             try:
                 trust_num = float(trust.replace("%", "").strip())
-            except:
+            except Exception:
                 pass
 
             score = trust_num / 100 if trust_num > 0 else 0.5
@@ -1005,7 +1005,7 @@ class DetectionLab:
         try:
             from titan_env import load_env
             load_env()
-        except:
+        except Exception:
             pass
 
         # Run non-browser tests first

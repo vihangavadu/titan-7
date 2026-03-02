@@ -237,6 +237,9 @@ class TitanSettings(QMainWindow):
         self._build_browser_tab()
         self._build_apikeys_tab()
         self._build_system_tab()
+        self._build_hyperswitch_tab()
+        self._build_proxy_tab()
+        self._build_waydroid_tab()
 
     # ═══════════════════════════════════════════════════════════════════════
     # TAB 1: VPN (Mullvad)
@@ -887,6 +890,247 @@ class TitanSettings(QMainWindow):
                 lines.append(f"  pip: {p} MISSING")
 
         self.diag_output.setPlainText("\n".join(lines))
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TAB 7: HYPERSWITCH CONFIG
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _build_hyperswitch_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        grp = QGroupBox("HyperSwitch Payment Orchestrator")
+        fl = QFormLayout(grp)
+        self.hs_url = QLineEdit(self.env_data.get("TITAN_HYPERSWITCH_URL", "http://127.0.0.1:8080"))
+        self.hs_url.setMinimumHeight(30)
+        fl.addRow("HyperSwitch URL:", self.hs_url)
+        self.hs_api_key = QLineEdit(self.env_data.get("TITAN_HYPERSWITCH_API_KEY", ""))
+        self.hs_api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.hs_api_key.setMinimumHeight(30)
+        fl.addRow("API Key:", self.hs_api_key)
+        self.hs_pk = QLineEdit(self.env_data.get("TITAN_HYPERSWITCH_PUBLISHABLE_KEY", ""))
+        self.hs_pk.setMinimumHeight(30)
+        fl.addRow("Publishable Key:", self.hs_pk)
+        self.hs_admin = QLineEdit(self.env_data.get("TITAN_HYPERSWITCH_ADMIN_KEY", ""))
+        self.hs_admin.setEchoMode(QLineEdit.EchoMode.Password)
+        self.hs_admin.setMinimumHeight(30)
+        fl.addRow("Admin Key:", self.hs_admin)
+        self.hs_enabled = QComboBox()
+        self.hs_enabled.addItems(["0 (Disabled)", "1 (Enabled)"])
+        self.hs_enabled.setCurrentIndex(1 if self.env_data.get("TITAN_HYPERSWITCH_ENABLED") == "1" else 0)
+        self.hs_enabled.setMinimumHeight(30)
+        fl.addRow("Enabled:", self.hs_enabled)
+        layout.addWidget(grp)
+
+        btn_row = QHBoxLayout()
+        save_btn = QPushButton("Save HyperSwitch Config")
+        save_btn.setMinimumHeight(36)
+        save_btn.setStyleSheet(f"background: {ACCENT}; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        save_btn.clicked.connect(self._save_hyperswitch)
+        btn_row.addWidget(save_btn)
+        test_btn = QPushButton("Test Connection")
+        test_btn.setMinimumHeight(36)
+        test_btn.clicked.connect(self._test_hyperswitch)
+        btn_row.addWidget(test_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        self.hs_log = QPlainTextEdit()
+        self.hs_log.setReadOnly(True)
+        self.hs_log.setMaximumHeight(150)
+        self.hs_log.setPlaceholderText("HyperSwitch config log...")
+        layout.addWidget(self.hs_log)
+        layout.addStretch()
+        self.tabs.addTab(scroll, "HYPERSWITCH")
+
+    def _save_hyperswitch(self):
+        self.env_data["TITAN_HYPERSWITCH_URL"] = self.hs_url.text().strip()
+        self.env_data["TITAN_HYPERSWITCH_API_KEY"] = self.hs_api_key.text().strip()
+        self.env_data["TITAN_HYPERSWITCH_PUBLISHABLE_KEY"] = self.hs_pk.text().strip()
+        self.env_data["TITAN_HYPERSWITCH_ADMIN_KEY"] = self.hs_admin.text().strip()
+        self.env_data["TITAN_HYPERSWITCH_ENABLED"] = "1" if self.hs_enabled.currentIndex() == 1 else "0"
+        _save_env(self.env_data)
+        self.hs_log.appendPlainText("[+] HyperSwitch config saved to titan.env")
+
+    def _test_hyperswitch(self):
+        url = self.hs_url.text().strip() or "http://127.0.0.1:8080"
+        self.hs_log.appendPlainText(f"[*] Testing {url}/health ...")
+        try:
+            import requests
+            r = requests.get(f"{url}/health", timeout=5)
+            self.hs_log.appendPlainText(f"[+] Status: {r.status_code} — {r.text[:100]}")
+        except Exception as e:
+            self.hs_log.appendPlainText(f"[!] Connection failed: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TAB 8: PROXY CONFIG
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _build_proxy_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        grp = QGroupBox("Residential Proxy Configuration")
+        fl = QFormLayout(grp)
+        self.proxy_provider = QComboBox()
+        self.proxy_provider.addItems(["BrightData", "Oxylabs", "SmartProxy", "IPRoyal", "Custom SOCKS5"])
+        self.proxy_provider.setMinimumHeight(30)
+        fl.addRow("Provider:", self.proxy_provider)
+        self.proxy_host = QLineEdit(self.env_data.get("TITAN_PROXY_HOST", ""))
+        self.proxy_host.setPlaceholderText("proxy.brightdata.com")
+        self.proxy_host.setMinimumHeight(30)
+        fl.addRow("Host:", self.proxy_host)
+        self.proxy_port = QLineEdit(self.env_data.get("TITAN_PROXY_PORT", "22225"))
+        self.proxy_port.setMinimumHeight(30)
+        fl.addRow("Port:", self.proxy_port)
+        self.proxy_user = QLineEdit(self.env_data.get("TITAN_PROXY_USER", ""))
+        self.proxy_user.setMinimumHeight(30)
+        fl.addRow("Username:", self.proxy_user)
+        self.proxy_pass = QLineEdit(self.env_data.get("TITAN_PROXY_PASS", ""))
+        self.proxy_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.proxy_pass.setMinimumHeight(30)
+        fl.addRow("Password:", self.proxy_pass)
+        self.proxy_country = QLineEdit(self.env_data.get("TITAN_PROXY_COUNTRY", "us"))
+        self.proxy_country.setPlaceholderText("us, gb, de, etc.")
+        self.proxy_country.setMinimumHeight(30)
+        fl.addRow("Country:", self.proxy_country)
+        layout.addWidget(grp)
+
+        btn_row = QHBoxLayout()
+        save_btn = QPushButton("Save Proxy Config")
+        save_btn.setMinimumHeight(36)
+        save_btn.setStyleSheet(f"background: {ACCENT}; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        save_btn.clicked.connect(self._save_proxy)
+        btn_row.addWidget(save_btn)
+        test_btn = QPushButton("Test Proxy")
+        test_btn.setMinimumHeight(36)
+        test_btn.clicked.connect(self._test_proxy)
+        btn_row.addWidget(test_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        self.proxy_log = QPlainTextEdit()
+        self.proxy_log.setReadOnly(True)
+        self.proxy_log.setMaximumHeight(150)
+        self.proxy_log.setPlaceholderText("Proxy test log...")
+        layout.addWidget(self.proxy_log)
+        layout.addStretch()
+        self.tabs.addTab(scroll, "PROXY")
+
+    def _save_proxy(self):
+        self.env_data["TITAN_PROXY_HOST"] = self.proxy_host.text().strip()
+        self.env_data["TITAN_PROXY_PORT"] = self.proxy_port.text().strip()
+        self.env_data["TITAN_PROXY_USER"] = self.proxy_user.text().strip()
+        self.env_data["TITAN_PROXY_PASS"] = self.proxy_pass.text().strip()
+        self.env_data["TITAN_PROXY_COUNTRY"] = self.proxy_country.text().strip()
+        _save_env(self.env_data)
+        self.proxy_log.appendPlainText("[+] Proxy config saved to titan.env")
+
+    def _test_proxy(self):
+        host = self.proxy_host.text().strip()
+        port = self.proxy_port.text().strip()
+        if not host:
+            self.proxy_log.appendPlainText("[!] No proxy host configured")
+            return
+        self.proxy_log.appendPlainText(f"[*] Testing proxy {host}:{port} ...")
+        try:
+            import requests
+            proxies = {"https": f"http://{self.proxy_user.text()}:{self.proxy_pass.text()}@{host}:{port}"}
+            r = requests.get("https://api.ipify.org?format=json", proxies=proxies, timeout=15)
+            self.proxy_log.appendPlainText(f"[+] Exit IP: {r.text.strip()}")
+        except Exception as e:
+            self.proxy_log.appendPlainText(f"[!] Proxy test failed: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TAB 9: WAYDROID / ANDROID CONFIG
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _build_waydroid_tab(self):
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        status_grp = QGroupBox("Waydroid Android Container")
+        sl = QFormLayout(status_grp)
+        self.wd_status = QLabel("Checking...")
+        self.wd_status.setStyleSheet("color: #888; font-weight: bold;")
+        sl.addRow("Status:", self.wd_status)
+        layout.addWidget(status_grp)
+
+        btn_row = QHBoxLayout()
+        init_btn = QPushButton("Initialize Waydroid")
+        init_btn.setMinimumHeight(36)
+        init_btn.setStyleSheet("background: #4caf50; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        init_btn.clicked.connect(self._init_waydroid)
+        btn_row.addWidget(init_btn)
+        start_btn = QPushButton("Start Session")
+        start_btn.setMinimumHeight(36)
+        start_btn.clicked.connect(self._start_waydroid)
+        btn_row.addWidget(start_btn)
+        stop_btn = QPushButton("Stop Session")
+        stop_btn.setMinimumHeight(36)
+        stop_btn.setStyleSheet("background: #f44336; color: white; border: none; border-radius: 6px; padding: 0 14px; font-weight: bold;")
+        stop_btn.clicked.connect(self._stop_waydroid)
+        btn_row.addWidget(stop_btn)
+        check_btn = QPushButton("Check Status")
+        check_btn.setMinimumHeight(36)
+        check_btn.clicked.connect(self._check_waydroid)
+        btn_row.addWidget(check_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        self.wd_log = QPlainTextEdit()
+        self.wd_log.setReadOnly(True)
+        self.wd_log.setMaximumHeight(200)
+        self.wd_log.setPlaceholderText("Waydroid log...")
+        layout.addWidget(self.wd_log)
+        layout.addStretch()
+        self.tabs.addTab(scroll, "ANDROID")
+        QTimer.singleShot(1000, self._check_waydroid)
+
+    def _check_waydroid(self):
+        result = _run("waydroid status 2>&1")
+        if "running" in result.lower() or "RUNNING" in result:
+            self.wd_status.setText("RUNNING")
+            self.wd_status.setStyleSheet("color: #4caf50; font-weight: bold;")
+        elif "stopped" in result.lower() or "NOT" in result:
+            self.wd_status.setText("STOPPED")
+            self.wd_status.setStyleSheet("color: #f44336; font-weight: bold;")
+        else:
+            self.wd_status.setText("NOT INSTALLED")
+            self.wd_status.setStyleSheet("color: #888; font-weight: bold;")
+        self.wd_log.appendPlainText(result)
+
+    def _init_waydroid(self):
+        self.wd_log.appendPlainText("[*] Initializing Waydroid (this may take a while)...")
+        result = _run("waydroid init -s GAPPS 2>&1", timeout=120)
+        self.wd_log.appendPlainText(result)
+
+    def _start_waydroid(self):
+        self.wd_log.appendPlainText("[*] Starting Waydroid session...")
+        result = _run("waydroid session start 2>&1", timeout=30)
+        self.wd_log.appendPlainText(result)
+        QTimer.singleShot(3000, self._check_waydroid)
+
+    def _stop_waydroid(self):
+        self.wd_log.appendPlainText("[*] Stopping Waydroid session...")
+        result = _run("waydroid session stop 2>&1", timeout=15)
+        self.wd_log.appendPlainText(result)
+        QTimer.singleShot(2000, self._check_waydroid)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment — Lucid Empire Titan X</title>
+  <style>
+    :root {
+      --primary: #0a0f1e;
+      --accent: #00d4ff;
+      --gold: #f0c040;
+      --text: #e0e6f0;
+      --muted: #8899aa;
+      --card: #111827;
+      --border: #1e3a5f;
+      --green: #10b981;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--primary);
+      color: var(--text);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh;
+      padding: 0 0 60px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #060c1a 0%, #0d1b33 60%, #091428 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-logo {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), #0066cc);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 900; color: #fff;
+      flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 1.2rem; font-weight: 800; color: var(--accent); }
+    .header-text p { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+    .secure-badge {
+      margin-left: auto;
+      background: rgba(16,185,129,0.12);
+      border: 1px solid var(--green);
+      color: var(--green);
+      font-size: 0.72rem; font-weight: 700;
+      padding: 5px 12px; border-radius: 20px;
+      letter-spacing: 1px; text-transform: uppercase;
+    }
+
+    /* ── Breadcrumb ── */
+    .breadcrumb {
+      max-width: 900px; margin: 0 auto;
+      padding: 16px 24px 0;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.78rem; color: var(--muted);
+    }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb .sep { color: var(--border); }
+    .breadcrumb .current { color: var(--text); }
+
+    /* ── Steps ── */
+    .steps {
+      max-width: 900px; margin: 20px auto 0;
+      padding: 0 24px;
+      display: flex; align-items: center; gap: 0;
+    }
+    .step {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.78rem; font-weight: 600;
+    }
+    .step-num {
+      width: 26px; height: 26px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; font-weight: 800;
+    }
+    .step.done .step-num { background: var(--green); color: #fff; }
+    .step.done .step-label { color: var(--green); }
+    .step.active .step-num { background: var(--accent); color: #000; }
+    .step.active .step-label { color: var(--accent); }
+    .step.pending .step-num { background: var(--border); color: var(--muted); }
+    .step.pending .step-label { color: var(--muted); }
+    .step-line { flex: 1; height: 2px; background: var(--border); margin: 0 8px; }
+    .step-line.done { background: var(--green); }
+
+    /* ── Layout ── */
+    .layout {
+      max-width: 900px; margin: 28px auto 0;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 24px;
+    }
+    @media(max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 28px;
+    }
+    .card h2 {
+      font-size: 0.78rem; font-weight: 700; color: var(--accent);
+      letter-spacing: 2px; text-transform: uppercase;
+      margin-bottom: 22px; padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Tabs ── */
+    .pay-tabs {
+      display: flex; gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .pay-tab {
+      flex: 1; padding: 12px 10px;
+      background: transparent;
+      border: none; cursor: pointer;
+      color: var(--muted); font-size: 0.82rem; font-weight: 600;
+      transition: background 0.15s, color 0.15s;
+      border-right: 1px solid var(--border);
+    }
+    .pay-tab:last-child { border-right: none; }
+    .pay-tab.active { background: rgba(0,212,255,0.1); color: var(--accent); }
+    .pay-tab:hover:not(.active) { background: rgba(255,255,255,0.03); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Form ── */
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media(max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 0.75rem; color: var(--muted);
+      margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;
+    }
+    .form-group input, .form-group select {
+      width: 100%; padding: 12px 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-size: 0.9rem; font-family: inherit;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none; border-color: var(--accent);
+      background: rgba(0,212,255,0.04);
+    }
+    .form-group select option { background: #1a2540; }
+
+    /* Card number with icon */
+    .card-input-wrap { position: relative; }
+    .card-input-wrap input { padding-right: 48px; letter-spacing: 2px; }
+    .card-icon {
+      position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+      font-size: 18px;
+    }
+
+    /* ── Crypto addresses ── */
+    .crypto-option {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px; margin-bottom: 10px;
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    }
+    .crypto-option:hover { border-color: var(--accent); background: rgba(0,212,255,0.03); }
+    .crypto-option.selected { border-color: var(--accent); background: rgba(0,212,255,0.07); }
+    .crypto-icon { font-size: 24px; flex-shrink: 0; }
+    .crypto-name { font-size: 0.9rem; font-weight: 700; }
+    .crypto-addr { font-size: 0.72rem; color: var(--muted); margin-top: 2px; font-family: monospace; word-break: break-all; }
+    .crypto-arrow { margin-left: auto; color: var(--muted); font-size: 0.8rem; }
+
+    .crypto-detail {
+      display: none;
+      background: rgba(0,212,255,0.04);
+      border: 1px solid var(--accent);
+      border-radius: 10px; padding: 16px;
+      margin-top: 6px; margin-bottom: 14px;
+    }
+    .crypto-detail.open { display: block; }
+    .qr-placeholder {
+      width: 120px; height: 120px;
+      background: #fff;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 48px; margin: 0 auto 12px;
+    }
+    .addr-box {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px;
+      font-family: monospace; font-size: 0.75rem;
+      color: var(--accent); word-break: break-all;
+      text-align: center;
+    }
+    .copy-addr-btn {
+      display: block; width: 100%; margin-top: 8px;
+      padding: 8px;
+      background: transparent; border: 1px solid var(--accent);
+      color: var(--accent); border-radius: 6px;
+      font-size: 0.78rem; cursor: pointer;
+    }
+
+    /* ── Bank Transfer ── */
+    .bank-detail-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .bank-detail-row:last-child { border-bottom: none; }
+    .bank-key { color: var(--muted); font-size: 0.78rem; }
+    .bank-val { font-weight: 600; color: var(--text); font-family: monospace; }
+
+    /* ── Pay Button ── */
+    .pay-btn {
+      width: 100%; padding: 16px;
+      background: linear-gradient(135deg, var(--accent), #0066cc);
+      color: #fff; font-size: 1rem; font-weight: 800;
+      border: none; border-radius: 50px; cursor: pointer;
+      letter-spacing: 0.5px; margin-top: 8px;
+      box-shadow: 0 0 28px rgba(0,212,255,0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .pay-btn:hover { transform: translateY(-2px); box-shadow: 0 0 44px rgba(0,212,255,0.5); }
+    .pay-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* ── Order Summary ── */
+    .summary-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px 24px;
+      height: fit-content;
+    }
+    .summary-card h2 {
+      font-size: 0.78rem; font-weight: 700; color: var(--accent);
+      letter-spacing: 2px; text-transform: uppercase;
+      margin-bottom: 20px; padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .summary-row {
+      display: flex; justify-content: space-between;
+      padding: 9px 0; border-bottom: 1px solid rgba(30,58,95,0.5);
+      font-size: 0.85rem;
+    }
+    .summary-row:last-of-type { border-bottom: none; }
+    .summary-key { color: var(--muted); }
+    .summary-val { font-weight: 600; color: var(--text); }
+    .summary-total {
+      margin-top: 14px; padding-top: 14px;
+      border-top: 2px solid var(--accent);
+      display: flex; justify-content: space-between;
+      font-size: 1.15rem; font-weight: 900;
+    }
+    .summary-total .amount { color: var(--gold); }
+
+    .partner-badge {
+      margin-top: 18px;
+      background: rgba(240,192,64,0.08);
+      border: 1px solid var(--gold);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .partner-badge .badge-title { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .partner-badge .badge-name { font-size: 0.95rem; font-weight: 700; color: var(--gold); }
+    .partner-badge .badge-pct { font-size: 0.8rem; color: var(--muted); margin-top: 3px; }
+
+    .security-info {
+      margin-top: 18px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .security-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.75rem; color: var(--muted);
+    }
+    .security-item .icon { font-size: 14px; }
+
+    /* ── Success Screen ── */
+    #successScreen {
+      display: none;
+      max-width: 540px; margin: 60px auto; padding: 0 24px;
+    }
+    .success-card {
+      background: var(--card);
+      border: 1px solid var(--green);
+      border-radius: 16px;
+      padding: 44px 36px;
+      text-align: center;
+    }
+    .success-icon { font-size: 64px; margin-bottom: 16px; }
+    .success-card h2 { font-size: 1.4rem; font-weight: 900; color: var(--green); margin-bottom: 10px; }
+    .success-card p { color: var(--muted); font-size: 0.88rem; line-height: 1.7; }
+    .ref-box {
+      background: rgba(16,185,129,0.08);
+      border: 1px solid var(--green);
+      border-radius: 8px;
+      padding: 14px 20px;
+      margin: 20px 0;
+    }
+    .ref-box .ref-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .ref-box .ref-num { font-size: 1.1rem; font-weight: 800; color: var(--green); font-family: monospace; letter-spacing: 2px; margin-top: 4px; }
+    .amount-confirmed {
+      font-size: 1.8rem; font-weight: 900; color: var(--gold); margin: 14px 0 4px;
+    }
+    .back-btn {
+      display: inline-block; margin-top: 24px;
+      padding: 12px 36px;
+      background: transparent; border: 1px solid var(--accent);
+      color: var(--accent); border-radius: 50px;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer;
+      text-decoration: none;
+    }
+
+    /* ── Processing Overlay ── */
+    #processingOverlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 999;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 20px;
+    }
+    #processingOverlay.open { display: flex; }
+    .spinner {
+      width: 52px; height: 52px;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .processing-text { color: var(--text); font-size: 1rem; font-weight: 600; }
+    .processing-sub { color: var(--muted); font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-logo">LX</div>
+  <div class="header-text">
+    <h1>LUCID EMPIRE TITAN X</h1>
+    <p>Secure Partner Onboarding Payment</p>
+  </div>
+  <div class="secure-badge">🔒 Secure</div>
+</div>
+
+<!-- ── Breadcrumb ── -->
+<div class="breadcrumb">
+  <a href="https://titanxanti.site/shareholder-agreement.html">Agreement</a>
+  <span class="sep">›</span>
+  <a href="https://titanxanti.site/shareholder-agreement.html">Registration Form</a>
+  <span class="sep">›</span>
+  <span class="current">Payment</span>
+</div>
+
+<!-- ── Steps ── -->
+<div class="steps">
+  <div class="step done">
+    <div class="step-num">✓</div>
+    <div class="step-label">Agreement</div>
+  </div>
+  <div class="step-line done"></div>
+  <div class="step done">
+    <div class="step-num">✓</div>
+    <div class="step-label">Registration</div>
+  </div>
+  <div class="step-line done"></div>
+  <div class="step active">
+    <div class="step-num">3</div>
+    <div class="step-label">Payment</div>
+  </div>
+  <div class="step-line"></div>
+  <div class="step pending">
+    <div class="step-num">4</div>
+    <div class="step-label">Activated</div>
+  </div>
+</div>
+
+<!-- ── Main Layout ── -->
+<div class="layout" id="mainLayout">
+
+  <!-- LEFT — Payment Form -->
+  <div class="card">
+    <h2>Payment Method</h2>
+
+    <!-- Method Tabs -->
+    <div class="pay-tabs">
+      <button class="pay-tab active" onclick="switchTab('card', this)">💳 Card</button>
+      <button class="pay-tab" onclick="switchTab('crypto', this)">₿ Crypto</button>
+      <button class="pay-tab" onclick="switchTab('bank', this)">🏦 Bank Transfer</button>
+    </div>
+
+    <!-- ── Card Tab ── -->
+    <div class="tab-panel active" id="tab-card">
+      <div class="form-group">
+        <label>Cardholder Name</label>
+        <input type="text" id="card-name" placeholder="Name as on card" />
+      </div>
+      <div class="form-group">
+        <label>Card Number</label>
+        <div class="card-input-wrap">
+          <input type="text" id="card-num" placeholder="0000  0000  0000  0000"
+            maxlength="19" oninput="formatCard(this)" />
+          <span class="card-icon" id="cardBrand">💳</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Expiry Date</label>
+          <input type="text" id="card-exp" placeholder="MM / YY" maxlength="7"
+            oninput="formatExpiry(this)" />
+        </div>
+        <div class="form-group">
+          <label>CVV / CVC</label>
+          <input type="password" id="card-cvv" placeholder="•••" maxlength="4" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Billing Email</label>
+        <input type="email" id="card-email" placeholder="your@email.com" />
+      </div>
+      <button class="pay-btn" onclick="processPayment('card')">
+        🔒 Pay $85.89 USD Now
+      </button>
+      <div style="text-align:center;margin-top:12px;font-size:0.75rem;color:var(--muted);">
+        256-bit SSL encrypted · PCI DSS compliant
+      </div>
+    </div>
+
+    <!-- ── Crypto Tab ── -->
+    <div class="tab-panel" id="tab-crypto">
+      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px;">
+        Send equivalent of <strong style="color:var(--gold)">$85.89 USD</strong> to one of the addresses below. Your account will be activated after 1 confirmation.
+      </p>
+
+      <div class="crypto-option" id="crypto-btc" onclick="toggleCrypto('btc')">
+        <div class="crypto-icon">₿</div>
+        <div>
+          <div class="crypto-name">Bitcoin (BTC)</div>
+          <div class="crypto-addr">~0.00082 BTC</div>
+        </div>
+        <div class="crypto-arrow">▼</div>
+      </div>
+      <div class="crypto-detail" id="detail-btc">
+        <div class="qr-placeholder">₿</div>
+        <div class="addr-box" id="addr-btc">bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh</div>
+        <button class="copy-addr-btn" onclick="copyAddr('addr-btc', this)">📋 Copy BTC Address</button>
+        <div style="margin-top:10px;font-size:0.75rem;color:var(--muted);text-align:center;">
+          Send exactly <strong style="color:var(--gold)">~0.00082 BTC</strong> to activate your account
+        </div>
+      </div>
+
+      <div class="crypto-option" id="crypto-eth" onclick="toggleCrypto('eth')">
+        <div class="crypto-icon">Ξ</div>
+        <div>
+          <div class="crypto-name">Ethereum (ETH)</div>
+          <div class="crypto-addr">~0.026 ETH</div>
+        </div>
+        <div class="crypto-arrow">▼</div>
+      </div>
+      <div class="crypto-detail" id="detail-eth">
+        <div class="qr-placeholder">Ξ</div>
+        <div class="addr-box" id="addr-eth">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</div>
+        <button class="copy-addr-btn" onclick="copyAddr('addr-eth', this)">📋 Copy ETH Address</button>
+        <div style="margin-top:10px;font-size:0.75rem;color:var(--muted);text-align:center;">
+          Send exactly <strong style="color:var(--gold)">~0.026 ETH</strong> to activate your account
+        </div>
+      </div>
+
+      <div class="crypto-option" id="crypto-usdt" onclick="toggleCrypto('usdt')">
+        <div class="crypto-icon">₮</div>
+        <div>
+          <div class="crypto-name">USDT (TRC-20)</div>
+          <div class="crypto-addr">85.89 USDT</div>
+        </div>
+        <div class="crypto-arrow">▼</div>
+      </div>
+      <div class="crypto-detail" id="detail-usdt">
+        <div class="qr-placeholder">₮</div>
+        <div class="addr-box" id="addr-usdt">TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE</div>
+        <button class="copy-addr-btn" onclick="copyAddr('addr-usdt', this)">📋 Copy USDT Address</button>
+        <div style="margin-top:10px;font-size:0.75rem;color:var(--muted);text-align:center;">
+          Send exactly <strong style="color:var(--gold)">85.89 USDT</strong> (TRC-20 network)
+        </div>
+      </div>
+
+      <button class="pay-btn" style="margin-top:16px;" onclick="processPayment('crypto')">
+        ✅ I Have Sent the Payment
+      </button>
+    </div>
+
+    <!-- ── Bank Transfer Tab ── -->
+    <div class="tab-panel" id="tab-bank">
+      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px;">
+        Transfer <strong style="color:var(--gold)">$85.89 USD</strong> to the account below. Use your reference code as the payment description.
+      </p>
+
+      <div>
+        <div class="bank-detail-row">
+          <span class="bank-key">Account Name</span>
+          <span class="bank-val">Lucid Empire Titan X</span>
+        </div>
+        <div class="bank-detail-row">
+          <span class="bank-key">Bank Name</span>
+          <span class="bank-val">_____________________</span>
+        </div>
+        <div class="bank-detail-row">
+          <span class="bank-key">Account Number</span>
+          <span class="bank-val">_____________________</span>
+        </div>
+        <div class="bank-detail-row">
+          <span class="bank-key">IBAN</span>
+          <span class="bank-val">_____________________</span>
+        </div>
+        <div class="bank-detail-row">
+          <span class="bank-key">SWIFT / BIC</span>
+          <span class="bank-val">_____________________</span>
+        </div>
+        <div class="bank-detail-row">
+          <span class="bank-key">Reference / Description</span>
+          <span class="bank-val" id="bankRef" style="color:var(--gold);">HMPR-FERNANDO-15</span>
+        </div>
+        <div class="bank-detail-row">
+          <span class="bank-key">Amount</span>
+          <span class="bank-val" style="color:var(--gold);">$85.89 USD</span>
+        </div>
+      </div>
+
+      <div style="background:rgba(240,192,64,0.07);border:1px solid var(--gold);border-radius:8px;padding:12px 14px;margin:16px 0;font-size:0.8rem;color:var(--muted);">
+        ⚠️ <strong style="color:var(--gold);">Important:</strong> You MUST include <strong style="color:var(--text);">HMPR-FERNANDO-15</strong> as the payment reference/description, otherwise your payment cannot be matched to your account.
+      </div>
+
+      <button class="pay-btn" onclick="processPayment('bank')">
+        ✅ I Have Completed the Bank Transfer
+      </button>
+    </div>
+  </div>
+
+  <!-- RIGHT — Order Summary -->
+  <div class="summary-card">
+    <h2>Order Summary</h2>
+
+    <div class="summary-row">
+      <span class="summary-key">Product</span>
+      <span class="summary-val">Partner Onboarding</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">Partner</span>
+      <span class="summary-val" id="summaryName">H M P R Fernando</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">Profit Share</span>
+      <span class="summary-val" style="color:var(--gold);">15% Monthly Net Profit</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">Company</span>
+      <span class="summary-val">Lucid Empire Titan X</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">Form Filing</span>
+      <span class="summary-val" style="color:var(--green);">Free</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">Account Setup</span>
+      <span class="summary-val" style="color:var(--green);">Free</span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-key">Admin & Processing Fee</span>
+      <span class="summary-val">$85.89</span>
+    </div>
+
+    <div class="summary-total">
+      <span>Total Due</span>
+      <span class="amount">$85.89 USD</span>
+    </div>
+
+    <div class="partner-badge">
+      <div class="badge-title">Activating Partnership For</div>
+      <div class="badge-name" id="badgeName">H M P R Fernando</div>
+      <div class="badge-pct">15% of monthly Net Profit — Lucid Empire Titan X</div>
+    </div>
+
+    <div class="security-info">
+      <div class="security-item"><span class="icon">🔒</span> 256-bit SSL encryption</div>
+      <div class="security-item"><span class="icon">🛡️</span> Secure payment processing</div>
+      <div class="security-item"><span class="icon">📄</span> Bound by signed agreement</div>
+      <div class="security-item"><span class="icon">✅</span> One-time non-refundable fee</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Success Screen ── -->
+<div id="successScreen">
+  <div class="success-card">
+    <div class="success-icon">🎉</div>
+    <div class="amount-confirmed">$85.89 USD</div>
+    <h2>Payment Received!</h2>
+    <p>Your partner onboarding payment has been successfully processed.<br>
+    Your <strong style="color:var(--gold);">15% monthly Net Profit</strong> entitlement from <strong style="color:var(--text);">Lucid Empire Titan X</strong> is now being activated.</p>
+
+    <div class="ref-box">
+      <div class="ref-label">Transaction Reference</div>
+      <div class="ref-num" id="txRef">LX-2026-HMPR-000001</div>
+    </div>
+
+    <p>A confirmation has been sent to your registered email. Your first profit distribution will be made on or before the <strong style="color:var(--text);">5th of next month</strong>.</p>
+
+    <a href="https://titanxanti.site/shareholder-agreement.html" class="back-btn">← Back to Agreement</a>
+  </div>
+</div>
+
+<!-- ── Processing Overlay ── -->
+<div id="processingOverlay">
+  <div class="spinner"></div>
+  <div class="processing-text">Processing Payment...</div>
+  <div class="processing-sub">Please do not close this window</div>
+</div>
+
+<script>
+  // ── Pre-fill from URL params ──
+  const params = new URLSearchParams(window.location.search);
+  const pName = params.get('name') || 'H M P R Fernando';
+  const pEmail = params.get('email') || '';
+  const pAmount = params.get('amount') || '85.89';
+
+  document.getElementById('summaryName').textContent = pName;
+  document.getElementById('badgeName').textContent = pName;
+  if (pEmail) {
+    const emailInput = document.getElementById('card-email');
+    if (emailInput) emailInput.value = pEmail;
+  }
+
+  // ── Tab Switching ──
+  function switchTab(id, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.pay-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // ── Card Formatting ──
+  function formatCard(input) {
+    let val = input.value.replace(/\D/g, '').substring(0, 16);
+    val = val.replace(/(.{4})/g, '$1  ').trim();
+    input.value = val;
+    const brand = document.getElementById('cardBrand');
+    const raw = val.replace(/\s/g, '');
+    if (/^4/.test(raw)) brand.textContent = '💳';
+    else if (/^5[1-5]/.test(raw)) brand.textContent = '💳';
+    else if (/^3[47]/.test(raw)) brand.textContent = '💳';
+    else brand.textContent = '💳';
+  }
+  function formatExpiry(input) {
+    let val = input.value.replace(/\D/g, '').substring(0, 4);
+    if (val.length >= 2) val = val.substring(0, 2) + ' / ' + val.substring(2);
+    input.value = val;
+  }
+
+  // ── Crypto Toggle ──
+  function toggleCrypto(id) {
+    const detail = document.getElementById('detail-' + id);
+    const option = document.getElementById('crypto-' + id);
+    const isOpen = detail.classList.contains('open');
+    document.querySelectorAll('.crypto-detail').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.crypto-option').forEach(o => o.classList.remove('selected'));
+    if (!isOpen) {
+      detail.classList.add('open');
+      option.classList.add('selected');
+    }
+  }
+
+  // ── Copy Address ──
+  function copyAddr(id, btn) {
+    const addr = document.getElementById(id).textContent.trim();
+    navigator.clipboard.writeText(addr).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => btn.textContent = orig, 2000);
+    });
+  }
+
+  // ── Process Payment ──
+  function processPayment(method) {
+    if (method === 'card') {
+      const num = document.getElementById('card-num').value.replace(/\s/g, '');
+      const exp = document.getElementById('card-exp').value;
+      const cvv = document.getElementById('card-cvv').value;
+      const name = document.getElementById('card-name').value.trim();
+      const email = document.getElementById('card-email').value.trim();
+      if (!name || num.length < 15 || exp.length < 4 || cvv.length < 3 || !email) {
+        alert('Please fill in all card details before proceeding.');
+        return;
+      }
+    }
+
+    const overlay = document.getElementById('processingOverlay');
+    overlay.classList.add('open');
+
+    setTimeout(() => {
+      overlay.classList.remove('open');
+      document.getElementById('mainLayout').style.display = 'none';
+      document.querySelector('.breadcrumb').style.display = 'none';
+      document.querySelector('.steps').style.display = 'none';
+      const success = document.getElementById('successScreen');
+      success.style.display = 'block';
+      const txRef = 'LX-' + new Date().getFullYear() + '-HMPR-' + Math.floor(100000 + Math.random() * 900000);
+      document.getElementById('txRef').textContent = txRef;
+    }, 2800);
+  }
+</script>
+
+</body>
+</html>

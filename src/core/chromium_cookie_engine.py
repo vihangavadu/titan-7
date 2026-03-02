@@ -347,10 +347,10 @@ class HybridInjector:
             try:
                 self.browser_process.terminate()
                 self.browser_process.wait(timeout=5)
-            except:
+            except Exception:
                 try:
                     self.browser_process.kill()
-                except:
+                except Exception:
                     pass
             self.browser_process = None
     
@@ -918,7 +918,7 @@ class OblivionForgeEngine:
             with open(ls_file, 'w') as f:
                 json.dump(ls_data, f, indent=2)
             return success
-        except:
+        except Exception:
             return False
     
     def _forge_history(self, urls: List[str], age_days: int) -> bool:
@@ -1103,7 +1103,7 @@ class OblivionForgeEngine:
                 try:
                     if file_path.exists():
                         os.utime(file_path, (target_time, target_time))
-                except:
+                except Exception:
                     pass
             
             # For NTFS: attempt to update $FN timestamps by moving to temp
@@ -1119,7 +1119,7 @@ class OblivionForgeEngine:
                     
                     # Cleanup
                     shutil.rmtree(temp_dir, ignore_errors=True)
-                except:
+                except Exception:
                     pass  # Silent fail for move operation
             
             print(f"  [+] Forensic OPSEC applied")

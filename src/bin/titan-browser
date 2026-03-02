@@ -323,11 +323,11 @@ case "$BROWSER_TYPE" in
         python3 << EOF
 import sys, os
 os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
-sys.path.insert(0, '/opt/titan/core')
+sys.path.insert(0, '/opt/titan/src/core')
 if os.path.isdir('/opt/titan'):
     sys.path.insert(0, '/opt/titan')
-    if os.path.isdir('/opt/titan/core'):
-        sys.path.insert(0, '/opt/titan/core')
+    if os.path.isdir('/opt/titan/src/core'):
+        sys.path.insert(0, '/opt/titan/src/core')
 
 from camoufox.sync_api import Camoufox
 from camoufox import DefaultAddons

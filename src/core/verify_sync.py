@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify all modules import after VPS sync."""
 import os, sys
-sys.path.insert(0, "/opt/titan/core")
+sys.path.insert(0, "/opt/titan/src/core")
 sys.path.insert(0, "/opt/titan")
 
 print("=" * 60)
@@ -9,7 +9,7 @@ print("  TITAN VPS SYNC VERIFICATION")
 print("=" * 60)
 
 # Core modules
-core_path = "/opt/titan/core"
+core_path = "/opt/titan/src/core"
 core_files = sorted([
     f[:-3] for f in os.listdir(core_path)
     if f.endswith(".py") and f != "__init__.py" and not f.startswith("smoke_") and not f.startswith("verify_")
@@ -27,7 +27,7 @@ for f, e in core_fails:
     print(f"  FAIL: {f} -> {e}")
 
 # Apps
-apps_path = "/opt/titan/apps"
+apps_path = "/opt/titan/src/apps"
 sys.path.insert(0, apps_path)
 app_files = sorted([
     f[:-3] for f in os.listdir(apps_path)

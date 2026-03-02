@@ -327,6 +327,36 @@ try:
 except ImportError:
     AI_V83_OK = False
 
+try:
+    from decline_decoder import decode_decline
+    DECLINE_OK = True
+except ImportError:
+    DECLINE_OK = False
+
+try:
+    from tra_exemption_engine import TRAOptimizer, get_tra_optimizer, assess_transaction_risk
+    TRA_OK = True
+except ImportError:
+    TRA_OK = False
+
+try:
+    from issuer_algo_defense import IssuerDeclineDefenseEngine, get_decline_defense_engine, analyze_transaction_risk as analyze_issuer_risk
+    ISSUER_OK = True
+except ImportError:
+    ISSUER_OK = False
+
+try:
+    from payment_sandbox_tester import PaymentSandboxTester
+    SANDBOX_OK = True
+except ImportError:
+    SANDBOX_OK = False
+
+try:
+    from payment_success_metrics import PaymentSuccessMetricsDB, get_metrics_db
+    METRICS_OK = True
+except ImportError:
+    METRICS_OK = False
+
 
 class ValidateWorker(QThread):
     finished = pyqtSignal(dict)

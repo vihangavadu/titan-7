@@ -491,7 +491,7 @@ char _license[] SEC("license") = "GPL";
         }
         self._compiled = False
 
-    def write_xdp_source(self, output_path: str = "/opt/titan/core/titan_xdp_chain.c") -> str:
+    def write_xdp_source(self, output_path: str = "/opt/titan/src/core/titan_xdp_chain.c") -> str:
         """Write the XDP skeleton C source file."""
         try:
             with open(output_path, "w") as f:
@@ -502,8 +502,8 @@ char _license[] SEC("license") = "GPL";
             self.logger.error(f"[eBPF] Failed to write source: {e}")
             return ""
 
-    def compile_xdp(self, source_path: str = "/opt/titan/core/titan_xdp_chain.c",
-                    output_path: str = "/opt/titan/core/titan_xdp_chain.o") -> bool:
+    def compile_xdp(self, source_path: str = "/opt/titan/src/core/titan_xdp_chain.c",
+                    output_path: str = "/opt/titan/src/core/titan_xdp_chain.o") -> bool:
         """Compile XDP program using clang/llvm."""
         cmd = [
             "clang", "-O2", "-g", "-target", "bpf",
@@ -527,7 +527,7 @@ char _license[] SEC("license") = "GPL";
             self.logger.error(f"[eBPF] Compile failed: {e}")
             return False
 
-    def attach_xdp(self, obj_path: str = "/opt/titan/core/titan_xdp_chain.o") -> bool:
+    def attach_xdp(self, obj_path: str = "/opt/titan/src/core/titan_xdp_chain.o") -> bool:
         """Attach compiled XDP program to network interface."""
         cmd = ["ip", "link", "set", "dev", self.interface, "xdp", "obj", obj_path,
                "sec", "xdp"]

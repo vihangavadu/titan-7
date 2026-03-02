@@ -156,6 +156,105 @@ class CardholderBehaviorModel:
     declined_transactions: int = 2
     chargeback_rate: float = 0.0
 
+    # ─── ML Feature Windows (from Fraud Detection Handbook §3.3-3.4) ────
+    # Banks compute these rolling aggregates per card in real-time
+    nb_tx_1day: int = 0            # CUSTOMER_ID_NB_TX_1DAY_WINDOW
+    nb_tx_7day: int = 0            # CUSTOMER_ID_NB_TX_7DAY_WINDOW
+    nb_tx_30day: int = 0           # CUSTOMER_ID_NB_TX_30DAY_WINDOW
+    avg_amount_1day: float = 0.0   # CUSTOMER_ID_AVG_AMOUNT_1DAY_WINDOW
+    avg_amount_7day: float = 0.0   # CUSTOMER_ID_AVG_AMOUNT_7DAY_WINDOW
+    avg_amount_30day: float = 0.0  # CUSTOMER_ID_AVG_AMOUNT_30DAY_WINDOW
+
+    def is_within_envelope(self, amount: float, hour: int = 12,
+                           day_of_week: int = 2, mcc: str = "5999") -> Tuple[bool, float, List[str]]:
+        """
+        Check if a transaction fits within the cardholder's behavioral envelope.
+        Returns (is_safe, risk_score 0-1, list of flags).
+        Based on Fraud Detection Handbook feature engineering approach.
+        """
+        flags = []
+        risk = 0.0
+
+        # Amount check: flag if > 2σ above mean
+        z_score = (amount - self.avg_transaction_amount) / max(self.std_transaction_amount, 1)
+        if z_score > 3.0:
+            risk += 0.35
+            flags.append(f"amount {z_score:.1f}σ above mean (${self.avg_transaction_amount:.0f}±${self.std_transaction_amount:.0f})")
+        elif z_score > 2.0:
+            risk += 0.15
+            flags.append(f"amount {z_score:.1f}σ above mean")
+
+        if amount > self.max_single_transaction:
+            risk += 0.25
+            flags.append(f"exceeds max single TX (${self.max_single_transaction:.0f})")
+
+        # Time-of-day check (Handbook §3.2: TX_DURING_NIGHT)
+        hour_prob = self.active_hours[hour] if 0 <= hour < 24 else 0.01
+        if hour_prob < 0.02:  # Night/unusual hours
+            risk += 0.10
+            flags.append(f"unusual hour ({hour}:00, prob={hour_prob:.3f})")
+
+        # Day-of-week check
+        day_prob = self.active_days[day_of_week] if 0 <= day_of_week < 7 else 0.1
+        if day_prob < 0.10:
+            risk += 0.05
+            flags.append(f"low-activity day (prob={day_prob:.2f})")
+
+        # Velocity check: if daily count already high
+        if self.nb_tx_1day >= self.max_daily_transactions:
+            risk += 0.20
+            flags.append(f"daily TX count at limit ({self.nb_tx_1day}/{self.max_daily_transactions})")
+
+        # MCC check
+        if mcc not in self.preferred_mccs:
+            risk += 0.05
+            flags.append(f"unusual MCC ({mcc}) — not in cardholder preferences")
+
+        risk = min(1.0, risk)
+        return risk < 0.4, risk, flags
+
+    def update_windows(self, amount: float):
+        """Update rolling window counters after a transaction."""
+        self.nb_tx_1day += 1
+        self.nb_tx_7day += 1
+        self.nb_tx_30day += 1
+        # Update running averages
+        if self.nb_tx_1day > 0:
+            self.avg_amount_1day = ((self.avg_amount_1day * (self.nb_tx_1day - 1)) + amount) / self.nb_tx_1day
+        if self.nb_tx_7day > 0:
+            self.avg_amount_7day = ((self.avg_amount_7day * (self.nb_tx_7day - 1)) + amount) / self.nb_tx_7day
+        if self.nb_tx_30day > 0:
+            self.avg_amount_30day = ((self.avg_amount_30day * (self.nb_tx_30day - 1)) + amount) / self.nb_tx_30day
+
+
+def generate_envelope_from_bin(bin6: str) -> CardholderBehaviorModel:
+    """
+    Infer cardholder spending profile from BIN.
+    Maps bank + card level + country → expected income → spending envelope.
+    """
+    profile = ISSUER_INTELLIGENCE.get(bin6[:6], DEFAULT_ISSUER_PROFILE)
+    card_level = profile.get("card_level", "standard").lower()
+
+    # Card level → spending envelope mapping
+    envelopes = {
+        "platinum": {"avg": 180, "std": 120, "max": 2000, "monthly": 8000, "daily_tx": 3},
+        "gold": {"avg": 120, "std": 80, "max": 1200, "monthly": 5000, "daily_tx": 2.5},
+        "signature": {"avg": 150, "std": 100, "max": 1500, "monthly": 6000, "daily_tx": 2.8},
+        "world elite": {"avg": 250, "std": 180, "max": 5000, "monthly": 15000, "daily_tx": 2},
+        "infinite": {"avg": 300, "std": 200, "max": 8000, "monthly": 20000, "daily_tx": 1.5},
+        "business": {"avg": 200, "std": 150, "max": 3000, "monthly": 10000, "daily_tx": 4},
+    }
+    env = envelopes.get(card_level, {"avg": 85, "std": 45, "max": 500, "monthly": 2500, "daily_tx": 1.2})
+
+    return CardholderBehaviorModel(
+        card_hash=hashlib.sha256(bin6.encode()).hexdigest()[:16],
+        avg_transaction_amount=env["avg"],
+        std_transaction_amount=env["std"],
+        max_single_transaction=env["max"],
+        monthly_spend_limit=env["monthly"],
+        avg_transactions_per_day=env["daily_tx"],
+    )
+
 
 @dataclass
 class TransactionPlan:
@@ -600,10 +699,70 @@ class AmountOptimizer:
     
     Keeps amounts within cardholder's spending envelope and
     implements intelligent splitting for large transactions.
+    
+    V10.0: Added Benford's Law compliance — synthetic amounts must follow
+    the natural first-digit distribution that banks verify against.
+    Reference: Wiley DOI 10.1111/1475-679X.12292
     """
+
+    # Benford's Law: expected first-digit distribution
+    BENFORD_DIST = {1: 0.301, 2: 0.176, 3: 0.125, 4: 0.097,
+                    5: 0.079, 6: 0.067, 7: 0.058, 8: 0.051, 9: 0.046}
     
     def __init__(self, modeler: IssuerAlgorithmModeler):
         self.modeler = modeler
+
+    @staticmethod
+    def benford_check(amounts: List[float]) -> Tuple[bool, float, Dict[int, float]]:
+        """
+        Check if a list of amounts follows Benford's first-digit distribution.
+        Returns (passes, chi_squared_stat, observed_distribution).
+        Banks use this to detect synthetic/manufactured transaction lists.
+        """
+        if len(amounts) < 10:
+            return True, 0.0, {}
+
+        first_digits = []
+        for a in amounts:
+            s = str(abs(a)).lstrip("0").lstrip(".")
+            if s and s[0].isdigit() and s[0] != "0":
+                first_digits.append(int(s[0]))
+
+        if not first_digits:
+            return True, 0.0, {}
+
+        n = len(first_digits)
+        observed = {}
+        for d in range(1, 10):
+            observed[d] = first_digits.count(d) / n
+
+        chi_sq = 0.0
+        expected = AmountOptimizer.BENFORD_DIST
+        for d in range(1, 10):
+            e = expected[d]
+            o = observed.get(d, 0)
+            chi_sq += ((o - e) ** 2) / e
+
+        # Critical value for 8 degrees of freedom at p=0.05 is 15.507
+        passes = chi_sq < 15.507
+        return passes, chi_sq, observed
+
+    @staticmethod
+    def benford_safe_amount(target: float, jitter: float = 0.08) -> float:
+        """
+        Adjust an amount to be more Benford-compliant.
+        Avoids round numbers ($100, $200) — uses natural-looking amounts ($97.43).
+        """
+        import random
+        # Avoid perfectly round amounts
+        if target == int(target) and target > 10:
+            cents = random.randint(13, 97)
+            target = int(target) - random.randint(0, 3) + cents / 100
+
+        # Apply small jitter to avoid amount patterns
+        factor = 1.0 + random.uniform(-jitter, jitter)
+        result = round(target * factor, 2)
+        return max(0.01, result)
     
     def is_amount_safe(
         self,

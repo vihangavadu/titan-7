@@ -50,14 +50,14 @@ from flask_cors import CORS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 try:
-    from kyc_core import KYCCore, MotionType
+    from kyc_core import KYCController as KYCCore, MotionType
     KYC_CORE = True
 except ImportError:
     KYC_CORE = False
 
 try:
     from kyc_enhanced import (
-        KYCEnhancedEngine, DocumentType, KYCProvider,
+        KYCEnhancedController as KYCEnhancedEngine, DocumentType, KYCProvider,
         LivenessChallenge, InjectionMode
     )
     KYC_ENHANCED = True
@@ -71,7 +71,7 @@ except ImportError:
     KYC_VOICE = False
 
 try:
-    from waydroid_sync import WaydroidSync
+    from waydroid_sync import WaydroidSyncEngine as WaydroidSync
     WAYDROID_SYNC = True
 except ImportError:
     WAYDROID_SYNC = False

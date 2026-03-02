@@ -29,8 +29,8 @@ class SafetyValidator:
     """
     
     DEFAULT_TIME_APIS = [
-        "http://worldtimeapi.org/api/ip",
-        "http://worldclockapi.com/api/json/utc/now",
+        "https://worldtimeapi.org/api/ip",
+        "https://worldclockapi.com/api/json/utc/now",
         "https://timeapi.io/api/Time/current/zone?timeZone=UTC"
     ]
     

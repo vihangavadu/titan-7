@@ -29,7 +29,7 @@ fi
 CAMOUFOX_STATUS="Not Ready"
 python3 -c "from camoufox.sync_api import Camoufox" 2>/dev/null && CAMOUFOX_STATUS="Ready"
 
-CORE_COUNT=$(find /opt/titan/core -name "*.py" 2>/dev/null | wc -l)
+CORE_COUNT=$(find /opt/titan/src/core -name "*.py" 2>/dev/null | wc -l)
 GHOST_MOTOR="Not Found"
 [ -f /opt/titan/extensions/ghost_motor/ghost_motor.js ] && GHOST_MOTOR="Active"
 

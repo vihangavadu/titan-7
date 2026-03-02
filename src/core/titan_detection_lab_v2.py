@@ -332,7 +332,7 @@ class ProfileCreationTest:
                 conn = sqlite3.connect(str(cookies_db))
                 try:
                     cookies_count = conn.execute("SELECT COUNT(*) FROM moz_cookies").fetchone()[0]
-                except:
+                except Exception:
                     cookies_count = 0
                 conn.close()
                 audit["cookies_count"] = cookies_count
@@ -463,7 +463,7 @@ class MerchantSessionTest:
             selected = random.sample(digital, min(count, len(digital)))
             return [{"domain": s.domain, "name": s.name, "psp": s.psp.value,
                       "url": f"https://www.{s.domain}/"} for s in selected]
-        except:
+        except Exception:
             return [
                 {"domain": "cdkeys.com", "name": "CDKeys", "psp": "stripe", "url": "https://www.cdkeys.com/"},
                 {"domain": "eneba.com", "name": "Eneba", "psp": "adyen", "url": "https://www.eneba.com/"},
@@ -531,7 +531,7 @@ class MerchantSessionTest:
                             result["reached_product"] = True
                             product_found = True
                             break
-                    except:
+                    except Exception:
                         continue
 
                 if not product_found:
@@ -539,7 +539,7 @@ class MerchantSessionTest:
                     try:
                         page.click("a[href]:not([href='#'])", timeout=5000)
                         time.sleep(2)
-                    except:
+                    except Exception:
                         pass
 
                 # Step 3: Try to find add-to-cart button
@@ -557,7 +557,7 @@ class MerchantSessionTest:
                             time.sleep(random.uniform(2, 3))
                             result["reached_cart"] = True
                             break
-                    except:
+                    except Exception:
                         continue
 
                 # Step 4: Try to reach checkout
@@ -576,7 +576,7 @@ class MerchantSessionTest:
                             if "checkout" in current_url or "cart" in current_url or "payment" in current_url:
                                 result["reached_checkout"] = True
                             break
-                    except:
+                    except Exception:
                         continue
 
                 # Final check: any detection on checkout page

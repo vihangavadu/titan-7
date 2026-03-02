@@ -96,6 +96,72 @@ except ImportError:
     AI_ENGINE = False
 
 try:
+    from cerberus_enhanced import OSINTVerifier, CardQualityGrader
+    CERBERUS_OSINT = True
+except ImportError:
+    CERBERUS_OSINT = False
+
+try:
+    from decline_decoder import decode_decline
+    DECLINE_DECODER = True
+except ImportError:
+    DECLINE_DECODER = False
+
+try:
+    from three_ds_strategy import ThreeDSStrategy, get_3ds_strategy
+    THREEDS_OK = True
+except ImportError:
+    THREEDS_OK = False
+
+try:
+    from tra_exemption_engine import TRAOptimizer, get_tra_optimizer, assess_transaction_risk
+    TRA_OK = True
+except ImportError:
+    TRA_OK = False
+
+try:
+    from issuer_algo_defense import IssuerDeclineDefenseEngine, get_decline_defense_engine, analyze_transaction_risk as analyze_issuer_risk
+    ISSUER_DEFENSE_OK = True
+except ImportError:
+    ISSUER_DEFENSE_OK = False
+
+try:
+    from payment_sandbox_tester import PaymentSandboxTester
+    SANDBOX_OK = True
+except ImportError:
+    SANDBOX_OK = False
+
+try:
+    from payment_success_metrics import PaymentSuccessMetricsDB, get_metrics_db
+    METRICS_OK = True
+except ImportError:
+    METRICS_OK = False
+
+try:
+    from transaction_monitor import TransactionMonitor, DeclineDecoder as TXDeclineDecoder
+    TX_MONITOR_OK = True
+except ImportError:
+    TX_MONITOR_OK = False
+
+try:
+    from target_discovery import TargetDiscovery
+    TARGET_DISCOVERY_OK = True
+except ImportError:
+    TARGET_DISCOVERY_OK = False
+
+try:
+    from graph_evasion_engine import check_graph_safety, get_graph_stats, suggest_rotations
+    GRAPH_EVASION_OK = True
+except ImportError:
+    GRAPH_EVASION_OK = False
+
+try:
+    from issuer_algo_defense import generate_envelope_from_bin, AmountOptimizer
+    ENVELOPE_OK = True
+except ImportError:
+    ENVELOPE_OK = False
+
+try:
     from cerberus_hyperswitch import (
         HyperswitchClient, HyperswitchRouter, HyperswitchVault,
         HyperswitchRetry, HyperswitchAnalytics,
@@ -1051,7 +1117,174 @@ class CerberusApp(QMainWindow):
         analytics_layout.addWidget(self.analytics_text)
         layout.addWidget(analytics_grp)
 
+        # ─── Decline Decoder ────────────────────────────────────────────────
+        decline_grp = QGroupBox("Decline Code Decoder")
+        decline_layout = QHBoxLayout(decline_grp)
+        decline_layout.addWidget(QLabel("Code:"))
+        self.decline_code_input = QLineEdit()
+        self.decline_code_input.setPlaceholderText("do_not_honor / 05 / card_declined")
+        self.decline_code_input.setFixedWidth(200)
+        decline_layout.addWidget(self.decline_code_input)
+        decline_layout.addWidget(QLabel("PSP:"))
+        self.decline_psp_combo = QComboBox()
+        self.decline_psp_combo.addItems(["stripe", "adyen", "braintree", "checkout", "generic"])
+        decline_layout.addWidget(self.decline_psp_combo)
+        decode_btn = QPushButton("Decode")
+        decode_btn.clicked.connect(self._on_decode_decline)
+        decline_layout.addWidget(decode_btn)
+        decline_layout.addStretch()
+        layout.addWidget(decline_grp)
+
+        self.decline_result = QPlainTextEdit()
+        self.decline_result.setReadOnly(True)
+        self.decline_result.setMaximumHeight(120)
+        self.decline_result.setStyleSheet(f"font-family: Consolas; font-size: 11px; background: {BG_INPUT};")
+        layout.addWidget(self.decline_result)
+
+        # ─── 3DS Strategy + TRA + Issuer Defense ────────────────────────────
+        strategy_grp = QGroupBox("3DS / TRA / Issuer Intelligence")
+        strat_layout = QHBoxLayout(strategy_grp)
+
+        threeds_btn = QPushButton("3DS Strategy")
+        threeds_btn.setToolTip("Analyze 3DS bypass for current BIN")
+        threeds_btn.clicked.connect(self._on_3ds_strategy)
+        strat_layout.addWidget(threeds_btn)
+
+        tra_btn = QPushButton("TRA Exemption")
+        tra_btn.setToolTip("Calculate TRA exemption eligibility")
+        tra_btn.clicked.connect(self._on_tra_calc)
+        strat_layout.addWidget(tra_btn)
+
+        issuer_btn = QPushButton("Issuer Defense")
+        issuer_btn.setToolTip("Issuer-specific decline risk & mitigation")
+        issuer_btn.clicked.connect(self._on_issuer_defense)
+        strat_layout.addWidget(issuer_btn)
+
+        osint_btn = QPushButton("OSINT Check")
+        osint_btn.setToolTip("OSINT verification for cardholder data")
+        osint_btn.clicked.connect(self._on_osint_check)
+        strat_layout.addWidget(osint_btn)
+
+        quality_btn = QPushButton("Card Quality Grade")
+        quality_btn.setToolTip("Grade card quality (A-F)")
+        quality_btn.clicked.connect(self._on_quality_grade)
+        strat_layout.addWidget(quality_btn)
+
+        sandbox_btn = QPushButton("Sandbox Test")
+        sandbox_btn.setToolTip("Test checkout flow in PSP sandbox")
+        sandbox_btn.clicked.connect(self._on_sandbox_test)
+        strat_layout.addWidget(sandbox_btn)
+
+        strat_layout.addStretch()
+        layout.addWidget(strategy_grp)
+
+        self.strategy_result = QPlainTextEdit()
+        self.strategy_result.setReadOnly(True)
+        self.strategy_result.setMaximumHeight(180)
+        self.strategy_result.setStyleSheet(f"font-family: Consolas; font-size: 11px; background: {BG_INPUT};")
+        layout.addWidget(self.strategy_result)
+
         return w
+
+    def _on_decode_decline(self):
+        code = self.decline_code_input.text().strip()
+        if not code:
+            self.decline_result.setPlainText("Enter a decline code")
+            return
+        psp = self.decline_psp_combo.currentText()
+        if DECLINE_DECODER:
+            try:
+                result = decode_decline(code, psp=psp)
+                lines = [f"Code: {result.get('code', code)}", f"PSP: {psp}",
+                         f"Reason: {result.get('reason', '?')}", f"Category: {result.get('category', '?')}",
+                         f"Action: {result.get('action', '?')}", f"Retryable: {result.get('retryable', '?')}",
+                         f"Burn Card: {result.get('burn_card', False)}", f"Burn Proxy: {result.get('burn_proxy', False)}"]
+                self.decline_result.setPlainText("\n".join(lines))
+            except Exception as e:
+                self.decline_result.setPlainText(f"Decode error: {e}")
+        elif TX_MONITOR_OK:
+            try:
+                decoder = TXDeclineDecoder()
+                result = decoder.decode("stripe", code)
+                self.decline_result.setPlainText(json.dumps(result, indent=2, default=str))
+            except Exception as e:
+                self.decline_result.setPlainText(f"TX decode error: {e}")
+        else:
+            self.decline_result.setPlainText("decline_decoder module not available")
+
+    def _on_3ds_strategy(self):
+        bin6 = re.sub(r'\D', '', self.bin_input.text())[:6]
+        if not bin6 or len(bin6) < 6:
+            self.strategy_result.setPlainText("Enter a BIN in the lookup field above first")
+            return
+        if THREEDS_OK:
+            try:
+                strategy = ThreeDSStrategy()
+                result = strategy.analyze(bin6=bin6)
+                self.strategy_result.setPlainText(json.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result))
+            except Exception as e:
+                self.strategy_result.setPlainText(f"3DS analysis error: {e}")
+        else:
+            self.strategy_result.setPlainText("three_ds_strategy module not available")
+
+    def _on_tra_calc(self):
+        if TRA_OK:
+            try:
+                optimizer = get_tra_optimizer()
+                result = assess_transaction_risk(amount=100)
+                self.strategy_result.setPlainText(json.dumps(result, indent=2, default=str) if isinstance(result, dict) else str(result))
+            except Exception as e:
+                self.strategy_result.setPlainText(f"TRA error: {e}")
+        else:
+            self.strategy_result.setPlainText("tra_exemption_engine module not available")
+
+    def _on_issuer_defense(self):
+        bin6 = re.sub(r'\D', '', self.bin_input.text())[:6]
+        if not bin6 or len(bin6) < 6:
+            self.strategy_result.setPlainText("Enter a BIN first")
+            return
+        if ISSUER_DEFENSE_OK:
+            try:
+                engine = get_decline_defense_engine()
+                risk = analyze_issuer_risk(issuer=bin6)
+                lines = ["═══ ISSUER DEFENSE ═══", f"BIN: {bin6}"]
+                lines.append(f"Risk: {json.dumps(risk, indent=2, default=str)}" if isinstance(risk, dict) else f"Risk: {risk}")
+                lines.append(f"Engine: {type(engine).__name__}" if engine else "Engine: not loaded")
+                self.strategy_result.setPlainText("\n".join(lines))
+            except Exception as e:
+                self.strategy_result.setPlainText(f"Issuer defense error: {e}")
+        else:
+            self.strategy_result.setPlainText("issuer_algo_defense module not available")
+
+    def _on_osint_check(self):
+        if CERBERUS_OSINT:
+            try:
+                verifier = OSINTVerifier()
+                self.strategy_result.setPlainText("OSINT verifier ready — provide cardholder data to verify")
+            except Exception as e:
+                self.strategy_result.setPlainText(f"OSINT error: {e}")
+        else:
+            self.strategy_result.setPlainText("cerberus_enhanced.OSINTVerifier not available")
+
+    def _on_quality_grade(self):
+        if CERBERUS_OSINT:
+            try:
+                grader = CardQualityGrader()
+                self.strategy_result.setPlainText("Card Quality Grader ready — validate a card first, then grade")
+            except Exception as e:
+                self.strategy_result.setPlainText(f"Quality grader error: {e}")
+        else:
+            self.strategy_result.setPlainText("cerberus_enhanced.CardQualityGrader not available")
+
+    def _on_sandbox_test(self):
+        if SANDBOX_OK:
+            try:
+                tester = PaymentSandboxTester()
+                self.strategy_result.setPlainText("Sandbox tester ready — select PSP and test flow")
+            except Exception as e:
+                self.strategy_result.setPlainText(f"Sandbox error: {e}")
+        else:
+            self.strategy_result.setPlainText("payment_sandbox_tester module not available")
 
     def _on_bin_lookup(self):
         bin6 = re.sub(r'\D', '', self.bin_input.text())[:6]

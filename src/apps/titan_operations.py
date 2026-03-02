@@ -75,8 +75,13 @@ except ImportError:
 # CORE IMPORTS (all graceful)
 # ═══════════════════════════════════════════════════════════════════════════════
 def _try(fn):
-    try: return fn()
-    except: return None
+    """V8.3 FIX #12: Logged import helper — replaces silent except Exception:pass pattern."""
+    try:
+        return fn()
+    except Exception as _e:
+        import logging
+        logging.getLogger("TITAN-OPS").debug(f"_try() fallback: {_e}")
+        return None
 
 # Tab 1: TARGET
 try:
@@ -557,13 +562,13 @@ class ForgeWorker(QThread):
                 if FONT_OK:
                     try:
                         FontSanitizer().sanitize(profile_path)
-                    except:
+                    except Exception:
                         pass
 
                 if AUDIO_OK:
                     try:
                         AudioHardener().harden(profile_path)
-                    except:
+                    except Exception:
                         pass
 
                 # V8.2: Apply profile realism scoring and gap fill
@@ -620,7 +625,7 @@ class TitanOperations(QMainWindow):
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
-        except:
+        except Exception:
             pass
         self.setMinimumSize(1200, 900)
 
@@ -1091,6 +1096,30 @@ class TitanOperations(QMainWindow):
         btn_row.addWidget(self.launch_btn)
         layout.addLayout(btn_row)
 
+        # V8.3 WIRING: Golden Ticket + Pre-Validate + Quality Score buttons
+        extra_row = QHBoxLayout()
+        self.golden_ticket_btn = QPushButton("GOLDEN TICKET (500MB+)")
+        self.golden_ticket_btn.setStyleSheet(f"background: #b8860b; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        self.golden_ticket_btn.setToolTip("Forge a 500MB+ high-trust profile with maximum realism layers")
+        self.golden_ticket_btn.clicked.connect(self._forge_golden_ticket)
+        self.golden_ticket_btn.setEnabled(GENESIS_OK)
+        extra_row.addWidget(self.golden_ticket_btn)
+
+        self.pre_validate_btn = QPushButton("PRE-VALIDATE")
+        self.pre_validate_btn.setStyleSheet(f"background: #4a5568; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        self.pre_validate_btn.setToolTip("Run pre-forge validation to catch mismatches before forging")
+        self.pre_validate_btn.clicked.connect(self._run_pre_validate)
+        self.pre_validate_btn.setEnabled(GENESIS_OK)
+        extra_row.addWidget(self.pre_validate_btn)
+
+        self.quality_score_btn = QPushButton("SCORE PROFILE")
+        self.quality_score_btn.setStyleSheet(f"background: #4a5568; color: white; padding: 8px 16px; border-radius: 6px; font-weight: bold;")
+        self.quality_score_btn.setToolTip("Score the most recently forged profile for operational readiness")
+        self.quality_score_btn.clicked.connect(self._score_profile)
+        self.quality_score_btn.setEnabled(False)
+        extra_row.addWidget(self.quality_score_btn)
+        layout.addLayout(extra_row)
+
         # Forge output
         self.forge_output = QTextEdit()
         self.forge_output.setReadOnly(True)
@@ -1350,7 +1379,7 @@ class TitanOperations(QMainWindow):
             if not targets:
                 try:
                     targets = list_targets()
-                except:
+                except Exception:
                     targets = []
             if targets:
                 self.target_combo.addItems(sorted(targets))
@@ -1371,7 +1400,7 @@ class TitanOperations(QMainWindow):
                     info += f"3DS: {getattr(preset, 'three_ds', 'N/A')}\n"
                     info += f"AVS: {getattr(preset, 'avs_required', 'N/A')}"
                     self.target_info.setPlainText(info)
-            except:
+            except Exception:
                 self.target_info.setPlainText(f"Target: {target}")
 
     def _configure_mullvad(self):
@@ -1578,6 +1607,7 @@ class TitanOperations(QMainWindow):
         if result.get("success"):
             self._current_profile = result.get("profile_path")
             self.launch_btn.setEnabled(True)
+            self.quality_score_btn.setEnabled(True)
             quality = result.get("quality_score", 0)
             layers = result.get("layers_applied", 0)
             size_mb = result.get("total_size_mb", 0)
@@ -1604,6 +1634,76 @@ class TitanOperations(QMainWindow):
             self.status_lbl.setText("Forge failed")
             self.status_lbl.setStyleSheet(f"color: {RED};")
 
+    def _forge_golden_ticket(self):
+        """V8.3 WIRING: Forge a 500MB+ Golden Ticket profile via genesis_core."""
+        if not GENESIS_OK:
+            self.forge_output.append("❌ Genesis engine not available")
+            return
+        config = {
+            "target": self._current_target or self.target_combo.currentText(),
+            "name": self.id_name.text(),
+            "email": self.id_email.text(),
+            "age_days": 365,
+            "storage_mb": 700,
+            "phone": self.id_phone.text(),
+            "street": self.id_street.text(),
+            "city": self.id_city.text(),
+            "state": self.id_state.text() or self.state_input.text(),
+            "zip": self.id_zip.text() or self.zip_input.text(),
+            "golden_ticket": True,
+        }
+        self.golden_ticket_btn.setEnabled(False)
+        self.forge_output.clear()
+        self.forge_output.append("Forging GOLDEN TICKET profile (500MB+, 365-day maturity)...")
+        self._forge_worker = ForgeWorker(config)
+        self._forge_worker.progress.connect(self._on_forge_progress)
+        self._forge_worker.finished.connect(self._on_forge_done)
+        self._forge_worker.finished.connect(lambda _: self.golden_ticket_btn.setEnabled(True))
+        self._forge_worker.start()
+
+    def _run_pre_validate(self):
+        """V8.3 WIRING: Run pre-forge validation via genesis_core.pre_forge_validate()."""
+        if not GENESIS_OK:
+            self.forge_output.append("❌ Genesis engine not available for pre-validation")
+            return
+        try:
+            from genesis_core import pre_forge_validate
+            card_num = self.id_card.text().strip()
+            bin6 = card_num[:6] if len(card_num) >= 6 else "000000"
+            billing = {
+                "street": self.id_street.text(),
+                "city": self.id_city.text(),
+                "state": self.id_state.text() or self.state_input.text(),
+                "zip": self.id_zip.text() or self.zip_input.text(),
+                "country": "US",
+            }
+            result = pre_forge_validate(bin6=bin6, billing_address=billing, hardware_profile="us_windows_desktop")
+            self.forge_output.clear()
+            self.forge_output.append("PRE-FORGE VALIDATION RESULTS:")
+            self.forge_output.append(f"  Ready: {'YES' if result.get('ready') else 'NO'}")
+            for issue in result.get("issues", []):
+                self.forge_output.append(f"  ⚠️ {issue}")
+            for ok_item in result.get("passed", []):
+                self.forge_output.append(f"  ✅ {ok_item}")
+        except Exception as e:
+            self.forge_output.append(f"Pre-validation error: {e}")
+
+    def _score_profile(self):
+        """V8.3 WIRING: Score profile quality via genesis_core.score_profile_quality()."""
+        if not self._current_profile:
+            self.forge_output.append("❌ No profile to score — forge one first")
+            return
+        try:
+            from genesis_core import score_profile_quality
+            result = score_profile_quality(Path(self._current_profile))
+            self.forge_output.append(f"\nPROFILE QUALITY SCORE:")
+            self.forge_output.append(f"  Overall: {result.get('score', 'N/A')}/100")
+            self.forge_output.append(f"  Ready: {'GO' if result.get('go') else 'NO-GO'}")
+            for detail in result.get("details", []):
+                self.forge_output.append(f"  {detail}")
+        except Exception as e:
+            self.forge_output.append(f"Profile scoring error: {e}")
+
     def _launch_browser(self):
         if not self._current_profile:
             QMessageBox.warning(self, "No Profile", "Forge a profile first.")
@@ -1617,7 +1717,7 @@ class TitanOperations(QMainWindow):
             try:
                 handover = HandoverProtocol()
                 self.forge_output.append("Handover protocol initialized — automation markers cleared")
-            except:
+            except Exception:
                 pass
 
         # Launch Camoufox

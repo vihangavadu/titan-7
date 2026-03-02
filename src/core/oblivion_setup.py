@@ -62,7 +62,7 @@ selenium>=4.15.0
             try:
                 subprocess.check_call([sys.executable, "-m", "pip", "install", package])
                 print(f"[+] Installed platform package: {package}")
-            except:
+            except Exception:
                 print(f"[!] Failed to install {package}, continuing...")
         
         print("[+] Dependencies installed successfully")
@@ -148,7 +148,7 @@ def verify_installation():
             else:
                 print(f"  ✗ {check_name}")
                 all_passed = False
-        except:
+        except Exception:
             print(f"  ✗ {check_name} (error)")
             all_passed = False
     

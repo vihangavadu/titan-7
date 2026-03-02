@@ -1191,6 +1191,122 @@ LIVENESS_MOTIONS = [
 # CLI INTERFACE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+class ConceptDriftDetector:
+    """
+    Detects when fraud detection patterns shift (concept drift).
+    
+    From Fraud Detection Handbook: fraud patterns change over time.
+    Strategies that worked last week may fail this week because banks
+    update their ML models. This detector identifies when strategy
+    effectiveness degrades and flags strategies for review.
+    
+    Reference: Fraud Detection Handbook Ch.2.5 (Concept Drift)
+    """
+
+    def __init__(self, metrics_dir: Optional[Path] = None):
+        self._metrics_dir = metrics_dir or Path(
+            os.environ.get("TITAN_STATE_DIR", "/opt/titan/state")
+        ) / "drift_metrics"
+        self._metrics_dir.mkdir(parents=True, exist_ok=True)
+        self._strategy_history: Dict[str, List[Dict]] = defaultdict(list)
+        self._load_history()
+
+    def _load_history(self):
+        hist_file = self._metrics_dir / "strategy_history.json"
+        if hist_file.exists():
+            try:
+                data = json.loads(hist_file.read_text())
+                self._strategy_history = defaultdict(list, data)
+            except Exception:
+                pass
+
+    def _save_history(self):
+        hist_file = self._metrics_dir / "strategy_history.json"
+        try:
+            hist_file.write_text(json.dumps(dict(self._strategy_history), indent=2))
+        except Exception as e:
+            logger.warning(f"Failed to save drift history: {e}")
+
+    def record_strategy_outcome(self, strategy_name: str, success: bool,
+                                target: str = "", amount: float = 0.0):
+        """Record outcome of a strategy for drift tracking."""
+        self._strategy_history[strategy_name].append({
+            "ts": time.time(),
+            "success": success,
+            "target": target,
+            "amount": amount,
+        })
+        # Keep last 500 per strategy
+        if len(self._strategy_history[strategy_name]) > 500:
+            self._strategy_history[strategy_name] = self._strategy_history[strategy_name][-500:]
+        self._save_history()
+
+    def detect_drift(self, window_days: int = 7, threshold: float = 0.10) -> List[Dict]:
+        """
+        Detect concept drift by comparing recent vs historical success rates.
+        
+        Returns list of strategies showing significant drift (>threshold decline).
+        """
+        now = time.time()
+        recent_cutoff = now - (window_days * 86400)
+        historical_cutoff = now - (window_days * 2 * 86400)
+        drifts = []
+
+        for strategy, outcomes in self._strategy_history.items():
+            recent = [o for o in outcomes if o["ts"] > recent_cutoff]
+            historical = [o for o in outcomes
+                          if historical_cutoff < o["ts"] <= recent_cutoff]
+
+            if len(recent) < 5 or len(historical) < 5:
+                continue
+
+            recent_rate = sum(1 for o in recent if o["success"]) / len(recent)
+            historical_rate = sum(1 for o in historical if o["success"]) / len(historical)
+            delta = historical_rate - recent_rate
+
+            if delta > threshold:
+                drifts.append({
+                    "strategy": strategy,
+                    "recent_success_rate": round(recent_rate, 3),
+                    "historical_success_rate": round(historical_rate, 3),
+                    "decline": round(delta, 3),
+                    "recent_sample_size": len(recent),
+                    "historical_sample_size": len(historical),
+                    "severity": "critical" if delta > 0.25 else "high" if delta > 0.15 else "medium",
+                    "recommendation": f"Strategy '{strategy}' success rate dropped "
+                                      f"{delta*100:.1f}% — review and adapt",
+                })
+
+        drifts.sort(key=lambda d: -d["decline"])
+        return drifts
+
+    def get_strategy_trends(self) -> Dict[str, Dict]:
+        """Get success rate trends for all tracked strategies."""
+        now = time.time()
+        trends = {}
+        for strategy, outcomes in self._strategy_history.items():
+            if not outcomes:
+                continue
+            windows = {}
+            for label, days in [("1d", 1), ("7d", 7), ("30d", 30), ("all", 9999)]:
+                cutoff = now - (days * 86400)
+                window = [o for o in outcomes if o["ts"] > cutoff]
+                if window:
+                    windows[label] = {
+                        "success_rate": round(sum(1 for o in window if o["success"]) / len(window), 3),
+                        "count": len(window),
+                    }
+            trends[strategy] = windows
+        return trends
+
+
+def get_drift_detector() -> ConceptDriftDetector:
+    """Get or create concept drift detector singleton."""
+    if not hasattr(get_drift_detector, "_instance"):
+        get_drift_detector._instance = ConceptDriftDetector()
+    return get_drift_detector._instance
+
+
 def main():
     """CLI entry point."""
     import argparse

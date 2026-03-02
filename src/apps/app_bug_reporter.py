@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 TITAN V8.1 SINGULARITY ΓÇö Diagnostic Reporter + Auto-Patcher
 Live issue reporting, decline intelligence, and automated patching via Windsurf IDE.

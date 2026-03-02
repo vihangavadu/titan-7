@@ -1755,7 +1755,7 @@ class AutoDiscovery:
             proc = subprocess.run(
                 ["curl", "-sL", "--max-time", str(timeout),
                  "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                       "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                       "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
                  "-H", "Accept-Language: en-US,en;q=0.9",
                  url],
                 capture_output=True, text=True, timeout=timeout + 5

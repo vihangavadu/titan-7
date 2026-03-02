@@ -1,0 +1,7 @@
+paramiko
+fabric
+ansible
+docker
+flask
+requests
+pyyaml

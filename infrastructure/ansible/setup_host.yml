@@ -1,0 +1,62 @@
+---
+# initial environment setup playbook
+- name: Configure remote GPU host
+  hosts: all
+  become: yes
+  vars:
+    nvidia_driver_version: "530"
+  tasks:
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Update package cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Update package cache (RedHat)
+      ansible.builtin.yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+
+    - name: Install kernel headers
+      ansible.builtin.package:
+        name: linux-headers-{{ ansible_kernel }}
+        state: present
+
+    - name: Install NVIDIA driver (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: nvidia-driver-{{ nvidia_driver_version }}
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install NVIDIA driver (RedHat)
+      ansible.builtin.yum:
+        name: akmod-nvidia
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Ensure docker is installed
+      ansible.builtin.package:
+        name: docker.io
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install NVIDIA container toolkit
+      ansible.builtin.apt:
+        name: nvidia-container-toolkit
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add user to docker group
+      ansible.builtin.user:
+        name: "{{ ansible_user_id }}"
+        groups: docker
+        append: yes
+
+    - name: Start and enable docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: yes

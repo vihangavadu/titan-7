@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-TITAN X LAUNCHER — Clean Entry Point
-======================================
-11 apps, 4-row grid, 115 core modules — zero orphans.
+TITAN X LAUNCHER — Responsive Entry Point
+==========================================
+11 apps, adaptive grid, 117 core modules — zero orphans.
+Scales from mobile (800x480) to 4K (3840x2160).
 
 App Structure (Titan X):
   Row 1: Operations Center | Intelligence Center | Network Center
@@ -18,9 +19,10 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QFrame, QGridLayout, QGroupBox, QMessageBox
+    QLabel, QPushButton, QFrame, QGridLayout, QScrollArea,
+    QMessageBox, QSizePolicy, QToolTip
 )
-from PyQt6.QtCore import Qt, QTimer, QProcess
+from PyQt6.QtCore import Qt, QTimer, QProcess, QSize
 from PyQt6.QtGui import QFont, QColor, QPalette, QPainter, QLinearGradient
 
 # Add core to path for health checks
@@ -36,91 +38,229 @@ TEXT_SECONDARY = "#64748b"
 GREEN = "#22c55e"
 YELLOW = "#eab308"
 RED = "#ef4444"
+PURPLE = "#a855f7"
+
+FIRST_RUN_FLAG = Path.home() / ".titan" / "first_run_done"
+
+# ── App definitions (plain English for zero-code users) ──────────────
+APP_DEFS = [
+    {
+        "title": "Operations",
+        "plain": "Run a full operation from start to finish",
+        "detail": "Pick a target, select a card, generate identity,\nforge profile, and launch browser — all in one place.",
+        "accent": "#00d4ff",
+        "icon": "\u2699\ufe0f",
+        "script": "titan_operations.py",
+        "tooltip": "Your main workspace. Start here for any new operation.",
+    },
+    {
+        "title": "Intelligence",
+        "plain": "AI-powered analysis and strategy",
+        "detail": "Ask the AI copilot questions, view 3DS strategies,\nanalyze detections, and research targets.",
+        "accent": "#a855f7",
+        "icon": "\U0001f9e0",
+        "script": "titan_intelligence.py",
+        "tooltip": "Get AI recommendations and analyze past results.",
+    },
+    {
+        "title": "Network",
+        "plain": "VPN, proxy, and network protection",
+        "detail": "Connect to Mullvad VPN, manage proxies,\nmonitor network forensics, and verify your IP.",
+        "accent": "#22c55e",
+        "icon": "\U0001f512",
+        "script": "titan_network.py",
+        "tooltip": "Always connect VPN before starting any operation.",
+    },
+    {
+        "title": "KYC Studio",
+        "plain": "Identity document and selfie tools",
+        "detail": "Camera bypass, document generation,\nvoice synthesis, and liveness checks.",
+        "accent": "#f97316",
+        "icon": "\U0001f4f7",
+        "script": "app_kyc.py",
+        "tooltip": "Use when a target requires identity verification.",
+    },
+    {
+        "title": "Admin",
+        "plain": "System management and services",
+        "detail": "Control background services, view logs,\nmanage automation rules, and system health.",
+        "accent": "#f59e0b",
+        "icon": "\U0001f6e0\ufe0f",
+        "script": "titan_admin.py",
+        "tooltip": "Check service health and manage system settings.",
+    },
+    {
+        "title": "Settings",
+        "plain": "Configure all tools and API keys",
+        "detail": "Set up Mullvad VPN, Ollama AI, Redis,\nproxy settings, and browser preferences.",
+        "accent": "#6366f1",
+        "icon": "\U0001f527",
+        "script": "app_settings.py",
+        "tooltip": "First-time setup: enter your API keys and preferences here.",
+    },
+    {
+        "title": "Profile Forge",
+        "plain": "Create realistic browser profiles",
+        "detail": "Generate personas, build Chrome profiles\nwith history, cookies, and realistic aging.",
+        "accent": "#06b6d4",
+        "icon": "\U0001f528",
+        "script": "app_profile_forge.py",
+        "tooltip": "Create believable browser identities for operations.",
+    },
+    {
+        "title": "Card Validator",
+        "plain": "Check and grade payment cards",
+        "detail": "Validate BINs, check AVS, grade card quality,\nand decode decline reasons.",
+        "accent": "#eab308",
+        "icon": "\U0001f4b3",
+        "script": "app_card_validator.py",
+        "tooltip": "Validate cards before using them in operations.",
+    },
+    {
+        "title": "Browser Launch",
+        "plain": "Launch browsers with full protection",
+        "detail": "Pre-flight checks, Camoufox launch,\nlive transaction monitor, and auto-handover.",
+        "accent": "#22c55e",
+        "icon": "\U0001f680",
+        "script": "app_browser_launch.py",
+        "tooltip": "Launch a protected browser session for checkout.",
+    },
+    {
+        "title": "Genesis AppX",
+        "plain": "MultiLogin 6 browser manager",
+        "detail": "Manage ML6 profiles, Golden Ticket forge,\ntarget-aware profile creation.",
+        "accent": "#10b981",
+        "icon": "\U0001f48e",
+        "script": "../../../tools/multilogin6/genesis_appx/launch_genesis_appx.sh",
+        "tooltip": "Alternative browser engine using MultiLogin 6.",
+    },
+    {
+        "title": "Bug Reporter",
+        "plain": "Report issues and track fixes",
+        "detail": "Log decline patterns, auto-patch known issues,\nand track bug resolution history.",
+        "accent": "#5588ff",
+        "icon": "\U0001f41b",
+        "script": "app_bug_reporter.py",
+        "tooltip": "Report problems so they get fixed automatically.",
+    },
+]
 
 
 class AppCard(QFrame):
-    """Clickable app launcher card."""
+    """Clickable app launcher card — responsive sizing."""
 
-    def __init__(self, title: str, subtitle: str, description: str,
-                 accent: str, icon_char: str, script: str, parent=None):
+    def __init__(self, app_def: dict, parent=None):
         super().__init__(parent)
-        self.script = script
-        self.accent = accent
-        self._hovered = False
+        self.script = app_def["script"]
+        self.accent = app_def["accent"]
 
-        self.setFixedSize(320, 280)
+        self.setMinimumSize(260, 220)
+        self.setMaximumSize(400, 320)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(app_def.get("tooltip", ""))
         self.setStyleSheet(f"""
             AppCard {{
                 background: {BG_CARD};
                 border: 1px solid #1e293b;
-                border-radius: 16px;
+                border-radius: 14px;
             }}
             AppCard:hover {{
                 background: {BG_HOVER};
-                border: 1px solid {accent};
+                border: 1px solid {self.accent};
             }}
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(8)
 
-        # Icon
-        icon = QLabel(icon_char)
-        icon.setFont(QFont("Segoe UI Emoji", 36))
+        # Top row: icon + title + status dot
+        top = QHBoxLayout()
+        top.setSpacing(10)
+
+        icon = QLabel(app_def["icon"])
+        icon.setFont(QFont("Noto Color Emoji", 28))
+        icon.setFixedSize(48, 48)
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon)
+        top.addWidget(icon)
 
-        # Title
-        title_lbl = QLabel(title)
-        title_lbl.setFont(QFont("Inter", 16, QFont.Weight.Bold))
-        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_lbl.setStyleSheet(f"color: {accent};")
-        layout.addWidget(title_lbl)
+        title_col = QVBoxLayout()
+        title_col.setSpacing(2)
+        title_lbl = QLabel(app_def["title"])
+        title_lbl.setFont(QFont("Noto Sans", 14, QFont.Weight.Bold))
+        title_lbl.setStyleSheet(f"color: {self.accent};")
+        title_col.addWidget(title_lbl)
 
-        # Subtitle
-        sub_lbl = QLabel(subtitle)
-        sub_lbl.setFont(QFont("JetBrains Mono", 9))
-        sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub_lbl.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        layout.addWidget(sub_lbl)
+        plain_lbl = QLabel(app_def["plain"])
+        plain_lbl.setFont(QFont("Noto Sans", 9))
+        plain_lbl.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        plain_lbl.setWordWrap(True)
+        title_col.addWidget(plain_lbl)
+        top.addLayout(title_col, 1)
+
+        # Status badge
+        self.status_dot = QLabel("\u25cf")
+        self.status_dot.setFont(QFont("Noto Sans", 12))
+        self.status_dot.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        self.status_dot.setToolTip("Checking...")
+        self.status_dot.setFixedSize(20, 20)
+        self.status_dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        top.addWidget(self.status_dot)
+
+        layout.addLayout(top)
 
         # Description
-        desc_lbl = QLabel(description)
-        desc_lbl.setFont(QFont("Inter", 10))
-        desc_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc_lbl = QLabel(app_def["detail"])
+        desc_lbl.setFont(QFont("Noto Sans", 9))
+        desc_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft)
         desc_lbl.setWordWrap(True)
-        desc_lbl.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        desc_lbl.setStyleSheet(f"color: {TEXT_PRIMARY}; padding: 4px 0;")
         layout.addWidget(desc_lbl)
 
         layout.addStretch()
 
-        # Launch button
-        btn = QPushButton("LAUNCH")
-        btn.setFont(QFont("Inter", 11, QFont.Weight.Bold))
-        btn.setFixedHeight(40)
+        # Launch button — large touch target (48px min)
+        btn = QPushButton("OPEN")
+        btn.setFont(QFont("Noto Sans", 11, QFont.Weight.Bold))
+        btn.setMinimumHeight(48)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setToolTip(f"Open {app_def['title']}")
         btn.setStyleSheet(f"""
             QPushButton {{
-                background: {accent};
+                background: {self.accent};
                 color: #0a0e17;
                 border: none;
-                border-radius: 8px;
+                border-radius: 10px;
                 font-weight: bold;
+                padding: 8px 16px;
             }}
             QPushButton:hover {{
-                background: {accent}dd;
+                background: {self.accent}cc;
+            }}
+            QPushButton:pressed {{
+                background: {self.accent}88;
             }}
         """)
         btn.clicked.connect(self._launch)
         layout.addWidget(btn)
 
+    def set_ready(self, ready: bool):
+        """Set the status badge color."""
+        if ready:
+            self.status_dot.setStyleSheet(f"color: {GREEN};")
+            self.status_dot.setToolTip("Ready")
+        else:
+            self.status_dot.setStyleSheet(f"color: {YELLOW};")
+            self.status_dot.setToolTip("Module available")
+
     def _launch(self):
         script_path = str(APPS_DIR / self.script)
-        if os.path.exists(script_path):
+        if self.script.endswith(".sh"):
+            QProcess.startDetached("bash", [script_path])
+        elif os.path.exists(script_path):
             QProcess.startDetached("python3", [script_path])
         else:
-            # Fallback for Windows
             QProcess.startDetached(sys.executable, [script_path])
 
     def mousePressEvent(self, event):
@@ -128,232 +268,175 @@ class AppCard(QFrame):
             self._launch()
 
 
-class HealthIndicator(QFrame):
-    """Small health status indicator."""
+class HealthBar(QFrame):
+    """Compact health status bar that wraps on small screens."""
 
-    def __init__(self, label: str, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(6)
-
-        self.dot = QLabel("\u2b24")
-        self.dot.setFont(QFont("Inter", 8))
-        self.dot.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        layout.addWidget(self.dot)
-
-        self.label = QLabel(label)
-        self.label.setFont(QFont("Inter", 10))
-        self.label.setStyleSheet(f"color: {TEXT_SECONDARY};")
-        layout.addWidget(self.label)
-
-        self.value = QLabel("...")
-        self.value.setFont(QFont("JetBrains Mono", 10))
-        self.value.setStyleSheet(f"color: {TEXT_PRIMARY};")
-        layout.addWidget(self.value)
-        layout.addStretch()
-
-    def set_status(self, text: str, color: str = GREEN):
-        self.value.setText(text)
-        self.value.setStyleSheet(f"color: {color};")
-        self.dot.setStyleSheet(f"color: {color};")
-
-
-class TitanLauncher(QMainWindow):
-    """
-    TITAN X Launcher — 11 apps, 4-row grid, 115 modules, zero orphans.
-
-    Row 1: Operations (38) | Intelligence (20) | Network (18)
-    Row 2: KYC Studio (12) | Admin (14) | Settings (all tools)
-    Row 3: Profile Forge (9 stages) | Card Validator | Browser Launch
-    Row 4: Genesis AppX (standalone) | Bug Reporter
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.init_ui()
-        self.apply_theme()
-        QTimer.singleShot(500, self._check_health)
-
-    def init_ui(self):
-        self.setWindowTitle("TITAN X — Launcher")
-        try:
-            from titan_icon import set_titan_icon
-            set_titan_icon(self, ACCENT)
-        except Exception:
-            pass
-        self.setFixedSize(1180, 980)
-
-        central = QWidget()
-        self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(30, 20, 30, 20)
-        layout.setSpacing(16)
-
-        # Header
-        header = QLabel("TITAN X")
-        header.setFont(QFont("Inter", 28, QFont.Weight.Bold))
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet(f"color: {ACCENT};")
-        layout.addWidget(header)
-
-        subtitle = QLabel("V10.0 \u2014 115 MODULES \u2022 11 APPS \u2022 ZERO ORPHANS")
-        subtitle.setFont(QFont("JetBrains Mono", 11))
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet(f"color: {TEXT_SECONDARY}; letter-spacing: 4px;")
-        layout.addWidget(subtitle)
-
-        # App Cards — 3x3 grid (9 apps)
-        row1 = QHBoxLayout()
-        row1.setSpacing(12)
-
-        row1.addWidget(AppCard(
-            title="Operations",
-            subtitle="DAILY WORKFLOW \u2022 38 MODULES",
-            description="Target \u2192 Card \u2192 Persona \u2192 Forge \u2192 Launch\nFull pipeline \u2022 Results \u2022 History",
-            accent="#00d4ff",
-            icon_char="\u2699\ufe0f",
-            script="titan_operations.py",
-        ))
-
-        row1.addWidget(AppCard(
-            title="Intelligence",
-            subtitle="AI ANALYSIS \u2022 20 MODULES",
-            description="AI Copilot \u2022 3DS Strategy \u2022 Detection\nRecon \u2022 Vector Memory \u2022 Web Intel",
-            accent="#a855f7",
-            icon_char="\ud83e\udde0",
-            script="titan_intelligence.py",
-        ))
-
-        row1.addWidget(AppCard(
-            title="Network",
-            subtitle="VPN & SHIELD \u2022 18 MODULES",
-            description="Mullvad VPN \u2022 eBPF TCP Mimesis\nForensic Monitor \u2022 Proxy \u2022 GeoIP",
-            accent="#22c55e",
-            icon_char="\ud83d\udd12",
-            script="titan_network.py",
-        ))
-
-        layout.addLayout(row1)
-
-        row2 = QHBoxLayout()
-        row2.setSpacing(12)
-
-        row2.addWidget(AppCard(
-            title="KYC Studio",
-            subtitle="IDENTITY VERIFY \u2022 8 MODULES",
-            description="Camera \u2022 Documents \u2022 Voice\nToF Depth \u2022 Deep Identity \u2022 Mobile",
-            accent="#f97316",
-            icon_char="\ud83d\udcf7",
-            script="app_kyc.py",
-        ))
-
-        row2.addWidget(AppCard(
-            title="Admin",
-            subtitle="SYSTEM MGMT \u2022 14 MODULES",
-            description="Services \u2022 Automation \u2022 Config\nBug Reporter \u2022 AI Setup \u2022 Kill Switch",
-            accent="#f59e0b",
-            icon_char="\u2699\ufe0f",
-            script="titan_admin.py",
-        ))
-
-        row2.addWidget(AppCard(
-            title="Settings",
-            subtitle="CONFIGURE \u2022 ALL TOOLS",
-            description="Mullvad \u2022 Ollama \u2022 Redis \u2022 Xray\nAPI Keys \u2022 titan.env \u2022 Browser",
-            accent="#6366f1",
-            icon_char="\ud83d\udd27",
-            script="app_settings.py",
-        ))
-
-        layout.addLayout(row2)
-
-        row3 = QHBoxLayout()
-        row3.setSpacing(12)
-
-        row3.addWidget(AppCard(
-            title="Profile Forge",
-            subtitle="FORGE PIPELINE \u2022 9 STAGES",
-            description="Persona \u2192 Chrome Profile \u2192 Aging\nPurchase history \u2022 IndexedDB \u2022 Realism",
-            accent="#00d4ff",
-            icon_char="\ud83d\udd28",
-            script="app_profile_forge.py",
-        ))
-
-        row3.addWidget(AppCard(
-            title="Card Validator",
-            subtitle="BIN CHECK \u2022 AVS \u2022 QUALITY",
-            description="Luhn \u2022 BIN scoring \u2022 Card grading\n3DS strategy \u2022 Decline decoder",
-            accent="#eab308",
-            icon_char="\ud83d\udcb3",
-            script="app_card_validator.py",
-        ))
-
-        row3.addWidget(AppCard(
-            title="Browser Launch",
-            subtitle="LAUNCH \u2022 TX MONITOR \u2022 HANDOVER",
-            description="Preflight \u2022 Camoufox launch \u2022 Ghost Motor\nLive TX monitor \u2022 Decline decoder",
-            accent="#22c55e",
-            icon_char="\ud83d\ude80",
-            script="app_browser_launch.py",
-        ))
-
-        layout.addLayout(row3)
-
-        row4 = QHBoxLayout()
-        row4.setSpacing(12)
-
-        row4.addWidget(AppCard(
-            title="Genesis AppX",
-            subtitle="STANDALONE \u2022 ML6 BROWSER",
-            description="Profile management via Genesis engine\nGolden Ticket \u2022 Target-aware forge \u2022 Bridge API",
-            accent="#10b981",
-            icon_char="\ud83d\udc8e",
-            script="../../../tools/multilogin6/genesis_appx/launch_genesis_appx.sh",
-        ))
-
-        row4.addWidget(AppCard(
-            title="Bug Reporter",
-            subtitle="REPORT \u2022 PATCH \u2022 TRACK",
-            description="Decline patterns \u2022 Auto-patcher\nWindsurf IDE bridge \u2022 Bug database",
-            accent="#5588ff",
-            icon_char="\ud83d\udc1b",
-            script="app_bug_reporter.py",
-        ))
-
-        row4.addStretch()
-        layout.addLayout(row4)
-
-        # Health Status Bar
-        health_frame = QFrame()
-        health_frame.setStyleSheet(f"""
-            QFrame {{
+        self.setStyleSheet(f"""
+            HealthBar {{
                 background: {BG_CARD};
                 border: 1px solid #1e293b;
                 border-radius: 10px;
             }}
         """)
-        health_layout = QHBoxLayout(health_frame)
-        health_layout.setContentsMargins(16, 8, 16, 8)
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(12, 6, 12, 6)
+        self._layout.setSpacing(4)
+        self.indicators = {}
 
-        self.h_version = HealthIndicator("Version")
-        self.h_modules = HealthIndicator("Modules")
-        self.h_services = HealthIndicator("Services")
-        self.h_vpn = HealthIndicator("VPN")
-        self.h_ai = HealthIndicator("AI Engine")
+    def add_indicator(self, key: str, label: str):
+        frame = QFrame()
+        h = QHBoxLayout(frame)
+        h.setContentsMargins(6, 2, 6, 2)
+        h.setSpacing(4)
 
-        health_layout.addWidget(self.h_version)
-        health_layout.addWidget(self.h_modules)
-        health_layout.addWidget(self.h_services)
-        health_layout.addWidget(self.h_vpn)
-        health_layout.addWidget(self.h_ai)
+        dot = QLabel("\u25cf")
+        dot.setFont(QFont("Noto Sans", 7))
+        dot.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        h.addWidget(dot)
 
-        layout.addWidget(health_frame)
+        lbl = QLabel(label)
+        lbl.setFont(QFont("Noto Sans", 9))
+        lbl.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        h.addWidget(lbl)
 
-        # V8.11: PANIC BUTTON — triggers kill switch from any screen
-        panic_btn = QPushButton("EMERGENCY WIPE")
-        panic_btn.setFont(QFont("Inter", 14, QFont.Weight.Bold))
-        panic_btn.setFixedHeight(50)
+        val = QLabel("...")
+        val.setFont(QFont("DejaVu Sans Mono", 9))
+        val.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        h.addWidget(val)
+
+        self.indicators[key] = {"dot": dot, "value": val}
+        self._layout.addWidget(frame)
+
+    def set_status(self, key: str, text: str, color: str = GREEN):
+        if key in self.indicators:
+            self.indicators[key]["value"].setText(text)
+            self.indicators[key]["value"].setStyleSheet(f"color: {color};")
+            self.indicators[key]["dot"].setStyleSheet(f"color: {color};")
+
+
+class TitanLauncher(QMainWindow):
+    """
+    TITAN X Launcher — 11 apps, adaptive grid, 117 modules.
+    Responsive from 800x480 (mobile) to 4K.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.cards = []
+        self.init_ui()
+        self.apply_theme()
+        QTimer.singleShot(500, self._check_health)
+        QTimer.singleShot(1000, self._check_first_run)
+
+    def init_ui(self):
+        self.setWindowTitle("TITAN X")
+        try:
+            from titan_icon import set_titan_icon
+            set_titan_icon(self, ACCENT)
+        except Exception:
+            pass
+
+        # Responsive: min 800x480, start at 1100x900
+        self.setMinimumSize(800, 480)
+        self.resize(1100, 900)
+
+        central = QWidget()
+        self.setCentralWidget(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Scroll area for the entire content (mobile-friendly)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet(f"""
+            QScrollArea {{ background: {BG_DARK}; border: none; }}
+            QScrollBar:vertical {{
+                background: {BG_DARK}; width: 8px; border: none;
+            }}
+            QScrollBar::handle:vertical {{
+                background: #1e293b; border-radius: 4px; min-height: 40px;
+            }}
+            QScrollBar::handle:vertical:hover {{ background: {ACCENT}44; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+        """)
+
+        content = QWidget()
+        self.content_layout = QVBoxLayout(content)
+        self.content_layout.setContentsMargins(20, 16, 20, 16)
+        self.content_layout.setSpacing(14)
+
+        # ── Header ──
+        header = QLabel("TITAN X")
+        header.setFont(QFont("Noto Sans", 26, QFont.Weight.Bold))
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setStyleSheet(f"color: {ACCENT};")
+        self.content_layout.addWidget(header)
+
+        subtitle = QLabel("V10.0  \u2014  117 MODULES  \u00b7  11 APPS  \u00b7  3 BRIDGES")
+        subtitle.setFont(QFont("DejaVu Sans Mono", 10))
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setStyleSheet(f"color: {TEXT_SECONDARY}; letter-spacing: 2px;")
+        subtitle.setWordWrap(True)
+        self.content_layout.addWidget(subtitle)
+
+        # ── Quick Start banner (for new users) ──
+        self.quick_start = QPushButton("\U0001f680  QUICK START  \u2014  Click here to begin your first operation")
+        self.quick_start.setFont(QFont("Noto Sans", 12, QFont.Weight.Bold))
+        self.quick_start.setMinimumHeight(52)
+        self.quick_start.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.quick_start.setToolTip("Opens a guided wizard to help you get started")
+        self.quick_start.setStyleSheet(f"""
+            QPushButton {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {ACCENT}, stop:1 {PURPLE});
+                color: #0a0e17;
+                border: none;
+                border-radius: 12px;
+                font-weight: bold;
+                padding: 12px 24px;
+            }}
+            QPushButton:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {PURPLE}, stop:1 {ACCENT});
+            }}
+        """)
+        self.quick_start.clicked.connect(self._launch_wizard)
+        self.content_layout.addWidget(self.quick_start)
+
+        # ── App Grid (adaptive columns via QGridLayout) ──
+        self.grid_widget = QWidget()
+        self.grid = QGridLayout(self.grid_widget)
+        self.grid.setSpacing(12)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+
+        for i, app_def in enumerate(APP_DEFS):
+            card = AppCard(app_def)
+            self.cards.append(card)
+            # Default: 3 columns. resizeEvent will re-layout
+            row, col = divmod(i, 3)
+            self.grid.addWidget(card, row, col)
+
+        self.content_layout.addWidget(self.grid_widget)
+
+        # ── Health Bar ──
+        self.health = HealthBar()
+        self.health.add_indicator("version", "Version")
+        self.health.add_indicator("modules", "Modules")
+        self.health.add_indicator("services", "Services")
+        self.health.add_indicator("vpn", "VPN")
+        self.health.add_indicator("ai", "AI")
+        self.content_layout.addWidget(self.health)
+
+        # ── Emergency Wipe ──
+        panic_btn = QPushButton("\u26a0  EMERGENCY WIPE")
+        panic_btn.setFont(QFont("Noto Sans", 12, QFont.Weight.Bold))
+        panic_btn.setMinimumHeight(50)
+        panic_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        panic_btn.setToolTip("Kill all browsers, flush hardware IDs, clear all data. IRREVERSIBLE.")
         panic_btn.setStyleSheet(f"""
             QPushButton {{
                 background: {RED};
@@ -361,7 +444,7 @@ class TitanLauncher(QMainWindow):
                 border: 2px solid #991b1b;
                 border-radius: 10px;
                 font-weight: bold;
-                letter-spacing: 2px;
+                letter-spacing: 1px;
             }}
             QPushButton:hover {{
                 background: #991b1b;
@@ -369,7 +452,60 @@ class TitanLauncher(QMainWindow):
             }}
         """)
         panic_btn.clicked.connect(self._trigger_panic)
-        layout.addWidget(panic_btn)
+        self.content_layout.addWidget(panic_btn)
+
+        self.content_layout.addStretch()
+
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
+
+    def resizeEvent(self, event):
+        """Adapt grid columns based on window width."""
+        super().resizeEvent(event)
+        w = self.width()
+        if w < 900:
+            cols = 1
+        elif w < 1200:
+            cols = 2
+        else:
+            cols = 3
+
+        # Re-layout cards only if column count changed
+        current_cols = self.grid.columnCount()
+        if current_cols == cols and self.grid.count() > 0:
+            return
+
+        # Remove all widgets from grid (without deleting)
+        while self.grid.count():
+            item = self.grid.takeAt(0)
+            # Don't delete the widget, just remove from layout
+
+        # Re-add with new column count
+        for i, card in enumerate(self.cards):
+            row, col = divmod(i, cols)
+            self.grid.addWidget(card, row, col)
+
+    def _check_first_run(self):
+        """Show wizard if first run."""
+        if FIRST_RUN_FLAG.exists():
+            self.quick_start.hide()
+        else:
+            self.quick_start.show()
+
+    def _launch_wizard(self):
+        """Launch the first-run wizard."""
+        wizard_path = str(APPS_DIR / "titan_first_run_wizard.py")
+        if os.path.exists(wizard_path):
+            QProcess.startDetached("python3", [wizard_path])
+        else:
+            QMessageBox.information(
+                self, "Quick Start",
+                "Welcome to Titan X!\n\n"
+                "1. Open SETTINGS to configure your VPN and API keys\n"
+                "2. Open NETWORK to connect your VPN\n"
+                "3. Open OPERATIONS to start your first run\n\n"
+                "That's it! Everything else is automatic.",
+            )
 
     def _check_health(self):
         """Run quick health checks."""
@@ -384,27 +520,27 @@ class TitanLauncher(QMainWindow):
             if spec and spec.loader:
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
-                self.h_version.set_status(mod.__version__, GREEN)
+                self.health.set_status("version", mod.__version__, GREEN)
         except Exception:
-            self.h_version.set_status("10.0.0", ACCENT)
+            self.health.set_status("version", "10.0.0", ACCENT)
 
         # Module count
         core_dir = Path(__file__).parent.parent / "core"
         if core_dir.exists():
             py_count = len(list(core_dir.glob("*.py"))) - 1  # minus __init__
             color = GREEN if py_count >= 70 else YELLOW if py_count >= 50 else RED
-            self.h_modules.set_status(f"{py_count} core", color)
+            self.health.set_status("modules", f"{py_count} core", color)
         else:
-            self.h_modules.set_status("N/A", RED)
+            self.health.set_status("modules", "N/A", RED)
 
         # Services
         try:
             from titan_services import get_services_status
             status = get_services_status()
             running = sum(1 for s in status.values() if s.get("running"))
-            self.h_services.set_status(f"{running} running", GREEN if running > 0 else YELLOW)
+            self.health.set_status("services", f"{running} running", GREEN if running > 0 else YELLOW)
         except Exception:
-            self.h_services.set_status("ready", YELLOW)
+            self.health.set_status("services", "ready", YELLOW)
 
         # VPN
         try:
@@ -412,37 +548,42 @@ class TitanLauncher(QMainWindow):
             status = get_mullvad_status()
             state = status.get("state", "Unknown")
             if state == "Connected":
-                self.h_vpn.set_status("Mullvad OK", GREEN)
+                self.health.set_status("vpn", "Connected", GREEN)
             elif state == "Blocked":
-                self.h_vpn.set_status("kill switch", YELLOW)
+                self.health.set_status("vpn", "Kill Switch", YELLOW)
             else:
-                self.h_vpn.set_status("disconnected", RED)
+                self.health.set_status("vpn", "Disconnected", RED)
         except ImportError:
-            self.h_vpn.set_status("not loaded", TEXT_SECONDARY)
+            self.health.set_status("vpn", "Not loaded", TEXT_SECONDARY)
         except Exception:
-            self.h_vpn.set_status("error", RED)
+            self.health.set_status("vpn", "Error", RED)
 
         # AI
         try:
             from ollama_bridge import LLMLoadBalancer as OllamaBridge
             bridge = OllamaBridge()
             if bridge.is_available():
-                self.h_ai.set_status("Ollama OK", GREEN)
+                self.health.set_status("ai", "Online", GREEN)
             else:
-                self.h_ai.set_status("offline", YELLOW)
+                self.health.set_status("ai", "Offline", YELLOW)
         except Exception:
-            self.h_ai.set_status("offline", YELLOW)
+            self.health.set_status("ai", "Offline", YELLOW)
+
+        # Set card status badges (all green if script exists)
+        for card in self.cards:
+            script_path = APPS_DIR / card.script
+            card.set_ready(script_path.exists())
 
     def _trigger_panic(self):
-        """V8.11: Emergency panic — confirm then trigger kill switch."""
+        """Emergency panic — confirm then trigger kill switch."""
         reply = QMessageBox.critical(
             self, "EMERGENCY WIPE",
-            "This will:\n"
-            "1. Kill all browser processes\n"
-            "2. Flush hardware IDs\n"
-            "3. Clear all profiles & session data\n"
-            "4. Randomize MAC address\n\n"
-            "THIS IS IRREVERSIBLE. Continue?",
+            "This will:\n\n"
+            "  1. Kill all browser processes\n"
+            "  2. Flush hardware IDs\n"
+            "  3. Clear all profiles and session data\n"
+            "  4. Randomize MAC address\n\n"
+            "THIS CANNOT BE UNDONE. Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -451,11 +592,11 @@ class TitanLauncher(QMainWindow):
                 sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
                 from kill_switch import send_panic_signal
                 send_panic_signal()
-                QMessageBox.information(self, "PANIC", "Kill switch triggered. All artifacts wiped.")
+                QMessageBox.information(self, "Done", "Emergency wipe complete. All data cleared.")
             except ImportError:
-                QMessageBox.warning(self, "PANIC", "Kill switch module not available. Manual wipe required.")
+                QMessageBox.warning(self, "Error", "Kill switch module not available.\nGo to Admin > Kill Switch for manual wipe.")
             except Exception as e:
-                QMessageBox.warning(self, "PANIC", f"Kill switch error: {e}")
+                QMessageBox.warning(self, "Error", f"Kill switch error: {e}")
 
     def apply_theme(self):
         palette = QPalette()
@@ -467,12 +608,24 @@ class TitanLauncher(QMainWindow):
         self.setStyleSheet(f"""
             QMainWindow {{ background: {BG_DARK}; }}
             QLabel {{ background: transparent; }}
+            QToolTip {{
+                background: {BG_CARD};
+                color: {TEXT_PRIMARY};
+                border: 1px solid {ACCENT}44;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 11px;
+            }}
         """)
 
 
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+
+    # Global tooltip styling
+    QToolTip.setFont(QFont("Noto Sans", 10))
+
     window = TitanLauncher()
     window.show()
     sys.exit(app.exec())

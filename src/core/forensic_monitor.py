@@ -235,7 +235,7 @@ class ForensicMonitor:
         try:
             with open(file_path, 'rb') as f:
                 return hashlib.md5(f.read(1024)).hexdigest()[:16]
-        except:
+        except Exception:
             return "unknown"
     
     def _scan_log_artifacts(self) -> Dict[str, List[str]]:

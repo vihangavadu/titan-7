@@ -191,7 +191,7 @@ class ForensicAlignment:
                     dir_path = root_path / dir_name
                     try:
                         os.utime(str(dir_path), (timestamp, timestamp))
-                    except:
+                    except Exception:
                         pass
             
             # Finally, stomp root directory
@@ -250,7 +250,7 @@ class ForensicAlignment:
             try:
                 if temp_dir and temp_dir.exists():
                     shutil.move(str(temp_dir), str(source_path))
-            except:
+            except Exception:
                 pass
             
             return None
@@ -356,7 +356,7 @@ class ForensicAlignment:
                                 'accessed': stat.st_atime
                             })
                             results['files_checked'] += 1
-                        except:
+                        except Exception:
                             pass
             
             # Check for temporal paradoxes
@@ -421,7 +421,7 @@ class ForensicAlignment:
             
             return {'usn_available': False}
             
-        except:
+        except Exception:
             return {'usn_available': False}
     
     def cleanup_artifacts(self):

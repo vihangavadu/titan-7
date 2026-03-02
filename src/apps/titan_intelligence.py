@@ -195,6 +195,24 @@ except ImportError:
     COGNITIVE_OK = False
 
 try:
+    from graph_evasion_engine import (
+        get_graph_policy, check_graph_safety, get_graph_stats,
+        suggest_rotations, record_operation, GraphIsolationPolicy
+    )
+    GRAPH_EVASION_OK = True
+except ImportError:
+    GRAPH_EVASION_OK = False
+
+try:
+    from issuer_algo_defense import (
+        generate_envelope_from_bin, CardholderBehaviorModel,
+        AmountOptimizer, IssuerAlgorithmModeler
+    )
+    ENVELOPE_OK = True
+except ImportError:
+    ENVELOPE_OK = False
+
+try:
     from intel_monitor import IntelMonitor
     INTEL_MON_OK = True
 except ImportError:
@@ -245,7 +263,7 @@ except ImportError:
     INTEL_V2_FULL_OK = False
 
 try:
-    from target_presets import get_preset_targets
+    from target_presets import list_targets as get_preset_targets
     PRESETS_OK = True
 except ImportError:
     PRESETS_OK = False
@@ -315,13 +333,13 @@ class ReconWorker(QThread):
                 avs = get_avs_intelligence(self.target)
                 parts.append("\n=== AVS INTELLIGENCE ===")
                 parts.append(json.dumps(avs, indent=2, default=str)[:1000])
-            except:
+            except Exception:
                 pass
             try:
                 proxy = get_proxy_intelligence(self.target)
                 parts.append("\n=== PROXY INTELLIGENCE ===")
                 parts.append(json.dumps(proxy, indent=2, default=str)[:1000])
-            except:
+            except Exception:
                 pass
 
         if WEB_INTEL_OK:
@@ -502,7 +520,7 @@ class TitanIntelligence(QMainWindow):
         try:
             from titan_icon import set_titan_icon
             set_titan_icon(self, ACCENT)
-        except:
+        except Exception:
             pass
         self.setMinimumSize(1200, 900)
 
@@ -1283,7 +1301,7 @@ class TitanIntelligence(QMainWindow):
                 advice = advise_preflight(logs)
                 parts.append("\n=== AI ADVICE ===")
                 parts.append(str(advice)[:1000])
-            except:
+            except Exception:
                 pass
 
         self.detect_output.setPlainText("\n".join(parts) if parts else "Detection analyzer not available")
