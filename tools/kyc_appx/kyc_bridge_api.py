@@ -216,6 +216,46 @@ class KYCEngine:
             except Exception as e:
                 logger.warning(f"Waydroid sync init failed: {e}")
 
+        # Auto-start Waydroid session if container exists but is stopped
+        self._try_autostart_waydroid()
+
+    def _try_autostart_waydroid(self):
+        """Auto-start Waydroid if installed and not running."""
+        try:
+            result = subprocess.run(
+                ["which", "waydroid"], capture_output=True, text=True, timeout=3
+            )
+            if result.returncode != 0:
+                return  # waydroid not installed
+
+            status = subprocess.run(
+                ["waydroid", "status"], capture_output=True, text=True, timeout=5
+            )
+            if "RUNNING" in status.stdout.upper():
+                logger.info("[KYC] Waydroid already running")
+                self.android_active = True
+                return
+
+            # Try to start in headless container mode (no display required)
+            logger.info("[KYC] Auto-starting Waydroid container (headless)...")
+            subprocess.Popen(
+                ["waydroid", "container", "start"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            import time
+            time.sleep(4)
+            status2 = subprocess.run(
+                ["waydroid", "status"], capture_output=True, text=True, timeout=5
+            )
+            if "RUNNING" in status2.stdout.upper():
+                logger.info("[KYC] Waydroid auto-started successfully")
+                self.android_active = True
+            else:
+                logger.info("[KYC] Waydroid start initiated (may take a moment)")
+        except Exception as e:
+            logger.debug(f"[KYC] Waydroid auto-start skipped: {e}")
+
 
 engine = KYCEngine()
 
@@ -669,6 +709,133 @@ def android_automate():
 def list_devices():
     """List available device presets"""
     return jsonify({"devices": DEVICE_PRESETS})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPTH SYNTHESIS ENDPOINT
+# Combines all KYC bypass signals into a unified deep synthesis plan
+# for a given provider and identity profile.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/v1/depth/synthesize", methods=["POST"])
+def depth_synthesize():
+    """
+    Full KYC depth synthesis — generates a complete bypass plan.
+
+    Input:
+      provider      : str  — onfido | jumio | veriff | sumsub | idenfy
+      face_image    : str  — path to face image file (optional)
+      document_type : str  — passport | driving_license | id_card
+      device_preset : str  — pixel_7 | pixel_8 | samsung_s24 | samsung_a54
+      headless      : bool — run without display
+
+    Output:
+      synthesis_plan with: steps, device config, motion sequence,
+      timing schedule, liveness bypass method, AI recommendations
+    """
+    data = request.json or {}
+    provider = data.get("provider", "onfido")
+    face_image = data.get("face_image")
+    document_type = data.get("document_type", "passport")
+    device_preset = data.get("device_preset", "pixel_7")
+
+    workflow = PROVIDER_WORKFLOWS.get(provider)
+    if not workflow:
+        return jsonify({"error": f"Unknown provider: {provider}",
+                        "available": list(PROVIDER_WORKFLOWS.keys())}), 404
+
+    device = DEVICE_PRESETS.get(device_preset, DEVICE_PRESETS["pixel_7"])
+
+    # Build synthesis plan
+    plan = {
+        "provider": workflow["name"],
+        "document_type": document_type,
+        "device": device["name"],
+        "readiness": {
+            "kyc_core": KYC_CORE,
+            "kyc_enhanced": KYC_ENHANCED,
+            "voice_engine": KYC_VOICE,
+            "waydroid_active": engine.android_active,
+            "camera_ready": engine.camera_active,
+            "ai_engine": AI_ENGINE,
+        },
+        "phase_1_device_setup": {
+            "description": "Spoof Android device identity before starting KYC app",
+            "device": device,
+            "actions": [
+                f"POST /api/v1/android/start  {{device: '{device_preset}'}}",
+                f"POST /api/v1/android/spoof  {{device: '{device_preset}'}}",
+            ],
+        },
+        "phase_2_camera_prep": {
+            "description": "Prepare virtual camera feed with target face",
+            "actions": [
+                "POST /api/v1/camera/start",
+                f"POST /api/v1/inject/face  {{image_path: '{face_image or '/opt/titan/assets/face.jpg'}'}}",
+                f"POST /api/v1/inject/document  {{image_path: '/opt/titan/assets/doc.jpg', document_type: '{document_type}'}}",
+                "POST /api/v1/android/camera  {image_path: '<face_image>'}",
+            ],
+        },
+        "phase_3_kyc_flow": {
+            "description": f"Execute {workflow['name']} bypass flow",
+            "liveness_type": workflow["liveness_type"],
+            "steps": workflow["steps"],
+            "timing_ms": workflow["timing_ms"],
+            "motion_sequence": _get_motion_sequence(workflow["liveness_type"]),
+        },
+        "phase_4_liveness": {
+            "description": "Execute liveness challenge bypass",
+            "challenge": workflow["liveness_type"],
+            "actions": [
+                f"POST /api/v1/liveness/spoof  {{challenge: '{workflow['liveness_type']}', provider: '{provider}'}}",
+            ],
+        },
+        "recommendations": [
+            f"Use {device['name']} preset — modern flagship with low fraud risk score",
+            f"Liveness type: {workflow['liveness_type']} — prepare motion preset in advance",
+            f"Document: {document_type} — ensure image is well-lit and corners visible",
+            "Start camera 10s before opening KYC app for sensor warm-up simulation",
+            "Use residential proxy IP matching document country for geo-coherence",
+        ],
+    }
+
+    if AI_ENGINE:
+        plan["ai_note"] = "AI-enhanced strategy available: POST /api/v1/provider/strategy"
+
+    engine.session_count += 1
+    logger.info(f"[KYC] Depth synthesis for {provider} / {device['name']} / {document_type}")
+    return jsonify(plan)
+
+
+def _get_motion_sequence(liveness_type: str) -> List[Dict]:
+    """Map liveness type to a motion sequence."""
+    sequences = {
+        "head_turn": [
+            {"motion": "head_left", "delay_ms": 0},
+            {"motion": "head_right", "delay_ms": 1500},
+            {"motion": "head_left", "delay_ms": 3000},
+        ],
+        "oval_fit": [
+            {"motion": "head_up", "delay_ms": 0},
+            {"motion": "head_down", "delay_ms": 1200},
+            {"motion": "blink", "delay_ms": 2400},
+        ],
+        "smile_blink": [
+            {"motion": "smile", "delay_ms": 0},
+            {"motion": "blink", "delay_ms": 1000},
+            {"motion": "smile", "delay_ms": 2000},
+        ],
+        "active_liveness": [
+            {"motion": "blink", "delay_ms": 0},
+            {"motion": "mouth_open", "delay_ms": 800},
+            {"motion": "eyebrow_raise", "delay_ms": 1800},
+            {"motion": "nod", "delay_ms": 3000},
+        ],
+        "passive": [
+            {"motion": "blink", "delay_ms": 0},
+        ],
+    }
+    return sequences.get(liveness_type, sequences["passive"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

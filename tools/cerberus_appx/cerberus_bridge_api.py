@@ -742,6 +742,31 @@ def quality_grade():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/v1/hyperswitch/status", methods=["GET"])
+def hyperswitch_status():
+    """Hyperswitch integration status and configuration"""
+    result = {
+        "module_loaded": HYPERSWITCH_OK,
+        "service_reachable": False,
+        "base_url": None,
+        "api_key_set": False,
+        "connectors": [],
+        "routing_algorithm": None,
+    }
+    try:
+        if 'get_hyperswitch_client' in dir():
+            client = get_hyperswitch_client()
+            result["base_url"] = getattr(client, 'base_url', None)
+            result["api_key_set"] = bool(getattr(client, 'api_key', None))
+            result["service_reachable"] = is_hyperswitch_available()
+            if result["service_reachable"]:
+                router = get_hyperswitch_router()
+                result["routing_algorithm"] = getattr(router, 'algorithm', RoutingAlgorithm.PRIORITY).value
+    except Exception as e:
+        result["error"] = str(e)
+    return jsonify(result)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # V2 HYPERSWITCH ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════

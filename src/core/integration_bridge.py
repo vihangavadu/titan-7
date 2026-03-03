@@ -2157,6 +2157,110 @@ class TitanIntegrationBridge:
             except Exception as e:
                 logger.debug(f"  Client Hints shim skipped: {e}")
         
+        # 6. Clipboard paste shim — intercepts paste events on payment/form fields
+        #    Converts Ctrl+V paste into character-by-character typed input to avoid
+        #    paste-detection signals used by Stripe, Kount, and Forter antifraud systems.
+        try:
+            clipboard_shim_js = """
+(function() {
+  'use strict';
+  const PAYMENT_SELECTORS = [
+    'input[autocomplete*="cc-number"]', 'input[autocomplete*="cc-exp"]',
+    'input[autocomplete*="cc-csc"]', 'input[name*="card"]', 'input[name*="cvv"]',
+    'input[name*="cvc"]', 'input[name*="expir"]', 'input[id*="card"]',
+    'input[id*="ccNum"]', 'input[placeholder*="Card"]', 'input[placeholder*="card"]',
+    'input[placeholder*="4111"]', 'input[data-cy*="card"]',
+    '[class*="card-number"]', '[class*="card_number"]',
+  ];
+
+  function simulateTyping(el, text) {
+    el.focus();
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value').set;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const delay = 40 + Math.random() * 80;
+      setTimeout(() => {
+        el.dispatchEvent(new KeyboardEvent('keydown', {key: ch, bubbles: true}));
+        const cur = el.value;
+        nativeInputValueSetter.call(el, cur + ch);
+        el.dispatchEvent(new InputEvent('input', {data: ch, bubbles: true, inputType: 'insertText'}));
+        el.dispatchEvent(new KeyboardEvent('keyup', {key: ch, bubbles: true}));
+      }, i * (40 + Math.random() * 80));
+    }
+    setTimeout(() => el.dispatchEvent(new Event('change', {bubbles: true})), text.length * 90 + 100);
+  }
+
+  function isPaymentField(el) {
+    return PAYMENT_SELECTORS.some(sel => { try { return el.matches(sel); } catch(e) { return false; } });
+  }
+
+  document.addEventListener('paste', function(e) {
+    const el = e.target;
+    if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+    if (!isPaymentField(el)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    if (!text) return;
+    // Clear field first then type
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    setter.call(el, '');
+    el.dispatchEvent(new Event('input', {bubbles: true}));
+    simulateTyping(el, text);
+  }, true);
+})();
+"""
+            page.add_init_script(clipboard_shim_js)
+            shims_injected += 1
+            logger.debug("  ✓ Clipboard paste shim injected (paste→typed conversion)")
+        except Exception as e:
+            logger.debug(f"  Clipboard shim skipped: {e}")
+
+        # 7. Tab focus/blur simulator — periodically blurs and refocuses the page tab
+        #    Simulates human switching between tabs, which antifraud expects to see.
+        try:
+            tab_focus_js = """
+(function() {
+  'use strict';
+  let blurCount = 0;
+  const MAX_BLURS = 3 + Math.floor(Math.random() * 4);
+
+  function scheduleBlur() {
+    if (blurCount >= MAX_BLURS) return;
+    const delay = 45000 + Math.random() * 90000; // 45-135s between blurs
+    setTimeout(() => {
+      blurCount++;
+      // Dispatch visibilitychange + blur events
+      Object.defineProperty(document, 'hidden', {get: () => true, configurable: true});
+      Object.defineProperty(document, 'visibilityState', {get: () => 'hidden', configurable: true});
+      document.dispatchEvent(new Event('visibilitychange', {bubbles: true}));
+      window.dispatchEvent(new Event('blur', {bubbles: false}));
+
+      const holdDuration = 3000 + Math.random() * 15000; // stay "away" 3-18s
+      setTimeout(() => {
+        Object.defineProperty(document, 'hidden', {get: () => false, configurable: true});
+        Object.defineProperty(document, 'visibilityState', {get: () => 'visible', configurable: true});
+        document.dispatchEvent(new Event('visibilitychange', {bubbles: true}));
+        window.dispatchEvent(new Event('focus', {bubbles: false}));
+        scheduleBlur();
+      }, holdDuration);
+    }, delay);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scheduleBlur);
+  } else {
+    scheduleBlur();
+  }
+})();
+"""
+            page.add_init_script(tab_focus_js)
+            shims_injected += 1
+            logger.debug("  ✓ Tab focus/blur simulator injected")
+        except Exception as e:
+            logger.debug(f"  Tab focus/blur shim skipped: {e}")
+
         if shims_injected > 0:
             logger.info(f"  ✓ {shims_injected} fingerprint shims injected into browser")
         else:
@@ -2488,7 +2592,58 @@ class TitanIntegrationBridge:
             logger.debug("  Transaction monitor not available")
         except Exception as e:
             logger.debug(f"  Transaction monitor skipped: {e}")
-        
+
+        # V10: Auto proxy-IP → TZ → locale sync
+        # Detects actual egress IP geo via proxy and reconciles TZ/locale so they match.
+        # This closes a major detection vector: billing state=TX but browser TZ=UTC.
+        try:
+            import json as _json
+            proxy_url = getattr(self.config, 'proxy', None) or \
+                        (self.browser_config.proxy if self.browser_config else None)
+            _geo_url = "https://ipinfo.io/json"
+            _proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+            import urllib.request
+            req = urllib.request.Request(_geo_url, headers={"User-Agent": "curl/7.88"})
+            if _proxies:
+                import urllib.parse as _up
+                p = _up.urlparse(proxy_url)
+                handler = urllib.request.ProxyHandler({p.scheme: proxy_url})
+                opener = urllib.request.build_opener(handler)
+                resp = opener.open(req, timeout=6)
+            else:
+                resp = urllib.request.urlopen(req, timeout=6)
+            geo_data = _json.loads(resp.read().decode())
+            detected_tz = geo_data.get("timezone", "")
+            detected_country = geo_data.get("country", "")
+            detected_region = geo_data.get("region", "")
+            detected_city = geo_data.get("city", "")
+            if detected_tz:
+                import os as _os
+                _os.environ["TZ"] = detected_tz
+                try:
+                    import time as _time
+                    _time.tzset()
+                except AttributeError:
+                    pass
+                logger.info(f"  ✓ IP→TZ sync: proxy IP={geo_data.get('ip','?')} "
+                            f"geo={detected_city},{detected_region},{detected_country} "
+                            f"tz={detected_tz}")
+                # Also update browser config locale to match detected country
+                if self.browser_config and detected_country:
+                    _country_locale = {
+                        "US": "en-US", "GB": "en-GB", "CA": "en-CA", "AU": "en-AU",
+                        "DE": "de-DE", "FR": "fr-FR", "NL": "nl-NL", "SE": "sv-SE",
+                        "JP": "ja-JP", "KR": "ko-KR", "BR": "pt-BR", "MX": "es-MX",
+                        "ES": "es-ES", "IT": "it-IT", "PL": "pl-PL", "RU": "ru-RU",
+                    }
+                    locale = _country_locale.get(detected_country, "en-US")
+                    if hasattr(self.browser_config, 'camoufox_config') and \
+                            self.browser_config.camoufox_config:
+                        self.browser_config.camoufox_config["locale"] = [locale]
+                    logger.debug(f"  ✓ Browser locale set to {locale} based on proxy geo")
+        except Exception as e:
+            logger.debug(f"  IP→TZ auto-sync skipped: {e}")
+
         # Build config
         self.get_browser_config()
         

@@ -524,7 +524,18 @@ class CerberusApp(QMainWindow):
         ai_label.setStyleSheet(f"color: {GREEN if AI_ENGINE else RED}; background: transparent; font-size: 11px;")
         hl.addWidget(ai_label)
 
+        # Bridge API live status indicator
+        self.bridge_status_lbl = QLabel("Bridge: …")
+        self.bridge_status_lbl.setStyleSheet(f"color: {TEXT2}; background: transparent; font-size: 11px; font-weight: bold;")
+        hl.addWidget(self.bridge_status_lbl)
+
         layout.addWidget(header)
+
+        # Poll bridge API every 30 s
+        self._bridge_timer = QTimer(self)
+        self._bridge_timer.timeout.connect(self._poll_bridge_status)
+        self._bridge_timer.start(30_000)
+        QTimer.singleShot(800, self._poll_bridge_status)
 
         # Tabs
         self.tabs = QTabWidget()
@@ -1948,6 +1959,34 @@ class CerberusApp(QMainWindow):
             self.merchant_keys[provider].pop(index)
             _save_keys(self.merchant_keys)
             self._refresh_keys_table()
+
+    def _poll_bridge_status(self):
+        """Poll Cerberus bridge API on port 36300 and update header indicator."""
+        import urllib.request
+        try:
+            req = urllib.request.Request(
+                "http://127.0.0.1:36300/api/v1/health",
+                headers={"User-Agent": "cerberus-app/10.0"}
+            )
+            resp = urllib.request.urlopen(req, timeout=2)
+            data = json.loads(resp.read().decode())
+            if data.get("ok"):
+                version = data.get("version", "")
+                ver_str = f" v{version}" if version else ""
+                self.bridge_status_lbl.setText(f"Bridge: ✓{ver_str}")
+                self.bridge_status_lbl.setStyleSheet(
+                    f"color: {GREEN}; background: transparent; font-size: 11px; font-weight: bold;"
+                )
+            else:
+                self.bridge_status_lbl.setText("Bridge: ⚠")
+                self.bridge_status_lbl.setStyleSheet(
+                    f"color: {YELLOW}; background: transparent; font-size: 11px; font-weight: bold;"
+                )
+        except Exception:
+            self.bridge_status_lbl.setText("Bridge: ✗")
+            self.bridge_status_lbl.setStyleSheet(
+                f"color: {RED}; background: transparent; font-size: 11px; font-weight: bold;"
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

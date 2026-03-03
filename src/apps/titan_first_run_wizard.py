@@ -229,65 +229,124 @@ class FirstRunWizard(QMainWindow):
         # Page 1: Welcome
         p1 = WizardPage(
             "Welcome to Titan X",
-            "Let's get you set up in a few minutes. No coding required."
+            "Let's get you set up in 5 minutes. No coding required."
         )
-        p1.add_info_card("\U0001f512", "Step 1: We'll help you connect your VPN for safety")
-        p1.add_info_card("\U0001f511", "Step 2: Enter your API keys (if you have them)")
-        p1.add_info_card("\U0001f916", "Step 3: Check that the AI engine is ready")
-        p1.add_info_card("\u2705", "Step 4: You're all set — start your first operation!")
+        p1.add_info_card("\U0001f512", "Step 1: Connect your VPN (Mullvad is pre-installed)")
+        p1.add_info_card("\U0001f310", "Step 2: Add your proxy credentials for residential IPs")
+        p1.add_info_card("\U0001f511", "Step 3: Enter your API keys (Groq is free and fast)")
+        p1.add_info_card("\U0001f916", "Step 4: System readiness check — verify everything works")
+        p1.add_info_card("\u2705", "Step 5: You're ready — start your first operation!")
         self._add_page(p1)
 
         # Page 2: VPN
         p2 = WizardPage(
             "VPN Connection",
-            "A VPN protects your real IP address. We recommend Mullvad VPN."
+            "Mullvad VPN is pre-installed. Enter your account number to connect."
         )
-        p2.add_info_card("\U0001f30d", "Mullvad VPN is pre-configured. Just enter your account number.")
-        self.vpn_input = p2.add_input("Mullvad Account Number", "e.g. 1234567890123456")
-        p2.add_info_card("\U0001f4a1", "Don't have Mullvad? You can skip this and set it up later in Settings.")
+        p2.add_info_card("\U0001f30d", "Mullvad is the safest VPN for operations. No logs, no leak.")
+        self.vpn_input = p2.add_input("Mullvad Account Number (16 digits)", "e.g. 1234567890123456")
+
+        self.vpn_test_btn = QPushButton("Test VPN Connection")
+        self.vpn_test_btn.setFont(QFont("Noto Sans", 10))
+        self.vpn_test_btn.setMinimumHeight(40)
+        self.vpn_test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.vpn_test_btn.setStyleSheet(f"""
+            QPushButton {{ background: {GREEN}; color: #0a0e17; border: none;
+                border-radius: 8px; font-weight: bold; padding: 8px 16px; }}
+            QPushButton:hover {{ background: {GREEN}cc; }}
+        """)
+        self.vpn_test_btn.clicked.connect(self._test_vpn)
+        p2.content.addWidget(self.vpn_test_btn)
+
+        self.vpn_status_lbl = QLabel("Status: Not tested")
+        self.vpn_status_lbl.setFont(QFont("DejaVu Sans Mono", 10))
+        self.vpn_status_lbl.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        p2.content.addWidget(self.vpn_status_lbl)
+
+        p2.add_info_card("\U0001f4a1", "No Mullvad? Get one at mullvad.net — from $5/month. Skip and set up later in Settings.")
         self._add_page(p2)
 
-        # Page 3: API Keys
+        # Page 3: Proxy Setup
         p3 = WizardPage(
-            "API Keys (Optional)",
-            "These make the AI features smarter. You can skip and add them later."
+            "Residential Proxy",
+            "A residential proxy makes you look like a real home user to target sites."
         )
-        self.openai_input = p3.add_input("OpenAI API Key", "sk-...", password=True)
-        self.anthropic_input = p3.add_input("Anthropic API Key (optional)", "sk-ant-...", password=True)
-        p3.add_info_card("\U0001f4a1", "No API keys? Titan X will use the local Ollama AI model instead. It's free!")
+        p3.add_info_card("\U0001f3e0", "Residential proxies are REQUIRED for checkout. Datacenter IPs are blocked.")
+        self.proxy_provider_combo = QComboBox()
+        self.proxy_provider_combo.addItems(["brightdata", "oxylabs", "smartproxy", "iproyal", "custom"])
+        self.proxy_provider_combo.setFont(QFont("Noto Sans", 11))
+        self.proxy_provider_combo.setMinimumHeight(44)
+        self.proxy_provider_combo.setStyleSheet(f"""
+            QComboBox {{ background: {BG_CARD}; color: {TEXT_PRIMARY};
+                border: 1px solid #1e293b; border-radius: 8px; padding: 8px 12px; }}
+            QComboBox::drop-down {{ border: none; }}
+            QComboBox QAbstractItemView {{ background: {BG_CARD}; color: {TEXT_PRIMARY}; }}
+        """)
+        p3.content.addWidget(QLabel("Provider:"))
+        p3.content.addWidget(self.proxy_provider_combo)
+
+        self.proxy_user_input = p3.add_input("Proxy Username", "user_abc123")
+        self.proxy_pass_input = p3.add_input("Proxy Password", "••••••••", password=True)
+        p3.add_info_card("\U0001f4a1", "Don't have a proxy? You can skip and add one later in Settings → Proxy tab.")
         self._add_page(p3)
 
-        # Page 4: System Check
+        # Page 4: API Keys
         p4 = WizardPage(
-            "System Check",
-            "Checking that everything is working..."
+            "API Keys",
+            "These power the AI features. Groq is FREE and gives fast inference."
+        )
+        p4.add_info_card("\u26a1", "Groq is FREE (6,000 req/day) — get key at console.groq.com in 30 seconds")
+        self.groq_input = p4.add_input("Groq API Key (FREE — recommended)", "gsk_...", password=True)
+        self.openai_input = p4.add_input("OpenAI API Key (optional)", "sk-...", password=True)
+        self.anthropic_input = p4.add_input("Anthropic API Key (optional)", "sk-ant-...", password=True)
+        self.serpapi_input = p4.add_input("SerpAPI Key (optional — free tier available at serpapi.com)", "", password=True)
+        p4.add_info_card("\U0001f916", "No keys? Titan X uses local Ollama AI (4 models, free, no internet needed)")
+        self._add_page(p4)
+
+        # Page 5: System Check
+        p5 = WizardPage(
+            "System Readiness Check",
+            "Verifying all services are running correctly..."
         )
         self.check_results = QTextEdit()
         self.check_results.setReadOnly(True)
         self.check_results.setFont(QFont("DejaVu Sans Mono", 10))
-        self.check_results.setMinimumHeight(200)
+        self.check_results.setMinimumHeight(260)
         self.check_results.setStyleSheet(f"""
-            QTextEdit {{
-                background: {BG_CARD};
-                color: {TEXT_PRIMARY};
-                border: 1px solid #1e293b;
-                border-radius: 8px;
-                padding: 12px;
-            }}
+            QTextEdit {{ background: {BG_CARD}; color: {TEXT_PRIMARY};
+                border: 1px solid #1e293b; border-radius: 8px; padding: 12px; }}
         """)
-        p4.content.addWidget(self.check_results)
-        self._add_page(p4)
+        p5.content.addWidget(self.check_results)
 
-        # Page 5: Done
-        p5 = WizardPage(
-            "\u2705  You're All Set!",
-            "Titan X is ready to use."
-        )
-        p5.add_info_card("\U0001f3af", "Open OPERATIONS to start your first run")
-        p5.add_info_card("\U0001f9e0", "Use INTELLIGENCE for AI-powered advice")
-        p5.add_info_card("\U0001f527", "Go to SETTINGS anytime to change your configuration")
-        p5.add_info_card("\U0001f41b", "Having problems? Open BUG REPORTER to get auto-fixes")
+        recheck_btn = QPushButton("Re-run Check")
+        recheck_btn.setFont(QFont("Noto Sans", 10))
+        recheck_btn.setMinimumHeight(40)
+        recheck_btn.setStyleSheet(f"""
+            QPushButton {{ background: {ACCENT}44; color: {ACCENT}; border: 1px solid {ACCENT}44;
+                border-radius: 8px; font-weight: bold; padding: 8px 16px; }}
+            QPushButton:hover {{ background: {ACCENT}88; }}
+        """)
+        recheck_btn.clicked.connect(self._run_system_check)
+        p5.content.addWidget(recheck_btn)
+
+        self.readiness_lbl = QLabel("Readiness: checking...")
+        self.readiness_lbl.setFont(QFont("Noto Sans", 14, QFont.Weight.Bold))
+        self.readiness_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.readiness_lbl.setStyleSheet(f"color: {YELLOW};")
+        p5.content.addWidget(self.readiness_lbl)
         self._add_page(p5)
+
+        # Page 6: Done
+        p6 = WizardPage(
+            "\u2705  Titan X is Ready!",
+            "Your system is configured. Here's how to begin."
+        )
+        p6.add_info_card("\u0031\ufe0f\u20e3", "Open OPERATIONS — pick a target, fill card, click RUN FULL OP")
+        p6.add_info_card("\u0032\ufe0f\u20e3", "Connect VPN in NETWORK before every operation")
+        p6.add_info_card("\u0033\ufe0f\u20e3", "Use PROFILE FORGE to create aged browser identities")
+        p6.add_info_card("\u0034\ufe0f\u20e3", "Use CARD VALIDATOR to grade your cards before use")
+        p6.add_info_card("\U0001f41b", "Problems? Open BUG REPORTER for auto-diagnosis and fixes")
+        self._add_page(p6)
 
     def _add_page(self, page):
         self.pages.append(page)
@@ -298,26 +357,26 @@ class FirstRunWizard(QMainWindow):
         self.step_label.setText(f"Step {self.current_page + 1} of {total}")
         self.btn_back.setVisible(self.current_page > 0)
 
+        # Pages 2,3,4 (proxy, API keys) are skippable
+        skippable = {2, 3, 4}
         if self.current_page == total - 1:
-            self.btn_next.setText("Finish")
-        elif self.current_page == 1 or self.current_page == 2:
+            self.btn_next.setText("Start Titan X")
+        elif self.current_page in skippable:
             self.btn_next.setText("Skip / Next")
         else:
             self.btn_next.setText("Next")
 
-        # Progress bar
         pct = (self.current_page + 1) / total
         bar_width = int(self.progress_frame.width() * pct)
         self.progress_bar.setGeometry(0, 0, max(bar_width, 20), 4)
 
     def _next(self):
-        # Save data from current page before advancing
         if self.current_page == 1:
             self._save_vpn()
         elif self.current_page == 2:
-            self._save_api_keys()
+            self._save_proxy()
         elif self.current_page == 3:
-            self._run_system_check()
+            self._save_api_keys()
 
         if self.current_page >= len(self.pages) - 1:
             self._finish()
@@ -327,9 +386,9 @@ class FirstRunWizard(QMainWindow):
         self.stack.setCurrentIndex(self.current_page)
         self._update_nav()
 
-        # Auto-run system check when reaching page 4
-        if self.current_page == 3:
-            QTimer.singleShot(500, self._run_system_check)
+        # Auto-run system check when reaching page 5
+        if self.current_page == 4:
+            QTimer.singleShot(400, self._run_system_check)
 
     def _back(self):
         if self.current_page > 0:
@@ -338,19 +397,64 @@ class FirstRunWizard(QMainWindow):
             self._update_nav()
 
     def _save_vpn(self):
-        """Save VPN account number to titan.env."""
         account = self.vpn_input.text().strip()
-        if account:
-            self._update_env("MULLVAD_ACCOUNT", account)
+        if account and account.isdigit():
+            self._update_env("TITAN_MULLVAD_ACCOUNT", account)
+
+    def _save_proxy(self):
+        provider = self.proxy_provider_combo.currentText()
+        user = self.proxy_user_input.text().strip()
+        passwd = self.proxy_pass_input.text().strip()
+        if user and passwd:
+            self._update_env("TITAN_PROXY_PROVIDER", provider)
+            self._update_env("TITAN_PROXY_USERNAME", user)
+            self._update_env("TITAN_PROXY_PASSWORD", passwd)
 
     def _save_api_keys(self):
-        """Save API keys to titan.env."""
-        openai_key = self.openai_input.text().strip()
-        anthropic_key = self.anthropic_input.text().strip()
-        if openai_key:
-            self._update_env("OPENAI_API_KEY", openai_key)
-        if anthropic_key:
-            self._update_env("ANTHROPIC_API_KEY", anthropic_key)
+        keys = {
+            "TITAN_GROQ_API_KEY": self.groq_input.text().strip(),
+            "TITAN_OPENAI_API_KEY": self.openai_input.text().strip(),
+            "TITAN_ANTHROPIC_API_KEY": self.anthropic_input.text().strip(),
+            "SERPAPI_KEY": self.serpapi_input.text().strip(),
+        }
+        for k, v in keys.items():
+            if v:
+                self._update_env(k, v)
+
+    def _test_vpn(self):
+        account = self.vpn_input.text().strip()
+        if account:
+            self._save_vpn()
+            self.vpn_status_lbl.setText("Status: Connecting...")
+            self.vpn_status_lbl.setStyleSheet(f"color: {YELLOW};")
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["mullvad", "account", "set", account],
+                    capture_output=True, text=True, timeout=10
+                )
+                result2 = subprocess.run(
+                    ["mullvad", "connect"],
+                    capture_output=True, text=True, timeout=15
+                )
+                import time; time.sleep(3)
+                result3 = subprocess.run(
+                    ["mullvad", "status"],
+                    capture_output=True, text=True, timeout=5
+                )
+                out = result3.stdout.strip()
+                if "Connected" in out:
+                    self.vpn_status_lbl.setText(f"Status: Connected — {out}")
+                    self.vpn_status_lbl.setStyleSheet(f"color: {GREEN};")
+                else:
+                    self.vpn_status_lbl.setText(f"Status: {out or 'Connecting...'}")
+                    self.vpn_status_lbl.setStyleSheet(f"color: {YELLOW};")
+            except Exception as e:
+                self.vpn_status_lbl.setText(f"Status: Error — {e}")
+                self.vpn_status_lbl.setStyleSheet(f"color: {RED};")
+        else:
+            self.vpn_status_lbl.setText("Status: Enter account number first")
+            self.vpn_status_lbl.setStyleSheet(f"color: {RED};")
 
     def _update_env(self, key: str, value: str):
         """Update or add a key in titan.env."""
@@ -375,65 +479,136 @@ class FirstRunWizard(QMainWindow):
             pass  # Non-fatal: user can set it manually in Settings
 
     def _run_system_check(self):
-        """Run automated system checks."""
+        """Comprehensive system readiness check with scoring."""
+        import subprocess
         self.check_results.clear()
-        results = []
+        lines = []
+        score = 0
+        max_score = 0
 
-        def log(icon, text):
-            results.append(f"  {icon}  {text}")
-            self.check_results.setPlainText("\n".join(results))
+        def chk(icon, label, ok, points=10, note=""):
+            nonlocal score, max_score
+            max_score += points
+            if ok:
+                score += points
+            sym = "\u2705" if ok else "\u26a0\ufe0f"
+            suffix = f"  ({note})" if note else ""
+            lines.append(f"  {sym}  {label}{suffix}")
+            self.check_results.setPlainText("\n".join(lines))
+            QApplication.processEvents()
 
-        log("\U0001f50d", "Checking core modules...")
+        lines.append("  ══ TITAN X READINESS CHECK ══\n")
+        self.check_results.setPlainText("\n".join(lines))
+        QApplication.processEvents()
+
+        # Core modules
         core_dir = Path(__file__).parent.parent / "core"
-        if core_dir.exists():
-            count = len(list(core_dir.glob("*.py"))) - 1
-            log("\u2705", f"Found {count} core modules")
-        else:
-            log("\u274c", "Core modules directory not found")
+        count = len(list(core_dir.glob("*.py"))) - 1 if core_dir.exists() else 0
+        chk("", f"Core modules: {count}/119", count >= 100, 15)
 
-        log("\U0001f50d", "Checking app scripts...")
+        # App scripts
         apps_dir = Path(__file__).parent
         app_count = len(list(apps_dir.glob("*.py")))
-        log("\u2705", f"Found {app_count} app scripts")
+        chk("", f"App scripts: {app_count}", app_count >= 15, 10)
 
-        log("\U0001f50d", "Checking VPN...")
+        # Kernel module
+        ko_ok = Path("/opt/titan/hardware_shield/titan_hw.ko").exists() or \
+                Path("/opt/titan/kernel-modules/titan_hw.ko").exists()
+        chk("", "Hardware shield (kernel module)", ko_ok, 10, "optional but recommended")
+
+        # Ollama AI service
         try:
-            from mullvad_vpn import get_mullvad_status
-            status = get_mullvad_status()
-            state = status.get("state", "Unknown")
-            if state == "Connected":
-                log("\u2705", f"VPN connected: {status.get('city', 'Unknown')}")
-            else:
-                log("\u26a0\ufe0f", f"VPN: {state} — connect via Network app")
+            r = subprocess.run(["curl", "-s", "--max-time", "3", "http://127.0.0.1:11434/api/tags"],
+                               capture_output=True, text=True)
+            ai_ok = r.returncode == 0 and "models" in r.stdout
+            model_count = r.stdout.count('"name"') if ai_ok else 0
+            chk("", f"Ollama AI: {model_count} models loaded", ai_ok, 15)
         except Exception:
-            log("\u26a0\ufe0f", "VPN module not loaded — configure in Settings")
+            chk("", "Ollama AI service", False, 15, "start via: systemctl start ollama")
 
-        log("\U0001f50d", "Checking AI engine...")
+        # Bridge APIs
+        for bridge_name, port in [("Genesis AppX", 36200), ("Cerberus AppX", 36300), ("KYC AppX", 36400)]:
+            try:
+                r = subprocess.run(["curl", "-s", "--max-time", "2", f"http://127.0.0.1:{port}/health"],
+                                   capture_output=True, text=True)
+                ok = r.returncode == 0 and len(r.stdout) > 2
+                chk("", f"{bridge_name} bridge :{port}", ok, 10)
+            except Exception:
+                chk("", f"{bridge_name} bridge :{port}", False, 10, "auto-starts with titan-services")
+
+        # VPN
         try:
-            from ollama_bridge import LLMLoadBalancer
-            bridge = LLMLoadBalancer()
-            if bridge.is_available():
-                log("\u2705", "Ollama AI engine is online")
-            else:
-                log("\u26a0\ufe0f", "Ollama AI is offline — start via Admin app")
+            r = subprocess.run(["mullvad", "status"], capture_output=True, text=True, timeout=5)
+            connected = "Connected" in r.stdout
+            chk("", f"VPN: {r.stdout.strip()[:60]}", connected, 15,
+                "" if connected else "connect via Network app or Settings")
         except Exception:
-            log("\u26a0\ufe0f", "AI engine not available — optional feature")
+            chk("", "Mullvad VPN", False, 15, "configure in Settings")
 
-        log("\U0001f50d", "Checking branding...")
-        wp = Path("/opt/titan/branding/wallpapers/titan_wallpaper_1080.png")
-        if wp.exists():
-            log("\u2705", "Branding assets installed")
+        # Proxy config
+        env_path = TITAN_ENV
+        proxy_set = False
+        if env_path.exists():
+            content = env_path.read_text()
+            proxy_set = "TITAN_PROXY_USERNAME=" in content and "demo-user" not in content
+        chk("", "Residential proxy configured", proxy_set, 15,
+            "" if proxy_set else "add in Settings → Proxy or re-run wizard")
+
+        # Redis
+        try:
+            r = subprocess.run(["redis-cli", "ping"], capture_output=True, text=True, timeout=3)
+            chk("", "Redis cache", r.stdout.strip() == "PONG", 5)
+        except Exception:
+            chk("", "Redis cache", False, 5, "start: systemctl start redis-server")
+
+        # Waydroid
+        try:
+            r = subprocess.run(["waydroid", "status"], capture_output=True, text=True, timeout=5)
+            wd_ok = "RUNNING" in r.stdout or "running" in r.stdout or "active" in r.stdout
+            chk("", "Waydroid (Android VM)", wd_ok, 5, "needed for KYC mobile flow")
+        except Exception:
+            chk("", "Waydroid", False, 5, "optional — needed for KYC")
+
+        # Camoufox
+        try:
+            from camoufox.sync_api import Camoufox
+            chk("", "Camoufox browser engine", True, 10)
+        except Exception:
+            chk("", "Camoufox browser engine", False, 10, "pip install camoufox")
+
+        pct = int(score / max_score * 100) if max_score > 0 else 0
+        lines.append("")
+        lines.append(f"  ══════════════════════════════")
+        lines.append(f"  READINESS SCORE: {pct}%  ({score}/{max_score} pts)")
+        if pct >= 80:
+            lines.append("  STATUS: OPERATIONAL — ready for live operations")
+            color = GREEN
+        elif pct >= 60:
+            lines.append("  STATUS: DEGRADED — configure optional services for best results")
+            color = YELLOW
         else:
-            log("\u26a0\ufe0f", "Branding assets not found — cosmetic only")
+            lines.append("  STATUS: NOT READY — fix critical items above first")
+            color = RED
+        self.check_results.setPlainText("\n".join(lines))
 
-        log("", "")
-        log("\u2705", "System check complete!")
+        self.readiness_lbl.setText(f"Readiness: {pct}%")
+        self.readiness_lbl.setStyleSheet(f"color: {color};")
 
     def _finish(self):
         """Mark first run as done and close."""
         try:
             FIRST_RUN_FLAG.parent.mkdir(parents=True, exist_ok=True)
             FIRST_RUN_FLAG.write_text("done\n")
+        except Exception:
+            pass
+        # Write system health state file
+        try:
+            import json as _json
+            health_dir = Path("/opt/titan/state")
+            health_dir.mkdir(parents=True, exist_ok=True)
+            (health_dir / "wizard_complete.json").write_text(
+                _json.dumps({"wizard_version": "10.0", "completed": True}, indent=2)
+            )
         except Exception:
             pass
         self.close()

@@ -448,13 +448,46 @@ class TitanLauncher(QMainWindow):
 
         self.content_layout.addWidget(self.grid_widget)
 
-        # ── Health Bar ──
+        # ── Readiness score bar ──
+        self.readiness_frame = QFrame()
+        self.readiness_frame.setStyleSheet(f"""
+            QFrame {{ background: {BG_CARD}; border: 1px solid #1e293b; border-radius: 10px; }}
+        """)
+        rd_layout = QVBoxLayout(self.readiness_frame)
+        rd_layout.setContentsMargins(14, 8, 14, 8)
+        rd_layout.setSpacing(4)
+
+        rd_top = QHBoxLayout()
+        self.readiness_lbl = QLabel("SYSTEM READINESS")
+        self.readiness_lbl.setFont(QFont("Noto Sans", 9, QFont.Weight.Bold))
+        self.readiness_lbl.setStyleSheet(f"color: {TEXT_SECONDARY}; letter-spacing: 1px;")
+        rd_top.addWidget(self.readiness_lbl)
+        rd_top.addStretch()
+        self.readiness_score_lbl = QLabel("Checking...")
+        self.readiness_score_lbl.setFont(QFont("DejaVu Sans Mono", 14, QFont.Weight.Bold))
+        self.readiness_score_lbl.setStyleSheet(f"color: {YELLOW};")
+        rd_top.addWidget(self.readiness_score_lbl)
+        rd_layout.addLayout(rd_top)
+
+        self.readiness_bar = QFrame()
+        self.readiness_bar.setFixedHeight(6)
+        self.readiness_bar.setStyleSheet(f"background: #1e293b; border-radius: 3px;")
+        rd_layout.addWidget(self.readiness_bar)
+
+        self.readiness_fill = QFrame(self.readiness_bar)
+        self.readiness_fill.setGeometry(0, 0, 0, 6)
+        self.readiness_fill.setStyleSheet(f"background: {YELLOW}; border-radius: 3px;")
+
+        self.content_layout.addWidget(self.readiness_frame)
+
+        # ── Health Bar (detail indicators) ──
         self.health = HealthBar()
-        self.health.add_indicator("version", "Version")
-        self.health.add_indicator("modules", "Modules")
-        self.health.add_indicator("services", "Services")
+        self.health.add_indicator("version", "V")
+        self.health.add_indicator("modules", "Mods")
         self.health.add_indicator("vpn", "VPN")
+        self.health.add_indicator("proxy", "Proxy")
         self.health.add_indicator("ai", "AI")
+        self.health.add_indicator("bridges", "Bridges")
         self.content_layout.addWidget(self.health)
 
         # ── Emergency Wipe ──
@@ -534,68 +567,121 @@ class TitanLauncher(QMainWindow):
             )
 
     def _check_health(self):
-        """Run quick health checks."""
+        """Comprehensive health check with readiness score."""
+        import subprocess
+        score = 0
+        max_score = 0
+
+        def chk(points, ok):
+            nonlocal score, max_score
+            max_score += points
+            if ok:
+                score += points
+            return ok
+
         # Version
         try:
-            sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
-            import importlib
-            spec = importlib.util.spec_from_file_location(
-                "core_init",
-                str(Path(__file__).parent.parent / "core" / "__init__.py")
-            )
-            if spec and spec.loader:
-                mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)
-                self.health.set_status("version", mod.__version__, GREEN)
+            core_init = Path(__file__).parent.parent / "core" / "__init__.py"
+            ver = "10.0.0"
+            if core_init.exists():
+                txt = core_init.read_text()
+                import re
+                m = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', txt)
+                if m:
+                    ver = m.group(1)
+            self.health.set_status("version", ver, ACCENT)
         except Exception:
-            self.health.set_status("version", "10.0.0", ACCENT)
+            self.health.set_status("version", "10.0", ACCENT)
 
         # Module count
         core_dir = Path(__file__).parent.parent / "core"
-        if core_dir.exists():
-            py_count = len(list(core_dir.glob("*.py"))) - 1  # minus __init__
-            color = GREEN if py_count >= 70 else YELLOW if py_count >= 50 else RED
-            self.health.set_status("modules", f"{py_count} core", color)
-        else:
-            self.health.set_status("modules", "N/A", RED)
-
-        # Services
-        try:
-            from titan_services import get_services_status
-            status = get_services_status()
-            running = sum(1 for s in status.values() if s.get("running"))
-            self.health.set_status("services", f"{running} running", GREEN if running > 0 else YELLOW)
-        except Exception:
-            self.health.set_status("services", "ready", YELLOW)
+        py_count = len(list(core_dir.glob("*.py"))) - 1 if core_dir.exists() else 0
+        mod_ok = chk(15, py_count >= 100)
+        color = GREEN if py_count >= 100 else YELLOW if py_count >= 70 else RED
+        self.health.set_status("modules", f"{py_count}", color)
 
         # VPN
+        vpn_ok = False
         try:
-            from mullvad_vpn import get_mullvad_status
-            status = get_mullvad_status()
-            state = status.get("state", "Unknown")
-            if state == "Connected":
-                self.health.set_status("vpn", "Connected", GREEN)
-            elif state == "Blocked":
-                self.health.set_status("vpn", "Kill Switch", YELLOW)
+            r = subprocess.run(["mullvad", "status"], capture_output=True, text=True, timeout=4)
+            if "Connected" in r.stdout:
+                self.health.set_status("vpn", "ON", GREEN)
+                vpn_ok = True
+            elif "Blocked" in r.stdout:
+                self.health.set_status("vpn", "Kill", YELLOW)
             else:
-                self.health.set_status("vpn", "Disconnected", RED)
-        except ImportError:
-            self.health.set_status("vpn", "Not loaded", TEXT_SECONDARY)
+                self.health.set_status("vpn", "OFF", RED)
         except Exception:
-            self.health.set_status("vpn", "Error", RED)
+            self.health.set_status("vpn", "—", TEXT_SECONDARY)
+        chk(20, vpn_ok)
 
-        # AI
+        # Proxy config
+        proxy_ok = False
         try:
-            from ollama_bridge import LLMLoadBalancer as OllamaBridge
-            bridge = OllamaBridge()
-            if bridge.is_available():
-                self.health.set_status("ai", "Online", GREEN)
-            else:
-                self.health.set_status("ai", "Offline", YELLOW)
+            env_path = Path.home() / ".titan" / "titan.env"
+            if not env_path.exists():
+                env_path = Path("/opt/titan/config/titan.env")
+            if env_path.exists():
+                content = env_path.read_text()
+                proxy_ok = "TITAN_PROXY_USERNAME=" in content
+            self.health.set_status("proxy", "Set" if proxy_ok else "None",
+                                   GREEN if proxy_ok else RED)
         except Exception:
-            self.health.set_status("ai", "Offline", YELLOW)
+            self.health.set_status("proxy", "?", TEXT_SECONDARY)
+        chk(20, proxy_ok)
 
-        # Set card status badges (all green if script exists)
+        # AI (Ollama)
+        ai_ok = False
+        try:
+            r = subprocess.run(
+                ["curl", "-s", "--max-time", "3", "http://127.0.0.1:11434/api/tags"],
+                capture_output=True, text=True
+            )
+            ai_ok = r.returncode == 0 and "models" in r.stdout
+            model_count = r.stdout.count('"name"') if ai_ok else 0
+            self.health.set_status("ai", f"{model_count}m" if ai_ok else "Off",
+                                   GREEN if ai_ok else YELLOW)
+        except Exception:
+            self.health.set_status("ai", "Off", YELLOW)
+        chk(15, ai_ok)
+
+        # Bridge APIs
+        bridges_up = 0
+        for port in [36200, 36300, 36400]:
+            try:
+                r = subprocess.run(
+                    ["curl", "-s", "--max-time", "2", f"http://127.0.0.1:{port}/health"],
+                    capture_output=True, text=True
+                )
+                if r.returncode == 0 and len(r.stdout) > 2:
+                    bridges_up += 1
+            except Exception:
+                pass
+        chk(10, bridges_up == 3)
+        self.health.set_status("bridges", f"{bridges_up}/3",
+                               GREEN if bridges_up == 3 else YELLOW if bridges_up > 0 else RED)
+
+        # Readiness score bar
+        pct = int(score / max_score * 100) if max_score > 0 else 0
+        bar_color = GREEN if pct >= 80 else YELLOW if pct >= 50 else RED
+        self.readiness_score_lbl.setText(f"{pct}%")
+        self.readiness_score_lbl.setStyleSheet(f"color: {bar_color};")
+        self.readiness_fill.setStyleSheet(f"background: {bar_color}; border-radius: 3px;")
+
+        status_text = (
+            "OPERATIONAL" if pct >= 80 else
+            "CONFIGURE PROXY + VPN" if pct < 50 else
+            "READY (proxy recommended)"
+        )
+        self.readiness_lbl.setText(f"SYSTEM READINESS  —  {status_text}")
+        self.readiness_lbl.setStyleSheet(f"color: {bar_color}; letter-spacing: 1px; font-size: 9px; font-weight: bold;")
+
+        # Update fill width after the bar is shown
+        QTimer.singleShot(100, lambda: self.readiness_fill.setGeometry(
+            0, 0, max(int(self.readiness_bar.width() * pct / 100), 6), 6
+        ))
+
+        # Set card status badges
         for card in self.cards:
             script_path = APPS_DIR / card.script
             card.set_ready(script_path.exists())
