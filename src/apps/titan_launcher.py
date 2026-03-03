@@ -256,12 +256,38 @@ class AppCard(QFrame):
 
     def _launch(self):
         script_path = str(APPS_DIR / self.script)
+
+        # V9.2 FIX: Pass DISPLAY + XAUTHORITY so child processes can connect to X
+        env = QProcess.systemEnvironment()
+        display = os.environ.get("DISPLAY", ":10")
+        xauth = os.environ.get("XAUTHORITY", os.path.expanduser("~/.Xauthority"))
+        pythonpath = ":".join([
+            str(APPS_DIR.parent / "core"),
+            str(APPS_DIR),
+            str(APPS_DIR.parent),
+            "/opt/titan",
+        ])
+        # Update or insert env vars
+        env_dict = {}
+        for item in env:
+            if "=" in item:
+                k, v = item.split("=", 1)
+                env_dict[k] = v
+        env_dict["DISPLAY"] = display
+        env_dict["XAUTHORITY"] = xauth
+        env_dict["PYTHONPATH"] = pythonpath
+        env_dict["QT_QPA_PLATFORM"] = "xcb"
+        env_list = [f"{k}={v}" for k, v in env_dict.items()]
+
+        proc = QProcess()
+        proc.setEnvironment(env_list)
+
         if self.script.endswith(".sh"):
-            QProcess.startDetached("bash", [script_path])
+            proc.startDetached("bash", [script_path])
         elif os.path.exists(script_path):
-            QProcess.startDetached("python3", [script_path])
+            proc.startDetached("python3", [script_path])
         else:
-            QProcess.startDetached(sys.executable, [script_path])
+            proc.startDetached(sys.executable, [script_path])
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

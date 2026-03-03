@@ -127,10 +127,55 @@ echo ""
 
 # Set environment for Electron
 export ELECTRON_DISABLE_SECURITY_WARNINGS=true
-export DISPLAY="${DISPLAY:-:0}"
+
+# V9.2 FIX: Auto-detect active X display and auth cookie
+# Works whether launched from RDP session, SSH, or desktop shortcut
+if [ -z "$DISPLAY" ]; then
+    # Try to find active display from running Xorg
+    for d in 10 1 0 2; do
+        if [ -S "/tmp/.X11-unix/X${d}" ]; then
+            export DISPLAY=":${d}"
+            log "Auto-detected DISPLAY=:${d}"
+            break
+        fi
+    done
+    # Last resort
+    export DISPLAY="${DISPLAY:-:10}"
+fi
+
+if [ -z "$XAUTHORITY" ] || [ ! -f "$XAUTHORITY" ]; then
+    # Try common xauthority locations
+    for xauth_path in "$HOME/.Xauthority" "/root/.Xauthority" "/var/run/xrdp/xauth_${DISPLAY#:}" "/tmp/.xauth_${DISPLAY#:}"; do
+        if [ -f "$xauth_path" ]; then
+            export XAUTHORITY="$xauth_path"
+            log "Using XAUTHORITY: $xauth_path"
+            break
+        fi
+    done
+fi
+
+log "Display: $DISPLAY | XAUTH: ${XAUTHORITY:-none}"
+
+# V9.2 FIX: Software rendering for VPS (no GPU/DRI device)
+# Fixes white/blank screen on headless VPS environments
+export LIBGL_ALWAYS_SOFTWARE=1
+export GALLIUM_DRIVER=llvmpipe
+export MESA_GL_VERSION_OVERRIDE=4.5
+
+# V9.2 FIX: Electron GPU flags for no-GPU VPS
+ML6_FLAGS=(
+    --no-sandbox
+    --disable-gpu
+    --disable-gpu-compositing
+    --disable-software-rasterizer
+    --disable-dev-shm-usage
+    --disable-background-networking
+    --no-first-run
+    --in-process-gpu
+)
 
 # Launch ML6 with Genesis modifications
-"$ML6_DIR/multilogin" --no-sandbox "$@" &
+"$ML6_DIR/multilogin" "${ML6_FLAGS[@]}" "$@" &
 ML6_PID=$!
 
 ok "Genesis AppX launched (PID: $ML6_PID)"

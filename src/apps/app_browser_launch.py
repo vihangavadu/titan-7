@@ -129,6 +129,49 @@ except ImportError:
     FSB_OK = False
 
 
+class _BrowserLaunchThread(QThread):
+    """V9.2: Run Camoufox in background thread — keeps GUI responsive."""
+    status = pyqtSignal(str)
+
+    def __init__(self, cf_kwargs: dict, target_url: str, env: dict, parent=None):
+        super().__init__(parent)
+        self.cf_kwargs = cf_kwargs
+        self.target_url = target_url
+        self.env = env
+
+    def run(self):
+        # Apply display env before launching
+        import os
+        for k, v in self.env.items():
+            os.environ[k] = v
+
+        try:
+            from camoufox.sync_api import Camoufox
+            self.status.emit("  Camoufox starting (this may take 5-10s)...")
+            with Camoufox(**self.cf_kwargs) as browser:
+                page = browser.new_page()
+                self.status.emit(f"  Browser open — navigating to {self.target_url}")
+                page.goto(self.target_url, wait_until="domcontentloaded", timeout=30000)
+                title = page.title()
+                self.status.emit(f"  Page loaded: {title!r}")
+                self.status.emit("  Browser active — close window to end session.")
+                # Keep thread alive while browser window is open
+                browser.pages  # keep context alive
+                import time
+                while len(browser.contexts) > 0:
+                    try:
+                        # Check if any page still open
+                        all_pages = [p for ctx in browser.contexts for p in ctx.pages]
+                        if not all_pages:
+                            break
+                        time.sleep(1)
+                    except Exception:
+                        break
+            self.status.emit("  Browser session ended.")
+        except Exception as e:
+            self.status.emit(f"  Browser error: {e}")
+
+
 class PreflightWorker(QThread):
     finished = pyqtSignal(dict)
 
@@ -545,27 +588,102 @@ class TitanBrowserLaunch(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
 
-        if reply == QMessageBox.StandardButton.Yes:
-            self.preflight_output.appendPlainText("\nLaunching browser...")
-            if SESSION_OK:
-                try:
-                    update_session(
-                        current_target=target,
-                        active_profile_path=profile,
-                        browser_launched=datetime.now().isoformat(),
-                    )
-                except Exception:
-                    pass
+        if reply != QMessageBox.StandardButton.Yes:
+            return
 
-            if BRIDGE_OK:
+        self.preflight_output.appendPlainText("\nLaunching browser...")
+
+        if SESSION_OK:
+            try:
+                update_session(
+                    current_target=target,
+                    active_profile_path=profile,
+                    browser_launched=datetime.now().isoformat(),
+                )
+            except Exception:
+                pass
+
+        # V9.2 FIX: Actually launch Camoufox browser process
+        # Build target URL
+        if target and not target.startswith("http"):
+            target_url = f"https://{target}"
+        else:
+            target_url = target or "about:blank"
+
+        # Set up display env for VPS (no GPU — use software rendering)
+        display = os.environ.get("DISPLAY", ":10")
+        xauth = os.environ.get("XAUTHORITY", os.path.expanduser("~/.Xauthority"))
+
+        launch_env = os.environ.copy()
+        launch_env["DISPLAY"] = display
+        launch_env["XAUTHORITY"] = xauth
+        # Force software rendering on VPS (no GPU/DRI)
+        launch_env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+        launch_env["MOZ_DISABLE_GPU_SANDBOX"] = "1"
+        launch_env["MOZ_HEADLESS"] = "0"
+
+        # Try Camoufox Python API first (preferred — applies FP config)
+        try:
+            from camoufox.sync_api import Camoufox
+
+            self.preflight_output.appendPlainText("Starting Camoufox via Python API...")
+
+            # Build kwargs — headless=False for headed mode on VPS display
+            cf_kwargs = {
+                "headless": False,
+                "humanize": True,
+                "block_webrtc": True,
+            }
+
+            # Apply profile config if bridge available
+            if BRIDGE_OK and os.path.isdir(profile):
                 try:
                     bridge = create_bridge(profile_uuid=os.path.basename(profile))
                     bridge.initialize()
-                    self.preflight_output.appendPlainText("Bridge initialized — launching browser...")
+                    cfg = bridge.get_browser_config()
+                    if cfg and cfg.camoufox_config:
+                        cf_kwargs["config"] = cfg.camoufox_config
+                    if cfg and cfg.proxy:
+                        cf_kwargs["proxy"] = {"server": cfg.proxy}
+                    self.preflight_output.appendPlainText("  Profile config applied from bridge.")
                 except Exception as e:
-                    self.preflight_output.appendPlainText(f"Bridge error: {e}")
-            else:
-                self.preflight_output.appendPlainText("Bridge not available — manual launch required")
+                    self.preflight_output.appendPlainText(f"  Bridge config skipped: {e}")
+
+            # Launch in detached thread so GUI stays responsive
+            self._browser_thread = _BrowserLaunchThread(
+                cf_kwargs, target_url, launch_env
+            )
+            self._browser_thread.status.connect(self.preflight_output.appendPlainText)
+            self._browser_thread.start()
+            return
+
+        except ImportError:
+            self.preflight_output.appendPlainText("Camoufox API unavailable — using binary fallback")
+        except Exception as e:
+            self.preflight_output.appendPlainText(f"Camoufox API error: {e} — using binary fallback")
+
+        # Fallback: launch camoufox binary directly via subprocess
+        import shutil
+        camoufox_bin = (
+            shutil.which("camoufox")
+            or "/root/.cache/camoufox/camoufox"
+            or "/usr/local/bin/camoufox"
+        )
+        if not os.path.exists(camoufox_bin or ""):
+            camoufox_bin = shutil.which("firefox-esr") or shutil.which("firefox") or "firefox"
+
+        cmd = [camoufox_bin, "--no-remote", "--new-instance"]
+        if os.path.isdir(profile):
+            cmd += ["--profile", profile]
+        if target_url and target_url != "about:blank":
+            cmd.append(target_url)
+
+        try:
+            subprocess.Popen(cmd, env=launch_env, start_new_session=True)
+            self.preflight_output.appendPlainText(f"Browser launched: {camoufox_bin}")
+        except Exception as e:
+            self.preflight_output.appendPlainText(f"Launch failed: {e}")
+            QMessageBox.critical(self, "Launch Error", f"Failed to start browser:\n{e}")
 
     def _decode_decline(self):
         code = self.decline_input.text().strip()

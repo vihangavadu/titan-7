@@ -2023,6 +2023,14 @@ class TitanIntegrationBridge:
         logger.info(f"  Target: {target_url or 'None'}")
         logger.info("=" * 60)
         
+        # V9.2 FIX: Ensure DISPLAY + software rendering set for VPS (no GPU)
+        _display = os.environ.get('DISPLAY', ':10')
+        _xauth = os.environ.get('XAUTHORITY', os.path.expanduser('~/.Xauthority'))
+        os.environ.setdefault('DISPLAY', _display)
+        os.environ.setdefault('XAUTHORITY', _xauth)
+        os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+        os.environ.setdefault('MOZ_DISABLE_GPU_SANDBOX', '1')
+
         try:
             # Try Camoufox first
             from camoufox.sync_api import Camoufox
@@ -2161,20 +2169,28 @@ class TitanIntegrationBridge:
         
         config = self.browser_config
         # V7.5 FIX: Try camoufox binary first (Titan OS uses Camoufox, not stock Firefox)
-        browser_bin = shutil.which("camoufox") or "/opt/camoufox/camoufox"
-        if not os.path.exists(browser_bin):
+        browser_bin = shutil.which("camoufox") or "/root/.cache/camoufox/camoufox" or "/opt/camoufox/camoufox"
+        if not os.path.exists(browser_bin or ""):
             browser_bin = shutil.which("firefox-esr") or shutil.which("firefox") or "firefox"
         
         cmd = [
             browser_bin,
+            "--no-remote", "--new-instance",
             "--profile", str(config.profile_path)
         ]
         
         if target_url:
             cmd.append(target_url)
+
+        # V9.2 FIX: Merge display + software rendering env into launch env
+        launch_env = dict(config.environment) if config.environment else os.environ.copy()
+        launch_env.setdefault('DISPLAY', os.environ.get('DISPLAY', ':10'))
+        launch_env.setdefault('XAUTHORITY', os.environ.get('XAUTHORITY', os.path.expanduser('~/.Xauthority')))
+        launch_env.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+        launch_env.setdefault('MOZ_DISABLE_GPU_SANDBOX', '1')
         
         try:
-            subprocess.Popen(cmd, env=config.environment, start_new_session=True)
+            subprocess.Popen(cmd, env=launch_env, start_new_session=True)
             logger.info("Firefox launched with profile")
             return True
         except Exception as e:
